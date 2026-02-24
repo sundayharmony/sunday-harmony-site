@@ -53,6 +53,12 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
+            <Link
+              href="/login"
+              className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-green transition-colors"
+            >
+              Client Login
+            </Link>
             <a
               href="#contact"
               className="px-6 py-2.5 rounded-md bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold font-semibold text-[13px] hover:bg-[rgba(201,169,110,0.2)] transition-all"
@@ -87,6 +93,13 @@ export default function Navbar() {
               {link.label}
             </a>
           ))}
+          <Link
+            href="/login"
+            onClick={closeMobile}
+            className="text-lg font-medium text-brand-green py-4 border-b border-brand-border"
+          >
+            Client Login
+          </Link>
           <a
             href="#contact"
             onClick={closeMobile}
