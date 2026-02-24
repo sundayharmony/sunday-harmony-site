@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { DM_Sans, Playfair_Display } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import '@/styles/globals.css'
 
@@ -45,6 +46,7 @@ export default function RootLayout({
     <html lang="en" className={`${dmSans.variable} ${playfair.variable}`}>
       <body className="font-sans">
         {children}
+        <Analytics />
         <SpeedInsights />
       </body>
     </html>
