@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { createLead } from '@/lib/db'
 
 // POST /api/contact
 // Receives form data and sends email notification
@@ -73,8 +74,18 @@ export async function POST(req: NextRequest) {
       console.log('ℹ️ SMTP not configured — email notification skipped. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local')
     }
 
-    // TODO: You can also save to a database here
-    // await db.leads.create({ data: submission })
+    // Save lead to database
+    createLead({
+      firstName,
+      lastName: lastName || '',
+      email,
+      phone: body.phone,
+      business,
+      industry: body.industry,
+      service,
+      budget: body.budget,
+      message,
+    })
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })
   } catch (error) {
