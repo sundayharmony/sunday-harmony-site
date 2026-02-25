@@ -74,11 +74,11 @@ export async function POST(req: NextRequest) {
       console.log('ℹ️ SMTP not configured — email notification skipped. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local')
     }
 
-    // Save lead to database (wrapped in try/catch for Vercel's read-only filesystem)
+    // Save lead to database
     try {
-      createLead({
-        firstName,
-        lastName: lastName || '',
+      await createLead({
+        first_name: firstName,
+        last_name: lastName || '',
         email,
         phone: body.phone,
         business,
