@@ -4,13 +4,22 @@ import crypto from 'crypto'
 
 // ══════════════════════════════════════════════════════════
 // JSON File Database
-// Simple file-based storage — easy to migrate to Prisma later
+// Uses /tmp on Vercel (serverless, read-only filesystem)
+// Uses ./data locally for persistence during dev
+// Easy to migrate to Prisma + a real DB later
 // ══════════════════════════════════════════════════════════
 
-const DATA_DIR = path.join(process.cwd(), 'data')
+const IS_VERCEL = process.env.VERCEL === '1' || !!process.env.VERCEL_URL
+const DATA_DIR = IS_VERCEL
+  ? path.join('/tmp', 'sh-data')
+  : path.join(process.cwd(), 'data')
 
 function ensureDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  } catch (err) {
+    console.error('Failed to create data directory:', err)
+  }
 }
 
 function readFile<T>(filename: string, fallback: T): T {
@@ -27,7 +36,11 @@ function readFile<T>(filename: string, fallback: T): T {
 function writeFile<T>(filename: string, data: T): void {
   ensureDir()
   const filepath = path.join(DATA_DIR, filename)
-  fs.writeFileSync(filepath, JSON.stringify(data, null, 2))
+  try {
+    fs.writeFileSync(filepath, JSON.stringify(data, null, 2))
+  } catch (err) {
+    console.error(`Failed to write ${filename}:`, err)
+  }
 }
 
 // ══════════ PASSWORD HASHING (simple, no bcrypt dependency) ══════════
@@ -239,16 +252,20 @@ export function updateAdminData(updates: Partial<AdminData>): AdminData {
 
 // ══════════ SEED DEFAULT ADMIN ══════════
 export function seedAdmin() {
-  const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
-  const adminPass = process.env.ADMIN_PASSWORD || 'sundayharmony2025'
-  const existing = getUserByEmail(adminEmail)
-  if (!existing) {
-    createUser({
-      email: adminEmail,
-      password: adminPass,
-      name: 'Mac Cesar',
-      role: 'admin',
-    })
-    console.log(`✅ Admin account created: ${adminEmail}`)
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
+    const adminPass = process.env.ADMIN_PASSWORD || 'sundayharmony2025'
+    const existing = getUserByEmail(adminEmail)
+    if (!existing) {
+      createUser({
+        email: adminEmail,
+        password: adminPass,
+        name: 'Mac Cesar',
+        role: 'admin',
+      })
+      console.log('Admin account created:', adminEmail)
+    }
+  } catch (err) {
+    console.error('Failed to seed admin:', err)
   }
 }
