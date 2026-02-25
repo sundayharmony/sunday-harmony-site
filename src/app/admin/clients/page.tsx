@@ -23,11 +23,28 @@ const tierPrices: Record<string, number> = {
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [selected, setSelected] = useState<Client | null>(null)
   const [form, setForm] = useState({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '' })
+  const [notes, setNotes] = useState('')
+  const [newDeliverable, setNewDeliverable] = useState('')
+  const [newQuickWin, setNewQuickWin] = useState('')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/clients').then(r => r.json()).then(setClients)
   }, [])
+
+  const updateClient = async (id: string, updates: Record<string, unknown>) => {
+    const res = await fetch('/api/admin/clients', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    })
+    const updated = await res.json()
+    setClients(prev => prev.map(c => c.id === id ? updated : c))
+    if (selected?.id === id) setSelected(updated)
+    return updated
+  }
 
   const addClient = async () => {
     const res = await fetch('/api/admin/clients', {
@@ -41,22 +58,52 @@ export default function ClientsPage() {
     setForm({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '' })
   }
 
-  const updateStatus = async (id: string, status: string) => {
-    const res = await fetch('/api/admin/clients', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    })
-    const updated = await res.json()
-    setClients(prev => prev.map(c => c.id === id ? updated : c))
+  const addDeliverable = async () => {
+    if (!selected || !newDeliverable.trim()) return
+    const updated = [...(selected.deliverables || []), newDeliverable.trim()]
+    await updateClient(selected.id, { deliverables: updated })
+    setNewDeliverable('')
+  }
+
+  const removeDeliverable = async (index: number) => {
+    if (!selected) return
+    const updated = selected.deliverables.filter((_, i) => i !== index)
+    await updateClient(selected.id, { deliverables: updated })
+  }
+
+  const addQuickWin = async () => {
+    if (!selected || !newQuickWin.trim()) return
+    const updated = [...(selected.quick_wins || []), { text: newQuickWin.trim(), done: false }]
+    await updateClient(selected.id, { quick_wins: updated })
+    setNewQuickWin('')
+  }
+
+  const toggleQuickWin = async (index: number) => {
+    if (!selected) return
+    const updated = selected.quick_wins.map((w, i) => i === index ? { ...w, done: !w.done } : w)
+    await updateClient(selected.id, { quick_wins: updated })
+  }
+
+  const removeQuickWin = async (index: number) => {
+    if (!selected) return
+    const updated = selected.quick_wins.filter((_, i) => i !== index)
+    await updateClient(selected.id, { quick_wins: updated })
   }
 
   const active = clients.filter(c => c.status === 'active')
   const mrr = active.reduce((s, c) => s + c.monthly_price, 0)
 
+  const filtered = search.trim()
+    ? clients.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.business.toLowerCase().includes(search.toLowerCase()) ||
+        c.email.toLowerCase().includes(search.toLowerCase())
+      )
+    : clients
+
   return (
     <div>
-      <div className="flex justify-between items-start mb-8">
+      <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Clients</h1>
           <p className="text-sm text-brand-muted">{active.length} active &bull; ${mrr.toLocaleString()}/mo MRR</p>
@@ -67,6 +114,17 @@ export default function ClientsPage() {
         >
           + Add Client
         </button>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search clients by name, business, or email..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full py-2.5 px-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] placeholder:text-brand-dim"
+        />
       </div>
 
       {/* New Client Form */}
@@ -122,45 +180,178 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Client List */}
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
-        {clients.length === 0 ? (
-          <div className="p-8 text-center text-brand-dim text-sm">
-            No clients yet. Add your first client above or convert a lead from the Leads page.
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                {['Client', 'Business', 'Package', 'Monthly', 'Status', 'Since', 'Actions'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {clients.map(client => (
-                <tr key={client.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)]">
-                  <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
-                  <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                  <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
-                  <td className="px-4 py-3 text-sm text-brand-text">${client.monthly_price.toLocaleString()}</td>
-                  <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
-                  <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.start_date).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={client.status}
-                      onChange={e => updateStatus(client.id, e.target.value)}
-                      className="bg-transparent border border-[rgba(255,255,255,0.06)] rounded px-2 py-1 text-xs text-brand-muted outline-none"
-                    >
-                      <option value="active">Active</option>
-                      <option value="paused">Paused</option>
-                      <option value="churned">Churned</option>
-                    </select>
-                  </td>
+      <div className={`grid ${selected ? 'grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
+        {/* Client Table */}
+        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-brand-dim text-sm">
+              {search ? 'No clients match your search.' : 'No clients yet. Add your first client above.'}
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[rgba(255,255,255,0.06)]">
+                  {['Client', 'Business', 'Package', 'Monthly', 'Status', 'Since'].map(h => (
+                    <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map(client => (
+                  <tr
+                    key={client.id}
+                    onClick={() => { setSelected(client); setNotes(client.notes || '') }}
+                    className={`border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
+                      selected?.id === client.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
+                    <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
+                    <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
+                    <td className="px-4 py-3 text-sm text-brand-text">${client.monthly_price.toLocaleString()}</td>
+                    <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
+                    <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.start_date).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Client Detail Panel */}
+        {selected && (
+          <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5 overflow-y-auto max-h-[calc(100vh-12rem)]">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-brand-text">{selected.name}</h3>
+                <div className="text-sm text-brand-muted">{selected.business}</div>
+              </div>
+              <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">✕</button>
+            </div>
+
+            {/* Status */}
+            <div className="mb-4">
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Status</div>
+              <div className="flex gap-1.5">
+                {['active', 'paused', 'churned'].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => updateClient(selected.id, { status: s })}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
+                      selected.status === s
+                        ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]'
+                        : 'bg-[rgba(255,255,255,0.03)] text-brand-dim border border-[rgba(255,255,255,0.06)] hover:text-brand-text'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="space-y-2 mb-4">
+              {[
+                ['Email', selected.email],
+                ['Phone', selected.phone],
+                ['Industry', selected.industry],
+                ['Package', tierLabels[selected.package_tier]],
+              ].map(([label, val]) => val ? (
+                <div key={label as string}>
+                  <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{label}</div>
+                  <div className="text-sm text-brand-text">{val}</div>
+                </div>
+              ) : null)}
+            </div>
+
+            {/* Deliverables */}
+            <div className="mb-4">
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Deliverables</div>
+              {selected.deliverables && selected.deliverables.length > 0 ? (
+                <div className="space-y-1.5 mb-2">
+                  {selected.deliverables.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.1)]">
+                      <span className="text-sm text-brand-text flex items-center gap-2">
+                        <span className="text-brand-gold text-xs">◈</span> {d}
+                      </span>
+                      <button onClick={() => removeDeliverable(i)} className="text-brand-dim hover:text-brand-red text-xs">✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-brand-dim mb-2">No deliverables set.</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newDeliverable}
+                  onChange={e => setNewDeliverable(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addDeliverable()}
+                  placeholder="Add deliverable..."
+                  className="flex-1 py-1.5 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-xs outline-none focus:border-[rgba(201,169,110,0.3)]"
+                />
+                <button onClick={addDeliverable} className="px-3 py-1.5 rounded-lg bg-[rgba(201,169,110,0.12)] text-brand-gold text-xs font-semibold">+</button>
+              </div>
+            </div>
+
+            {/* Quick Wins */}
+            <div className="mb-4">
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Quick Wins</div>
+              {selected.quick_wins && selected.quick_wins.length > 0 ? (
+                <div className="space-y-1.5 mb-2">
+                  {selected.quick_wins.map((w, i) => (
+                    <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${
+                      w.done
+                        ? 'bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)]'
+                        : 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]'
+                    }`}>
+                      <button
+                        onClick={() => toggleQuickWin(i)}
+                        className={`flex items-center gap-2 text-sm ${w.done ? 'text-brand-muted line-through' : 'text-brand-text'}`}
+                      >
+                        <span className={w.done ? 'text-brand-green' : 'text-brand-dim'}>
+                          {w.done ? '✓' : '○'}
+                        </span>
+                        {w.text}
+                      </button>
+                      <button onClick={() => removeQuickWin(i)} className="text-brand-dim hover:text-brand-red text-xs">✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-brand-dim mb-2">No quick wins set.</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newQuickWin}
+                  onChange={e => setNewQuickWin(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addQuickWin()}
+                  placeholder="Add quick win..."
+                  className="flex-1 py-1.5 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-xs outline-none focus:border-[rgba(201,169,110,0.3)]"
+                />
+                <button onClick={addQuickWin} className="px-3 py-1.5 rounded-lg bg-[rgba(74,158,125,0.12)] text-brand-green text-xs font-semibold">+</button>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Notes</div>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Add notes about this client..."
+                rows={3}
+                className="w-full py-2 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] resize-y"
+              />
+              <button
+                onClick={() => updateClient(selected.id, { notes })}
+                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold text-xs font-semibold hover:bg-[rgba(201,169,110,0.2)] transition-all"
+              >
+                Save Notes
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
