@@ -37,7 +37,7 @@ export async function getUsers(): Promise<User[]> {
 }
 
 export async function getUserByEmail(email: string): Promise<User | undefined> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('users')
     .select('*')
     .ilike('email', email)
@@ -59,7 +59,7 @@ export async function createUser(userData: {
   role: 'admin' | 'client'
   client_id?: string
 }): Promise<User | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('users')
     .insert({
       email: userData.email,
@@ -122,7 +122,7 @@ export async function createLead(leadData: {
   budget?: string
   message?: string
 }): Promise<Lead | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('leads')
     .insert({
       first_name: leadData.first_name,
@@ -242,7 +242,7 @@ export async function getAdminData(): Promise<AdminData> {
 export async function updateAdminData(updates: Partial<AdminData>): Promise<AdminData> {
   const current = await getAdminData()
   const merged = { ...current, ...updates }
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('admin_data')
     .update(merged)
     .eq('id', 'singleton')
