@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json([])
   }
 
-  const messages = getMessages(clientId)
+  const messages = await getMessages(clientId)
   return NextResponse.json(messages)
 }
 
@@ -34,10 +34,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Message text required' }, { status: 400 })
   }
 
-  const message = createMessage({
-    clientId,
-    fromRole: 'client',
-    fromName: session.user.name || 'Client',
+  const message = await createMessage({
+    client_id: clientId,
+    from_role: 'client',
+    from_name: session.user.name || 'Client',
     text: text.trim(),
   })
 
