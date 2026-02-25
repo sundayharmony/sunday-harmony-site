@@ -143,9 +143,9 @@ export default function ClientsPage() {
                   <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
                   <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
                   <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
-                  <td className="px-4 py-3 text-sm text-brand-text">${client.monthlyPrice.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-brand-text">${client.monthly_price.toLocaleString()}</td>
                   <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
-                  <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.startDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.start_date).toLocaleDateString()}</td>
                   <td className="px-4 py-3">
                     <select
                       value={client.status}

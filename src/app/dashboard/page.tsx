@@ -8,20 +8,20 @@ interface ClientData {
   id: string
   name: string
   business: string
-  packageTier: string
-  monthlyPrice: number
-  startDate: string
+  package_tier: string
+  monthly_price: number
+  start_date: string
   status: string
   deliverables: string[]
-  quickWins: { text: string; done: boolean }[]
+  quick_wins: { text: string; done: boolean }[]
 }
 
 interface MessageData {
   id: string
-  fromRole: string
-  fromName: string
+  from_role: string
+  from_name: string
   text: string
-  createdAt: string
+  created_at: string
 }
 
 const tierLabels: Record<string, string> = {
