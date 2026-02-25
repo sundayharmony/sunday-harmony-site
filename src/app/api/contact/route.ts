@@ -74,18 +74,22 @@ export async function POST(req: NextRequest) {
       console.log('ℹ️ SMTP not configured — email notification skipped. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local')
     }
 
-    // Save lead to database
-    createLead({
-      firstName,
-      lastName: lastName || '',
-      email,
-      phone: body.phone,
-      business,
-      industry: body.industry,
-      service,
-      budget: body.budget,
-      message,
-    })
+    // Save lead to database (wrapped in try/catch for Vercel's read-only filesystem)
+    try {
+      createLead({
+        firstName,
+        lastName: lastName || '',
+        email,
+        phone: body.phone,
+        business,
+        industry: body.industry,
+        service,
+        budget: body.budget,
+        message,
+      })
+    } catch (dbErr) {
+      console.error('Failed to save lead to DB (email was still sent):', dbErr)
+    }
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })
   } catch (error) {
