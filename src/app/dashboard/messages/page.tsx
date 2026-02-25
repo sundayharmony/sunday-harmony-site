@@ -90,7 +90,7 @@ export default function MessagesPage() {
         ) : (
           <div className="space-y-3">
             {messages.map((msg) => {
-              const isClient = msg.fromRole === 'client'
+              const isClient = msg.from_role === 'client'
               return (
                 <div
                   key={msg.id}
@@ -105,7 +105,7 @@ export default function MessagesPage() {
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-xs font-bold ${isClient ? 'text-brand-green' : 'text-brand-gold'}`}>
-                        {msg.fromName}
+                        {msg.from_name}
                       </span>
                       <span className="text-[10px] text-brand-dim">
                         {new Date(msg.createdAt).toLocaleString('en-US', {
