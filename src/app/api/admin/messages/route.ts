@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const clientId = searchParams.get('clientId')
 
-  const messages = clientId ? getMessages(clientId) : getMessages()
+  const messages = clientId ? await getMessages(clientId) : await getMessages()
   return NextResponse.json(messages)
 }
 
@@ -27,10 +27,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'clientId and text required' }, { status: 400 })
   }
 
-  const message = createMessage({
-    clientId,
-    fromRole: 'admin',
-    fromName: session.user.name || 'Sunday Harmony',
+  const message = await createMessage({
+    client_id: clientId,
+    from_role: 'admin',
+    from_name: session.user.name || 'Sunday Harmony',
     text: text.trim(),
   })
 
