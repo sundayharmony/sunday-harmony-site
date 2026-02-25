@@ -137,7 +137,7 @@ export default function DashboardHome() {
             />
           </div>
 
-          {client?.quickWins && client.quick_wins.length > 0 ? (
+          {client?.quick_wins && client.quick_wins.length > 0 ? (
             <div className="space-y-2">
               {client.quick_wins.map((win, i) => (
                 <div
