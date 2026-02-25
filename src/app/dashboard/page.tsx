@@ -93,7 +93,7 @@ export default function DashboardHome() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Your Package"
           value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
@@ -116,7 +116,7 @@ export default function DashboardHome() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Quick Wins Progress */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
