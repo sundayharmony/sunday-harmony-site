@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 interface Lead {
-  id: string; firstName: string; lastName: string; email: string; phone?: string
+  id: string; first_name: string; last_name: string; email: string; phone?: string
   business: string; industry?: string; service?: string; budget?: string; message?: string
-  status: string; notes: string; createdAt: string
+  status: string; notes: string; created_at: string
 }
 
 const statuses = ['new', 'contacted', 'audit_sent', 'proposal', 'won', 'lost']
@@ -76,7 +76,7 @@ export default function LeadsPage() {
                       selected?.id === lead.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
                     }`}
                   >
-                    <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.firstName} {lead.lastName}</td>
+                    <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.lastName}</td>
                     <td className="px-4 py-3 text-sm text-brand-muted">{lead.business}</td>
                     <td className="px-4 py-3 text-xs text-brand-dim">{lead.service || '—'}</td>
                     <td className="px-4 py-3"><StatusBadge status={lead.status} /></td>
