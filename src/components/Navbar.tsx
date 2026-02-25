@@ -57,7 +57,7 @@ export default function Navbar() {
               href="/login"
               className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-green transition-colors"
             >
-              Client Login
+              Login
             </Link>
             <a
               href="#contact"
@@ -98,7 +98,7 @@ export default function Navbar() {
             onClick={closeMobile}
             className="text-lg font-medium text-brand-green py-4 border-b border-brand-border"
           >
-            Client Login
+            Login
           </Link>
           <a
             href="#contact"

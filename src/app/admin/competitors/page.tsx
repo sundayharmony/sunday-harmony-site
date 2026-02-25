@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { competitors, vulnerabilities } from '@/lib/toolkit-data'
+import { competitors, vulnerabilities, positioningCanvas } from '@/lib/toolkit-data'
 
 const threatColor = { high: 'text-brand-red', medium: 'text-brand-gold', low: 'text-brand-green' }
 const threatBg = { high: 'bg-[rgba(212,86,78,0.15)]', medium: 'bg-[rgba(201,169,110,0.15)]', low: 'bg-[rgba(74,158,125,0.15)]' }
 const priorityColor = { critical: 'text-brand-red', high: 'text-brand-gold', medium: 'text-brand-blue' }
 
 export default function CompetitorsPage() {
-  const [tab, setTab] = useState<'landscape' | 'gaps'>('landscape')
+  const [tab, setTab] = useState<'landscape' | 'gaps' | 'positioning'>('landscape')
   const [selected, setSelected] = useState(0)
+  const [canvasValues, setCanvasValues] = useState<Record<string, string>>({})
 
   const c = competitors[selected]
 
@@ -17,12 +18,12 @@ export default function CompetitorsPage() {
     <div>
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Competitive Analysis</h1>
-        <p className="text-sm text-brand-muted">Map the NJ landscape and find your positioning advantage.</p>
+        <p className="text-sm text-brand-muted">Map the NJ landscape, find gaps, and define your positioning.</p>
       </div>
 
       <div className="flex gap-2 mb-6">
-        {[['landscape', 'Competitors'], ['gaps', 'Market Gaps']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key as typeof tab)}
+        {([['landscape', 'Competitors'], ['gaps', 'Market Gaps'], ['positioning', 'Positioning Canvas']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${tab === key ? 'bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold' : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted'}`}>
             {label}
           </button>
@@ -31,7 +32,6 @@ export default function CompetitorsPage() {
 
       {tab === 'landscape' && (
         <div className="grid grid-cols-[200px_1fr] gap-6">
-          {/* Competitor List */}
           <div className="space-y-2">
             {competitors.map((comp, i) => (
               <button key={i} onClick={() => setSelected(i)}
@@ -47,7 +47,6 @@ export default function CompetitorsPage() {
             ))}
           </div>
 
-          {/* Detail */}
           <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-6">
             <div className="flex justify-between items-start mb-4">
               <div>
@@ -110,6 +109,44 @@ export default function CompetitorsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'positioning' && (
+        <div>
+          <div className="bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-4 mb-6">
+            <div className="text-sm font-bold text-brand-gold mb-1">Positioning Canvas</div>
+            <p className="text-xs text-brand-muted">
+              Fill this out to crystallize your unique position in the market. Use what you learned from your research, competitor analysis, and customer interviews.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {positioningCanvas.map((field) => (
+              <div
+                key={field.label}
+                className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4"
+              >
+                <label className="block text-xs font-bold text-brand-text mb-2">{field.label}</label>
+                <textarea
+                  value={canvasValues[field.label] || ''}
+                  onChange={(e) => setCanvasValues(prev => ({ ...prev, [field.label]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  rows={4}
+                  className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 text-sm text-brand-text outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors resize-none placeholder:text-brand-dim"
+                />
+              </div>
+            ))}
+          </div>
+
+          {canvasValues['One-Liner Pitch'] && (
+            <div className="mt-6 bg-[rgba(74,158,125,0.06)] border border-[rgba(74,158,125,0.15)] rounded-xl p-5 text-center">
+              <div className="text-[10px] font-bold uppercase text-brand-green mb-2">Your Pitch</div>
+              <p className="text-lg font-serif font-bold text-brand-text">
+                &ldquo;{canvasValues['One-Liner Pitch']}&rdquo;
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

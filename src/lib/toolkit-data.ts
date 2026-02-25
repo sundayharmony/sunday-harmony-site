@@ -2,6 +2,188 @@
 // Toolkit Data — All research, competitors, scripts, roadmap
 // ══════════════════════════════════════════════════════════
 
+// ══════════ PHASE 1 — MARKET SIZING ══════════
+export const marketData = [
+  { label: 'Global Agency Market (2025)', value: '$20.6B' },
+  { label: 'Projected by 2035', value: '$78.7B' },
+  { label: 'CAGR', value: '14.3%' },
+  { label: 'US Agencies', value: '60,000+' },
+  { label: 'SMBs Planning to Increase Budget', value: '49%' },
+  { label: 'SMBs Managing Marketing Solo', value: '54%' },
+]
+
+export const researchPhases = [
+  { id: 1, title: 'Industry & Market Sizing', icon: '📊', timeframe: 'Week 1–2', color: '#3a8bc2',
+    objective: 'Understand the size of the opportunity and where Sunday Harmony fits in the landscape.',
+    keyFindings: [
+      'The global digital marketing agency market is valued at ~$20.6B in 2025, growing at 14.3% CAGR through 2035.',
+      'There are over 60,000 digital advertising agencies in the US alone — competition is intense but the pie is growing fast.',
+      'North America holds ~38% market share, with social media marketing as the largest service segment.',
+      '49% of SMBs plan to increase marketing budgets in 2025, and 96% of small businesses plan to advertise.',
+    ],
+    tasks: [
+      'Define your serviceable addressable market (SAM) — which industries, geographies, and business sizes will you target?',
+      'Estimate local market size: how many SMBs are in your target area and what do they spend on marketing?',
+      'Identify fastest-growing service segments (AI tools, video, local SEO) to prioritize in your offerings',
+      'Research average agency pricing in your tier ($1K–$5K/mo retainers for SMB-focused agencies)',
+    ],
+  },
+  { id: 2, title: 'Target Customer Deep-Dive', icon: '🎯', timeframe: 'Week 2–3', color: '#4a9e7d',
+    objective: 'Build detailed profiles of your ideal clients and understand their pain points, budget, and buying behavior.',
+    keyFindings: [
+      '55% of SMB owners say customer acquisition is their #1 marketing challenge.',
+      '54% of small business owners manage marketing entirely by themselves — they need help but may not know it.',
+      '45% of SMBs say getting new leads will be challenging in 2025; maximizing budget is their next biggest concern.',
+      'SMBs using agencies rate their marketing confidence 9/10 vs. 7/10 for DIY marketers — there\'s a clear value prop.',
+    ],
+    tasks: [
+      'Create 3 ideal customer personas (e.g., new restaurant owner, growing e-commerce brand, local service business)',
+      'Survey or interview 10–15 local business owners about their marketing pain points and current spend',
+      'Map the buyer journey: How do SMBs find and evaluate marketing agencies?',
+      'Identify key decision triggers: What makes an SMB finally hire an agency?',
+    ],
+  },
+  { id: 3, title: 'Competitive Analysis', icon: '⚔️', timeframe: 'Week 3–4', color: '#c9a96e',
+    objective: 'Map the competitive landscape and identify Sunday Harmony\'s unique positioning opportunity.',
+    keyFindings: [
+      '40% of SMBs who outsource marketing churn — 56% within the first 6–12 months. Retention is a huge differentiator.',
+      '60% of businesses that left an agency cited \'lack of perceived value\' as the top reason — proving ROI is critical.',
+      '91% of SMBs want an all-in-one solution to combat app fatigue — bundled services win.',
+      '69% of SMBs say their agency already provides AI tools; 60% of those without AI tools wish they had them.',
+    ],
+    tasks: [
+      'Identify 5–8 direct competitors (local agencies, freelancers, platforms like Fiverr/Upwork serving your target market)',
+      'Audit competitor websites: pricing, services, case studies, reviews, positioning',
+      'Analyze competitor Google reviews and testimonials for recurring client complaints',
+      'Define Sunday Harmony\'s unique value proposition vs. each competitor type',
+      'Create a competitive positioning map (price vs. service breadth)',
+    ],
+  },
+  { id: 4, title: 'Service-Market Fit Validation', icon: '🧪', timeframe: 'Week 4–5', color: '#7b68c9',
+    objective: 'Validate which services to lead with and how to package/price them for maximum traction.',
+    keyFindings: [
+      'Top services SMBs outsource: social media management, paid search/PPC, web design, and email marketing.',
+      '72% of SMBs say SEO significantly impacts their growth — but most don\'t have the basics in place.',
+      'SMBs are investing more in social media ads (51%), content marketing (51%), search advertising (47%), and video (47%).',
+      'Average SMB ad budget is ~$78K/year, but 33% have under $1K/month total marketing budget.',
+    ],
+    tasks: [
+      'Design 2–3 tiered service packages (Starter, Growth, Scale) with clear deliverables and pricing',
+      'Test pricing with 5+ prospects — are they willing to pay? What objections come up?',
+      'Build a \'quick win\' offer (e.g., Google Business Profile optimization + basic local SEO audit) as a foot-in-the-door',
+      'Identify which services have the highest margin and shortest time-to-result for early client wins',
+    ],
+  },
+  { id: 5, title: 'Go-to-Market Strategy', icon: '🚀', timeframe: 'Week 5–6', color: '#d4564e',
+    objective: 'Build a concrete plan to acquire your first 10–20 clients based on everything you\'ve learned.',
+    keyFindings: [
+      'SMBs choose marketing channels based on where they believe their customers spend time — show you understand their audience.',
+      'Agencies that can prove ROI in the first 6 months have dramatically better retention.',
+      'Value, partnership, and innovation are the top 3 things SMBs want from agencies in 2025.',
+      '43% of SMBs expect to increase budgets this year — timing is right for outreach.',
+    ],
+    tasks: [
+      'Define your top 3 client acquisition channels (e.g., local networking, LinkedIn outreach, Google Ads for your own agency)',
+      'Create a case study or proof-of-concept from a pilot client or your own marketing results',
+      'Build a referral program and strategic partnership pipeline (accountants, web developers, business coaches)',
+      'Set 90-day targets: pipeline size, proposals sent, clients closed, revenue goal',
+      'Design your onboarding process to deliver a \'quick win\' in the first 30 days for every new client',
+    ],
+  },
+]
+
+// ══════════ PHASE 3 — POSITIONING CANVAS ══════════
+export const positioningCanvas = [
+  { label: 'Target Client', placeholder: 'e.g., NJ small business owners doing marketing themselves and struggling...' },
+  { label: 'Problem You Solve', placeholder: "e.g., Wasting time on marketing that doesn't work, losing customers to competitors online..." },
+  { label: 'Your Unique Approach', placeholder: 'e.g., All-in-one digital + physical marketing partner with clear ROI reporting...' },
+  { label: 'Why You, Not Them', placeholder: 'e.g., Unlike big agencies, we treat every client like our only client...' },
+  { label: 'Proof / Credibility', placeholder: 'e.g., Free audit results, testimonials, case studies, local NJ roots...' },
+  { label: 'One-Liner Pitch', placeholder: "e.g., 'Sunday Harmony helps NJ businesses stop guessing and start growing.'" },
+]
+
+// ══════════ PHASE 4 — DETAILED PACKAGES ══════════
+export const detailedPackages = [
+  { tier: 'Social Essentials', tagline: 'Stay Active Online', price: 250, color: '#3a8bc2', icon: '◇',
+    ideal: 'Brand-new businesses, side hustles, or anyone who knows they should be posting but never do.',
+    services: [
+      { name: 'Social media management (2 platforms)', included: true, note: 'Facebook + Instagram or LinkedIn' },
+      { name: '8 custom posts/month (2/week)', included: true, note: 'Branded graphics, captions, hashtags' },
+      { name: 'Content calendar (planned monthly)', included: true },
+      { name: 'Basic community engagement', included: true, note: 'Comments and DMs' },
+      { name: 'Monthly snapshot (key metrics)', included: true },
+      { name: 'Google Business Profile', included: false, note: '+$100/mo' },
+      { name: 'Local SEO', included: false },
+      { name: 'Google Ads / PPC', included: false },
+    ],
+    quickWin: 'Content calendar + first 2 weeks of posts within 5 days of signing.',
+    margin: 'Highest margin per hour. At 15 clients = $3,750/mo.',
+  },
+  { tier: 'Spark', tagline: 'Get Found Online', price: 500, color: '#4a9e7d', icon: '✦',
+    ideal: 'Solo operators, new restaurants, tradespeople ready to get serious about local visibility.',
+    services: [
+      { name: 'Everything in Social Essentials', included: true },
+      { name: 'Google Business Profile setup & optimization', included: true },
+      { name: 'Basic local SEO (citations, NAP)', included: true },
+      { name: '12 social media posts/month (3/week)', included: true },
+      { name: 'Review monitoring & alerts', included: true },
+      { name: 'Monthly performance snapshot', included: true },
+      { name: 'Website design/redesign', included: false, note: 'Add-on: $1,500–$3,000' },
+      { name: 'Google Ads / PPC', included: false },
+    ],
+    quickWin: 'Optimized Google Business Profile live within 7 days.',
+    margin: 'High margin. At 10 clients = $5,000/mo.',
+  },
+  { tier: 'Growth', tagline: 'Start Generating Leads', price: 1800, color: '#c9a96e', icon: '◆', popular: true,
+    ideal: 'Law firms, accountants, established restaurants, home service companies doing $300K–$2M/year.',
+    services: [
+      { name: 'Everything in Spark', included: true },
+      { name: 'Full local SEO strategy & execution', included: true },
+      { name: 'Google Ads management (up to $2K spend)', included: true },
+      { name: 'Review management & response', included: true },
+      { name: 'Monthly strategy call (30 min)', included: true },
+      { name: 'Monthly report with actionable insights', included: true },
+      { name: 'Email marketing', included: false, note: '+$300–$500/mo' },
+      { name: 'Physical marketing', included: false, note: 'Project-based' },
+    ],
+    quickWin: 'First Google Ads campaign live within 14 days.',
+    margin: 'Strong margin at scale. At 10 clients = $18,000/mo.',
+  },
+  { tier: 'Scale', tagline: 'Full-Service Partner', price: 3500, color: '#7b68c9', icon: '★',
+    ideal: 'Multi-location businesses, ambitious practices, companies doing $1M–$5M+.',
+    services: [
+      { name: 'Everything in Growth', included: true },
+      { name: 'Complete SEO + content marketing', included: true },
+      { name: '20+ social posts/month + reels', included: true },
+      { name: 'Google + Meta Ads (up to $5K spend)', included: true },
+      { name: 'Email marketing (2 campaigns/mo)', included: true },
+      { name: 'Physical marketing design', included: true },
+      { name: 'Website updates (monthly)', included: true },
+      { name: 'Bi-weekly strategy calls', included: true },
+      { name: 'Dedicated account manager', included: true },
+    ],
+    quickWin: 'Full marketing audit + 90-day plan in week 1.',
+    margin: 'Highest absolute margin. At 5 clients = $17,500/mo.',
+  },
+]
+
+export const footInDoorOffer = {
+  name: 'Free Google Business Audit',
+  price: 'FREE',
+  description: "Your signature lead magnet. A 15-minute audit delivered as a professional PDF showing exactly what's wrong with their online presence.",
+  steps: [
+    'Search for the business on Google — screenshot their listing, reviews, and search results',
+    'Check their Google Business Profile: hours, photos, categories, posts, Q&A',
+    'Run their website through PageSpeed Insights — screenshot the score',
+    "Check their top 3 competitors' Google presence for comparison",
+    'Package findings in a branded 1-page PDF with 3–5 recommendations',
+    'Deliver in person or via a 15-minute Zoom walk-through',
+    "Close with: 'I can handle all of this — here's how our Spark/Growth package works'",
+  ],
+  conversionRate: '30–40% of audits convert to paid clients when delivered in person.',
+}
+
+// ══════════ COMPETITORS ══════════
 export const competitors = [
   { name: 'SmartSites', type: 'Enterprise NJ Agency', threat: 'high' as const, price: '$1K–$10K+/mo', founded: '2011', team: '100+',
     services: ['SEO', 'PPC', 'Web Design', 'Social Media', 'Email/SMS'],
