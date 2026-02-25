@@ -76,11 +76,11 @@ export default function LeadsPage() {
                       selected?.id === lead.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
                     }`}
                   >
-                    <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.lastName}</td>
+                    <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.last_name}</td>
                     <td className="px-4 py-3 text-sm text-brand-muted">{lead.business}</td>
                     <td className="px-4 py-3 text-xs text-brand-dim">{lead.service || '—'}</td>
                     <td className="px-4 py-3"><StatusBadge status={lead.status} /></td>
-                    <td className="px-4 py-3 text-xs text-brand-dim">{new Date(lead.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-xs text-brand-dim">{new Date(lead.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -92,7 +92,7 @@ export default function LeadsPage() {
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
           {selected ? (
             <>
-              <h3 className="text-lg font-bold text-brand-text mb-1">{selected.firstName} {selected.lastName}</h3>
+              <h3 className="text-lg font-bold text-brand-text mb-1">{selected.first_name} {selected.last_name}</h3>
               <div className="text-sm text-brand-muted mb-4">{selected.business}</div>
 
               <div className="space-y-3 mb-5">
