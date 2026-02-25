@@ -2,8 +2,8 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { getUserByEmail, verifyPassword, seedAdmin } from './db'
 
-// Seed admin on first load
-seedAdmin()
+// Seed admin on first load — wrapped for Vercel safety
+try { seedAdmin() } catch { /* ignore on cold start */ }
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -15,6 +15,9 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
+
+        // Re-seed admin on each login attempt (handles Vercel /tmp wipes)
+        try { seedAdmin() } catch { /* ignore */ }
 
         const user = getUserByEmail(credentials.email)
         if (!user) return null
