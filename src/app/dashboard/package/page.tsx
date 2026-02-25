@@ -169,7 +169,7 @@ export default function PackagePage() {
               <div className="mt-4">
                 <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
                 <div className="text-sm text-brand-text">
-                  {client?.start_date ? new Date(client.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                  {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
                 </div>
               </div>
             </div>
