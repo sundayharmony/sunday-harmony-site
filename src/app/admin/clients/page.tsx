@@ -5,8 +5,8 @@ import StatusBadge from '@/components/ui/StatusBadge'
 
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
-  industry?: string; packageTier: string; monthlyPrice: number; startDate: string
-  status: string; notes: string; deliverables: string[]; quickWins: { text: string; done: boolean }[]
+  industry?: string; package_tier: string; monthly_price: number; start_date: string
+  status: string; notes: string; deliverables: string[]; quick_wins: { text: string; done: boolean }[]
 }
 
 const tierLabels: Record<string, string> = {
@@ -52,7 +52,7 @@ export default function ClientsPage() {
   }
 
   const active = clients.filter(c => c.status === 'active')
-  const mrr = active.reduce((s, c) => s + c.monthlyPrice, 0)
+  const mrr = active.reduce((s, c) => s + c.monthly_price, 0)
 
   return (
     <div>
