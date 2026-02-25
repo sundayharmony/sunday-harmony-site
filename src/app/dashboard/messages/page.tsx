@@ -5,10 +5,10 @@ import { useSession } from 'next-auth/react'
 
 interface MessageData {
   id: string
-  fromRole: 'admin' | 'client'
-  fromName: string
+  from_role: 'admin' | 'client'
+  from_name: string
   text: string
-  createdAt: string
+  created_at: string
 }
 
 export default function MessagesPage() {
