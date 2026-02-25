@@ -15,6 +15,8 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [selected, setSelected] = useState<Lead | null>(null)
   const [notes, setNotes] = useState('')
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState<string>('all')
 
   useEffect(() => {
     fetch('/api/admin/leads').then(r => r.json()).then(setLeads)
