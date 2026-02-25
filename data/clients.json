@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Mc Cesar",
+    "business": "SH",
+    "email": "maccesar.inc@gmail.com",
+    "phone": "6094707005",
+    "industry": "Marketing",
+    "packageTier": "spark",
+    "monthlyPrice": 500,
+    "startDate": "2026-02-25T00:10:52.184Z",
+    "status": "active",
+    "notes": "",
+    "deliverables": [],
+    "quickWins": [],
+    "id": "7d8fa7d7-7e4d-4d36-9355-d3dde31e8603",
+    "createdAt": "2026-02-25T00:10:52.185Z",
+    "updatedAt": "2026-02-25T00:10:52.185Z"
+  }
+]
