@@ -8,6 +8,7 @@ const navItems = [
   { href: '/admin', icon: '◈', label: 'Overview' },
   { href: '/admin/leads', icon: '📥', label: 'Leads' },
   { href: '/admin/clients', icon: '👥', label: 'Clients' },
+  { href: '/admin/messages', icon: '💬', label: 'Messages' },
   { href: '/admin/revenue', icon: '💰', label: 'Revenue' },
   { href: '/admin/research', icon: '📊', label: 'Market Research' },
   { href: '/admin/competitors', icon: '⚔️', label: 'Competitors' },
