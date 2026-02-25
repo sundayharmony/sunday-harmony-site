@@ -1,7 +1,8 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import nodemailer from 'nodemailer'
 import { authOptions } from '@/lib/auth'
-import { getMessages, createMessage } from '@/lib/db'
+import { getMessages, createMessage, getClientById } from '@/lib/db'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
