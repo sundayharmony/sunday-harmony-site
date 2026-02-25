@@ -86,7 +86,7 @@ export default function LeadsPage() {
             })
             return filtered.length === 0 ? (
             <div className="p-8 text-center text-brand-dim text-sm">
-              No leads yet. They&apos;ll appear here when someone submits the contact form on your website.
+              {search || filterStatus !== 'all' ? 'No leads match your filters.' : "No leads yet. They'll appear here when someone submits the contact form on your website."}
             </div>
           ) : (
             <table className="w-full">
@@ -98,7 +98,7 @@ export default function LeadsPage() {
                 </tr>
               </thead>
               <tbody>
-                {leads.map(lead => (
+                {filtered.map(lead => (
                   <tr
                     key={lead.id}
                     onClick={() => { setSelected(lead); setNotes(lead.notes) }}
@@ -115,7 +115,8 @@ export default function LeadsPage() {
                 ))}
               </tbody>
             </table>
-          )}
+          )
+          })()}
         </div>
 
         {/* Lead Detail */}
