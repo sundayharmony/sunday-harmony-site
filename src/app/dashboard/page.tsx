@@ -137,9 +137,9 @@ export default function DashboardHome() {
             />
           </div>
 
-          {client?.quickWins && client.quickWins.length > 0 ? (
+          {client?.quickWins && client.quick_wins.length > 0 ? (
             <div className="space-y-2">
-              {client.quickWins.map((win, i) => (
+              {client.quick_wins.map((win, i) => (
                 <div
                   key={i}
                   className={`flex items-center gap-3 p-3 rounded-lg ${
@@ -197,15 +197,15 @@ export default function DashboardHome() {
               <div
                 key={msg.id}
                 className={`p-3 rounded-lg ${
-                  msg.fromRole === 'admin'
+                  msg.from_role === 'admin'
                     ? 'bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.1)]'
                     : 'bg-[rgba(74,158,125,0.06)] border border-[rgba(74,158,125,0.1)]'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-bold text-brand-text">{msg.fromName}</span>
+                  <span className="text-xs font-bold text-brand-text">{msg.from_name}</span>
                   <span className="text-[10px] text-brand-dim">
-                    {new Date(msg.createdAt).toLocaleDateString()}
+                    {new Date(msg.created_at).toLocaleDateString()}
                   </span>
                 </div>
                 <p className="text-sm text-brand-muted">{msg.text}</p>
