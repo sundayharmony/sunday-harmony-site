@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Run-Git {
+function Invoke-Git {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
   $previousPreference = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
@@ -20,17 +20,17 @@ function Run-Git {
   }
 }
 
-function Ensure-Repo {
-  $insideRepo = Run-Git "rev-parse" "--is-inside-work-tree"
+function Test-Repo {
+  $insideRepo = Invoke-Git "rev-parse" "--is-inside-work-tree"
   if ($insideRepo.ExitCode -ne 0 -or "$($insideRepo.Output)".Trim() -ne "true") {
     throw "Not inside a git repository."
   }
 }
 
-function Ensure-Branch {
+function Set-Branch {
   param([string]$TargetBranch)
 
-  $current = Run-Git "rev-parse" "--abbrev-ref" "HEAD"
+  $current = Invoke-Git "rev-parse" "--abbrev-ref" "HEAD"
   if ($current.ExitCode -ne 0) {
     throw "Failed to detect current branch."
   }
@@ -44,31 +44,31 @@ function Ensure-Branch {
     return
   }
 
-  $localBranch = Run-Git "branch" "--list" $TargetBranch
+  $localBranch = Invoke-Git "branch" "--list" $TargetBranch
   if ("$($localBranch.Output)".Trim()) {
-    $checkout = Run-Git "checkout" $TargetBranch
+    $checkout = Invoke-Git "checkout" $TargetBranch
     if ($checkout.ExitCode -ne 0) {
       throw "Failed to checkout local branch '$TargetBranch'."
     }
     return
   }
 
-  $remoteBranch = Run-Git "ls-remote" "--heads" "origin" $TargetBranch
+  $remoteBranch = Invoke-Git "ls-remote" "--heads" "origin" $TargetBranch
   if ("$($remoteBranch.Output)".Trim()) {
-    $checkoutTracking = Run-Git "checkout" "-b" $TargetBranch "origin/$TargetBranch"
+    $checkoutTracking = Invoke-Git "checkout" "-b" $TargetBranch "origin/$TargetBranch"
     if ($checkoutTracking.ExitCode -ne 0) {
       throw "Failed to create tracking branch '$TargetBranch'."
     }
     return
   }
 
-  $createBranch = Run-Git "checkout" "-b" $TargetBranch
+  $createBranch = Invoke-Git "checkout" "-b" $TargetBranch
   if ($createBranch.ExitCode -ne 0) {
     throw "Failed to create branch '$TargetBranch'."
   }
 }
 
-function Run-Checks {
+function Test-Checks {
   if (-not $RunChecks) {
     return $true
   }
@@ -83,14 +83,14 @@ function Run-Checks {
   return $true
 }
 
-Ensure-Repo
-Ensure-Branch -TargetBranch $Branch
+Test-Repo
+Set-Branch -TargetBranch $Branch
 
 Write-Host "Auto sync started on branch '$Branch'. Interval: $IntervalSeconds sec."
 Write-Host "Press Ctrl+C to stop."
 
 while ($true) {
-  $status = Run-Git "status" "--porcelain"
+  $status = Invoke-Git "status" "--porcelain"
   $hasChanges = "$($status.Output)".Trim().Length -gt 0
 
   if ($status.ExitCode -ne 0) {
@@ -100,20 +100,20 @@ while ($true) {
   }
 
   if ($hasChanges) {
-    $add = Run-Git "add" "-A"
+    $add = Invoke-Git "add" "-A"
     if ($add.ExitCode -ne 0) {
       Write-Host "Failed to stage changes. Retrying..."
       Start-Sleep -Seconds $IntervalSeconds
       continue
     }
 
-    if (-not (Run-Checks)) {
+    if (-not (Test-Checks)) {
       Start-Sleep -Seconds $IntervalSeconds
       continue
     }
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $commit = Run-Git "commit" "-m" "chore(auto-sync): snapshot $timestamp"
+    $commit = Invoke-Git "commit" "-m" "chore(auto-sync): snapshot $timestamp"
 
     if ($commit.ExitCode -ne 0) {
       # No-op commits are normal if files changed between status/add/commit checks.
@@ -124,7 +124,7 @@ while ($true) {
 
     Write-Host "$($commit.Output)"
 
-    $push = Run-Git "push" "-u" "origin" $Branch
+    $push = Invoke-Git "push" "-u" "origin" $Branch
     if ($push.ExitCode -ne 0) {
       Write-Host "Push failed. Resolve the issue and restart the script."
       Write-Host "$($push.Output)"
