@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "auto-sync": "powershell -ExecutionPolicy Bypass -File ./auto-sync.ps1 -Branch auto-sync -RunChecks"
+    "auto-sync": "powershell -ExecutionPolicy Bypass -File ./auto-sync.ps1 -Branch main -RunChecks -AllowMain"
   },
   "dependencies": {
     "@vercel/analytics": "^1.6.1",
