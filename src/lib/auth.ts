@@ -2,9 +2,6 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { getUserByEmail, verifyPassword, seedAdmin } from './db'
 
-// Seed admin on first load — wrapped for Vercel safety
-try { seedAdmin() } catch { /* ignore on cold start */ }
-
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -16,10 +13,10 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        // Re-seed admin on each login attempt (handles Vercel /tmp wipes)
-        try { seedAdmin() } catch { /* ignore */ }
+        // Ensure admin exists on each login attempt
+        await seedAdmin()
 
-        const user = getUserByEmail(credentials.email)
+        const user = await getUserByEmail(credentials.email)
         if (!user) return null
 
         const valid = verifyPassword(credentials.password, user.password)
@@ -30,7 +27,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          clientId: user.clientId,
+          clientId: user.client_id,
         }
       },
     }),
@@ -58,5 +55,5 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
-  secret: process.env.NEXTAUTH_SECRET || 'sunday-harmony-dev-secret-change-in-production',
+  secret: process.env.NEXTAUTH_SECRET,
 }
