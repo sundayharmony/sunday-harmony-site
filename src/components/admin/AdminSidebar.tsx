@@ -9,8 +9,10 @@ const navItems = [
   { href: '/admin/leads', icon: '📥', label: 'Leads' },
   { href: '/admin/clients', icon: '👥', label: 'Clients' },
   { href: '/admin/revenue', icon: '💰', label: 'Revenue' },
-  { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap' },
+  { href: '/admin/research', icon: '📊', label: 'Market Research' },
   { href: '/admin/competitors', icon: '⚔️', label: 'Competitors' },
+  { href: '/admin/packages', icon: '📦', label: 'Packages' },
+  { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap' },
   { href: '/admin/outreach', icon: '📨', label: 'Outreach' },
   { href: '/admin/discovery', icon: '🎯', label: 'Discovery' },
 ]
