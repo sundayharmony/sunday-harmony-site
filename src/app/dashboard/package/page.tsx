@@ -6,12 +6,12 @@ interface ClientData {
   id: string
   name: string
   business: string
-  packageTier: string
-  monthlyPrice: number
-  startDate: string
+  package_tier: string
+  monthly_price: number
+  start_date: string
   status: string
   deliverables: string[]
-  quickWins: { text: string; done: boolean }[]
+  quick_wins: { text: string; done: boolean }[]
 }
 
 const packages = [
@@ -94,8 +94,8 @@ export default function PackagePage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const currentPkg = packages.find(p => p.tier === client?.packageTier)
-  const currentIdx = packages.findIndex(p => p.tier === client?.packageTier)
+  const currentPkg = packages.find(p => p.tier === client?.package_tier)
+  const currentIdx = packages.findIndex(p => p.tier === client?.package_tier)
 
   if (loading) {
     return (
@@ -170,7 +170,7 @@ export default function PackagePage() {
               <div className="mt-4">
                 <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
                 <div className="text-sm text-brand-text">
-                  {client?.startDate ? new Date(client.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                  {client?.start_date ? new Date(client.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
                 </div>
               </div>
             </div>
@@ -182,7 +182,7 @@ export default function PackagePage() {
       <h2 className="text-lg font-bold text-brand-text mb-4">All Packages</h2>
       <div className="grid grid-cols-2 gap-4">
         {packages.map((pkg, i) => {
-          const isCurrent = pkg.tier === client?.packageTier
+          const isCurrent = pkg.tier === client?.package_tier
           const isUpgrade = i > currentIdx
           return (
             <div
