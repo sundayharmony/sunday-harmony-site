@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
 import { getClientById } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user || session.user.role !== 'client') {
@@ -14,12 +16,12 @@ export async function GET() {
     return NextResponse.json({ error: 'No client profile linked' }, { status: 404 })
   }
 
-  const client = getClientById(clientId)
+  const client = await getClientById(clientId)
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
 
-  // Return client data (excluding internal fields)
+  // Return client data (snake_case from DB)
   return NextResponse.json({
     id: client.id,
     name: client.name,
@@ -27,11 +29,11 @@ export async function GET() {
     email: client.email,
     phone: client.phone,
     industry: client.industry,
-    packageTier: client.packageTier,
-    monthlyPrice: client.monthlyPrice,
-    startDate: client.startDate,
+    package_tier: client.package_tier,
+    monthly_price: client.monthly_price,
+    start_date: client.start_date,
     status: client.status,
     deliverables: client.deliverables,
-    quickWins: client.quickWins,
+    quick_wins: client.quick_wins,
   })
 }
