@@ -29,14 +29,14 @@ export default async function AdminOverview() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Active Clients" value={activeClients.length} color="green" />
         <StatCard label="Monthly Revenue" value={`$${mrr.toLocaleString()}`} color="gold" />
         <StatCard label="New Leads" value={newLeads} color="blue" />
         <StatCard label="Annual Projection" value={`$${(mrr * 12).toLocaleString()}`} color="purple" />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Recent Leads */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-6">
           <div className="flex justify-between items-center mb-5">
@@ -92,7 +92,7 @@ export default async function AdminOverview() {
       {activeClients.length > 0 && (
         <div className="mt-6 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-6">
           <h2 className="text-sm font-bold text-brand-text mb-4">Revenue by Package</h2>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {packages.map(pkg => {
               const count = tierCounts[pkg.tier.toLowerCase().replace(/\s+/g, '_')] || 0
               return (
