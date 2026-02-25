@@ -67,10 +67,10 @@ export default function DashboardHome() {
 
   const userName = session?.user?.name || 'there'
   const daysSinceStart = client
-    ? Math.floor((Date.now() - new Date(client.startDate).getTime()) / 86400000)
+    ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
     : 0
-  const completedWins = client?.quickWins?.filter(w => w.done).length || 0
-  const totalWins = client?.quickWins?.length || 0
+  const completedWins = client?.quick_wins?.filter(w => w.done).length || 0
+  const totalWins = client?.quick_wins?.length || 0
 
   if (loading) {
     return (
@@ -96,8 +96,8 @@ export default function DashboardHome() {
       <div className="grid grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Your Package"
-          value={client ? tierLabels[client.packageTier] || client.packageTier : '—'}
-          color={client ? tierColors[client.packageTier] || '#c9a96e' : '#c9a96e'}
+          value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+          color={client ? tierColors[client.package_tier] || '#c9a96e' : '#c9a96e'}
         />
         <StatCard
           label="Days Active"
@@ -111,7 +111,7 @@ export default function DashboardHome() {
         />
         <StatCard
           label="Monthly Investment"
-          value={client ? `$${client.monthlyPrice.toLocaleString()}` : '—'}
+          value={client ? `$${client.monthly_price.toLocaleString()}` : '—'}
           color="#7b68c9"
         />
       </div>
