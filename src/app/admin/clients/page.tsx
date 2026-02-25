@@ -142,7 +142,7 @@ export default function ClientsPage() {
                 <tr key={client.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)]">
                   <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
                   <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                  <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.packageTier]}</td>
+                  <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
                   <td className="px-4 py-3 text-sm text-brand-text">${client.monthlyPrice.toLocaleString()}</td>
                   <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
                   <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.startDate).toLocaleDateString()}</td>
