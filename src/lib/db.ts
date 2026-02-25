@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { supabase } from './supabase'
+import { getSupabase } from './supabase'
 
 // ══════════════════════════════════════════════════════════
 // Database Layer — Supabase (PostgreSQL)
@@ -31,7 +31,7 @@ export interface User {
 }
 
 export async function getUsers(): Promise<User[]> {
-  const { data, error } = await supabase.from('users').select('*')
+  const { data, error } = await getSupabase().from('users').select('*')
   if (error) { console.error('getUsers error:', error); return [] }
   return data || []
 }
@@ -47,7 +47,7 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
 }
 
 export async function getUserById(id: string): Promise<User | undefined> {
-  const { data, error } = await supabase.from('users').select('*').eq('id', id).single()
+  const { data, error } = await getSupabase().from('users').select('*').eq('id', id).single()
   if (error) return undefined
   return data
 }
@@ -76,7 +76,7 @@ export async function createUser(userData: {
 
 export async function updateUser(id: string, updates: Partial<Omit<User, 'id'>>): Promise<User | null> {
   if (updates.password) updates.password = hashPassword(updates.password)
-  const { data, error } = await supabase.from('users').update(updates).eq('id', id).select().single()
+  const { data, error } = await getSupabase().from('users').update(updates).eq('id', id).select().single()
   if (error) { console.error('updateUser error:', error); return null }
   return data
 }
@@ -100,13 +100,13 @@ export interface Lead {
 }
 
 export async function getLeads(): Promise<Lead[]> {
-  const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+  const { data, error } = await getSupabase().from('leads').select('*').order('created_at', { ascending: false })
   if (error) { console.error('getLeads error:', error); return [] }
   return data || []
 }
 
 export async function getLeadById(id: string): Promise<Lead | undefined> {
-  const { data, error } = await supabase.from('leads').select('*').eq('id', id).single()
+  const { data, error } = await getSupabase().from('leads').select('*').eq('id', id).single()
   if (error) return undefined
   return data
 }
@@ -142,7 +142,7 @@ export async function createLead(leadData: {
 }
 
 export async function updateLead(id: string, updates: Partial<Omit<Lead, 'id' | 'created_at'>>): Promise<Lead | null> {
-  const { data, error } = await supabase.from('leads').update(updates).eq('id', id).select().single()
+  const { data, error } = await getSupabase().from('leads').update(updates).eq('id', id).select().single()
   if (error) { console.error('updateLead error:', error); return null }
   return data
 }
@@ -167,25 +167,25 @@ export interface Client {
 }
 
 export async function getClients(): Promise<Client[]> {
-  const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
+  const { data, error } = await getSupabase().from('clients').select('*').order('created_at', { ascending: false })
   if (error) { console.error('getClients error:', error); return [] }
   return data || []
 }
 
 export async function getClientById(id: string): Promise<Client | undefined> {
-  const { data, error } = await supabase.from('clients').select('*').eq('id', id).single()
+  const { data, error } = await getSupabase().from('clients').select('*').eq('id', id).single()
   if (error) return undefined
   return data
 }
 
 export async function createClient(clientData: Omit<Client, 'id' | 'created_at' | 'updated_at'>): Promise<Client | null> {
-  const { data, error } = await supabase.from('clients').insert(clientData).select().single()
+  const { data, error } = await getSupabase().from('clients').insert(clientData).select().single()
   if (error) { console.error('createClient error:', error); return null }
   return data
 }
 
 export async function updateClient(id: string, updates: Partial<Omit<Client, 'id' | 'created_at'>>): Promise<Client | null> {
-  const { data, error } = await supabase.from('clients').update(updates).eq('id', id).select().single()
+  const { data, error } = await getSupabase().from('clients').update(updates).eq('id', id).select().single()
   if (error) { console.error('updateClient error:', error); return null }
   return data
 }
@@ -201,7 +201,7 @@ export interface Message {
 }
 
 export async function getMessages(clientId?: string): Promise<Message[]> {
-  let query = supabase.from('messages').select('*').order('created_at', { ascending: true })
+  let query = getSupabase().from('messages').select('*').order('created_at', { ascending: true })
   if (clientId) query = query.eq('client_id', clientId)
   const { data, error } = await query
   if (error) { console.error('getMessages error:', error); return [] }
@@ -214,7 +214,7 @@ export async function createMessage(msgData: {
   from_name: string
   text: string
 }): Promise<Message | null> {
-  const { data, error } = await supabase.from('messages').insert(msgData).select().single()
+  const { data, error } = await getSupabase().from('messages').insert(msgData).select().single()
   if (error) { console.error('createMessage error:', error); return null }
   return data
 }
@@ -229,7 +229,7 @@ export interface AdminData {
 
 export async function getAdminData(): Promise<AdminData> {
   const fallback: AdminData = { roadmap_tasks: {}, positioning_canvas: {}, research_tasks: {}, weekly_activity: {} }
-  const { data, error } = await supabase.from('admin_data').select('*').eq('id', 'singleton').single()
+  const { data, error } = await getSupabase().from('admin_data').select('*').eq('id', 'singleton').single()
   if (error) return fallback
   return {
     roadmap_tasks: data.roadmap_tasks || {},

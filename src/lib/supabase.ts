@@ -1,10 +1,17 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+let _supabase: SupabaseClient | null = null
 
-if (!supabaseUrl || !supabaseKey) {
-  console.warn('Supabase credentials not configured. Database operations will fail.')
+export function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.')
+    }
+
+    _supabase = createClient(supabaseUrl, supabaseKey)
+  }
+  return _supabase
 }
-
-export const supabase = createClient(supabaseUrl, supabaseKey)
