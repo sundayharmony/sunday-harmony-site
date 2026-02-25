@@ -6,19 +6,19 @@ import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
-export default function AdminOverview() {
-  const leads = getLeads()
-  const clients = getClients()
+export default async function AdminOverview() {
+  const leads = await getLeads()
+  const clients = await getClients()
 
   const activeClients = clients.filter(c => c.status === 'active')
-  const mrr = activeClients.reduce((sum, c) => sum + c.monthlyPrice, 0)
+  const mrr = activeClients.reduce((sum, c) => sum + c.monthly_price, 0)
   const newLeads = leads.filter(l => l.status === 'new').length
-  const recentLeads = leads.slice(-5).reverse()
+  const recentLeads = leads.slice(0, 5)
 
   // Revenue by tier
   const tierCounts: Record<string, number> = {}
   activeClients.forEach(c => {
-    tierCounts[c.packageTier] = (tierCounts[c.packageTier] || 0) + 1
+    tierCounts[c.package_tier] = (tierCounts[c.package_tier] || 0) + 1
   })
 
   return (
@@ -50,7 +50,7 @@ export default function AdminOverview() {
               {recentLeads.map(lead => (
                 <div key={lead.id} className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.04)] last:border-0">
                   <div>
-                    <div className="text-sm font-medium text-brand-text">{lead.firstName} {lead.lastName}</div>
+                    <div className="text-sm font-medium text-brand-text">{lead.first_name} {lead.last_name}</div>
                     <div className="text-xs text-brand-dim">{lead.business}</div>
                   </div>
                   <StatusBadge status={lead.status} />
