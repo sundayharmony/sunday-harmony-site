@@ -4,41 +4,42 @@ import { getClients, createClient, updateClient, createUser } from '@/lib/db'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  return NextResponse.json(getClients())
+  const clients = await getClients()
+  return NextResponse.json(clients)
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword } = body
+  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins } = body
 
   if (!name || !business || !email || !packageTier) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // Create client record
-  const client = createClient({
+  const client = await createClient({
     name,
     business,
     email,
     phone,
     industry,
-    packageTier,
-    monthlyPrice: monthlyPrice || 0,
-    startDate: new Date().toISOString(),
+    package_tier: packageTier,
+    monthly_price: monthlyPrice || 0,
+    start_date: new Date().toISOString(),
     status: 'active',
     notes: '',
-    deliverables: [],
-    quickWins: [],
+    deliverables: deliverables || [],
+    quick_wins: quickWins || [],
   })
 
-  // Create login account if password provided
+  if (!client) return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
+
   if (loginPassword) {
-    createUser({
+    await createUser({
       email,
       password: loginPassword,
       name,
       role: 'client',
-      clientId: client.id,
+      client_id: client.id,
     })
   }
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const { id, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
-  const client = updateClient(id, updates)
+  const client = await updateClient(id, updates)
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   return NextResponse.json(client)
 }
