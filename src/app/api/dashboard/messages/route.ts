@@ -4,6 +4,8 @@ import nodemailer from 'nodemailer'
 import { authOptions } from '@/lib/auth'
 import { getMessages, createMessage, getClientById } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user || session.user.role !== 'client') {
