@@ -53,10 +53,38 @@ export default function LeadsPage() {
         })}
       </div>
 
+      {/* Search & Filter */}
+      <div className="flex gap-3 mb-4">
+        <input
+          type="text"
+          placeholder="Search by name, business, or email..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="flex-1 py-2.5 px-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] placeholder:text-brand-dim"
+        />
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          className="py-2.5 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-muted text-sm outline-none"
+        >
+          <option value="all">All Statuses</option>
+          {statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+        </select>
+      </div>
+
       <div className="grid grid-cols-[1fr_380px] gap-6">
         {/* Lead Table */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
-          {leads.length === 0 ? (
+          {(() => {
+            const filtered = leads.filter(l => {
+              const matchSearch = !search.trim() ||
+                `${l.first_name} ${l.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+                l.business.toLowerCase().includes(search.toLowerCase()) ||
+                l.email.toLowerCase().includes(search.toLowerCase())
+              const matchStatus = filterStatus === 'all' || l.status === filterStatus
+              return matchSearch && matchStatus
+            })
+            return filtered.length === 0 ? (
             <div className="p-8 text-center text-brand-dim text-sm">
               No leads yet. They&apos;ll appear here when someone submits the contact form on your website.
             </div>
