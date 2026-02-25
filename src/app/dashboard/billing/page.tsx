@@ -7,9 +7,9 @@ interface ClientData {
   id: string
   name: string
   business: string
-  packageTier: string
-  monthlyPrice: number
-  startDate: string
+  package_tier: string
+  monthly_price: number
+  start_date: string
   status: string
 }
 
@@ -47,7 +47,7 @@ export default function BillingPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const monthlyPrice = client?.monthlyPrice || 0
+  const monthlyPrice = client?.monthly_price || 0
   const populatedInvoices = invoices.map(inv => ({ ...inv, amount: monthlyPrice }))
   const totalPaid = populatedInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0)
 
@@ -70,7 +70,7 @@ export default function BillingPage() {
       <div className="grid grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Current Plan"
-          value={client ? tierLabels[client.packageTier] || client.packageTier : '—'}
+          value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
           color="#c9a96e"
         />
         <StatCard
@@ -97,7 +97,7 @@ export default function BillingPage() {
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Package</div>
             <div className="text-sm text-brand-text font-semibold">
-              {client ? tierLabels[client.packageTier] || client.packageTier : '—'}
+              {client ? tierLabels[client.package_tier] || client.package_tier : '—'}
             </div>
           </div>
           <div>
@@ -111,7 +111,7 @@ export default function BillingPage() {
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
             <div className="text-sm text-brand-text font-semibold">
-              {client?.startDate ? new Date(client.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'}
+              {client?.start_date ? new Date(client.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'}
             </div>
           </div>
           <div>
