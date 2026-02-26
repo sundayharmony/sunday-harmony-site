@@ -351,6 +351,22 @@ export default function ClientsPage() {
               ) : null)}
             </div>
 
+            {/* Quick Links */}
+            <div className="mb-4 flex gap-2 flex-wrap">
+              <a href={`/admin/tasks?client=${selected.id}`}
+                className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold hover:bg-blue-100 transition-colors">
+                ✅ Tasks
+              </a>
+              <a href={`/admin/files?client=${selected.id}`}
+                className="px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-bold hover:bg-purple-100 transition-colors">
+                📁 Files
+              </a>
+              <a href={`/admin/approvals?client=${selected.id}`}
+                className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-100 transition-colors">
+                📋 Approvals
+              </a>
+            </div>
+
             {/* Deliverables */}
             <div className="mb-4">
               <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Deliverables</div>
