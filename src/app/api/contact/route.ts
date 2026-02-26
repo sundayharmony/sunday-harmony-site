@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createLead, logActivity } from '@/lib/db'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 // Sanitize user input for HTML email templates
 function escHtml(str: string): string {
@@ -11,8 +12,38 @@ function escHtml(str: string): string {
 // Receives form data and sends email notification
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 3 submissions per 15 minutes per IP
+    const ip = getClientIp(req)
+    const rl = rateLimit(`contact:${ip}`, 3, 15 * 60 * 1000)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many submissions. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const body = await req.json()
     const { firstName, lastName, email, phone, business, service, message } = body
+
+    // Input length validation — prevent oversized payloads
+    if (typeof firstName === 'string' && firstName.length > 100) {
+      return NextResponse.json({ error: 'First name is too long' }, { status: 400 })
+    }
+    if (typeof lastName === 'string' && lastName.length > 100) {
+      return NextResponse.json({ error: 'Last name is too long' }, { status: 400 })
+    }
+    if (typeof email === 'string' && email.length > 254) {
+      return NextResponse.json({ error: 'Email is too long' }, { status: 400 })
+    }
+    if (typeof phone === 'string' && phone.length > 30) {
+      return NextResponse.json({ error: 'Phone number is too long' }, { status: 400 })
+    }
+    if (typeof business === 'string' && business.length > 200) {
+      return NextResponse.json({ error: 'Business name is too long' }, { status: 400 })
+    }
+    if (typeof message === 'string' && message.length > 5000) {
+      return NextResponse.json({ error: 'Message is too long (max 5000 characters)' }, { status: 400 })
+    }
 
     // Validation
     if (!firstName?.trim()) {
