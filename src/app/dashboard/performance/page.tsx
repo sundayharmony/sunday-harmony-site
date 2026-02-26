@@ -107,7 +107,7 @@ export default function PerformancePage() {
 
       {/* Highlights */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)] rounded-xl p-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase text-brand-green mb-1">Best Month</div>
           <div className="text-lg font-extrabold text-brand-text">February</div>
           <p className="text-xs text-brand-muted mt-1">780 website visits — your highest yet</p>
