@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { authOptions } from '@/lib/auth'
-import { getMessages, createMessage, getClientById } from '@/lib/db'
+import { getMessages, createMessage, getClientById, createNotification, getSupabase } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +40,23 @@ export async function POST(request: Request) {
     from_name: (session.user as { name?: string }).name || 'Sunday Harmony',
     text: text.trim(),
   })
+
+  // Create in-app notification for client
+  const clientUser = await getSupabase()
+    .from('users')
+    .select('id')
+    .eq('client_id', clientId)
+    .single()
+
+  if (clientUser.data) {
+    await createNotification({
+      user_id: clientUser.data.id,
+      title: 'New Message',
+      message: text.trim().substring(0, 50),
+      type: 'message',
+      link: '/dashboard/messages',
+    })
+  }
 
   // Send email notification to client (non-blocking)
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {

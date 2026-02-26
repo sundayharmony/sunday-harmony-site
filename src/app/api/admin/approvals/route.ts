@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getApprovalsByClient, createApproval, updateApproval } from '@/lib/db'
+import { getApprovalsByClient, createApproval, updateApproval, createNotification, getSupabase } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,6 +68,23 @@ export async function POST(request: NextRequest) {
     const result = await createApproval(approvalData)
     if (!result) {
       return NextResponse.json({ error: 'Failed to create approval' }, { status: 500 })
+    }
+
+    // Create notification for client
+    const clientUser = await getSupabase()
+      .from('users')
+      .select('id')
+      .eq('client_id', client_id)
+      .single()
+
+    if (clientUser.data) {
+      await createNotification({
+        user_id: clientUser.data.id,
+        title: 'Content Needs Approval',
+        message: title,
+        type: 'approval',
+        link: '/dashboard/approvals',
+      })
     }
 
     return NextResponse.json(result, { status: 201 })
