@@ -28,16 +28,16 @@ export async function GET() {
 
   return NextResponse.json({
     id: client.id,
-    name: client.name,
-    business: client.business,
-    email: client.email,
-    phone: client.phone,
-    industry: client.industry,
-    package_tier: client.package_tier,
-    monthly_price: client.monthly_price,
-    start_date: client.start_date,
-    status: client.status,
-    deliverables: client.deliverables,
-    quick_wins: client.quick_wins,
+    name: client.name || '',
+    business: client.business || '',
+    email: client.email || '',
+    phone: client.phone || '',
+    industry: client.industry || '',
+    package_tier: client.package_tier || 'spark',
+    monthly_price: client.monthly_price || 0,
+    start_date: client.start_date || new Date().toISOString(),
+    status: client.status || 'active',
+    deliverables: Array.isArray(client.deliverables) ? client.deliverables : [],
+    quick_wins: Array.isArray(client.quick_wins) ? client.quick_wins : [],
   })
 }
