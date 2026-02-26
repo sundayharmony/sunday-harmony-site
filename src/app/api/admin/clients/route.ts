@@ -6,6 +6,10 @@ import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+function escHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 const tierLabels: Record<string, string> = {
   social_essentials: 'Social Essentials',
   spark: 'Spark',
@@ -24,6 +28,23 @@ export async function POST(req: NextRequest) {
 
   if (!name || !business || !email || !packageTier) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+  }
+
+  // Validate package_tier is one of allowed values
+  const allowedTiers = ['social_essentials', 'spark', 'growth', 'scale']
+  if (!allowedTiers.includes(packageTier)) {
+    return NextResponse.json({ error: 'Invalid package tier' }, { status: 400 })
+  }
+
+  // Validate monthly_price is positive
+  if (monthlyPrice !== undefined && monthlyPrice !== null && monthlyPrice < 0) {
+    return NextResponse.json({ error: 'Monthly price must be positive' }, { status: 400 })
   }
 
   const client = await createClient({

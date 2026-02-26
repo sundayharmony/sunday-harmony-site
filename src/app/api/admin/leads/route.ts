@@ -15,8 +15,20 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { id, ...updates } = await req.json()
+  const session = await getServerSession(authOptions)
+  if (!session || session.user?.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { id, ...allUpdates } = await req.json()
   if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
+
+  // Whitelist allowed fields
+  const allowedFields = ['status', 'notes', 'phone', 'email', 'business', 'industry', 'service', 'budget']
+  const updates = Object.fromEntries(
+    Object.entries(allUpdates).filter(([key]) => allowedFields.includes(key))
+  )
+
   const lead = await updateLead(id, updates)
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 

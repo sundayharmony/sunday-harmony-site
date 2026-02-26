@@ -20,20 +20,41 @@ export default function LeadsPage() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/admin/leads').then(r => r.json()).then(d => { setLeads(d); setLoading(false) })
+    (async () => {
+      try {
+        const r = await fetch('/api/admin/leads')
+        if (!r.ok) throw new Error('Failed to load leads')
+        const d = await r.json()
+        setLeads(d)
+        setError('')
+      } catch (err) {
+        setError('Failed to load leads. Please try again.')
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
-    const res = await fetch('/api/admin/leads', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
-    })
-    const updated = await res.json()
-    setLeads(prev => prev.map(l => l.id === id ? updated : l))
-    if (selected?.id === id) setSelected(updated)
+    try {
+      const res = await fetch('/api/admin/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      })
+      if (!res.ok) throw new Error('Failed to update lead')
+      const updated = await res.json()
+      setLeads(prev => prev.map(l => l.id === id ? updated : l))
+      if (selected?.id === id) setSelected(updated)
+      setError('')
+    } catch (err) {
+      setError('Failed to update lead. Please try again.')
+      console.error(err)
+    }
   }
 
   const filtered = useMemo(() => {
