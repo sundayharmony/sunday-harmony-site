@@ -74,7 +74,6 @@ export async function POST(req: NextRequest) {
 
   if (!client) return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
 
-  const session = await getServerSession(authOptions)
   logActivity({
     action: 'created',
     entity_type: 'client',
