@@ -67,13 +67,13 @@ export async function POST(request: Request) {
       transporter.sendMail({
         from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
         to: process.env.NOTIFY_EMAIL || 'sales@sundayharmony.com',
-        subject: `💬 New message from ${session.user.name || 'a client'}${client ? ` (${client.business})` : ''}`,
+        subject: `New message from ${(session.user as { name?: string }).name || 'a client'}${client ? ` (${client.business})` : ''}`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Client Message
             </h2>
-            <p><strong>From:</strong> ${(session.user as { name?: string }).name || 'Client'}${client ? ` — ${client.business}` : ''}</p>
+            <p><strong>From:</strong> ${(session.user as { name?: string }).name || 'Client'}${client ? ` &ndash; ${client.business}` : ''}</p>
             <div style="padding:16px;background:#f8f6f0;border-radius:8px;margin:12px 0">
               <p style="margin:0;white-space:pre-wrap">${text.trim()}</p>
             </div>

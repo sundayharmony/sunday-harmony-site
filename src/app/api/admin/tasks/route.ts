@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getTasksByClient, createTask, updateTask, deleteTask } from '@/lib/db'
+import { getTasksByClient, createTask, updateTask, deleteTask, getClientById, createNotification } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,6 +66,28 @@ export async function POST(request: NextRequest) {
     const result = await createTask(taskData)
     if (!result) {
       return NextResponse.json({ error: 'Failed to create task' }, { status: 500 })
+    }
+
+    // Create notification for client
+    const client = await getClientById(client_id)
+    if (client) {
+      // Find user with this client_id to send notification
+      const { getSupabase } = await import('@/lib/supabase')
+      const { data: clientUser } = await getSupabase()
+        .from('users')
+        .select('id')
+        .eq('client_id', client_id)
+        .single()
+
+      if (clientUser) {
+        await createNotification({
+          user_id: clientUser.id,
+          title: 'New Task',
+          message: title,
+          type: 'task',
+          link: '/dashboard/tasks',
+        })
+      }
     }
 
     return NextResponse.json(result, { status: 201 })

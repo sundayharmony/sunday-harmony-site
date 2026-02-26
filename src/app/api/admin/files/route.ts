@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getFilesByClient, createFileRecord, deleteFileRecord } from '@/lib/db'
+import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getSupabase } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +69,23 @@ export async function POST(request: NextRequest) {
 
     if (!fileRecord) {
       return NextResponse.json({ error: 'Failed to create file record' }, { status: 500 })
+    }
+
+    // Create notification for client
+    const sbClient = await getSupabase()
+      .from('users')
+      .select('id')
+      .eq('client_id', client_id)
+      .single()
+
+    if (sbClient.data) {
+      await createNotification({
+        user_id: sbClient.data.id,
+        title: 'New File Shared',
+        message: name,
+        type: 'file',
+        link: '/dashboard/files',
+      })
     }
 
     return NextResponse.json(fileRecord, { status: 201 })
