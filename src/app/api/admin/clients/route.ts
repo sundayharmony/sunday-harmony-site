@@ -18,11 +18,21 @@ const tierLabels: Record<string, string> = {
 }
 
 export async function GET() {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as { role?: string })?.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const clients = await getClients()
   return NextResponse.json(clients)
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as { role?: string })?.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const body = await req.json()
   const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins } = body
 
