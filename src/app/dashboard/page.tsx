@@ -96,7 +96,7 @@ export default function DashboardHome() {
           Welcome back, {userName.split(' ')[0]}
         </h1>
         <p className="text-sm text-brand-muted">
-          Here&rsquo;s what&rsquo;s happening with your marketing.
+          Here&apos;s what&apos;s happening with your marketing.
         </p>
       </div>
 

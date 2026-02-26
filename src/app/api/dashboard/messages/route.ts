@@ -8,11 +8,16 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user || session.user.role !== 'client') {
+  if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const clientId = session.user.clientId
+  const userRole = (session.user as { role?: string }).role
+  if (userRole !== 'client') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const clientId = (session.user as { clientId?: string }).clientId
   if (!clientId) {
     return NextResponse.json([])
   }
@@ -23,11 +28,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || session.user.role !== 'client') {
+  if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const clientId = session.user.clientId
+  const userRole = (session.user as { role?: string }).role
+  if (userRole !== 'client') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const clientId = (session.user as { clientId?: string }).clientId
   if (!clientId) {
     return NextResponse.json({ error: 'No client profile linked' }, { status: 400 })
   }
@@ -40,7 +50,7 @@ export async function POST(request: Request) {
   const message = await createMessage({
     client_id: clientId,
     from_role: 'client',
-    from_name: session.user.name || 'Client',
+    from_name: (session.user as { name?: string }).name || 'Client',
     text: text.trim(),
   })
 
@@ -63,7 +73,7 @@ export async function POST(request: Request) {
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Client Message
             </h2>
-            <p><strong>From:</strong> ${session.user.name || 'Client'}${client ? ` — ${client.business}` : ''}</p>
+            <p><strong>From:</strong> ${(session.user as { name?: string }).name || 'Client'}${client ? ` — ${client.business}` : ''}</p>
             <div style="padding:16px;background:#f8f6f0;border-radius:8px;margin:12px 0">
               <p style="margin:0;white-space:pre-wrap">${text.trim()}</p>
             </div>
