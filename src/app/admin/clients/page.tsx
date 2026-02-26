@@ -77,7 +77,8 @@ export default function ClientsPage() {
 
   const addDeliverable = async () => {
     if (!selected || !newDeliverable.trim()) return
-    const updated = [...(selected.deliverables || []), newDeliverable.trim()]
+    const currentDeliverables = Array.isArray(selected.deliverables) ? selected.deliverables : []
+    const updated = [...currentDeliverables, newDeliverable.trim()]
     await updateClient(selected.id, { deliverables: updated })
     setNewDeliverable('')
   }
@@ -85,7 +86,8 @@ export default function ClientsPage() {
   const removeDeliverable = async (index: number) => {
     if (!selected) return
     if (!window.confirm('Are you sure you want to remove this?')) return
-    const updated = selected.deliverables.filter((_, i) => i !== index)
+    const currentDeliverables = Array.isArray(selected.deliverables) ? selected.deliverables : []
+    const updated = currentDeliverables.filter((_, i) => i !== index)
     await updateClient(selected.id, { deliverables: updated })
   }
 

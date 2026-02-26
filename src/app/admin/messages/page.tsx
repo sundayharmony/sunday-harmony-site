@@ -260,7 +260,7 @@ export default function AdminMessagesPage() {
                   type="text"
                   value={newMsg}
                   onChange={e => setNewMsg(e.target.value)}
-                  placeholder={`Reply to ${selectedClientData?.name?.split(' ')[0] || 'client'}...`}
+                  placeholder={`Reply to ${selectedClientData?.name ? selectedClientData.name.split(' ')[0] : 'client'}...`}
                   className="flex-1 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                 />
                 <button
