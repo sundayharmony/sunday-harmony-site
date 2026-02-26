@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         `,
       })
     } else {
-      console.log('SMTP not configured. Reset URL:', resetUrl)
+      // SMTP not configured — reset email not sent
     }
 
     return NextResponse.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' })
