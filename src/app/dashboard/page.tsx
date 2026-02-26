@@ -42,19 +42,27 @@ export default function DashboardHome() {
   const { data: session } = useSession()
   const [client, setClient] = useState<ClientData | null>(null)
   const [messages, setMessages] = useState<MessageData[]>([])
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [clientRes, msgRes] = await Promise.all([
+        const [clientRes, msgRes, onbRes] = await Promise.all([
           fetch('/api/dashboard/profile'),
           fetch('/api/dashboard/messages'),
+          fetch('/api/dashboard/onboarding'),
         ])
         if (clientRes.ok) setClient(await clientRes.json())
         if (msgRes.ok) {
           const msgs = await msgRes.json()
-          setMessages(msgs.slice(-3)) // last 3 messages
+          setMessages(msgs.slice(-3))
+        }
+        if (onbRes.ok) {
+          const onb = await onbRes.json()
+          setOnboardingDone(onb?.completed || false)
+        } else {
+          setOnboardingDone(false)
         }
       } catch (err) {
         console.error('Failed to load dashboard data', err)
@@ -91,6 +99,25 @@ export default function DashboardHome() {
           Here&rsquo;s what&rsquo;s happening with your marketing.
         </p>
       </div>
+
+      {/* Onboarding Prompt */}
+      {onboardingDone === false && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4">
+          <span className="text-3xl">📝</span>
+          <div className="flex-1">
+            <h2 className="text-sm font-bold text-brand-text">Complete Your Getting Started Questionnaire</h2>
+            <p className="text-xs text-brand-muted mt-0.5">
+              Help us understand your business so we can build the perfect marketing strategy for you.
+            </p>
+          </div>
+          <a
+            href="/dashboard/onboarding"
+            className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold hover:bg-[#b8944f] transition-all whitespace-nowrap"
+          >
+            Get Started
+          </a>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
