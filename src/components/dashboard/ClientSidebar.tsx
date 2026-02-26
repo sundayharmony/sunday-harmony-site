@@ -10,6 +10,11 @@ const navItems = [
   { href: '/dashboard/performance', icon: '📊', label: 'Performance' },
   { href: '/dashboard/package', icon: '📦', label: 'My Package' },
   { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
+  { href: '/dashboard/onboarding', icon: '📝', label: 'Getting Started' },
+  { href: '/dashboard/tasks', icon: '✅', label: 'Tasks' },
+  { href: '/dashboard/files', icon: '📁', label: 'Files' },
+  { href: '/dashboard/approvals', icon: '📋', label: 'Approvals' },
+  { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
   { href: '/dashboard/billing', icon: '💳', label: 'Billing' },
 ]
 
