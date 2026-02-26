@@ -74,11 +74,11 @@ export default function DashboardHome() {
   }, [])
 
   const userName = session?.user?.name || 'there'
-  const daysSinceStart = client
+  const daysSinceStart = client && client.start_date
     ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
     : 0
-  const completedWins = client?.quick_wins?.filter(w => w.done).length || 0
-  const totalWins = client?.quick_wins?.length || 0
+  const completedWins = (Array.isArray(client?.quick_wins) ? client.quick_wins.filter(w => w.done).length : 0) || 0
+  const totalWins = (Array.isArray(client?.quick_wins) ? client.quick_wins.length : 0) || 0
 
   if (loading) {
     return (

@@ -240,9 +240,9 @@ export default function AdminMessagesPage() {
                               {msg.from_name}
                             </span>
                             <span className="text-[10px] text-brand-dim">
-                              {new Date(msg.created_at).toLocaleString('en-US', {
+                              {msg.created_at && new Date(msg.created_at).toLocaleString ? new Date(msg.created_at).toLocaleString('en-US', {
                                 month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-                              })}
+                              }) : '—'}
                             </span>
                           </div>
                           <p className="text-sm text-brand-text whitespace-pre-wrap">{msg.text}</p>
