@@ -143,7 +143,6 @@ export async function PATCH(req: NextRequest) {
   const client = await updateClient(id, updates)
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
-  const session = await getServerSession(authOptions)
   const changedFields = Object.keys(updates).join(', ')
   logActivity({
     action: 'updated',
