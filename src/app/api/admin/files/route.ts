@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const files = await getFilesByClient(clientId)
     return NextResponse.json(files, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/admin/files error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(fileRecord, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('POST /api/admin/files error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -122,7 +122,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ message: 'File deleted successfully' }, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('DELETE /api/admin/files error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

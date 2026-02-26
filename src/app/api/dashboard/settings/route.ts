@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 200 }
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/dashboard/settings error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -68,7 +68,7 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json({ message: 'Password updated successfully' }, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('PUT /api/dashboard/settings error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

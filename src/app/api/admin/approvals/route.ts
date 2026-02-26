@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const approvals = await getApprovalsByClient(clientId)
     return NextResponse.json(approvals, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/admin/approvals error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('POST /api/admin/approvals error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -121,7 +121,7 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json(result, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('PUT /api/admin/approvals error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

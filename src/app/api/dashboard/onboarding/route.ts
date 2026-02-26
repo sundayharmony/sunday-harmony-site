@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     const response = await getOnboardingResponse(clientId)
     return NextResponse.json(response || {}, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/dashboard/onboarding error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -75,7 +75,7 @@ export async function PUT(request: NextRequest) {
 
     const result = await upsertOnboardingResponse(clientId, updates)
     return NextResponse.json(result, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('PUT /api/dashboard/onboarding error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

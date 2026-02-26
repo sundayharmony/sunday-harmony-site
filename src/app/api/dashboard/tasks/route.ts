@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     const tasks = await getTasksByClient(clientId)
     return NextResponse.json(tasks, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/dashboard/tasks error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const notifications = await getNotifications(userId)
     return NextResponse.json(notifications, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/dashboard/notifications error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest) {
 
     await markNotificationRead(id)
     return NextResponse.json({ message: 'Notification marked as read' }, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('PUT /api/dashboard/notifications error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

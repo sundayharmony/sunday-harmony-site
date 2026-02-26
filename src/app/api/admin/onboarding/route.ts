@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     const response = await getOnboardingResponse(clientId)
     return NextResponse.json(response || {}, { status: 200 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('GET /api/admin/onboarding error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
