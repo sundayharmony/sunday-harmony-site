@@ -13,6 +13,14 @@ interface ClientData {
   status: string
 }
 
+interface Invoice {
+  id: string
+  date: string
+  amount: number
+  status: 'paid' | 'current' | 'overdue'
+  desc: string
+}
+
 const tierLabels: Record<string, string> = {
   social_essentials: 'Social Essentials',
   spark: 'Spark',
@@ -20,20 +28,48 @@ const tierLabels: Record<string, string> = {
   scale: 'Scale',
 }
 
-// Simulated invoices — in production, pull from Stripe or QuickBooks
-const invoices = [
-  { id: 'INV-006', date: '2026-02-01', amount: 0, status: 'current', desc: 'February 2026' },
-  { id: 'INV-005', date: '2026-01-01', amount: 0, status: 'paid', desc: 'January 2026' },
-  { id: 'INV-004', date: '2025-12-01', amount: 0, status: 'paid', desc: 'December 2025' },
-  { id: 'INV-003', date: '2025-11-01', amount: 0, status: 'paid', desc: 'November 2025' },
-  { id: 'INV-002', date: '2025-10-01', amount: 0, status: 'paid', desc: 'October 2025' },
-  { id: 'INV-001', date: '2025-09-01', amount: 0, status: 'paid', desc: 'September 2025' },
-]
-
 const statusStyles: Record<string, { color: string; bg: string; label: string }> = {
   paid: { color: '#2d8a62', bg: '#f0fdf4', label: 'Paid' },
   current: { color: '#2e7bb5', bg: '#eff6ff', label: 'Current' },
   overdue: { color: '#c94a42', bg: '#fef2f2', label: 'Overdue' },
+}
+
+function generateInvoices(startDate: string, monthlyPrice: number): Invoice[] {
+  const start = new Date(startDate)
+  const now = new Date()
+  const invoices: Invoice[] = []
+
+  // Generate one invoice per month from start_date to now
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  let counter = 1
+
+  while (cursor <= currentMonth) {
+    const isCurrentMonth = cursor.getFullYear() === currentMonth.getFullYear() && cursor.getMonth() === currentMonth.getMonth()
+    const monthName = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+    invoices.push({
+      id: `INV-${String(counter).padStart(3, '0')}`,
+      date: cursor.toISOString().split('T')[0],
+      amount: monthlyPrice,
+      status: isCurrentMonth ? 'current' : 'paid',
+      desc: monthName,
+    })
+
+    cursor.setMonth(cursor.getMonth() + 1)
+    counter++
+  }
+
+  // Return newest first
+  return invoices.reverse()
+}
+
+function getNextInvoiceDate(invoices: Invoice[]): string {
+  if (invoices.length === 0) return '—'
+  // The most recent invoice is the current month; next invoice is the following month
+  const latest = new Date(invoices[0].date)
+  latest.setMonth(latest.getMonth() + 1)
+  return latest.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 export default function BillingPage() {
@@ -48,8 +84,9 @@ export default function BillingPage() {
   }, [])
 
   const monthlyPrice = client?.monthly_price || 0
-  const populatedInvoices = invoices.map(inv => ({ ...inv, amount: monthlyPrice }))
-  const totalPaid = populatedInvoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0)
+  const invoices = client ? generateInvoices(client.start_date, monthlyPrice) : []
+  const totalPaid = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0)
+  const nextInvoice = getNextInvoiceDate(invoices)
 
   if (loading) {
     return (
@@ -106,7 +143,7 @@ export default function BillingPage() {
           </div>
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Next Invoice</div>
-            <div className="text-sm text-brand-text font-semibold">March 1, 2026</div>
+            <div className="text-sm text-brand-text font-semibold">{nextInvoice}</div>
           </div>
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
@@ -128,38 +165,47 @@ export default function BillingPage() {
       {/* Invoice History */}
       <div className="bg-white border border-brand-border rounded-2xl p-6">
         <h2 className="text-base font-bold text-brand-text mb-4">Invoice History</h2>
-        <div className="space-y-2">
-          {/* Header */}
-          <div className="grid grid-cols-5 gap-4 px-3 py-2 text-[10px] font-bold uppercase text-brand-dim">
-            <span>Invoice</span>
-            <span>Period</span>
-            <span>Date</span>
-            <span>Amount</span>
-            <span>Status</span>
-          </div>
-          {populatedInvoices.map((inv) => {
-            const style = statusStyles[inv.status] || statusStyles.paid
-            return (
-              <div
-                key={inv.id}
-                className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
-              >
-                <span className="text-sm text-brand-text font-semibold">{inv.id}</span>
-                <span className="text-sm text-brand-muted">{inv.desc}</span>
-                <span className="text-sm text-brand-muted">
-                  {new Date(inv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-                <span className="text-sm text-brand-text font-semibold">${inv.amount.toLocaleString()}</span>
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit"
-                  style={{ color: style.color, background: style.bg }}
+
+        {invoices.length > 0 ? (
+          <div className="space-y-2">
+            {/* Header */}
+            <div className="grid grid-cols-5 gap-4 px-3 py-2 text-[10px] font-bold uppercase text-brand-dim">
+              <span>Invoice</span>
+              <span>Period</span>
+              <span>Date</span>
+              <span>Amount</span>
+              <span>Status</span>
+            </div>
+            {invoices.map((inv) => {
+              const style = statusStyles[inv.status] || statusStyles.paid
+              return (
+                <div
+                  key={inv.id}
+                  className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
                 >
-                  {style.label}
-                </span>
-              </div>
-            )
-          })}
-        </div>
+                  <span className="text-sm text-brand-text font-semibold">{inv.id}</span>
+                  <span className="text-sm text-brand-muted">{inv.desc}</span>
+                  <span className="text-sm text-brand-muted">
+                    {new Date(inv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                  <span className="text-sm text-brand-text font-semibold">${inv.amount.toLocaleString()}</span>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit"
+                    style={{ color: style.color, background: style.bg }}
+                  >
+                    {style.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">🧾</div>
+            <p className="text-sm text-brand-muted">No invoices yet.</p>
+            <p className="text-xs text-brand-dim mt-1">Invoices will appear here once your plan is active.</p>
+          </div>
+        )}
       </div>
 
       {/* Questions */}
