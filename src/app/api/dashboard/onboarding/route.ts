@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as any
+    const user = session.user as { role?: string; clientId?: string }
     if (user.role !== 'client') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }

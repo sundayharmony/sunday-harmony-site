@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as any
+    const user = session.user as { id: string }
     const userId = user.id
 
     const userData = await getUserById(userId)
@@ -42,7 +42,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as any
+    const user = session.user as { id: string }
     const userId = user.id
 
     const body = await request.json()

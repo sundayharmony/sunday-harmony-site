@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as any
+    const user = session.user as { role?: string; clientId?: string; name?: string; email?: string }
     if (user.role !== 'client') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as any
+    const user = session.user as { role?: string; clientId?: string; name?: string; email?: string }
     if (user.role !== 'client') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -86,14 +86,9 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as any
+    const user = session.user as { role?: string; clientId?: string; name?: string; email?: string }
     if (user.role !== 'client') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const clientId = user.clientId
-    if (!clientId) {
-      return NextResponse.json({ error: 'No client ID associated with user' }, { status: 400 })
     }
 
     const body = await request.json()
