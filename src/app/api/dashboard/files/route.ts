@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       file_type,
       category: category || '',
       uploaded_by_role: 'client',
-      uploaded_by_name: user.name || user.email,
+      uploaded_by_name: user.name || user.email || 'Client',
     })
 
     if (!fileRecord) {
