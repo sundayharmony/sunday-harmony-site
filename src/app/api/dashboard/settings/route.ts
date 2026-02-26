@@ -47,11 +47,36 @@ export async function PUT(request: NextRequest) {
     const user = session.user as { id: string }
     const userId = user.id
 
+    // Rate limit: 5 password change attempts per 15 minutes per IP
+    const ip = getClientIp(request)
+    const rl = rateLimit(`settings-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const { currentPassword, newPassword } = body
 
     if (!currentPassword || !newPassword) {
       return NextResponse.json({ error: 'Missing currentPassword or newPassword' }, { status: 400 })
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return NextResponse.json({ error: 'New password must be at least 8 characters' }, { status: 400 })
+    }
+
+    if (newPassword.length > 128) {
+      return NextResponse.json({ error: 'Password is too long' }, { status: 400 })
+    }
+
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return NextResponse.json(
+        { error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' },
+        { status: 400 }
+      )
     }
 
     const userData = await getUserById(userId)

@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { getUserByEmail, verifyPassword, seedAdmin } from './db'
+import { rateLimit } from './rate-limit'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -12,6 +13,11 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
+
+        // Rate limit: 10 login attempts per 15 minutes per email
+        const emailKey = credentials.email.toLowerCase().trim()
+        const rl = rateLimit(`login:${emailKey}`, 10, 15 * 60 * 1000)
+        if (!rl.allowed) return null
 
         // Ensure admin exists on each login attempt
         await seedAdmin()
