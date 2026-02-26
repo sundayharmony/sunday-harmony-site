@@ -47,6 +47,12 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Missing notification id or all flag' }, { status: 400 })
     }
 
+    // Verify notification belongs to this user before marking read (IDOR protection)
+    const notification = await getNotificationById(id)
+    if (!notification || notification.user_id !== userId) {
+      return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
+    }
+
     await markNotificationRead(id)
     return NextResponse.json({ message: 'Notification marked as read' }, { status: 200 })
   } catch (error: unknown) {

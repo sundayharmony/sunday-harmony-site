@@ -427,6 +427,12 @@ export async function createNotification(notif: Omit<Notification, 'id' | 'read'
   return data
 }
 
+export async function getNotificationById(id: string): Promise<Notification | null> {
+  const { data, error } = await getSupabase().from('notifications').select('*').eq('id', id).single()
+  if (error) return null
+  return data
+}
+
 export async function markNotificationRead(id: string): Promise<void> {
   await getSupabase().from('notifications').update({ read: true }).eq('id', id)
 }
