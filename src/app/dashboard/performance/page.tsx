@@ -1,155 +1,192 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-// Simulated performance data — in production, this would come from API integrations
-const months = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb']
-
-const metricsData = {
-  'Website Visits': { values: [120, 245, 389, 512, 640, 780], color: '#3a8bc2', unit: '' },
-  'Google Searches': { values: [45, 89, 134, 198, 267, 320], color: '#4a9e7d', unit: '' },
-  'Phone Calls': { values: [3, 8, 14, 22, 31, 38], color: '#c9a96e', unit: '' },
-  'Form Submissions': { values: [1, 4, 9, 15, 22, 28], color: '#7b68c9', unit: '' },
+interface ActivityEntry {
+  id: string
+  action: string
+  entity_type: string
+  details?: string
+  created_at: string
 }
 
-const activityLog = [
-  { date: '2026-02-20', action: 'Published 3 social media posts (Instagram, Facebook)', category: 'Social Media' },
-  { date: '2026-02-18', action: 'Optimized Google Business Profile — added 6 new photos', category: 'Local SEO' },
-  { date: '2026-02-15', action: 'Monthly SEO report generated — rankings improved for 4 keywords', category: 'SEO' },
-  { date: '2026-02-12', action: 'Responded to 2 Google reviews on your behalf', category: 'Reputation' },
-  { date: '2026-02-10', action: 'Launched email campaign — 340 recipients, 28% open rate', category: 'Email' },
-  { date: '2026-02-07', action: 'Website speed optimization — load time reduced by 1.2s', category: 'Website' },
-  { date: '2026-02-05', action: 'Created February content calendar and scheduled posts', category: 'Social Media' },
-  { date: '2026-02-01', action: 'Monthly strategy call completed — Q2 goals defined', category: 'Strategy' },
-]
+interface ClientData {
+  id: string
+  name: string
+  business: string
+  package_tier: string
+  monthly_price: number
+  start_date: string
+  status: string
+}
 
 const categoryColors: Record<string, string> = {
   'Social Media': '#3a8bc2',
   'Local SEO': '#4a9e7d',
-  'SEO': '#4a9e7d',
-  'Reputation': '#c9a96e',
-  'Email': '#7b68c9',
-  'Website': '#3a8bc2',
-  'Strategy': '#c9a96e',
+  SEO: '#4a9e7d',
+  Reputation: '#c9a96e',
+  Email: '#7b68c9',
+  Website: '#3a8bc2',
+  Strategy: '#c9a96e',
+  General: '#6b7280',
+}
+
+function guessCategory(action: string): string {
+  const lower = action.toLowerCase()
+  if (lower.includes('social') || lower.includes('post') || lower.includes('instagram') || lower.includes('facebook')) return 'Social Media'
+  if (lower.includes('seo') || lower.includes('keyword') || lower.includes('ranking')) return 'SEO'
+  if (lower.includes('google business') || lower.includes('local')) return 'Local SEO'
+  if (lower.includes('review') || lower.includes('reputation')) return 'Reputation'
+  if (lower.includes('email') || lower.includes('campaign') || lower.includes('newsletter')) return 'Email'
+  if (lower.includes('website') || lower.includes('speed') || lower.includes('page')) return 'Website'
+  if (lower.includes('strategy') || lower.includes('call') || lower.includes('plan')) return 'Strategy'
+  return 'General'
+}
+
+const tierLabels: Record<string, string> = {
+  social_essentials: 'Social Essentials',
+  spark: 'Spark',
+  growth: 'Growth',
+  scale: 'Scale',
 }
 
 export default function PerformancePage() {
-  const [selectedMetric, setSelectedMetric] = useState<string>('Website Visits')
+  const [client, setClient] = useState<ClientData | null>(null)
+  const [activities, setActivities] = useState<ActivityEntry[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const metric = metricsData[selectedMetric as keyof typeof metricsData]
-  const maxVal = Math.max(...metric.values)
-  const currentVal = metric.values[metric.values.length - 1]
-  const prevVal = metric.values[metric.values.length - 2]
-  const changePercent = prevVal > 0 ? Math.round(((currentVal - prevVal) / prevVal) * 100) : 0
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [clientRes, activityRes] = await Promise.all([
+          fetch('/api/dashboard/profile'),
+          fetch('/api/dashboard/activity'),
+        ])
+        if (clientRes.ok) setClient(await clientRes.json())
+        if (activityRes.ok) setActivities(await activityRes.json())
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  const daysSinceStart = client
+    ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
+    : 0
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-brand-muted text-sm">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Performance</h1>
-        <p className="text-sm text-brand-muted">Track your marketing results over time.</p>
+        <p className="text-sm text-brand-muted">Track your marketing results and recent activity.</p>
       </div>
 
-      {/* Metric Selector */}
-      <div className="flex gap-3 mb-6">
-        {Object.entries(metricsData).map(([name, data]) => {
-          const val = data.values[data.values.length - 1]
-          return (
-            <button
-              key={name}
-              onClick={() => setSelectedMetric(name)}
-              className={`flex-1 p-4 rounded-xl border transition-all ${
-                selectedMetric === name
-                  ? 'bg-gray-50 border-brand-border'
-                  : 'bg-white border-brand-border hover:bg-gray-50'
-              }`}
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">{name}</div>
-              <div className="text-2xl font-extrabold" style={{ color: data.color }}>
-                {val.toLocaleString()}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Chart Area */}
-      <div className="bg-white border border-brand-border rounded-2xl p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-bold text-brand-text">{selectedMetric}</h2>
-            <span className="text-xs text-brand-muted">Last 6 months</span>
-          </div>
-          <div className={`text-sm font-bold ${changePercent >= 0 ? 'text-brand-green' : 'text-brand-red'}`}>
-            {changePercent >= 0 ? '↑' : '↓'} {Math.abs(changePercent)}% vs last month
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white border border-brand-border rounded-xl p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Package</div>
+          <div className="text-lg font-extrabold text-brand-text">
+            {client ? tierLabels[client.package_tier] || client.package_tier : '—'}
           </div>
         </div>
-
-        {/* Simple bar chart */}
-        <div className="flex items-end gap-3 h-48">
-          {metric.values.map((val, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-[10px] text-brand-muted font-semibold">{val}</span>
-              <div
-                className="w-full rounded-t-lg transition-all"
-                style={{
-                  height: `${maxVal > 0 ? (val / maxVal) * 160 : 0}px`,
-                  background: i === metric.values.length - 1
-                    ? metric.color
-                    : `${metric.color}66`,
-                  minHeight: '4px',
-                }}
-              />
-              <span className="text-[10px] text-brand-dim">{months[i]}</span>
-            </div>
-          ))}
+        <div className="bg-white border border-brand-border rounded-xl p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Days Active</div>
+          <div className="text-lg font-extrabold text-brand-blue">{daysSinceStart}</div>
+        </div>
+        <div className="bg-white border border-brand-border rounded-xl p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Monthly Investment</div>
+          <div className="text-lg font-extrabold text-brand-green">
+            {client ? `$${client.monthly_price.toLocaleString()}` : '—'}
+          </div>
+        </div>
+        <div className="bg-white border border-brand-border rounded-xl p-4">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Activities Logged</div>
+          <div className="text-lg font-extrabold text-brand-purple">{activities.length}</div>
         </div>
       </div>
 
-      {/* Highlights */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <div className="text-[10px] font-bold uppercase text-brand-green mb-1">Best Month</div>
-          <div className="text-lg font-extrabold text-brand-text">February</div>
-          <p className="text-xs text-brand-muted mt-1">780 website visits — your highest yet</p>
-        </div>
-        <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4">
-          <div className="text-[10px] font-bold uppercase text-brand-gold mb-1">Conversion Rate</div>
-          <div className="text-lg font-extrabold text-brand-text">4.9%</div>
-          <p className="text-xs text-brand-muted mt-1">Form submissions ÷ website visits</p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <div className="text-[10px] font-bold uppercase text-brand-blue mb-1">Total Growth</div>
-          <div className="text-lg font-extrabold text-brand-text">550%</div>
-          <p className="text-xs text-brand-muted mt-1">Website traffic since start</p>
-        </div>
+      {/* Analytics Coming Soon */}
+      <div className="bg-white border border-brand-border rounded-2xl p-8 mb-6 text-center">
+        <div className="text-4xl mb-3">📊</div>
+        <h2 className="text-lg font-bold text-brand-text mb-2">Analytics Dashboard Coming Soon</h2>
+        <p className="text-sm text-brand-muted max-w-md mx-auto mb-4">
+          We&rsquo;re setting up integrations with Google Analytics, Google Business Profile, and social media insights so you can see real-time performance data here.
+        </p>
+        <p className="text-xs text-brand-dim">
+          In the meantime, check your monthly reports in{' '}
+          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
+            Messages
+          </a>{' '}
+          or ask your team for an update.
+        </p>
       </div>
 
       {/* Activity Log */}
       <div className="bg-white border border-brand-border rounded-2xl p-6">
         <h2 className="text-base font-bold text-brand-text mb-4">Activity Log</h2>
-        <p className="text-xs text-brand-muted mb-4">Everything we&rsquo;ve done for your business this month.</p>
-        <div className="space-y-3">
-          {activityLog.map((item, i) => (
-            <div key={i} className="flex items-start gap-4 p-3 rounded-lg bg-gray-50 border border-brand-border">
-              <div className="text-xs text-brand-dim whitespace-nowrap pt-0.5">
-                {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-brand-text">{item.action}</p>
-              </div>
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{
-                  color: categoryColors[item.category] || '#c9a96e',
-                  background: `${categoryColors[item.category] || '#c9a96e'}15`,
-                  border: `1px solid ${categoryColors[item.category] || '#c9a96e'}30`,
-                }}
-              >
-                {item.category}
-              </span>
-            </div>
-          ))}
-        </div>
+        <p className="text-xs text-brand-muted mb-4">Recent work your Sunday Harmony team has done for your business.</p>
+
+        {activities.length > 0 ? (
+          <div className="space-y-3">
+            {activities.map((item) => {
+              const category = guessCategory(item.action)
+              const catColor = categoryColors[category] || '#6b7280'
+              return (
+                <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg bg-gray-50 border border-brand-border">
+                  <div className="text-xs text-brand-dim whitespace-nowrap pt-0.5">
+                    {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-brand-text">{item.action}</p>
+                    {item.details && (
+                      <p className="text-xs text-brand-muted mt-0.5">{item.details}</p>
+                    )}
+                  </div>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                    style={{
+                      color: catColor,
+                      background: `${catColor}15`,
+                      border: `1px solid ${catColor}30`,
+                    }}
+                  >
+                    {category}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">📋</div>
+            <p className="text-sm text-brand-muted">No activity logged yet.</p>
+            <p className="text-xs text-brand-dim mt-1">
+              Your Sunday Harmony team will log work here as your campaign progresses.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Help Card */}
+      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 text-center">
+        <p className="text-sm text-brand-muted">
+          Want a performance update?{' '}
+          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
+            Send us a message
+          </a>{' '}
+          and we&rsquo;ll send you a detailed report.
+        </p>
       </div>
     </div>
   )
