@@ -37,8 +37,8 @@ export default function OnboardingPage() {
         const res = await fetch('/api/dashboard/onboarding');
         if (!res.ok) throw new Error('Failed to fetch onboarding data');
         const result = await res.json();
-        setData(result.data);
-        if (!result.data?.completed) {
+        setData(result);
+        if (!result?.completed) {
           setIsEditing(true);
         }
       } catch (err) {

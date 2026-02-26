@@ -29,7 +29,7 @@ export default function FilesPage() {
         const res = await fetch('/api/dashboard/files');
         if (!res.ok) throw new Error('Failed to fetch files');
         const result = await res.json();
-        setFiles(result.data || []);
+        setFiles(Array.isArray(result) ? result : (result.data || []));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -86,8 +86,10 @@ export default function FilesPage() {
   const handleDelete = async (fileId: string) => {
     setDeletingId(fileId);
     try {
-      const res = await fetch(`/api/dashboard/files?id=${fileId}`, {
+      const res = await fetch('/api/dashboard/files', {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: fileId }),
       });
 
       if (!res.ok) throw new Error('Failed to delete file');
