@@ -3,9 +3,20 @@ import crypto from 'crypto'
 import nodemailer from 'nodemailer'
 import { getUserByEmail } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 requests per 15 minutes per IP
+    const ip = getClientIp(req)
+    const rl = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const { email } = await req.json()
     if (!email?.trim()) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -56,15 +67,13 @@ export async function POST(req: NextRequest) {
                 Reset Password
               </a>
             </div>
-            <p style="font-size:13px;color:#666">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+            <p style="font-size:13px;color:#666">This link expires in 1 hour. If you didn&rsquo;t request this, you can safely ignore this email.</p>
             <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
-              — Sunday Harmony
+              &mdash; Sunday Harmony
             </p>
           </div>
         `,
       })
-    } else {
-      // SMTP not configured — reset email not sent
     }
 
     return NextResponse.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' })
