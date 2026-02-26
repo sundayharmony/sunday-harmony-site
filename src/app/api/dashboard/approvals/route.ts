@@ -44,11 +44,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const clientId = user.clientId
+    if (!clientId) {
+      return NextResponse.json({ error: 'No client ID associated with user' }, { status: 400 })
+    }
+
     const body = await request.json()
     const { id, status, client_feedback } = body
 
     if (!id) {
       return NextResponse.json({ error: 'Missing approval id' }, { status: 400 })
+    }
+
+    // Verify approval belongs to this client before updating (IDOR protection)
+    const existing = await getApprovalById(id)
+    if (!existing || existing.client_id !== clientId) {
+      return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
     }
 
     if (!status || !['approved', 'revision_requested'].includes(status)) {
