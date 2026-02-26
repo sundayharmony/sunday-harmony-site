@@ -39,6 +39,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'clientId and text required' }, { status: 400 })
   }
 
+  // Input length validation
+  if (typeof text === 'string' && text.length > 10000) {
+    return NextResponse.json({ error: 'Message is too long (max 10000 characters)' }, { status: 400 })
+  }
+
   const message = await createMessage({
     client_id: clientId,
     from_role: 'admin',
