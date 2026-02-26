@@ -301,7 +301,7 @@ export async function seedAdmin(): Promise<void> {
         name: 'Mac Cesar',
         role: 'admin',
       })
-      console.log('Admin account created:', adminEmail)
+      // Admin account seeded successfully
     }
   } catch (err) {
     console.error('Failed to seed admin:', err)
