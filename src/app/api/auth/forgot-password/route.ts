@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
             <p>Hi ${user.name},</p>
             <p>We received a request to reset your password. Click the button below to set a new one:</p>
             <div style="text-align:center;margin:30px 0">
-              <a href="${resetUrl}" style="background:#c9a96e;color:#0a0a0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+              <a href="${resetUrl}" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
                 Reset Password
               </a>
             </div>

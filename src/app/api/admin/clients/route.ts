@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
               <p>We're excited to have <strong>${escHtml(business)}</strong> on board! Your <strong>${escHtml(tierLabels[packageTier] || packageTier)}</strong> package is now active.</p>
               <p>You can access your client dashboard to track progress, view deliverables, and message our team:</p>
               <div style="text-align:center;margin:30px 0">
-                <a href="${siteUrl}/login" style="background:#c9a96e;color:#0a0a0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+                <a href="${siteUrl}/login" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
                   Log In to Your Dashboard
                 </a>
               </div>

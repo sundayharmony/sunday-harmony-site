@@ -69,7 +69,7 @@ export async function POST(request: Request) {
                 <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
               </div>
               <div style="text-align:center;margin:24px 0">
-                <a href="${siteUrl}/dashboard/messages" style="background:#c9a96e;color:#0a0a0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+                <a href="${siteUrl}/dashboard/messages" style="background:#c9a96e;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
                   View in Dashboard
                 </a>
               </div>

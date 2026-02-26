@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   try {
     // Try seeding admin
-    console.log('Setup: Attempting to seed admin...')
     await seedAdmin()
 
     // Check if admin exists now
