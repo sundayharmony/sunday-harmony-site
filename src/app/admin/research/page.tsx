@@ -17,12 +17,20 @@ export default function ResearchPage() {
 
   const saveToDb = useCallback(async (updated: Record<string, boolean>) => {
     setSaving(true)
-    await fetch('/api/admin/data', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ research_tasks: updated }),
-    }).catch(() => {})
-    setSaving(false)
+    try {
+      const res = await fetch('/api/admin/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ research_tasks: updated }),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      setError('')
+    } catch (err) {
+      setError('Failed to save. Please try again.')
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
   }, [])
 
   const toggleTask = (key: string) => {
@@ -44,8 +52,20 @@ export default function ResearchPage() {
             Industry data, target customer insights, and research tasks from your launch toolkit.
           </p>
         </div>
-        {saving && <span className="text-xs text-brand-gold animate-pulse">Saving...</span>}
+        <div className="flex items-center gap-3">
+          {error ? (
+            <span className="text-xs text-red-600">Error saving</span>
+          ) : saving ? (
+            <span className="text-xs text-brand-gold animate-pulse">Saving...</span>
+          ) : null}
+        </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Market Stats Grid */}
       <div className="grid grid-cols-3 gap-3 mb-8">

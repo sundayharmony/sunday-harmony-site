@@ -32,7 +32,6 @@ export async function PATCH(req: NextRequest) {
   const lead = await updateLead(id, updates)
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
-  const session = await getServerSession(authOptions)
   const changedFields = Object.keys(updates).join(', ')
   logActivity({
     action: 'updated',

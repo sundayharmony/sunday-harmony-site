@@ -26,6 +26,7 @@ export default function AdminMessagesPage() {
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   // Fetch clients and all messages on mount
