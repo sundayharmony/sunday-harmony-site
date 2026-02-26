@@ -135,9 +135,9 @@ export default function ClientsPage() {
   const exportCSV = () => {
     const headers = ['Name', 'Business', 'Email', 'Phone', 'Industry', 'Package', 'Monthly Price', 'Status', 'Start Date', 'Notes']
     const rows = filtered.map(c => [
-      c.name, c.business, c.email, c.phone || '', c.industry || '',
-      tierLabels[c.package_tier] || c.package_tier, `$${c.monthly_price}`, c.status,
-      new Date(c.start_date).toLocaleDateString(), c.notes || '',
+      c.name || '', c.business || '', c.email || '', c.phone || '', c.industry || '',
+      tierLabels[c.package_tier] || c.package_tier || '', `$${(c.monthly_price || 0).toLocaleString()}`, c.status || '',
+      (c.start_date && new Date(c.start_date).toLocaleDateString) ? new Date(c.start_date).toLocaleDateString() : '', c.notes || '',
     ])
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -273,10 +273,10 @@ export default function ClientsPage() {
                     >
                       <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
                       <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                      <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
-                      <td className="px-4 py-3 text-sm text-brand-text">${client.monthly_price.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
+                      <td className="px-4 py-3 text-sm text-brand-text">${(client.monthly_price || 0).toLocaleString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
-                      <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.start_date).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-xs text-brand-dim">{client.start_date && new Date(client.start_date).toLocaleDateString ? new Date(client.start_date).toLocaleDateString() : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
