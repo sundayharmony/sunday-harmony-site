@@ -54,6 +54,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: client_id, title' }, { status: 400 })
     }
 
+    // Input length validation
+    if (typeof title === 'string' && title.length > 300) {
+      return NextResponse.json({ error: 'Title is too long (max 300 characters)' }, { status: 400 })
+    }
+    if (typeof description === 'string' && description.length > 5000) {
+      return NextResponse.json({ error: 'Description is too long (max 5000 characters)' }, { status: 400 })
+    }
+
     const taskData = {
       client_id,
       title,
