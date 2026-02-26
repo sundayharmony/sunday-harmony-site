@@ -29,7 +29,7 @@ export default function SettingsPage() {
         const res = await fetch('/api/dashboard/settings');
         if (!res.ok) throw new Error('Failed to fetch settings');
         const result = await res.json();
-        setUser(result.data);
+        setUser(result);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
