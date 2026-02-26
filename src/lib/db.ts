@@ -347,6 +347,12 @@ export async function createFileRecord(file: Omit<FileRecord, 'id' | 'created_at
   return data
 }
 
+export async function getFileById(id: string): Promise<FileRecord | null> {
+  const { data, error } = await getSupabase().from('files').select('*').eq('id', id).single()
+  if (error) return null
+  return data
+}
+
 export async function deleteFileRecord(id: string): Promise<boolean> {
   const { error } = await getSupabase().from('files').delete().eq('id', id)
   return !error
