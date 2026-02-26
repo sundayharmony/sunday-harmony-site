@@ -57,6 +57,11 @@ export default function SettingsPage() {
       return;
     }
 
+    if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setPasswordError('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setPasswordError('Passwords do not match');
       return;
@@ -183,7 +188,7 @@ export default function SettingsPage() {
               className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
               placeholder="Enter new password (min 8 characters)"
             />
-            <p className="text-brand-muted text-xs mt-1">Must be at least 8 characters long</p>
+            <p className="text-brand-muted text-xs mt-1">Min 8 characters with uppercase, lowercase, and a number</p>
           </div>
 
           <div>
