@@ -1,6 +1,6 @@
 param(
   [string]$Branch = "auto-sync",
-  [int]$IntervalSeconds = 10,
+  [int]$IntervalSeconds = 120,
   [switch]$RunChecks,
   [switch]$AllowMain
 )
