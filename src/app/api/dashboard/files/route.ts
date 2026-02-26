@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getFilesByClient, createFileRecord, deleteFileRecord } from '@/lib/db'
+import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,11 +91,22 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const clientId = user.clientId
+    if (!clientId) {
+      return NextResponse.json({ error: 'No client ID associated with user' }, { status: 400 })
+    }
+
     const body = await request.json()
     const { id } = body
 
     if (!id) {
       return NextResponse.json({ error: 'Missing file id' }, { status: 400 })
+    }
+
+    // Verify file belongs to this client before deleting (IDOR protection)
+    const file = await getFileById(id)
+    if (!file || file.client_id !== clientId) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
     }
 
     const success = await deleteFileRecord(id)
