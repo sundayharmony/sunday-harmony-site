@@ -457,6 +457,12 @@ export async function getApprovalsByClient(clientId: string): Promise<Approval[]
   return data || []
 }
 
+export async function getApprovalById(id: string): Promise<Approval | null> {
+  const { data, error } = await getSupabase().from('approvals').select('*').eq('id', id).single()
+  if (error) return null
+  return data
+}
+
 export async function createApproval(approval: Omit<Approval, 'id' | 'created_at' | 'updated_at'>): Promise<Approval | null> {
   const { data, error } = await getSupabase().from('approvals').insert(approval).select().single()
   if (error) { console.error('createApproval error:', error); return null }

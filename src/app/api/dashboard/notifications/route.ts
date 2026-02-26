@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getNotifications, markNotificationRead, markAllNotificationsRead } from '@/lib/db'
+import { getNotifications, markNotificationRead, markAllNotificationsRead, getNotificationById } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
