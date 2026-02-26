@@ -72,7 +72,7 @@ export default function ContactForm() {
               { icon: '📍', label: 'Location', value: siteConfig.location },
             ].map((item) => (
               <div key={item.label} className="flex gap-3.5 items-start mb-5">
-                <div className="w-10 h-10 rounded-[10px] bg-[rgba(201,169,110,0.08)] border border-[rgba(201,169,110,0.12)] flex items-center justify-center text-base flex-shrink-0">
+                <div className="w-10 h-10 rounded-[10px] bg-[rgba(184,148,63,0.08)] border border-[rgba(184,148,63,0.15)] flex items-center justify-center text-base flex-shrink-0">
                   {item.icon}
                 </div>
                 <div>
@@ -86,7 +86,7 @@ export default function ContactForm() {
           </div>
 
           {/* Form */}
-          <div className="bg-brand-card border border-brand-border rounded-[20px] p-9">
+          <div className="bg-white border border-brand-border rounded-[20px] p-9 shadow-sm">
             {sent ? (
               <div className="text-center py-10">
                 <div className="text-5xl mb-3.5 text-brand-green">✓</div>
@@ -108,7 +108,7 @@ export default function ContactForm() {
                       value={form.firstName}
                       onChange={(e) => update('firstName', e.target.value)}
                       placeholder="Your first name"
-                      className="w-full py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors"
+                      className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                     />
                   </div>
                   <div>
@@ -120,7 +120,7 @@ export default function ContactForm() {
                       value={form.lastName}
                       onChange={(e) => update('lastName', e.target.value)}
                       placeholder="Your last name"
-                      className="w-full py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors"
+                      className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                     />
                   </div>
                 </div>
@@ -135,7 +135,7 @@ export default function ContactForm() {
                       value={form.email}
                       onChange={(e) => update('email', e.target.value)}
                       placeholder="you@business.com"
-                      className="w-full py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors"
+                      className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                     />
                   </div>
                   <div>
@@ -148,7 +148,7 @@ export default function ContactForm() {
                       value={form.business}
                       onChange={(e) => update('business', e.target.value)}
                       placeholder="Your business name"
-                      className="w-full py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors"
+                      className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                     />
                   </div>
                 </div>
@@ -159,7 +159,7 @@ export default function ContactForm() {
                   <select
                     value={form.service}
                     onChange={(e) => update('service', e.target.value)}
-                    className="w-full py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors appearance-auto"
+                    className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors appearance-auto"
                   >
                     <option value="">Select one...</option>
                     {serviceOptions.map((opt) => (
@@ -176,7 +176,7 @@ export default function ContactForm() {
                     onChange={(e) => update('message', e.target.value)}
                     placeholder="Tell us about your business goals, challenges, or questions..."
                     rows={4}
-                    className="w-full py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors resize-y"
+                    className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors resize-y"
                   />
                 </div>
 
@@ -187,7 +187,7 @@ export default function ContactForm() {
                 <button
                   type="submit"
                   disabled={sending}
-                  className="w-full py-3.5 rounded-[10px] mt-2 bg-gradient-to-br from-brand-gold to-[#b8944f] text-[#0a0a0f] text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(201,169,110,0.25)] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full py-3.5 rounded-[10px] mt-2 bg-brand-gold text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(184,148,63,0.25)] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {sending ? 'Sending...' : 'Send & Get My Free Audit'}
                 </button>

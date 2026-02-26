@@ -23,14 +23,14 @@ export default function Packages() {
           {packages.map((pkg) => (
             <div
               key={pkg.tier}
-              className={`bg-brand-card rounded-2xl overflow-hidden transition-all hover:-translate-y-1 hover:border-[rgba(255,255,255,0.1)] ${
+              className={`bg-white rounded-2xl overflow-hidden transition-all hover:-translate-y-1 hover:shadow-md ${
                 pkg.popular
-                  ? 'border-2 border-[rgba(201,169,110,0.4)]'
+                  ? 'border-2 border-brand-gold shadow-sm'
                   : 'border border-brand-border'
               }`}
             >
               {pkg.popular && (
-                <div className="py-1.5 text-center text-[10px] font-bold tracking-[0.14em] uppercase bg-brand-gold text-[#0a0a0f]">
+                <div className="py-1.5 text-center text-[10px] font-bold tracking-[0.14em] uppercase bg-brand-gold text-white">
                   Most Popular
                 </div>
               )}
@@ -41,7 +41,7 @@ export default function Packages() {
                   {pkg.tagline}
                 </div>
                 <div className="flex items-baseline gap-1 mb-1.5">
-                  <span className="font-serif text-4xl font-extrabold text-white">
+                  <span className="font-serif text-4xl font-extrabold text-brand-text">
                     ${pkg.price.toLocaleString()}
                   </span>
                   <span className="text-[13px] text-brand-dim">/month</span>
@@ -53,10 +53,10 @@ export default function Packages() {
                 <div className="border-t border-brand-border pt-4">
                   {pkg.features.map((feat) => (
                     <div key={feat.text} className="flex gap-2 mb-2 text-xs leading-snug">
-                      <span className={`flex-shrink-0 mt-px ${feat.included ? 'text-brand-green' : 'text-[#3a3a4a]'}`}>
+                      <span className={`flex-shrink-0 mt-px ${feat.included ? 'text-brand-green' : 'text-gray-300'}`}>
                         {feat.included ? '✓' : '—'}
                       </span>
-                      <span className={feat.included ? 'text-[#b0b0b8]' : 'text-[#4a4a5a]'}>
+                      <span className={feat.included ? 'text-brand-muted' : 'text-gray-300'}>
                         {feat.text}
                       </span>
                     </div>
@@ -67,8 +67,8 @@ export default function Packages() {
                   href="#contact"
                   className={`block w-full py-3 mt-5 rounded-lg text-center text-[13px] font-semibold transition-all ${
                     pkg.popular
-                      ? 'bg-gradient-to-br from-brand-gold to-[#b8944f] text-[#0a0a0f] font-bold'
-                      : 'border border-[rgba(201,169,110,0.4)] text-brand-gold hover:bg-[rgba(201,169,110,0.08)]'
+                      ? 'bg-brand-gold text-white font-bold hover:bg-[#a6832e]'
+                      : 'border border-brand-gold text-brand-gold hover:bg-[rgba(184,148,63,0.06)]'
                   }`}
                 >
                   Get Started

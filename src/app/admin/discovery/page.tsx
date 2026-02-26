@@ -17,7 +17,7 @@ export default function DiscoveryPage() {
       <div className="flex gap-2 mb-6">
         {[['script', 'Interview Script'], ['prospects', 'Prospect Finder']].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key as typeof tab)}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${tab === key ? 'bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold' : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted'}`}>
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${tab === key ? 'bg-[rgba(184,148,63,0.1)] border border-brand-gold text-brand-gold' : 'bg-gray-50 border border-brand-border text-brand-muted'}`}>
             {label}
           </button>
         ))}
@@ -25,7 +25,7 @@ export default function DiscoveryPage() {
 
       {tab === 'script' && (
         <div>
-          <div className="bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-4 mb-5">
+          <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 mb-5">
             <div className="text-sm font-bold text-brand-gold mb-1">20-Minute Conversation Guide</div>
             <p className="text-xs text-brand-muted">Click any question for coaching notes on why to ask it and what to listen for.</p>
           </div>
@@ -40,20 +40,20 @@ export default function DiscoveryPage() {
                 const key = `${si}-${qi}`
                 const isOpen = expandedQ === key
                 return (
-                  <div key={qi} className={`ml-4 mb-2 rounded-lg border transition-all ${isOpen ? 'bg-[rgba(255,255,255,0.04)] border-[rgba(201,169,110,0.2)]' : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)]'}`}>
+                  <div key={qi} className={`ml-4 mb-2 rounded-lg border transition-all ${isOpen ? 'bg-gray-50 border-brand-gold' : 'bg-white border-brand-border'}`}>
                     <div onClick={() => setExpandedQ(isOpen ? null : key)} className="p-3 cursor-pointer flex items-start gap-2">
                       <span style={{ color: sec.color }} className="text-sm font-bold mt-0.5">Q</span>
-                      <p className="flex-1 text-sm text-[#d8d6d1] italic leading-relaxed">&ldquo;{item.q}&rdquo;</p>
+                      <p className="flex-1 text-sm text-brand-text italic leading-relaxed">&ldquo;{item.q}&rdquo;</p>
                       <span className={`text-brand-dim text-xs transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
                     </div>
                     {isOpen && (
-                      <div className="px-3 pb-3 border-t border-[rgba(255,255,255,0.04)]">
+                      <div className="px-3 pb-3 border-t border-gray-200">
                         <div className="grid grid-cols-2 gap-3 mt-3">
-                          <div className="bg-[rgba(201,169,110,0.06)] rounded-lg p-3">
+                          <div className="bg-[rgba(184,148,63,0.08)] rounded-lg p-3 border border-brand-gold">
                             <div className="text-[10px] font-bold uppercase text-brand-gold mb-1">Why Ask This</div>
                             <p className="text-xs text-brand-muted leading-relaxed">{item.why}</p>
                           </div>
-                          <div className="bg-[rgba(74,158,125,0.06)] rounded-lg p-3">
+                          <div className="bg-green-50 rounded-lg p-3 border border-green-200">
                             <div className="text-[10px] font-bold uppercase text-brand-green mb-1">Listen For</div>
                             <p className="text-xs text-brand-muted leading-relaxed">{item.listen}</p>
                           </div>
@@ -70,12 +70,12 @@ export default function DiscoveryPage() {
 
       {tab === 'prospects' && (
         <div>
-          <div className="bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-4 mb-5">
+          <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 mb-5">
             <div className="text-sm font-bold text-brand-gold">Goal: 15 conversations in 2 weeks</div>
           </div>
           <div className="space-y-3">
             {prospectList.map((item, i) => (
-              <div key={i} className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
+              <div key={i} className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
                 <div className="text-base font-bold text-brand-text mb-3">{item.type}</div>
                 <div className="grid grid-cols-3 gap-4">
                   {[['Examples', item.examples], ['Where to Find', item.where], ['Approach', item.approach]].map(([l, v]) => (

@@ -51,7 +51,7 @@ export default function ResearchPage() {
         {marketData.map((stat) => (
           <div
             key={stat.label}
-            className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-4 text-center"
+            className="bg-white border border-brand-border rounded-xl p-4 text-center shadow-sm"
           >
             <div className="text-2xl font-extrabold text-brand-gold mb-1">{stat.value}</div>
             <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim">{stat.label}</div>
@@ -60,12 +60,12 @@ export default function ResearchPage() {
       </div>
 
       {/* Overall Progress */}
-      <div className="bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-4 mb-6">
+      <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-bold text-brand-text">Research Progress</span>
           <span className="text-xs text-brand-gold font-semibold">{doneTasks}/{totalTasks} tasks ({progressPercent}%)</span>
         </div>
-        <div className="w-full h-2 bg-[rgba(255,255,255,0.06)] rounded-full">
+        <div className="w-full h-2 bg-gray-200 rounded-full">
           <div
             className="h-2 rounded-full transition-all bg-brand-gold"
             style={{ width: `${progressPercent}%` }}
@@ -83,7 +83,7 @@ export default function ResearchPage() {
           return (
             <div
               key={phase.id}
-              className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden"
+              className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm"
             >
               {/* Phase Header */}
               <button
@@ -115,7 +115,7 @@ export default function ResearchPage() {
 
               {/* Phase Content */}
               {isOpen && (
-                <div className="px-5 pb-5 border-t border-[rgba(255,255,255,0.04)]">
+                <div className="px-5 pb-5 border-t border-brand-border">
                   {/* Objective */}
                   <div className="mt-4 mb-4 p-3 rounded-lg" style={{ background: `${phase.color}0a`, border: `1px solid ${phase.color}20` }}>
                     <div className="text-[10px] font-bold uppercase mb-1" style={{ color: phase.color }}>Objective</div>
@@ -148,14 +148,14 @@ export default function ResearchPage() {
                             onClick={() => toggleTask(key)}
                             className={`w-full text-left flex items-start gap-3 p-3 rounded-lg transition-all ${
                               done
-                                ? 'bg-[rgba(74,158,125,0.06)] border border-[rgba(74,158,125,0.12)]'
-                                : 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.04)]'
+                                ? 'bg-green-50 border border-green-200'
+                                : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'
                             }`}
                           >
-                            <span className={`text-sm mt-0.5 ${done ? 'text-brand-green' : 'text-brand-dim'}`}>
+                            <span className={`text-sm mt-0.5 ${done ? 'text-green-600' : 'text-gray-400'}`}>
                               {done ? '✓' : '○'}
                             </span>
-                            <span className={`text-xs leading-relaxed ${done ? 'text-brand-muted line-through' : 'text-brand-text'}`}>
+                            <span className={`text-xs leading-relaxed ${done ? 'text-gray-500 line-through' : 'text-brand-text'}`}>
                               {task}
                             </span>
                           </button>

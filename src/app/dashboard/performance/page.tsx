@@ -59,8 +59,8 @@ export default function PerformancePage() {
               onClick={() => setSelectedMetric(name)}
               className={`flex-1 p-4 rounded-xl border transition-all ${
                 selectedMetric === name
-                  ? 'bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.15)]'
-                  : 'bg-[rgba(255,255,255,0.02)] border-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.04)]'
+                  ? 'bg-gray-50 border-brand-border'
+                  : 'bg-white border-brand-border hover:bg-gray-50'
               }`}
             >
               <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">{name}</div>
@@ -73,7 +73,7 @@ export default function PerformancePage() {
       </div>
 
       {/* Chart Area */}
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 mb-6">
+      <div className="bg-white border border-brand-border rounded-2xl p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-base font-bold text-brand-text">{selectedMetric}</h2>
@@ -107,17 +107,17 @@ export default function PerformancePage() {
 
       {/* Highlights */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-[rgba(74,158,125,0.06)] border border-[rgba(74,158,125,0.15)] rounded-xl p-4">
+        <div className="bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)] rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase text-brand-green mb-1">Best Month</div>
           <div className="text-lg font-extrabold text-brand-text">February</div>
           <p className="text-xs text-brand-muted mt-1">780 website visits — your highest yet</p>
         </div>
-        <div className="bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-4">
+        <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase text-brand-gold mb-1">Conversion Rate</div>
           <div className="text-lg font-extrabold text-brand-text">4.9%</div>
           <p className="text-xs text-brand-muted mt-1">Form submissions ÷ website visits</p>
         </div>
-        <div className="bg-[rgba(58,139,194,0.06)] border border-[rgba(58,139,194,0.15)] rounded-xl p-4">
+        <div className="bg-[rgba(58,139,194,0.08)] border border-[rgba(58,139,194,0.15)] rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase text-[#3a8bc2] mb-1">Total Growth</div>
           <div className="text-lg font-extrabold text-brand-text">550%</div>
           <p className="text-xs text-brand-muted mt-1">Website traffic since start</p>
@@ -125,12 +125,12 @@ export default function PerformancePage() {
       </div>
 
       {/* Activity Log */}
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
+      <div className="bg-white border border-brand-border rounded-2xl p-6">
         <h2 className="text-base font-bold text-brand-text mb-4">Activity Log</h2>
         <p className="text-xs text-brand-muted mb-4">Everything we&rsquo;ve done for your business this month.</p>
         <div className="space-y-3">
           {activityLog.map((item, i) => (
-            <div key={i} className="flex items-start gap-4 p-3 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]">
+            <div key={i} className="flex items-start gap-4 p-3 rounded-lg bg-gray-50 border border-brand-border">
               <div className="text-xs text-brand-dim whitespace-nowrap pt-0.5">
                 {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>

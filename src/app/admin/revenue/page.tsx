@@ -33,7 +33,7 @@ export default function RevenuePage() {
       <div className="flex gap-2 mb-6">
         {presets.map(p => (
           <button key={p.label} onClick={() => setVals({ social: p.social, spark: p.spark, growth: p.growth, scale: p.scale })}
-            className="px-4 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-xs font-semibold text-brand-muted hover:text-brand-gold hover:border-[rgba(201,169,110,0.2)] transition-all">
+            className="px-4 py-2 rounded-lg bg-gray-50 border border-brand-border text-xs font-semibold text-brand-muted hover:text-brand-gold transition-all">
             {p.label}
           </button>
         ))}
@@ -41,7 +41,7 @@ export default function RevenuePage() {
 
       <div className="grid grid-cols-[1fr_360px] gap-6">
         {/* Sliders */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-6">
+        <div className="bg-white border border-brand-border rounded-xl p-6 shadow-sm">
           {tiers.map(tier => (
             <div key={tier.key} className="mb-6 last:mb-0">
               <div className="flex justify-between items-baseline mb-2">
@@ -50,7 +50,7 @@ export default function RevenuePage() {
               </div>
               <input type="range" min="0" max={tier.max} value={vals[tier.key]}
                 onChange={e => set(tier.key, parseInt(e.target.value))}
-                className="w-full h-1.5 rounded-full appearance-none bg-[rgba(255,255,255,0.08)] cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-gold [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-[#0a0a0f] [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(201,169,110,0.3)]" />
+                className="w-full h-1.5 rounded-full appearance-none bg-gray-200 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-gold [&::-webkit-slider-thumb]:border-[3px] [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(184,148,63,0.3)]" />
               <div className="flex justify-between text-[10px] text-brand-dim mt-1">
                 <span>0</span><span>{tier.max}</span>
               </div>
@@ -60,15 +60,15 @@ export default function RevenuePage() {
 
         {/* Results */}
         <div>
-          <div className="bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-6 text-center mb-4">
+          <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-6 text-center mb-4">
             <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-gold mb-2">Monthly Revenue</div>
-            <div className="font-serif text-5xl font-extrabold text-white">${mrr.toLocaleString()}</div>
+            <div className="font-serif text-5xl font-extrabold text-brand-text">${mrr.toLocaleString()}</div>
             <div className="text-sm text-brand-dim mt-1">{totalClients} total clients</div>
           </div>
 
-          <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
+          <div className="bg-gray-50 border border-brand-border rounded-xl p-5">
             {tiers.map(tier => (
-              <div key={tier.key} className="flex justify-between py-2 border-b border-[rgba(255,255,255,0.04)] last:border-0">
+              <div key={tier.key} className="flex justify-between py-2 border-b border-gray-200 last:border-0">
                 <span className="text-sm text-brand-muted">{tier.label}</span>
                 <span className="text-sm font-semibold text-brand-text">${((vals[tier.key] || 0) * tier.price).toLocaleString()}</span>
               </div>

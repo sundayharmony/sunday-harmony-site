@@ -22,7 +22,7 @@ export default function ClientSidebar() {
       {/* Mobile toggle */}
       <button
         onClick={() => setOpen(!open)}
-        className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-brand-text"
+        className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-white border border-brand-border text-brand-text"
         aria-label="Toggle menu"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -38,10 +38,10 @@ export default function ClientSidebar() {
         <div className="md:hidden fixed inset-0 bg-black/50 z-[49]" onClick={() => setOpen(false)} />
       )}
 
-      <aside className={`w-[240px] min-h-screen bg-[#0c0c14] border-r border-[rgba(255,255,255,0.06)] flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
+      <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
-        <div className="p-5 pb-4 border-b border-[rgba(255,255,255,0.06)]">
+        <div className="p-5 pb-4 border-b border-brand-border">
           <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
             Sunday <span className="text-brand-gold">Harmony</span>
           </Link>
@@ -55,8 +55,8 @@ export default function ClientSidebar() {
               <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-[13px] font-medium transition-all ${
                   active
-                    ? 'bg-[rgba(74,158,125,0.1)] border border-[rgba(74,158,125,0.2)] text-brand-green'
-                    : 'text-brand-muted hover:text-brand-text hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
+                    ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold text-brand-text'
+                    : 'text-brand-muted hover:text-brand-text hover:bg-gray-50 border border-transparent'
                 }`}>
                 <span className="text-base">{item.icon}</span>{item.label}
               </Link>
@@ -64,7 +64,7 @@ export default function ClientSidebar() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-[rgba(255,255,255,0.06)]">
+        <div className="p-4 border-t border-brand-border">
           <button onClick={() => signOut({ callbackUrl: '/login' })}
             className="w-full text-left text-xs text-brand-dim hover:text-brand-red transition-colors">
             Sign out

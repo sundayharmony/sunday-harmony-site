@@ -76,7 +76,7 @@ export default function LeadsPage() {
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Leads</h1>
           <p className="text-sm text-brand-muted">Manage contact form submissions and track your pipeline.</p>
         </div>
-        <button onClick={exportCSV} className="px-4 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-brand-muted text-xs font-semibold hover:text-brand-text hover:border-[rgba(255,255,255,0.2)] transition-all">
+        <button onClick={exportCSV} className="px-4 py-2 rounded-lg bg-gray-50 border border-brand-border text-brand-muted text-xs font-semibold hover:text-brand-text transition-all">
           Export CSV
         </button>
       </div>
@@ -86,7 +86,7 @@ export default function LeadsPage() {
         {statuses.map(s => {
           const count = leads.filter(l => l.status === s).length
           return (
-            <div key={s} className="px-3 py-2 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-center min-w-[80px]">
+            <div key={s} className="px-3 py-2 rounded-lg bg-gray-50 border border-brand-border text-center min-w-[80px]">
               <div className="text-lg font-bold text-brand-text">{count}</div>
               <div className="text-[10px] font-bold tracking-[0.08em] uppercase text-brand-dim">{s.replace('_', ' ')}</div>
             </div>
@@ -101,12 +101,12 @@ export default function LeadsPage() {
           placeholder="Search by name, business, or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 py-2.5 px-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] placeholder:text-brand-dim"
+          className="flex-1 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold placeholder:text-brand-dim"
         />
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          className="py-2.5 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-muted text-sm outline-none"
+          className="py-2.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-muted text-sm outline-none"
         >
           <option value="all">All Statuses</option>
           {statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
@@ -115,11 +115,11 @@ export default function LeadsPage() {
 
       <div className={`grid ${selected ? 'grid-cols-1 lg:grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
         {/* Lead Table */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+        <div className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
           {loading ? (
             <div className="p-8 space-y-3">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-12 bg-[rgba(255,255,255,0.04)] rounded-lg animate-pulse" />
+                <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
               ))}
             </div>
           ) : paginated.length === 0 ? (
@@ -130,7 +130,7 @@ export default function LeadsPage() {
             <>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[rgba(255,255,255,0.06)]">
+                  <tr className="border-b border-brand-border">
                     {['Name', 'Business', 'Service', 'Status', 'Date'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
                     ))}
@@ -141,8 +141,8 @@ export default function LeadsPage() {
                     <tr
                       key={lead.id}
                       onClick={() => { setSelected(lead); setNotes(lead.notes) }}
-                      className={`border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
-                        selected?.id === lead.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+                      className={`border-b border-gray-200 cursor-pointer transition-colors ${
+                        selected?.id === lead.id ? 'bg-[rgba(184,148,63,0.04)]' : 'hover:bg-gray-50'
                       }`}
                     >
                       <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.last_name}</td>
@@ -157,7 +157,7 @@ export default function LeadsPage() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-[rgba(255,255,255,0.06)]">
+                <div className="flex items-center justify-between px-4 py-3 border-t border-brand-border">
                   <span className="text-xs text-brand-dim">
                     Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
                   </span>
@@ -165,7 +165,7 @@ export default function LeadsPage() {
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all"
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gray-50 border border-brand-border text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all"
                     >
                       ← Prev
                     </button>
@@ -175,8 +175,8 @@ export default function LeadsPage() {
                         onClick={() => setPage(p)}
                         className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
                           page === p
-                            ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]'
-                            : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-dim hover:text-brand-text'
+                            ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                            : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
                         }`}
                       >
                         {p}
@@ -185,7 +185,7 @@ export default function LeadsPage() {
                     <button
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
-                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all"
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gray-50 border border-brand-border text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all"
                     >
                       Next →
                     </button>
@@ -198,7 +198,7 @@ export default function LeadsPage() {
 
         {/* Lead Detail */}
         {selected && (
-          <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
+          <div className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
             <div className="flex justify-between items-start mb-1">
               <h3 className="text-lg font-bold text-brand-text">{selected.first_name} {selected.last_name}</h3>
               <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">✕</button>
@@ -231,8 +231,8 @@ export default function LeadsPage() {
                     onClick={() => updateLead(selected.id, { status: s as Lead['status'] })}
                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase transition-all ${
                       selected.status === s
-                        ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]'
-                        : 'bg-[rgba(255,255,255,0.03)] text-brand-dim border border-[rgba(255,255,255,0.06)] hover:text-brand-text'
+                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                        : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
                     }`}
                   >
                     {s.replace('_', ' ')}
@@ -249,11 +249,11 @@ export default function LeadsPage() {
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Add notes about this lead..."
                 rows={4}
-                className="w-full py-2 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] resize-y"
+                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-y"
               />
               <button
                 onClick={() => updateLead(selected.id, { notes })}
-                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold text-xs font-semibold hover:bg-[rgba(201,169,110,0.2)] transition-all"
+                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(184,148,63,0.1)] border border-brand-gold text-brand-gold text-xs font-semibold hover:bg-[rgba(184,148,63,0.15)] transition-all"
               >
                 Save Notes
               </button>

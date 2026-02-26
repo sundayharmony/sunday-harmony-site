@@ -76,7 +76,7 @@ export default function MessagesPage() {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-4 overflow-y-auto mb-4">
+      <div className="flex-1 bg-gray-50 border border-brand-border rounded-2xl p-4 overflow-y-auto mb-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <span className="text-sm text-brand-dim">Loading messages...</span>
@@ -99,8 +99,8 @@ export default function MessagesPage() {
                   <div
                     className={`max-w-[70%] rounded-2xl p-4 ${
                       isClient
-                        ? 'bg-[rgba(74,158,125,0.12)] border border-[rgba(74,158,125,0.2)]'
-                        : 'bg-[rgba(201,169,110,0.08)] border border-[rgba(201,169,110,0.15)]'
+                        ? 'bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)]'
+                        : 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
@@ -133,12 +133,12 @@ export default function MessagesPage() {
           value={newMsg}
           onChange={(e) => setNewMsg(e.target.value)}
           placeholder="Type your message..."
-          className="flex-1 py-3 px-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl text-brand-text text-sm outline-none focus:border-[rgba(74,158,125,0.3)] transition-colors"
+          className="flex-1 py-3 px-4 bg-white border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
         />
         <button
           type="submit"
           disabled={!newMsg.trim() || sending}
-          className="px-6 py-3 rounded-xl bg-gradient-to-br from-brand-green to-[#3a8a6d] text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+          className="px-6 py-3 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {sending ? 'Sending...' : 'Send'}
         </button>

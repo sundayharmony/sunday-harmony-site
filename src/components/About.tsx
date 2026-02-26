@@ -25,7 +25,7 @@ export default function About() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {aboutValues.map((val) => (
-                  <div key={val.title} className="bg-brand-card border border-brand-border rounded-xl p-4">
+                  <div key={val.title} className="bg-white border border-brand-border rounded-xl p-4">
                     <div className="text-xl mb-2">{val.icon}</div>
                     <h4 className="text-sm font-bold text-brand-text mb-1">{val.title}</h4>
                     <p className="text-xs text-brand-dim leading-snug">{val.description}</p>
@@ -34,9 +34,9 @@ export default function About() {
               </div>
             </div>
 
-            <div className="bg-brand-card border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
-              <div className="w-full h-full bg-gradient-to-br from-[#12121e] via-[#1a1520] to-[#161a25] flex flex-col items-center justify-center p-10">
-                <div className="font-serif text-[80px] font-extrabold bg-gradient-to-br from-brand-gold-light to-brand-gold bg-clip-text text-transparent mb-4 leading-none">
+            <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
+              <div className="w-full h-full bg-gradient-to-br from-[#fafaf8] via-[#f5f0e6] to-[#f0ebe0] flex flex-col items-center justify-center p-10">
+                <div className="font-serif text-[80px] font-extrabold bg-gradient-to-br from-brand-gold to-brand-gold-light bg-clip-text text-transparent mb-4 leading-none">
                   SH
                 </div>
                 <div className="text-[13px] font-bold tracking-[0.2em] uppercase text-brand-dim">
@@ -61,8 +61,8 @@ export default function About() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-12 max-w-[700px]">
             {team.map((member) => (
-              <div key={member.name} className="bg-brand-card border border-brand-border rounded-2xl p-8 text-center transition-all hover:border-[rgba(201,169,110,0.15)]">
-                <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-gradient-to-br from-[rgba(201,169,110,0.15)] to-[rgba(201,169,110,0.05)] border-2 border-[rgba(201,169,110,0.2)] flex items-center justify-center font-serif text-[28px] font-extrabold text-brand-gold">
+              <div key={member.name} className="bg-white border border-brand-border rounded-2xl p-8 text-center transition-all hover:shadow-md hover:border-[rgba(184,148,63,0.25)]">
+                <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-[rgba(184,148,63,0.08)] border-2 border-[rgba(184,148,63,0.2)] flex items-center justify-center font-serif text-[28px] font-extrabold text-brand-gold">
                   {member.initials}
                 </div>
                 <h4 className="text-[17px] font-bold text-brand-text mb-1">{member.name}</h4>

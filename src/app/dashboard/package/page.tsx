@@ -188,12 +188,12 @@ export default function PackagePage() {
               key={pkg.tier}
               className={`rounded-xl p-5 border transition-all ${
                 isCurrent
-                  ? 'ring-2 ring-offset-2 ring-offset-[#0a0a0f]'
-                  : 'hover:bg-[rgba(255,255,255,0.04)]'
+                  ? 'ring-2 ring-offset-2 ring-offset-white'
+                  : 'hover:bg-gray-50'
               }`}
               style={{
-                background: isCurrent ? `${pkg.color}0a` : 'rgba(255,255,255,0.03)',
-                borderColor: isCurrent ? `${pkg.color}30` : 'rgba(255,255,255,0.06)',
+                background: isCurrent ? `${pkg.color}08` : 'white',
+                borderColor: isCurrent ? `${pkg.color}30` : 'border-brand-border',
                 ...(isCurrent ? { ['--tw-ring-color' as string]: `${pkg.color}40` } : {}),
               }}
             >
@@ -238,8 +238,8 @@ export default function PackagePage() {
                   href="/dashboard/messages"
                   className="block text-center text-xs font-bold py-2 rounded-lg transition-all hover:opacity-80"
                   style={{
-                    color: '#0a0a0f',
-                    background: `linear-gradient(135deg, ${pkg.color}, ${pkg.color}cc)`,
+                    color: 'white',
+                    background: pkg.color,
                   }}
                 >
                   Ask About Upgrading →

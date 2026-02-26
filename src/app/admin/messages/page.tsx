@@ -134,7 +134,7 @@ export default function AdminMessagesPage() {
 
       <div className="grid grid-cols-[280px_1fr] gap-4 h-[calc(100vh-12rem)]">
         {/* Client List */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-y-auto">
+        <div className="bg-white border border-brand-border rounded-xl overflow-y-auto shadow-sm">
           {sortedClients.length === 0 ? (
             <div className="p-6 text-center text-sm text-brand-dim">
               No clients yet.
@@ -151,14 +151,14 @@ export default function AdminMessagesPage() {
                     onClick={() => setSelectedClient(client.id)}
                     className={`w-full text-left p-3 rounded-lg mb-1 transition-all ${
                       isSelected
-                        ? 'bg-[rgba(201,169,110,0.1)] border border-[rgba(201,169,110,0.2)]'
-                        : 'hover:bg-[rgba(255,255,255,0.03)] border border-transparent'
+                        ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                        : 'hover:bg-gray-50 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-brand-text">{client.name}</span>
                       {msgCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(201,169,110,0.15)] text-brand-gold">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(184,148,63,0.1)] text-brand-gold">
                           {msgCount}
                         </span>
                       )}
@@ -177,11 +177,11 @@ export default function AdminMessagesPage() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex flex-col bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
+        <div className="flex flex-col bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
           {selectedClient ? (
             <>
               {/* Chat Header */}
-              <div className="px-5 py-3 border-b border-[rgba(255,255,255,0.06)] flex items-center gap-3">
+              <div className="px-5 py-3 border-b border-brand-border flex items-center gap-3">
                 <div>
                   <div className="text-sm font-bold text-brand-text">{selectedClientData?.name}</div>
                   <div className="text-xs text-brand-dim">{selectedClientData?.business}</div>
@@ -204,8 +204,8 @@ export default function AdminMessagesPage() {
                         <div
                           className={`max-w-[70%] rounded-2xl p-4 ${
                             isAdmin
-                              ? 'bg-[rgba(201,169,110,0.1)] border border-[rgba(201,169,110,0.2)]'
-                              : 'bg-[rgba(74,158,125,0.1)] border border-[rgba(74,158,125,0.2)]'
+                              ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                              : 'bg-green-50 border border-green-200'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-1">
@@ -228,18 +228,18 @@ export default function AdminMessagesPage() {
               </div>
 
               {/* Reply Input */}
-              <form onSubmit={sendMessage} className="p-3 border-t border-[rgba(255,255,255,0.06)] flex gap-3">
+              <form onSubmit={sendMessage} className="p-3 border-t border-brand-border flex gap-3">
                 <input
                   type="text"
                   value={newMsg}
                   onChange={e => setNewMsg(e.target.value)}
                   placeholder={`Reply to ${selectedClientData?.name?.split(' ')[0] || 'client'}...`}
-                  className="flex-1 py-2.5 px-4 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors"
+                  className="flex-1 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={!newMsg.trim() || sending}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-br from-brand-gold to-[#b8944f] text-[#0a0a0f] text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+                  className="px-5 py-2.5 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
                 >
                   {sending ? 'Sending...' : 'Send'}
                 </button>

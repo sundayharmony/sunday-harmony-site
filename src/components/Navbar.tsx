@@ -34,7 +34,7 @@ export default function Navbar() {
     <>
       <nav
         className={`fixed top-0 left-0 right-0 z-[1000] border-b border-brand-border backdrop-blur-xl transition-all duration-300 ${
-          scrolled ? 'bg-[rgba(10,10,15,0.95)] shadow-lg' : 'bg-[rgba(10,10,15,0.85)]'
+          scrolled ? 'bg-[rgba(255,255,255,0.97)] shadow-sm' : 'bg-[rgba(255,255,255,0.9)]'
         }`}
       >
         <div className="max-w-[1100px] mx-auto px-7 flex items-center justify-between h-[72px]">
@@ -61,7 +61,7 @@ export default function Navbar() {
             </Link>
             <a
               href="#contact"
-              className="px-6 py-2.5 rounded-md bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold font-semibold text-[13px] hover:bg-[rgba(201,169,110,0.2)] transition-all"
+              className="px-6 py-2.5 rounded-md bg-brand-gold text-white font-semibold text-[13px] hover:bg-[#a6832e] transition-all"
             >
               Free Audit
             </a>
@@ -82,7 +82,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="fixed top-[72px] left-0 right-0 bottom-0 bg-[rgba(10,10,15,0.97)] backdrop-blur-xl z-[999] p-7 flex flex-col gap-4 md:hidden">
+        <div className="fixed top-[72px] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] p-7 flex flex-col gap-4 md:hidden">
           {navLinks.map((link) => (
             <a
               key={link.href}

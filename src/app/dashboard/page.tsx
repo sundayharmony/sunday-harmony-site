@@ -118,7 +118,7 @@ export default function DashboardHome() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Quick Wins Progress */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
+        <div className="bg-white border border-brand-border rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-brand-text">Quick Wins</h2>
             <span className="text-xs text-brand-green font-semibold">
@@ -127,7 +127,7 @@ export default function DashboardHome() {
           </div>
 
           {/* Progress bar */}
-          <div className="w-full h-2 bg-[rgba(255,255,255,0.06)] rounded-full mb-4">
+          <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
             <div
               className="h-2 rounded-full transition-all"
               style={{
@@ -144,8 +144,8 @@ export default function DashboardHome() {
                   key={i}
                   className={`flex items-center gap-3 p-3 rounded-lg ${
                     win.done
-                      ? 'bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)]'
-                      : 'bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)]'
+                      ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                      : 'bg-gray-50 border border-brand-border'
                   }`}
                 >
                   <span className={`text-sm ${win.done ? 'text-brand-green' : 'text-brand-dim'}`}>
@@ -163,14 +163,14 @@ export default function DashboardHome() {
         </div>
 
         {/* Current Deliverables */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
+        <div className="bg-white border border-brand-border rounded-2xl p-6">
           <h2 className="text-base font-bold text-brand-text mb-4">What We&rsquo;re Delivering</h2>
           {client?.deliverables && client.deliverables.length > 0 ? (
             <div className="space-y-2">
               {client.deliverables.map((item, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.1)]"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-[rgba(184,148,63,0.08)] border border-brand-gold"
                 >
                   <span className="text-brand-gold text-sm">◈</span>
                   <span className="text-sm text-brand-text">{item}</span>
@@ -184,7 +184,7 @@ export default function DashboardHome() {
       </div>
 
       {/* Recent Messages */}
-      <div className="mt-6 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
+      <div className="mt-6 bg-white border border-brand-border rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-brand-text">Recent Messages</h2>
           <a href="/dashboard/messages" className="text-xs text-brand-gold hover:underline">
@@ -198,8 +198,8 @@ export default function DashboardHome() {
                 key={msg.id}
                 className={`p-3 rounded-lg ${
                   msg.from_role === 'admin'
-                    ? 'bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.1)]'
-                    : 'bg-[rgba(74,158,125,0.06)] border border-[rgba(74,158,125,0.1)]'
+                    ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                    : 'bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)]'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -218,14 +218,14 @@ export default function DashboardHome() {
       </div>
 
       {/* Help Card */}
-      <div className="mt-6 bg-[rgba(74,158,125,0.06)] border border-[rgba(74,158,125,0.15)] rounded-2xl p-6 text-center">
-        <div className="text-base font-bold text-brand-green mb-1">Need help?</div>
+      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-2xl p-6 text-center">
+        <div className="text-base font-bold text-brand-gold mb-1">Need help?</div>
         <p className="text-xs text-brand-muted mb-3">
           Questions about your package, results, or next steps? We&rsquo;re one message away.
         </p>
         <a
           href="/dashboard/messages"
-          className="inline-block px-5 py-2 rounded-lg bg-[rgba(74,158,125,0.15)] border border-[rgba(74,158,125,0.3)] text-brand-green text-xs font-bold hover:bg-[rgba(74,158,125,0.25)] transition-all"
+          className="inline-block px-5 py-2 rounded-lg bg-brand-gold border border-brand-gold text-white text-xs font-bold hover:bg-[#b8944f] transition-all"
         >
           Send a Message
         </a>

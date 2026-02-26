@@ -2,7 +2,7 @@ import { services } from '@/lib/data'
 
 export default function Services() {
   return (
-    <section className="py-24" id="services">
+    <section className="py-24 bg-brand-bg-soft" id="services">
       <div className="max-w-[1100px] mx-auto px-7">
         <div className="section-label">What We Do</div>
         <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
@@ -16,9 +16,9 @@ export default function Services() {
           {services.map((service) => (
             <div
               key={service.title}
-              className="bg-brand-card border border-brand-border rounded-2xl p-9 transition-all hover:bg-brand-card-hover hover:border-[rgba(201,169,110,0.15)] hover:-translate-y-1"
+              className="bg-white border border-brand-border rounded-2xl p-9 transition-all hover:shadow-md hover:border-[rgba(184,148,63,0.25)] hover:-translate-y-1"
             >
-              <div className="w-12 h-12 rounded-xl bg-[rgba(201,169,110,0.08)] border border-[rgba(201,169,110,0.12)] flex items-center justify-center text-[22px] mb-5">
+              <div className="w-12 h-12 rounded-xl bg-[rgba(184,148,63,0.08)] border border-[rgba(184,148,63,0.15)] flex items-center justify-center text-[22px] mb-5">
                 {service.icon}
               </div>
               <h3 className="text-lg font-bold text-brand-text mb-2.5">{service.title}</h3>

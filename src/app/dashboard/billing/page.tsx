@@ -31,9 +31,9 @@ const invoices = [
 ]
 
 const statusStyles: Record<string, { color: string; bg: string; label: string }> = {
-  paid: { color: '#4a9e7d', bg: 'rgba(74,158,125,0.1)', label: 'Paid' },
-  current: { color: '#3a8bc2', bg: 'rgba(58,139,194,0.1)', label: 'Current' },
-  overdue: { color: '#d4564e', bg: 'rgba(212,86,78,0.1)', label: 'Overdue' },
+  paid: { color: '#4a9e7d', bg: 'rgba(74,158,125,0.08)', label: 'Paid' },
+  current: { color: '#3a8bc2', bg: 'rgba(58,139,194,0.08)', label: 'Current' },
+  overdue: { color: '#d4564e', bg: 'rgba(212,86,78,0.08)', label: 'Overdue' },
 }
 
 export default function BillingPage() {
@@ -91,7 +91,7 @@ export default function BillingPage() {
       </div>
 
       {/* Plan Details */}
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6 mb-6">
+      <div className="bg-white border border-brand-border rounded-2xl p-6 mb-6">
         <h2 className="text-base font-bold text-brand-text mb-4">Plan Details</h2>
         <div className="grid grid-cols-3 gap-6">
           <div>
@@ -126,7 +126,7 @@ export default function BillingPage() {
       </div>
 
       {/* Invoice History */}
-      <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-2xl p-6">
+      <div className="bg-white border border-brand-border rounded-2xl p-6">
         <h2 className="text-base font-bold text-brand-text mb-4">Invoice History</h2>
         <div className="space-y-2">
           {/* Header */}
@@ -142,7 +142,7 @@ export default function BillingPage() {
             return (
               <div
                 key={inv.id}
-                className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.04)] items-center"
+                className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
               >
                 <span className="text-sm text-brand-text font-semibold">{inv.id}</span>
                 <span className="text-sm text-brand-muted">{inv.desc}</span>
@@ -163,7 +163,7 @@ export default function BillingPage() {
       </div>
 
       {/* Questions */}
-      <div className="mt-6 bg-[rgba(201,169,110,0.06)] border border-[rgba(201,169,110,0.15)] rounded-xl p-4 text-center">
+      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
           Questions about billing?{' '}
           <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
