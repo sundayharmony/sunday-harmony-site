@@ -109,7 +109,7 @@ export default function ResearchPage() {
               {/* Phase Header */}
               <button
                 onClick={() => setExpandedPhase(isOpen ? null : phase.id)}
-                className="w-full flex items-center justify-between p-5 text-left hover:bg-[rgba(255,255,255,0.02)] transition-all"
+                className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-all"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{phase.icon}</span>
@@ -124,7 +124,7 @@ export default function ResearchPage() {
                   <span className="text-xs font-semibold" style={{ color: phase.color }}>
                     {phaseDone}/{phaseTotal}
                   </span>
-                  <div className="w-16 h-1.5 bg-[rgba(255,255,255,0.06)] rounded-full">
+                  <div className="w-16 h-1.5 bg-gray-200 rounded-full">
                     <div
                       className="h-1.5 rounded-full transition-all"
                       style={{ width: `${phaseTotal > 0 ? (phaseDone / phaseTotal) * 100 : 0}%`, background: phase.color }}
