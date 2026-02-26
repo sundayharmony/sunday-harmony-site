@@ -4,18 +4,19 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import NotificationBell from '@/components/ui/NotificationBell'
 
 const navItems = [
   { href: '/dashboard', icon: '◈', label: 'Home' },
-  { href: '/dashboard/performance', icon: '📊', label: 'Performance' },
-  { href: '/dashboard/package', icon: '📦', label: 'My Package' },
-  { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
   { href: '/dashboard/onboarding', icon: '📝', label: 'Getting Started' },
   { href: '/dashboard/tasks', icon: '✅', label: 'Tasks' },
   { href: '/dashboard/files', icon: '📁', label: 'Files' },
   { href: '/dashboard/approvals', icon: '📋', label: 'Approvals' },
-  { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
+  { href: '/dashboard/performance', icon: '📊', label: 'Performance' },
+  { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
+  { href: '/dashboard/package', icon: '📦', label: 'My Package' },
   { href: '/dashboard/billing', icon: '💳', label: 'Billing' },
+  { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
 ]
 
 export default function ClientSidebar() {
@@ -24,20 +25,23 @@ export default function ClientSidebar() {
 
   return (
     <>
-      {/* Mobile toggle */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-white border border-brand-border text-brand-text"
-        aria-label="Toggle menu"
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          {open ? (
-            <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          ) : (
-            <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          )}
-        </svg>
-      </button>
+      {/* Mobile toggle + notification bell */}
+      <div className="md:hidden fixed top-4 left-4 z-[60] flex items-center gap-2">
+        <button
+          onClick={() => setOpen(!open)}
+          className="p-2 rounded-lg bg-white border border-brand-border text-brand-text"
+          aria-label="Toggle menu"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            {open ? (
+              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            ) : (
+              <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            )}
+          </svg>
+        </button>
+        <NotificationBell />
+      </div>
 
       {open && (
         <div className="md:hidden fixed inset-0 bg-black/50 z-[49]" onClick={() => setOpen(false)} />
@@ -46,11 +50,15 @@ export default function ClientSidebar() {
       <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
-        {/* Overlay to close sidebar on mobile when clicking outside (handled by div below button) */}
         <div className="p-5 pb-4 border-b border-brand-border">
-          <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
-            Sunday <span className="text-brand-gold">Harmony</span>
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
+              Sunday <span className="text-brand-gold">Harmony</span>
+            </Link>
+            <div className="hidden md:block">
+              <NotificationBell />
+            </div>
+          </div>
           <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-green mt-1">Client Dashboard</div>
         </div>
 
