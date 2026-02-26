@@ -31,9 +31,9 @@ const invoices = [
 ]
 
 const statusStyles: Record<string, { color: string; bg: string; label: string }> = {
-  paid: { color: '#4a9e7d', bg: 'rgba(74,158,125,0.08)', label: 'Paid' },
-  current: { color: '#3a8bc2', bg: 'rgba(58,139,194,0.08)', label: 'Current' },
-  overdue: { color: '#d4564e', bg: 'rgba(212,86,78,0.08)', label: 'Overdue' },
+  paid: { color: '#2d8a62', bg: '#f0fdf4', label: 'Paid' },
+  current: { color: '#2e7bb5', bg: '#eff6ff', label: 'Current' },
+  overdue: { color: '#c94a42', bg: '#fef2f2', label: 'Overdue' },
 }
 
 export default function BillingPage() {

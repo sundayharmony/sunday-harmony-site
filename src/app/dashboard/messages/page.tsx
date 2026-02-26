@@ -126,7 +126,7 @@ export default function MessagesPage() {
                   <div
                     className={`max-w-[70%] rounded-2xl p-4 ${
                       isClient
-                        ? 'bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)]'
+                        ? 'bg-green-50 border border-green-200'
                         : 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
                     }`}
                   >
