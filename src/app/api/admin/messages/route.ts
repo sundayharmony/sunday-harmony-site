@@ -2,7 +2,8 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { authOptions } from '@/lib/auth'
-import { getMessages, createMessage, getClientById, createNotification, getSupabase } from '@/lib/db'
+import { getMessages, createMessage, getClientById, createNotification } from '@/lib/db'
+import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 

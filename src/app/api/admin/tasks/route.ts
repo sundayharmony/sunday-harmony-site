@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getTasksByClient, createTask, updateTask, deleteTask, getClientById, createNotification } from '@/lib/db'
+import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,10 +70,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create notification for client
-    const client = await getClientById(client_id)
-    if (client) {
+    const clientData = await getClientById(client_id)
+    if (clientData) {
       // Find user with this client_id to send notification
-      const { getSupabase } = await import('@/lib/supabase')
       const { data: clientUser } = await getSupabase()
         .from('users')
         .select('id')

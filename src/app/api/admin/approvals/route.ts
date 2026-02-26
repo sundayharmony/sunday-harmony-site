@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getApprovalsByClient, createApproval, updateApproval, createNotification, getSupabase } from '@/lib/db'
+import { getApprovalsByClient, createApproval, updateApproval, createNotification } from '@/lib/db'
+import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 

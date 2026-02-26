@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getSupabase } from '@/lib/db'
+import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification } from '@/lib/db'
+import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
