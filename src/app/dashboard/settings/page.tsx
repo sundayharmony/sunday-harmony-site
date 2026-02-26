@@ -68,14 +68,14 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          current_password: currentPassword,
-          new_password: newPassword,
+          currentPassword,
+          newPassword,
         }),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to change password');
+        throw new Error(errorData.error || 'Failed to change password');
       }
 
       setPasswordSuccess('Password changed successfully');

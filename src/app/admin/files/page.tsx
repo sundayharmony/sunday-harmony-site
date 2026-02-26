@@ -84,8 +84,8 @@ export default function AdminFilesPage() {
         setFiles(data)
         setError('')
       } catch (err) {
+        console.error('Failed to load files:', err)
         setError('Failed to load files')
-        console.error(err)
       }
     })()
   }, [selectedClientId])
