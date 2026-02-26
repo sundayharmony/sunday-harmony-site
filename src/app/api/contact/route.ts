@@ -7,7 +7,7 @@ import { createLead, logActivity } from '@/lib/db'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { firstName, lastName, email, business, service, message } = body
+    const { firstName, lastName, email, phone, business, service, message } = body
 
     // Validation
     if (!firstName?.trim()) {
@@ -25,12 +25,12 @@ export async function POST(req: NextRequest) {
       firstName,
       lastName,
       email,
+      phone,
       business,
       service,
       message,
       timestamp: new Date().toISOString(),
     }
-    console.log('📧 New contact form submission:', JSON.stringify(submission, null, 2))
 
     // Send email if SMTP is configured
     if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
             </h2>
             <table style="width:100%;border-collapse:collapse">
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Name</td><td style="padding:8px 0">${firstName} ${lastName}</td></tr>
-              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Email</td><td style="padding:8px 0"><a href="mailto:${email}">${email}</a></td></tr>
-              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Business</td><td style="padding:8px 0">${business}</td></tr>
+              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Email</td><td style="padding:8px 0"><a href="mailto:${escHtml(email)}">${escHtml(email)}</a></td></tr>
+              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Phone</td><td style="padding:8px 0">${phone ? `<a href="tel:${escHtml(phone)}">${escHtml(phone)}</a>` : 'Not provided'}</td></tr>
+              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Business</td><td style="padding:8px 0">${escHtml(business)}</td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Service</td><td style="padding:8px 0">${service || 'Not specified'}</td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Message</td><td style="padding:8px 0">${message || 'No message'}</td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Submitted</td><td style="padding:8px 0">${new Date().toLocaleString()}</td></tr>
