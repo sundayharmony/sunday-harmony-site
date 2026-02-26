@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { competitors, vulnerabilities, positioningCanvas } from '@/lib/toolkit-data'
 
 const threatColor = { high: 'text-brand-red', medium: 'text-brand-gold', low: 'text-brand-green' }
@@ -11,14 +11,44 @@ export default function CompetitorsPage() {
   const [tab, setTab] = useState<'landscape' | 'gaps' | 'positioning'>('landscape')
   const [selected, setSelected] = useState(0)
   const [canvasValues, setCanvasValues] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/data').then(r => r.json()).then(d => {
+      if (d.positioning_canvas && Object.keys(d.positioning_canvas).length > 0) setCanvasValues(d.positioning_canvas)
+    }).catch(() => {})
+  }, [])
+
+  const saveCanvas = useCallback((values: Record<string, string>) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true)
+      await fetch('/api/admin/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positioning_canvas: values }),
+      }).catch(() => {})
+      setSaving(false)
+    }, 800)
+  }, [])
+
+  const updateCanvas = (label: string, value: string) => {
+    const updated = { ...canvasValues, [label]: value }
+    setCanvasValues(updated)
+    saveCanvas(updated)
+  }
 
   const c = competitors[selected]
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Competitive Analysis</h1>
-        <p className="text-sm text-brand-muted">Map the NJ landscape, find gaps, and define your positioning.</p>
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Competitive Analysis</h1>
+          <p className="text-sm text-brand-muted">Map the NJ landscape, find gaps, and define your positioning.</p>
+        </div>
+        {saving && <span className="text-xs text-brand-gold animate-pulse">Saving...</span>}
       </div>
 
       <div className="flex gap-2 mb-6">
@@ -130,7 +160,7 @@ export default function CompetitorsPage() {
                 <label className="block text-xs font-bold text-brand-text mb-2">{field.label}</label>
                 <textarea
                   value={canvasValues[field.label] || ''}
-                  onChange={(e) => setCanvasValues(prev => ({ ...prev, [field.label]: e.target.value }))}
+                  onChange={(e) => updateCanvas(field.label, e.target.value)}
                   placeholder={field.placeholder}
                   rows={4}
                   className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg p-3 text-sm text-brand-text outline-none focus:border-[rgba(201,169,110,0.3)] transition-colors resize-none placeholder:text-brand-dim"

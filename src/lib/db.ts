@@ -252,6 +252,41 @@ export async function updateAdminData(updates: Partial<AdminData>): Promise<Admi
   return data
 }
 
+// ══════════ ACTIVITY LOG ══════════
+export interface ActivityLog {
+  id: string
+  action: string
+  entity_type: string
+  entity_id?: string
+  actor_email: string
+  details?: string
+  created_at: string
+}
+
+export async function logActivity(entry: {
+  action: string
+  entity_type: string
+  entity_id?: string
+  actor_email: string
+  details?: string
+}): Promise<void> {
+  try {
+    await getSupabase().from('activity_log').insert(entry)
+  } catch (err) {
+    console.error('Failed to log activity:', err)
+  }
+}
+
+export async function getActivityLog(limit = 50): Promise<ActivityLog[]> {
+  const { data, error } = await getSupabase()
+    .from('activity_log')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) { console.error('getActivityLog error:', error); return [] }
+  return data || []
+}
+
 // ══════════ SEED DEFAULT ADMIN ══════════
 export async function seedAdmin(): Promise<void> {
   try {

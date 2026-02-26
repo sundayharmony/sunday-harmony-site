@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { createLead } from '@/lib/db'
+import { createLead, logActivity } from '@/lib/db'
 
 // POST /api/contact
 // Receives form data and sends email notification
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     // Save lead to database
     try {
-      await createLead({
+      const lead = await createLead({
         first_name: firstName,
         last_name: lastName || '',
         email,
@@ -87,6 +87,15 @@ export async function POST(req: NextRequest) {
         budget: body.budget,
         message,
       })
+      if (lead) {
+        logActivity({
+          action: 'created',
+          entity_type: 'lead',
+          entity_id: lead.id,
+          actor_email: email,
+          details: `New lead from contact form: ${firstName} ${lastName} (${business})`,
+        })
+      }
     } catch (dbErr) {
       console.error('Failed to save lead to DB (email was still sent):', dbErr)
     }

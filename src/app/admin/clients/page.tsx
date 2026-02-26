@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 interface Client {
@@ -29,9 +29,12 @@ export default function ClientsPage() {
   const [newDeliverable, setNewDeliverable] = useState('')
   const [newQuickWin, setNewQuickWin] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const PAGE_SIZE = 15
 
   useEffect(() => {
-    fetch('/api/admin/clients').then(r => r.json()).then(setClients)
+    fetch('/api/admin/clients').then(r => r.json()).then(d => { setClients(d); setLoading(false) })
   }, [])
 
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
@@ -93,13 +96,37 @@ export default function ClientsPage() {
   const active = clients.filter(c => c.status === 'active')
   const mrr = active.reduce((s, c) => s + c.monthly_price, 0)
 
-  const filtered = search.trim()
-    ? clients.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.business.toLowerCase().includes(search.toLowerCase()) ||
-        c.email.toLowerCase().includes(search.toLowerCase())
-      )
-    : clients
+  const filtered = useMemo(() => {
+    return search.trim()
+      ? clients.filter(c =>
+          c.name.toLowerCase().includes(search.toLowerCase()) ||
+          c.business.toLowerCase().includes(search.toLowerCase()) ||
+          c.email.toLowerCase().includes(search.toLowerCase())
+        )
+      : clients
+  }, [clients, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  useEffect(() => { setPage(1) }, [search])
+
+  const exportCSV = () => {
+    const headers = ['Name', 'Business', 'Email', 'Phone', 'Industry', 'Package', 'Monthly Price', 'Status', 'Start Date', 'Notes']
+    const rows = filtered.map(c => [
+      c.name, c.business, c.email, c.phone || '', c.industry || '',
+      tierLabels[c.package_tier] || c.package_tier, `$${c.monthly_price}`, c.status,
+      new Date(c.start_date).toLocaleDateString(), c.notes || '',
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div>
@@ -108,12 +135,17 @@ export default function ClientsPage() {
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Clients</h1>
           <p className="text-sm text-brand-muted">{active.length} active &bull; ${mrr.toLocaleString()}/mo MRR</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2.5 rounded-lg bg-gradient-to-br from-brand-gold to-[#b8944f] text-[#0a0a0f] text-sm font-bold hover:-translate-y-0.5 transition-all"
-        >
-          + Add Client
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="px-4 py-2.5 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-brand-muted text-xs font-semibold hover:text-brand-text transition-all">
+            Export CSV
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-4 py-2.5 rounded-lg bg-gradient-to-br from-brand-gold to-[#b8944f] text-[#0a0a0f] text-sm font-bold hover:-translate-y-0.5 transition-all"
+          >
+            + Add Client
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -180,41 +212,74 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className={`grid ${selected ? 'grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
+      <div className={`grid ${selected ? 'grid-cols-1 lg:grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
         {/* Client Table */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="p-8 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 bg-[rgba(255,255,255,0.04)] rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="p-8 text-center text-brand-dim text-sm">
               {search ? 'No clients match your search.' : 'No clients yet. Add your first client above.'}
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                  {['Client', 'Business', 'Package', 'Monthly', 'Status', 'Since'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(client => (
-                  <tr
-                    key={client.id}
-                    onClick={() => { setSelected(client); setNotes(client.notes || '') }}
-                    className={`border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
-                      selected?.id === client.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
-                    }`}
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
-                    <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                    <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
-                    <td className="px-4 py-3 text-sm text-brand-text">${client.monthly_price.toLocaleString()}</td>
-                    <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
-                    <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.start_date).toLocaleDateString()}</td>
+            <>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[rgba(255,255,255,0.06)]">
+                    {['Client', 'Business', 'Package', 'Monthly', 'Status', 'Since'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paginated.map(client => (
+                    <tr
+                      key={client.id}
+                      onClick={() => { setSelected(client); setNotes(client.notes || '') }}
+                      className={`border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
+                        selected?.id === client.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
+                      <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
+                      <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier]}</td>
+                      <td className="px-4 py-3 text-sm text-brand-text">${client.monthly_price.toLocaleString()}</td>
+                      <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
+                      <td className="px-4 py-3 text-xs text-brand-dim">{new Date(client.start_date).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[rgba(255,255,255,0.06)]">
+                  <span className="text-xs text-brand-dim">
+                    Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all">
+                      ← Prev
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                      <button key={p} onClick={() => setPage(p)}
+                        className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
+                          page === p ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]' : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-dim hover:text-brand-text'
+                        }`}>
+                        {p}
+                      </button>
+                    ))}
+                    <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all">
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

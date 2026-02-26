@@ -1,14 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { marketData, researchPhases } from '@/lib/toolkit-data'
 
 export default function ResearchPage() {
   const [expandedPhase, setExpandedPhase] = useState<number | null>(1)
   const [tasksDone, setTasksDone] = useState<Record<string, boolean>>({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/data').then(r => r.json()).then(d => {
+      if (d.research_tasks && Object.keys(d.research_tasks).length > 0) setTasksDone(d.research_tasks)
+    }).catch(() => {})
+  }, [])
+
+  const saveToDb = useCallback(async (updated: Record<string, boolean>) => {
+    setSaving(true)
+    await fetch('/api/admin/data', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ research_tasks: updated }),
+    }).catch(() => {})
+    setSaving(false)
+  }, [])
 
   const toggleTask = (key: string) => {
-    setTasksDone(prev => ({ ...prev, [key]: !prev[key] }))
+    const updated = { ...tasksDone, [key]: !tasksDone[key] }
+    setTasksDone(updated)
+    saveToDb(updated)
   }
 
   const totalTasks = researchPhases.reduce((sum, p) => sum + p.tasks.length, 0)
@@ -17,11 +36,14 @@ export default function ResearchPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Market Research</h1>
-        <p className="text-sm text-brand-muted">
-          Industry data, target customer insights, and research tasks from your launch toolkit.
-        </p>
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Market Research</h1>
+          <p className="text-sm text-brand-muted">
+            Industry data, target customer insights, and research tasks from your launch toolkit.
+          </p>
+        </div>
+        {saving && <span className="text-xs text-brand-gold animate-pulse">Saving...</span>}
       </div>
 
       {/* Market Stats Grid */}

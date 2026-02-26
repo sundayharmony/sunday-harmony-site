@@ -1,13 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { roadmapWeeks } from '@/lib/toolkit-data'
 
 export default function RoadmapPage() {
   const [tasks, setTasks] = useState<Record<string, boolean>>({})
   const [expanded, setExpanded] = useState(0)
+  const [saving, setSaving] = useState(false)
 
-  const toggle = (id: string) => setTasks(p => ({ ...p, [id]: !p[id] }))
+  useEffect(() => {
+    fetch('/api/admin/data').then(r => r.json()).then(d => {
+      if (d.roadmap_tasks && Object.keys(d.roadmap_tasks).length > 0) setTasks(d.roadmap_tasks)
+    }).catch(() => {})
+  }, [])
+
+  const saveToDb = useCallback(async (updated: Record<string, boolean>) => {
+    setSaving(true)
+    await fetch('/api/admin/data', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roadmap_tasks: updated }),
+    }).catch(() => {})
+    setSaving(false)
+  }, [])
+
+  const toggle = (id: string) => {
+    const updated = { ...tasks, [id]: !tasks[id] }
+    setTasks(updated)
+    saveToDb(updated)
+  }
   const phaseProgress = (weekIdx: number) => {
     const week = roadmapWeeks[weekIdx]
     const done = week.tasks.filter((_, i) => tasks[`${weekIdx}-${i}`]).length
@@ -19,9 +40,12 @@ export default function RoadmapPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">90-Day Roadmap</h1>
-        <p className="text-sm text-brand-muted">Your week-by-week launch plan from foundation to scale.</p>
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">90-Day Roadmap</h1>
+          <p className="text-sm text-brand-muted">Your week-by-week launch plan from foundation to scale.</p>
+        </div>
+        {saving && <span className="text-xs text-brand-gold animate-pulse">Saving...</span>}
       </div>
 
       {/* Overall Progress */}

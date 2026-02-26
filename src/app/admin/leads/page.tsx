@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 interface Lead {
@@ -10,6 +10,7 @@ interface Lead {
 }
 
 const statuses = ['new', 'contacted', 'audit_sent', 'proposal', 'won', 'lost']
+const PAGE_SIZE = 15
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
@@ -17,9 +18,11 @@ export default function LeadsPage() {
   const [notes, setNotes] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/admin/leads').then(r => r.json()).then(setLeads)
+    fetch('/api/admin/leads').then(r => r.json()).then(d => { setLeads(d); setLoading(false) })
   }, [])
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
@@ -33,15 +36,53 @@ export default function LeadsPage() {
     if (selected?.id === id) setSelected(updated)
   }
 
+  const filtered = useMemo(() => {
+    return leads.filter(l => {
+      const matchSearch = !search.trim() ||
+        `${l.first_name} ${l.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+        l.business.toLowerCase().includes(search.toLowerCase()) ||
+        l.email.toLowerCase().includes(search.toLowerCase())
+      const matchStatus = filterStatus === 'all' || l.status === filterStatus
+      return matchSearch && matchStatus
+    })
+  }, [leads, search, filterStatus])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1) }, [search, filterStatus])
+
+  const exportCSV = () => {
+    const headers = ['Name', 'Email', 'Business', 'Phone', 'Industry', 'Service', 'Budget', 'Status', 'Notes', 'Date']
+    const rows = filtered.map(l => [
+      `${l.first_name} ${l.last_name}`, l.email, l.business, l.phone || '', l.industry || '',
+      l.service || '', l.budget || '', l.status, l.notes || '', new Date(l.created_at).toLocaleDateString(),
+    ])
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Leads</h1>
-        <p className="text-sm text-brand-muted">Manage contact form submissions and track your pipeline.</p>
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Leads</h1>
+          <p className="text-sm text-brand-muted">Manage contact form submissions and track your pipeline.</p>
+        </div>
+        <button onClick={exportCSV} className="px-4 py-2 rounded-lg bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-brand-muted text-xs font-semibold hover:text-brand-text hover:border-[rgba(255,255,255,0.2)] transition-all">
+          Export CSV
+        </button>
       </div>
 
       {/* Stats row */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3 mb-6 flex-wrap">
         {statuses.map(s => {
           const count = leads.filter(l => l.status === s).length
           return (
@@ -72,120 +113,153 @@ export default function LeadsPage() {
         </select>
       </div>
 
-      <div className="grid grid-cols-[1fr_380px] gap-6">
+      <div className={`grid ${selected ? 'grid-cols-1 lg:grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
         {/* Lead Table */}
         <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl overflow-hidden">
-          {(() => {
-            const filtered = leads.filter(l => {
-              const matchSearch = !search.trim() ||
-                `${l.first_name} ${l.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
-                l.business.toLowerCase().includes(search.toLowerCase()) ||
-                l.email.toLowerCase().includes(search.toLowerCase())
-              const matchStatus = filterStatus === 'all' || l.status === filterStatus
-              return matchSearch && matchStatus
-            })
-            return filtered.length === 0 ? (
+          {loading ? (
+            <div className="p-8 space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 bg-[rgba(255,255,255,0.04)] rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="p-8 text-center text-brand-dim text-sm">
               {search || filterStatus !== 'all' ? 'No leads match your filters.' : "No leads yet. They'll appear here when someone submits the contact form on your website."}
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                  {['Name', 'Business', 'Service', 'Status', 'Date'].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(lead => (
-                  <tr
-                    key={lead.id}
-                    onClick={() => { setSelected(lead); setNotes(lead.notes) }}
-                    className={`border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
-                      selected?.id === lead.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
-                    }`}
-                  >
-                    <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.last_name}</td>
-                    <td className="px-4 py-3 text-sm text-brand-muted">{lead.business}</td>
-                    <td className="px-4 py-3 text-xs text-brand-dim">{lead.service || '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={lead.status} /></td>
-                    <td className="px-4 py-3 text-xs text-brand-dim">{new Date(lead.created_at).toLocaleDateString()}</td>
+            <>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[rgba(255,255,255,0.06)]">
+                    {['Name', 'Business', 'Service', 'Status', 'Date'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )
-          })()}
+                </thead>
+                <tbody>
+                  {paginated.map(lead => (
+                    <tr
+                      key={lead.id}
+                      onClick={() => { setSelected(lead); setNotes(lead.notes) }}
+                      className={`border-b border-[rgba(255,255,255,0.04)] cursor-pointer transition-colors ${
+                        selected?.id === lead.id ? 'bg-[rgba(201,169,110,0.05)]' : 'hover:bg-[rgba(255,255,255,0.02)]'
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.last_name}</td>
+                      <td className="px-4 py-3 text-sm text-brand-muted">{lead.business}</td>
+                      <td className="px-4 py-3 text-xs text-brand-dim">{lead.service || '—'}</td>
+                      <td className="px-4 py-3"><StatusBadge status={lead.status} /></td>
+                      <td className="px-4 py-3 text-xs text-brand-dim">{new Date(lead.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-[rgba(255,255,255,0.06)]">
+                  <span className="text-xs text-brand-dim">
+                    Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all"
+                    >
+                      ← Prev
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
+                          page === p
+                            ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]'
+                            : 'bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-dim hover:text-brand-text'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1.5 rounded-md text-xs font-semibold bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Lead Detail */}
-        <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
-          {selected ? (
-            <>
-              <h3 className="text-lg font-bold text-brand-text mb-1">{selected.first_name} {selected.last_name}</h3>
-              <div className="text-sm text-brand-muted mb-4">{selected.business}</div>
-
-              <div className="space-y-3 mb-5">
-                {[
-                  ['Email', selected.email],
-                  ['Phone', selected.phone],
-                  ['Industry', selected.industry],
-                  ['Service', selected.service],
-                  ['Budget', selected.budget],
-                  ['Message', selected.message],
-                ].map(([label, val]) => val ? (
-                  <div key={label as string}>
-                    <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{label}</div>
-                    <div className="text-sm text-brand-text">{val}</div>
-                  </div>
-                ) : null)}
-              </div>
-
-              {/* Status changer */}
-              <div className="mb-4">
-                <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Status</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {statuses.map(s => (
-                    <button
-                      key={s}
-                      onClick={() => updateLead(selected.id, { status: s as Lead['status'] })}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase transition-all ${
-                        selected.status === s
-                          ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]'
-                          : 'bg-[rgba(255,255,255,0.03)] text-brand-dim border border-[rgba(255,255,255,0.06)] hover:text-brand-text'
-                      }`}
-                    >
-                      {s.replace('_', ' ')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Notes</div>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Add notes about this lead..."
-                  rows={4}
-                  className="w-full py-2 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] resize-y"
-                />
-                <button
-                  onClick={() => updateLead(selected.id, { notes })}
-                  className="mt-2 px-4 py-2 rounded-lg bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold text-xs font-semibold hover:bg-[rgba(201,169,110,0.2)] transition-all"
-                >
-                  Save Notes
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-10 text-sm text-brand-dim">
-              Click a lead to view details
+        {selected && (
+          <div className="bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-xl p-5">
+            <div className="flex justify-between items-start mb-1">
+              <h3 className="text-lg font-bold text-brand-text">{selected.first_name} {selected.last_name}</h3>
+              <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">✕</button>
             </div>
-          )}
-        </div>
+            <div className="text-sm text-brand-muted mb-4">{selected.business}</div>
+
+            <div className="space-y-3 mb-5">
+              {[
+                ['Email', selected.email],
+                ['Phone', selected.phone],
+                ['Industry', selected.industry],
+                ['Service', selected.service],
+                ['Budget', selected.budget],
+                ['Message', selected.message],
+              ].map(([label, val]) => val ? (
+                <div key={label as string}>
+                  <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{label}</div>
+                  <div className="text-sm text-brand-text">{val}</div>
+                </div>
+              ) : null)}
+            </div>
+
+            {/* Status changer */}
+            <div className="mb-4">
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Status</div>
+              <div className="flex flex-wrap gap-1.5">
+                {statuses.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => updateLead(selected.id, { status: s as Lead['status'] })}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase transition-all ${
+                      selected.status === s
+                        ? 'bg-[rgba(201,169,110,0.15)] text-brand-gold border border-[rgba(201,169,110,0.3)]'
+                        : 'bg-[rgba(255,255,255,0.03)] text-brand-dim border border-[rgba(255,255,255,0.06)] hover:text-brand-text'
+                    }`}
+                  >
+                    {s.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Notes</div>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Add notes about this lead..."
+                rows={4}
+                className="w-full py-2 px-3 bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] rounded-lg text-brand-text text-sm outline-none focus:border-[rgba(201,169,110,0.3)] resize-y"
+              />
+              <button
+                onClick={() => updateLead(selected.id, { notes })}
+                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(201,169,110,0.12)] border border-[rgba(201,169,110,0.3)] text-brand-gold text-xs font-semibold hover:bg-[rgba(201,169,110,0.2)] transition-all"
+              >
+                Save Notes
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
