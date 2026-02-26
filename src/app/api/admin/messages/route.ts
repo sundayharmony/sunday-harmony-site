@@ -6,6 +6,10 @@ import { getMessages, createMessage, getClientById } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+function escHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user || session.user.role !== 'admin') {

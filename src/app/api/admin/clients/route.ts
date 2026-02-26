@@ -96,14 +96,14 @@ export async function POST(req: NextRequest) {
         transporter.sendMail({
           from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
           to: email,
-          subject: `Welcome to Sunday Harmony, ${name.split(' ')[0]}!`,
+          subject: `Welcome to Sunday Harmony, ${escHtml(name.split(' ')[0])}!`,
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 Welcome to Sunday Harmony
               </h2>
-              <p>Hi ${name.split(' ')[0]},</p>
-              <p>We're excited to have <strong>${business}</strong> on board! Your <strong>${tierLabels[packageTier] || packageTier}</strong> package is now active.</p>
+              <p>Hi ${escHtml(name.split(' ')[0])},</p>
+              <p>We're excited to have <strong>${escHtml(business)}</strong> on board! Your <strong>${escHtml(tierLabels[packageTier] || packageTier)}</strong> package is now active.</p>
               <p>You can access your client dashboard to track progress, view deliverables, and message our team:</p>
               <div style="text-align:center;margin:30px 0">
                 <a href="${siteUrl}/login" style="background:#c9a96e;color:#0a0a0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
@@ -112,8 +112,8 @@ export async function POST(req: NextRequest) {
               </div>
               <div style="background:#f8f6f0;border-radius:8px;padding:16px;margin:20px 0">
                 <p style="margin:0 0 8px;font-size:13px;color:#666"><strong>Your login details:</strong></p>
-                <p style="margin:0;font-size:13px;color:#333">Email: <strong>${email}</strong></p>
-                <p style="margin:0;font-size:13px;color:#333">Password: <strong>${loginPassword}</strong></p>
+                <p style="margin:0;font-size:13px;color:#333">Email: <strong>${escHtml(email)}</strong></p>
+                <p style="margin:0;font-size:13px;color:#333">Password: <strong>${escHtml(loginPassword)}</strong></p>
                 <p style="margin:8px 0 0;font-size:11px;color:#999">We recommend changing your password after your first login.</p>
               </div>
               <p style="font-size:13px;color:#666">If you have any questions, simply reply to this email or use the messaging feature in your dashboard.</p>
@@ -133,6 +133,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || session.user?.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { id, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
   const client = await updateClient(id, updates)

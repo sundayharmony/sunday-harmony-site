@@ -102,6 +102,12 @@ export default function LeadsPage() {
         </button>
       </div>
 
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
       {/* Stats row */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {statuses.map(s => {

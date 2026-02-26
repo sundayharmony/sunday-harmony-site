@@ -31,10 +31,24 @@ export default function ClientsPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const PAGE_SIZE = 15
 
   useEffect(() => {
-    fetch('/api/admin/clients').then(r => r.json()).then(d => { setClients(d); setLoading(false) })
+    (async () => {
+      try {
+        const r = await fetch('/api/admin/clients')
+        if (!r.ok) throw new Error('Failed to load clients')
+        const d = await r.json()
+        setClients(d)
+        setError('')
+      } catch (err) {
+        setError('Failed to load clients. Please try again.')
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
@@ -70,6 +84,7 @@ export default function ClientsPage() {
 
   const removeDeliverable = async (index: number) => {
     if (!selected) return
+    if (!window.confirm('Are you sure you want to remove this?')) return
     const updated = selected.deliverables.filter((_, i) => i !== index)
     await updateClient(selected.id, { deliverables: updated })
   }
