@@ -23,8 +23,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(
       {
-        name: userData.name,
-        email: userData.email,
+        id: userData.id,
+        name: userData.name || '',
+        email: userData.email || '',
       },
       { status: 200 }
     )

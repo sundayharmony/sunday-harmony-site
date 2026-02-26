@@ -73,7 +73,7 @@ export default function PerformancePage() {
     fetchData()
   }, [])
 
-  const daysSinceStart = client
+  const daysSinceStart = client && client.start_date
     ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
     : 0
 
