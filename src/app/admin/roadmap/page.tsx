@@ -96,7 +96,7 @@ export default function RoadmapPage() {
                 <div className="text-base font-bold text-brand-text">{week.title}</div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: `conic-gradient(${week.color} ${pct * 3.6}deg, rgba(255,255,255,0.06) 0deg)` }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: `conic-gradient(${week.color} ${pct * 3.6}deg, #e5e7eb 0deg)` }}>
                   <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center" style={{ color: pct === 100 ? week.color : '#999' }}>{pct}%</div>
                 </div>
                 <span className={`text-brand-dim transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
