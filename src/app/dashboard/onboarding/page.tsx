@@ -90,7 +90,7 @@ export default function OnboardingPage() {
     if (!data) return;
 
     const updatedSocials = {
-      ...data.social_accounts,
+      ...(data.social_accounts || {}),
       [platform]: value,
     };
 
@@ -253,7 +253,7 @@ export default function OnboardingPage() {
                   </label>
                   <input
                     type="text"
-                    value={data.social_accounts[platform as keyof typeof data.social_accounts] || ''}
+                    value={(data.social_accounts || {})[platform as keyof typeof data.social_accounts] || ''}
                     onChange={(e) => handleSocialAccountChange(platform, e.target.value)}
                     placeholder={`Your ${platform} ${platform === 'website' ? 'URL' : 'handle or URL'}`}
                     className="w-full px-4 py-2 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim text-sm"
