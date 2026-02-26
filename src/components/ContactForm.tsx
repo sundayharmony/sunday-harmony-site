@@ -7,6 +7,7 @@ interface FormData {
   firstName: string
   lastName: string
   email: string
+  phone: string
   business: string
   service: string
   message: string
@@ -14,7 +15,7 @@ interface FormData {
 
 export default function ContactForm() {
   const [form, setForm] = useState<FormData>({
-    firstName: '', lastName: '', email: '', business: '', service: '', message: '',
+    firstName: '', lastName: '', email: '', phone: '', business: '', service: '', message: '',
   })
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
