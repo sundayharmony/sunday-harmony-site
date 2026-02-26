@@ -13,7 +13,9 @@ function escHtml(str: string): string {
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userGet = session.user as { role?: string }
+  if (userGet.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -26,7 +28,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userPost = session.user as { role?: string; name?: string }
+  if (userPost.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
