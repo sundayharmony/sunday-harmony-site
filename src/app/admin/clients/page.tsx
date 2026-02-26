@@ -104,6 +104,7 @@ export default function ClientsPage() {
 
   const removeQuickWin = async (index: number) => {
     if (!selected) return
+    if (!window.confirm('Are you sure you want to remove this?')) return
     const updated = selected.quick_wins.filter((_, i) => i !== index)
     await updateClient(selected.id, { quick_wins: updated })
   }
@@ -162,6 +163,12 @@ export default function ClientsPage() {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-4">

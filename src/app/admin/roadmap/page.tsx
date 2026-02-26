@@ -7,6 +7,7 @@ export default function RoadmapPage() {
   const [tasks, setTasks] = useState<Record<string, boolean>>({})
   const [expanded, setExpanded] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/data').then(r => r.json()).then(d => {
@@ -16,12 +17,20 @@ export default function RoadmapPage() {
 
   const saveToDb = useCallback(async (updated: Record<string, boolean>) => {
     setSaving(true)
-    await fetch('/api/admin/data', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roadmap_tasks: updated }),
-    }).catch(() => {})
-    setSaving(false)
+    try {
+      const res = await fetch('/api/admin/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roadmap_tasks: updated }),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      setError('')
+    } catch (err) {
+      setError('Failed to save. Please try again.')
+      console.error(err)
+    } finally {
+      setSaving(false)
+    }
   }, [])
 
   const toggle = (id: string) => {

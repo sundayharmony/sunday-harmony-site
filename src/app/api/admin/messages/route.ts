@@ -63,10 +63,10 @@ export async function POST(request: Request) {
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 New Message
               </h2>
-              <p>Hi ${client.name.split(' ')[0]},</p>
+              <p>Hi ${escHtml(client.name.split(' ')[0])},</p>
               <p>You have a new message from the Sunday Harmony team:</p>
               <div style="padding:16px;background:#f8f6f0;border-radius:8px;margin:16px 0">
-                <p style="margin:0;white-space:pre-wrap">${text.trim()}</p>
+                <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
               </div>
               <div style="text-align:center;margin:24px 0">
                 <a href="${siteUrl}/dashboard/messages" style="background:#c9a96e;color:#0a0a0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">

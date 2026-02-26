@@ -142,7 +142,8 @@ export async function createLead(leadData: {
 }
 
 export async function updateLead(id: string, updates: Partial<Omit<Lead, 'id' | 'created_at'>>): Promise<Lead | null> {
-  const { data, error } = await getSupabase().from('leads').update(updates).eq('id', id).select().single()
+  const updateData = { ...updates, updated_at: new Date().toISOString() }
+  const { data, error } = await getSupabase().from('leads').update(updateData).eq('id', id).select().single()
   if (error) { console.error('updateLead error:', error); return null }
   return data
 }
@@ -185,7 +186,8 @@ export async function createClient(clientData: Omit<Client, 'id' | 'created_at' 
 }
 
 export async function updateClient(id: string, updates: Partial<Omit<Client, 'id' | 'created_at'>>): Promise<Client | null> {
-  const { data, error } = await getSupabase().from('clients').update(updates).eq('id', id).select().single()
+  const updateData = { ...updates, updated_at: new Date().toISOString() }
+  const { data, error } = await getSupabase().from('clients').update(updateData).eq('id', id).select().single()
   if (error) { console.error('updateClient error:', error); return null }
   return data
 }
@@ -241,11 +243,10 @@ export async function getAdminData(): Promise<AdminData> {
 
 export async function updateAdminData(updates: Partial<AdminData>): Promise<AdminData> {
   const current = await getAdminData()
-  const merged = { ...current, ...updates }
+  const merged = { id: 'singleton', ...current, ...updates }
   const { data, error } = await getSupabase()
     .from('admin_data')
-    .update(merged)
-    .eq('id', 'singleton')
+    .upsert(merged)
     .select()
     .single()
   if (error) { console.error('updateAdminData error:', error); return merged }
