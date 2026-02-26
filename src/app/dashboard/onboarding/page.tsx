@@ -217,7 +217,7 @@ export default function OnboardingPage() {
             <label className="block text-brand-text font-serif text-lg mb-2">
               Brand Voice & Personality
             </label>
-            <p className="text-brand-muted text-sm mb-3">How would you describe your brand's personality? (e.g., professional, friendly, bold, luxury)</p>
+            <p className="text-brand-muted text-sm mb-3">How would you describe your brand&rsquo;s personality? (e.g., professional, friendly, bold, luxury)</p>
             <textarea
               value={data.brand_voice}
               onChange={(e) => setData({ ...data, brand_voice: e.target.value })}
