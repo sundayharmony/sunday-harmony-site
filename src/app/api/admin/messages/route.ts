@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   const message = await createMessage({
     client_id: clientId,
     from_role: 'admin',
-    from_name: (session.user as { name?: string }).name || 'Sunday Harmony',
+    from_name: userPost.name || 'Sunday Harmony',
     text: text.trim(),
   })
 
