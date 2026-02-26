@@ -1,17 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 attempts per 15 minutes per IP
+    const ip = getClientIp(req)
+    const rl = rateLimit(`reset-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const { token, password } = await req.json()
 
     if (!token || !password?.trim()) {
       return NextResponse.json({ error: 'Token and new password are required' }, { status: 400 })
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+    if (password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+    }
+
+    if (password.length > 128) {
+      return NextResponse.json({ error: 'Password is too long' }, { status: 400 })
+    }
+
+    // Require at least one uppercase, one lowercase, and one number
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      return NextResponse.json(
+        { error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' },
+        { status: 400 }
+      )
     }
 
     // Find user with this token
