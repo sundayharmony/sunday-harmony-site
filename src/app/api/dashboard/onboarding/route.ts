@@ -24,7 +24,23 @@ export async function GET(request: NextRequest) {
     }
 
     const response = await getOnboardingResponse(clientId)
-    return NextResponse.json(response || {}, { status: 200 })
+
+    // Return proper defaults if no record exists yet
+    const defaults = {
+      id: '',
+      client_id: clientId,
+      business_goals: '',
+      target_audience: '',
+      brand_voice: '',
+      social_accounts: {},
+      google_business_url: '',
+      existing_assets: '',
+      competitors: '',
+      additional_notes: '',
+      completed: false,
+    }
+
+    return NextResponse.json(response ? { ...defaults, ...response } : defaults, { status: 200 })
   } catch (error: unknown) {
     console.error('GET /api/dashboard/onboarding error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
