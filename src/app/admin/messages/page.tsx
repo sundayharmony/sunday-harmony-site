@@ -98,18 +98,38 @@ export default function AdminMessagesPage() {
     if (!newMsg.trim() || sending || !selectedClient) return
 
     setSending(true)
+    const msgText = newMsg.trim()
+
+    // Optimistic update: add message to local state immediately
+    const optimisticMsg: Message = {
+      id: `temp-${Date.now()}`,
+      client_id: selectedClient,
+      from_role: 'admin',
+      from_name: 'You',
+      text: msgText,
+      created_at: new Date().toISOString(),
+    }
+    setAllMessages(prev => [...prev, optimisticMsg])
+    setNewMsg('')
+
     try {
       const res = await fetch('/api/admin/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: selectedClient, text: newMsg.trim() }),
+        body: JSON.stringify({ clientId: selectedClient, text: msgText }),
       })
-      if (res.ok) {
-        const msg = await res.json()
-        setAllMessages(prev => [...prev, msg])
-        setNewMsg('')
+      if (!res.ok) {
+        throw new Error('Failed to send message')
       }
+      const msg = await res.json()
+      // Replace optimistic message with real one from server
+      setAllMessages(prev => prev.map(m => m.id === optimisticMsg.id ? msg : m))
+      setError('')
     } catch (err) {
+      setError('Failed to send message. Please try again.')
+      // Remove optimistic message on failure
+      setAllMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
+      setNewMsg(msgText)
       console.error('Failed to send message', err)
     } finally {
       setSending(false)
@@ -132,6 +152,12 @@ export default function AdminMessagesPage() {
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Messages</h1>
         <p className="text-sm text-brand-muted">View and reply to client messages.</p>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-[280px_1fr] gap-4 h-[calc(100vh-12rem)]">
         {/* Client List */}

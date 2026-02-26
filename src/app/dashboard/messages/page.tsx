@@ -17,6 +17,7 @@ export default function MessagesPage() {
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -49,17 +50,37 @@ export default function MessagesPage() {
     if (!newMsg.trim() || sending) return
 
     setSending(true)
+    const msgText = newMsg.trim()
+
+    // Optimistic update: add message to local state immediately
+    const optimisticMsg: MessageData = {
+      id: `temp-${Date.now()}`,
+      from_role: 'client',
+      from_name: userName,
+      text: msgText,
+      created_at: new Date().toISOString(),
+    }
+    setMessages(prev => [...prev, optimisticMsg])
+    setNewMsg('')
+
     try {
       const res = await fetch('/api/dashboard/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: newMsg.trim() }),
+        body: JSON.stringify({ text: msgText }),
       })
-      if (res.ok) {
-        setNewMsg('')
-        await fetchMessages()
+      if (!res.ok) {
+        throw new Error('Failed to send message')
       }
+      const msg = await res.json()
+      // Replace optimistic message with real one from server
+      setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? msg : m))
+      setError('')
     } catch (err) {
+      setError('Failed to send message. Please try again.')
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
+      setNewMsg(msgText)
       console.error('Failed to send message', err)
     } finally {
       setSending(false)
@@ -74,6 +95,12 @@ export default function MessagesPage() {
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Messages</h1>
         <p className="text-sm text-brand-muted">Chat directly with your Sunday Harmony team.</p>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Messages Area */}
       <div className="flex-1 bg-gray-50 border border-brand-border rounded-2xl p-4 overflow-y-auto mb-4">
