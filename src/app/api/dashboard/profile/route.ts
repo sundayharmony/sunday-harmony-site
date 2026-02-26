@@ -7,11 +7,16 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user || session.user.role !== 'client') {
+  if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const clientId = session.user.clientId
+  const user = session.user as { role?: string; clientId?: string }
+  if (user.role !== 'client') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const clientId = user.clientId
   if (!clientId) {
     return NextResponse.json({ error: 'No client profile linked' }, { status: 404 })
   }
@@ -21,7 +26,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
 
-  // Return client data (snake_case from DB)
   return NextResponse.json({
     id: client.id,
     name: client.name,
