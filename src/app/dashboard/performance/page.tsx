@@ -117,8 +117,8 @@ export default function PerformancePage() {
           <div className="text-lg font-extrabold text-brand-text">4.9%</div>
           <p className="text-xs text-brand-muted mt-1">Form submissions ÷ website visits</p>
         </div>
-        <div className="bg-[rgba(58,139,194,0.08)] border border-[rgba(58,139,194,0.15)] rounded-xl p-4">
-          <div className="text-[10px] font-bold uppercase text-[#3a8bc2] mb-1">Total Growth</div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="text-[10px] font-bold uppercase text-brand-blue mb-1">Total Growth</div>
           <div className="text-lg font-extrabold text-brand-text">550%</div>
           <p className="text-xs text-brand-muted mt-1">Website traffic since start</p>
         </div>

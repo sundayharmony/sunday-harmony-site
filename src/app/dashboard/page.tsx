@@ -199,7 +199,7 @@ export default function DashboardHome() {
                 className={`p-3 rounded-lg ${
                   msg.from_role === 'admin'
                     ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
-                    : 'bg-[rgba(74,158,125,0.08)] border border-[rgba(74,158,125,0.15)]'
+                    : 'bg-green-50 border border-green-200'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-1">
