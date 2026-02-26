@@ -61,8 +61,8 @@ export default function AdminFilesPage() {
         setClients(data)
         setError('')
       } catch (err) {
+        console.error('Failed to load clients:', err)
         setError('Failed to load clients')
-        console.error(err)
       } finally {
         setLoading(false)
       }

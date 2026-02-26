@@ -61,8 +61,8 @@ export default function AdminTasksPage() {
         setClients(data)
         setError('')
       } catch (err) {
+        console.error('Failed to load clients:', err)
         setError('Failed to load clients')
-        console.error(err)
       } finally {
         setLoading(false)
       }
@@ -84,8 +84,8 @@ export default function AdminTasksPage() {
         setTasks(data)
         setError('')
       } catch (err) {
+        console.error('Failed to load tasks:', err)
         setError('Failed to load tasks')
-        console.error(err)
       }
     })()
   }, [selectedClientId])

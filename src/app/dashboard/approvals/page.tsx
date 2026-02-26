@@ -30,7 +30,7 @@ export default function ApprovalsPage() {
         const res = await fetch('/api/dashboard/approvals');
         if (!res.ok) throw new Error('Failed to fetch approvals');
         const result = await res.json();
-        setApprovals(result.data || []);
+        setApprovals(Array.isArray(result) ? result : (result.data || []));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
