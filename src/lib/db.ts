@@ -288,6 +288,181 @@ export async function getActivityLog(limit = 50): Promise<ActivityLog[]> {
   return data || []
 }
 
+// ══════════ ONBOARDING RESPONSES ══════════
+export interface OnboardingResponse {
+  id: string
+  client_id: string
+  business_goals: string
+  target_audience: string
+  brand_voice: string
+  social_accounts: Record<string, string>
+  google_business_url: string
+  existing_assets: string
+  competitors: string
+  additional_notes: string
+  completed: boolean
+  created_at: string
+  updated_at: string
+}
+
+export async function getOnboardingResponse(clientId: string): Promise<OnboardingResponse | null> {
+  const { data, error } = await getSupabase().from('onboarding_responses').select('*').eq('client_id', clientId).single()
+  if (error) return null
+  return data
+}
+
+export async function upsertOnboardingResponse(clientId: string, updates: Partial<Omit<OnboardingResponse, 'id' | 'client_id' | 'created_at'>>): Promise<OnboardingResponse | null> {
+  const { data, error } = await getSupabase()
+    .from('onboarding_responses')
+    .upsert({ client_id: clientId, ...updates, updated_at: new Date().toISOString() }, { onConflict: 'client_id' })
+    .select()
+    .single()
+  if (error) { console.error('upsertOnboarding error:', error); return null }
+  return data
+}
+
+// ══════════ FILES ══════════
+export interface FileRecord {
+  id: string
+  client_id: string
+  name: string
+  file_url: string
+  file_size: number
+  file_type: string
+  uploaded_by_role: 'admin' | 'client'
+  uploaded_by_name: string
+  category: string
+  created_at: string
+}
+
+export async function getFilesByClient(clientId: string): Promise<FileRecord[]> {
+  const { data, error } = await getSupabase().from('files').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) { console.error('getFiles error:', error); return [] }
+  return data || []
+}
+
+export async function createFileRecord(file: Omit<FileRecord, 'id' | 'created_at'>): Promise<FileRecord | null> {
+  const { data, error } = await getSupabase().from('files').insert(file).select().single()
+  if (error) { console.error('createFile error:', error); return null }
+  return data
+}
+
+export async function deleteFileRecord(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('files').delete().eq('id', id)
+  return !error
+}
+
+// ══════════ TASKS ══════════
+export interface Task {
+  id: string
+  client_id: string
+  title: string
+  description: string
+  status: 'not_started' | 'in_progress' | 'in_review' | 'completed'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  due_date: string | null
+  category: string
+  created_at: string
+  updated_at: string
+}
+
+export async function getTasksByClient(clientId: string): Promise<Task[]> {
+  const { data, error } = await getSupabase().from('tasks').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) { console.error('getTasks error:', error); return [] }
+  return data || []
+}
+
+export async function createTask(task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<Task | null> {
+  const { data, error } = await getSupabase().from('tasks').insert(task).select().single()
+  if (error) { console.error('createTask error:', error); return null }
+  return data
+}
+
+export async function updateTask(id: string, updates: Partial<Omit<Task, 'id' | 'created_at'>>): Promise<Task | null> {
+  const { data, error } = await getSupabase().from('tasks').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  if (error) { console.error('updateTask error:', error); return null }
+  return data
+}
+
+export async function deleteTask(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('tasks').delete().eq('id', id)
+  return !error
+}
+
+// ══════════ NOTIFICATIONS ══════════
+export interface Notification {
+  id: string
+  user_id: string
+  title: string
+  message: string
+  type: 'info' | 'message' | 'task' | 'file' | 'billing' | 'approval'
+  link: string
+  read: boolean
+  created_at: string
+}
+
+export async function getNotifications(userId: string, unreadOnly = false): Promise<Notification[]> {
+  let query = getSupabase().from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50)
+  if (unreadOnly) query = query.eq('read', false)
+  const { data, error } = await query
+  if (error) { console.error('getNotifications error:', error); return [] }
+  return data || []
+}
+
+export async function getUnreadCount(userId: string): Promise<number> {
+  const { count, error } = await getSupabase().from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('read', false)
+  if (error) return 0
+  return count || 0
+}
+
+export async function createNotification(notif: Omit<Notification, 'id' | 'read' | 'created_at'>): Promise<Notification | null> {
+  const { data, error } = await getSupabase().from('notifications').insert(notif).select().single()
+  if (error) { console.error('createNotification error:', error); return null }
+  return data
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await getSupabase().from('notifications').update({ read: true }).eq('id', id)
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  await getSupabase().from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+}
+
+// ══════════ APPROVALS ══════════
+export interface Approval {
+  id: string
+  client_id: string
+  title: string
+  description: string
+  content_type: 'social_post' | 'ad_copy' | 'email' | 'blog' | 'graphic' | 'other'
+  content_url: string
+  content_text: string
+  status: 'pending' | 'approved' | 'revision_requested'
+  admin_notes: string
+  client_feedback: string
+  created_at: string
+  updated_at: string
+}
+
+export async function getApprovalsByClient(clientId: string): Promise<Approval[]> {
+  const { data, error } = await getSupabase().from('approvals').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
+  if (error) { console.error('getApprovals error:', error); return [] }
+  return data || []
+}
+
+export async function createApproval(approval: Omit<Approval, 'id' | 'created_at' | 'updated_at'>): Promise<Approval | null> {
+  const { data, error } = await getSupabase().from('approvals').insert(approval).select().single()
+  if (error) { console.error('createApproval error:', error); return null }
+  return data
+}
+
+export async function updateApproval(id: string, updates: Partial<Omit<Approval, 'id' | 'created_at'>>): Promise<Approval | null> {
+  const { data, error } = await getSupabase().from('approvals').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+  if (error) { console.error('updateApproval error:', error); return null }
+  return data
+}
+
 // ══════════ SEED DEFAULT ADMIN ══════════
 export async function seedAdmin(): Promise<void> {
   try {
