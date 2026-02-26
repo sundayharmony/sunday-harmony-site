@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { competitors, vulnerabilities, positioningCanvas } from '@/lib/toolkit-data'
 
 const threatColor = { high: 'text-brand-red', medium: 'text-brand-gold', low: 'text-brand-green' }
-const threatBg = { high: 'bg-[rgba(212,86,78,0.15)]', medium: 'bg-[rgba(201,169,110,0.15)]', low: 'bg-[rgba(74,158,125,0.15)]' }
+const threatBg = { high: 'bg-red-50', medium: 'bg-amber-50', low: 'bg-green-50' }
 const priorityColor = { critical: 'text-brand-red', high: 'text-brand-gold', medium: 'text-brand-blue' }
 
 export default function CompetitorsPage() {
