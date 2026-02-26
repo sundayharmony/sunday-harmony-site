@@ -141,6 +141,20 @@ export default function ContactForm() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={form.phone}
+                      onChange={(e) => update('phone', e.target.value)}
+                      placeholder="(555) 123-4567"
+                      className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Business Name *
                     </label>
                     <input
@@ -152,21 +166,21 @@ export default function ContactForm() {
                       className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
                     />
                   </div>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
-                    What do you need help with?
-                  </label>
-                  <select
-                    value={form.service}
-                    onChange={(e) => update('service', e.target.value)}
-                    className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors appearance-auto"
-                  >
-                    <option value="">Select one...</option>
-                    {serviceOptions.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
+                  <div>
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                      What do you need help with?
+                    </label>
+                    <select
+                      value={form.service}
+                      onChange={(e) => update('service', e.target.value)}
+                      className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors appearance-auto"
+                    >
+                      <option value="">Select one...</option>
+                      {serviceOptions.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="mb-4">
                   <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
