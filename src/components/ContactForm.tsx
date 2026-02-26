@@ -64,7 +64,7 @@ export default function ContactForm() {
               Your free audit is one message away
             </h3>
             <p className="text-[15px] text-brand-muted mb-7 leading-relaxed">
-              Fill out the form and we&apos;ll get back to you within 24 hours with a personalized audit of your online presence &mdash; completely free, no obligation.
+              Fill out the form and we&apos;ll get back to you within 24 hours with a personalized audit of your online presence &ndash; completely free, no obligation.
             </p>
 
             {[

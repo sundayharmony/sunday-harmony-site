@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     action: 'created',
     entity_type: 'client',
     entity_id: client.id,
-    actor_email: session?.user?.email || 'admin',
+    actor_email: (session?.user as { email?: string })?.email || 'admin',
     details: `Created client "${name}" (${business}) on ${tierLabels[packageTier] || packageTier} plan`,
   })
 
@@ -148,7 +148,7 @@ export async function PATCH(req: NextRequest) {
     action: 'updated',
     entity_type: 'client',
     entity_id: id,
-    actor_email: session?.user?.email || 'admin',
+    actor_email: (session?.user as { email?: string })?.email || 'admin',
     details: `Updated client "${client.name}": ${changedFields}`,
   })
 
