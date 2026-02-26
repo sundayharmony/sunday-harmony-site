@@ -37,7 +37,19 @@ export default function OnboardingPage() {
         const res = await fetch('/api/dashboard/onboarding');
         if (!res.ok) throw new Error('Failed to fetch onboarding data');
         const result = await res.json();
-        setData(result);
+        // Ensure all fields have safe defaults to prevent undefined errors
+        setData({
+          id: result.id || '',
+          business_goals: result.business_goals || '',
+          target_audience: result.target_audience || '',
+          brand_voice: result.brand_voice || '',
+          social_accounts: result.social_accounts || {},
+          google_business_url: result.google_business_url || '',
+          existing_assets: result.existing_assets || '',
+          competitors: result.competitors || '',
+          additional_notes: result.additional_notes || '',
+          completed: result.completed || false,
+        });
         if (!result?.completed) {
           setIsEditing(true);
         }
