@@ -153,7 +153,7 @@ export default function PackagePage() {
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Your Deliverables</div>
-              {client?.deliverables && client.deliverables.length > 0 ? (
+              {Array.isArray(client?.deliverables) && client.deliverables.length > 0 ? (
                 <div className="space-y-1.5">
                   {client.deliverables.map((d, i) => (
                     <div key={i} className="flex items-center gap-2">

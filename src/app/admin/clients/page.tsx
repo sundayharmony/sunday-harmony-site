@@ -266,7 +266,7 @@ export default function ClientsPage() {
                   {paginated.map(client => (
                     <tr
                       key={client.id}
-                      onClick={() => { setSelected(client); setNotes(client.notes || '') }}
+                      onClick={() => { setSelected(client); setNotes(client.notes ? String(client.notes) : '') }}
                       className={`border-b border-gray-200 cursor-pointer transition-colors ${
                         selected?.id === client.id ? 'bg-[rgba(184,148,63,0.04)]' : 'hover:bg-gray-50'
                       }`}

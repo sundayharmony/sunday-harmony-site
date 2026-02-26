@@ -28,15 +28,19 @@ function LoginForm() {
       setLoading(false)
     } else {
       // Redirect based on role — fetch session to check
-      const res = await fetch('/api/auth/session')
-      const session = await res.json()
-      const role = session?.user?.role
+      try {
+        const res = await fetch('/api/auth/session')
+        const session = await res.json()
+        const role = session?.user?.role
 
-      if (role === 'admin') {
-        window.location.href = '/admin'
-      } else if (role === 'client') {
-        window.location.href = '/dashboard'
-      } else {
+        if (role === 'admin') {
+          window.location.href = '/admin'
+        } else if (role === 'client') {
+          window.location.href = '/dashboard'
+        } else {
+          window.location.href = callbackUrl
+        }
+      } catch {
         window.location.href = callbackUrl
       }
     }
