@@ -88,7 +88,7 @@ export default function RoadmapPage() {
         const isOpen = expanded === wi
         const pct = phaseProgress(wi)
         return (
-          <div key={wi} className={`bg-${isOpen ? 'white' : 'gray-50'} border border-brand-border rounded-xl mb-3 overflow-hidden transition-all ${isOpen ? 'shadow-sm' : ''}`}>
+          <div key={wi} className={`${isOpen ? 'bg-white shadow-sm' : 'bg-gray-50'} border border-brand-border rounded-xl mb-3 overflow-hidden transition-all`}>
             <div onClick={() => setExpanded(isOpen ? -1 : wi)} className="p-5 cursor-pointer flex items-center gap-4">
               <div className="w-2 h-10 rounded-full" style={{ background: week.color }} />
               <div className="flex-1">

@@ -53,10 +53,11 @@ export default function MessagesPage() {
     const msgText = newMsg.trim()
 
     // Optimistic update: add message to local state immediately
+    const senderName = session?.user?.name || 'You'
     const optimisticMsg: MessageData = {
       id: `temp-${Date.now()}`,
       from_role: 'client',
-      from_name: userName,
+      from_name: senderName,
       text: msgText,
       created_at: new Date().toISOString(),
     }
