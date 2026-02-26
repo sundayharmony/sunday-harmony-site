@@ -93,21 +93,24 @@ export default function ClientsPage() {
 
   const addQuickWin = async () => {
     if (!selected || !newQuickWin.trim()) return
-    const updated = [...(selected.quick_wins || []), { text: newQuickWin.trim(), done: false }]
+    const currentQuickWins = Array.isArray(selected.quick_wins) ? selected.quick_wins : []
+    const updated = [...currentQuickWins, { text: newQuickWin.trim(), done: false }]
     await updateClient(selected.id, { quick_wins: updated })
     setNewQuickWin('')
   }
 
   const toggleQuickWin = async (index: number) => {
     if (!selected) return
-    const updated = selected.quick_wins.map((w, i) => i === index ? { ...w, done: !w.done } : w)
+    const currentQuickWins = Array.isArray(selected.quick_wins) ? selected.quick_wins : []
+    const updated = currentQuickWins.map((w, i) => i === index ? { ...w, done: !w.done } : w)
     await updateClient(selected.id, { quick_wins: updated })
   }
 
   const removeQuickWin = async (index: number) => {
     if (!selected) return
     if (!window.confirm('Are you sure you want to remove this?')) return
-    const updated = selected.quick_wins.filter((_, i) => i !== index)
+    const currentQuickWins = Array.isArray(selected.quick_wins) ? selected.quick_wins : []
+    const updated = currentQuickWins.filter((_, i) => i !== index)
     await updateClient(selected.id, { quick_wins: updated })
   }
 

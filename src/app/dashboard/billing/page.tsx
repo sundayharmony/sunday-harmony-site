@@ -35,7 +35,8 @@ const statusStyles: Record<string, { color: string; bg: string; label: string }>
 }
 
 function generateInvoices(startDate: string, monthlyPrice: number): Invoice[] {
-  const start = new Date(startDate)
+  const startTime = startDate ? new Date(startDate).getTime() : new Date().getTime()
+  const start = new Date(startTime)
   const now = new Date()
   const invoices: Invoice[] = []
 
@@ -46,7 +47,7 @@ function generateInvoices(startDate: string, monthlyPrice: number): Invoice[] {
 
   while (cursor <= currentMonth) {
     const isCurrentMonth = cursor.getFullYear() === currentMonth.getFullYear() && cursor.getMonth() === currentMonth.getMonth()
-    const monthName = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    const monthName = cursor.toLocaleDateString ? cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'
 
     invoices.push({
       id: `INV-${String(counter).padStart(3, '0')}`,
