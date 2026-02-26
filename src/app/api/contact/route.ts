@@ -75,9 +75,9 @@ export async function POST(req: NextRequest) {
         `,
       })
 
-      console.log('✅ Notification email sent successfully')
+      // Email sent successfully
     } else {
-      console.log('ℹ️ SMTP not configured — email notification skipped. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local')
+      // SMTP not configured — email notification skipped
     }
 
     // Save lead to database
