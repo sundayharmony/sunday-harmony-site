@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createLead, logActivity } from '@/lib/db'
 
+// Sanitize user input for HTML email templates
+function escHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 // POST /api/contact
 // Receives form data and sends email notification
 export async function POST(req: NextRequest) {
@@ -48,23 +53,23 @@ export async function POST(req: NextRequest) {
         from: `"Sunday Harmony Website" <${process.env.SMTP_USER}>`,
         to: process.env.NOTIFY_EMAIL || 'sales@sundayharmony.com',
         replyTo: email,
-        subject: `🎯 New Lead: ${firstName} ${lastName} from ${business}`,
+        subject: `New Lead: ${firstName} ${lastName} from ${business}`,
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Contact Form Submission
             </h2>
             <table style="width:100%;border-collapse:collapse">
-              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Name</td><td style="padding:8px 0">${firstName} ${lastName}</td></tr>
+              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Name</td><td style="padding:8px 0">${escHtml(firstName)} ${escHtml(lastName)}</td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Email</td><td style="padding:8px 0"><a href="mailto:${escHtml(email)}">${escHtml(email)}</a></td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Phone</td><td style="padding:8px 0">${phone ? `<a href="tel:${escHtml(phone)}">${escHtml(phone)}</a>` : 'Not provided'}</td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Business</td><td style="padding:8px 0">${escHtml(business)}</td></tr>
-              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Service</td><td style="padding:8px 0">${service || 'Not specified'}</td></tr>
-              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Message</td><td style="padding:8px 0">${message || 'No message'}</td></tr>
+              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Service</td><td style="padding:8px 0">${service ? escHtml(service) : 'Not specified'}</td></tr>
+              <tr><td style="padding:8px 0;font-weight:bold;color:#666">Message</td><td style="padding:8px 0">${message ? escHtml(message) : 'No message'}</td></tr>
               <tr><td style="padding:8px 0;font-weight:bold;color:#666">Submitted</td><td style="padding:8px 0">${new Date().toLocaleString()}</td></tr>
             </table>
             <p style="margin-top:20px;padding:12px;background:#f8f6f0;border-radius:8px;font-size:13px;color:#666">
-              This lead came from the Sunday Harmony website contact form. Reply directly to this email to respond to ${firstName}.
+              This lead came from the Sunday Harmony website contact form. Reply directly to this email to respond to ${escHtml(firstName)}.
             </p>
           </div>
         `,
