@@ -78,6 +78,17 @@ export async function PUT(request: NextRequest) {
       completed,
     } = body
 
+    // Input length validation — prevent oversized payloads
+    const textFields = { business_goals, target_audience, brand_voice, existing_assets, competitors, additional_notes }
+    for (const [key, val] of Object.entries(textFields)) {
+      if (typeof val === 'string' && val.length > 5000) {
+        return NextResponse.json({ error: `${key} is too long (max 5000 characters)` }, { status: 400 })
+      }
+    }
+    if (typeof google_business_url === 'string' && google_business_url.length > 500) {
+      return NextResponse.json({ error: 'URL is too long' }, { status: 400 })
+    }
+
     const updates: Record<string, unknown> = {}
     if (business_goals !== undefined) updates.business_goals = business_goals
     if (target_audience !== undefined) updates.target_audience = target_audience
