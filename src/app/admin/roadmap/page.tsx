@@ -54,8 +54,20 @@ export default function RoadmapPage() {
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">90-Day Roadmap</h1>
           <p className="text-sm text-brand-muted">Your week-by-week launch plan from foundation to scale.</p>
         </div>
-        {saving && <span className="text-xs text-brand-gold animate-pulse">Saving...</span>}
+        <div className="flex items-center gap-3">
+          {error ? (
+            <span className="text-xs text-red-600">Error saving</span>
+          ) : saving ? (
+            <span className="text-xs text-brand-gold animate-pulse">Saving...</span>
+          ) : null}
+        </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Overall Progress */}
       <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-5 mb-6 flex items-center justify-between">

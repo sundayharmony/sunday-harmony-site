@@ -7,6 +7,7 @@ export default function ResearchPage() {
   const [expandedPhase, setExpandedPhase] = useState<number | null>(1)
   const [tasksDone, setTasksDone] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/data').then(r => r.json()).then(d => {

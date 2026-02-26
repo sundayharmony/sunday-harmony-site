@@ -12,6 +12,7 @@ export default function CompetitorsPage() {
   const [selected, setSelected] = useState(0)
   const [canvasValues, setCanvasValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -24,12 +25,20 @@ export default function CompetitorsPage() {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       setSaving(true)
-      await fetch('/api/admin/data', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positioning_canvas: values }),
-      }).catch(() => {})
-      setSaving(false)
+      try {
+        const res = await fetch('/api/admin/data', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ positioning_canvas: values }),
+        })
+        if (!res.ok) throw new Error('Failed to save')
+        setError('')
+      } catch (err) {
+        setError('Failed to save. Please try again.')
+        console.error(err)
+      } finally {
+        setSaving(false)
+      }
     }, 800)
   }, [])
 
@@ -48,8 +57,20 @@ export default function CompetitorsPage() {
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Competitive Analysis</h1>
           <p className="text-sm text-brand-muted">Map the NJ landscape, find gaps, and define your positioning.</p>
         </div>
-        {saving && <span className="text-xs text-brand-gold animate-pulse">Saving...</span>}
+        <div className="flex items-center gap-3">
+          {error ? (
+            <span className="text-xs text-red-600">Error saving</span>
+          ) : saving ? (
+            <span className="text-xs text-brand-gold animate-pulse">Saving...</span>
+          ) : null}
+        </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="flex gap-2 mb-6">
         {([['landscape', 'Competitors'], ['gaps', 'Market Gaps'], ['positioning', 'Positioning Canvas']] as const).map(([key, label]) => (

@@ -40,7 +40,7 @@ export default function Hero() {
             </a>
           </div>
 
-          <div className="flex gap-10 mt-14 pt-10 border-t border-brand-border">
+          <div className="flex flex-wrap gap-6 sm:gap-10 mt-14 pt-10 border-t border-brand-border">
             {heroStats.map((stat) => (
               <div key={stat.label}>
                 <div className="font-serif text-[28px] font-extrabold text-brand-text mb-1">

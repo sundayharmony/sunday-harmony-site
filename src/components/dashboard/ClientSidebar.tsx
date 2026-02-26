@@ -41,6 +41,7 @@ export default function ClientSidebar() {
       <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
+        {/* Overlay to close sidebar on mobile when clicking outside (handled by div below button) */}
         <div className="p-5 pb-4 border-b border-brand-border">
           <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
             Sunday <span className="text-brand-gold">Harmony</span>

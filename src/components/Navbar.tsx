@@ -38,7 +38,7 @@ export default function Navbar() {
         }`}
       >
         <div className="max-w-[1100px] mx-auto px-7 flex items-center justify-between h-[72px]">
-          <Link href="#" className="font-serif text-[22px] font-extrabold text-brand-text tracking-wide">
+          <Link href="/" className="font-serif text-[22px] font-extrabold text-brand-text tracking-wide">
             Sunday <span className="text-brand-gold">Harmony</span>
           </Link>
 
