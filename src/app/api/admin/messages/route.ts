@@ -90,7 +90,7 @@ export async function POST(request: Request) {
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 New Message
               </h2>
-              <p>Hi ${escHtml(client.name.split(' ')[0])},</p>
+              <p>Hi ${escHtml((client.name || 'there').split(' ')[0])},</p>
               <p>You have a new message from the Sunday Harmony team:</p>
               <div style="padding:16px;background:#f8f6f0;border-radius:8px;margin:16px 0">
                 <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
                 </a>
               </div>
               <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
-                — Sunday Harmony
+                â Sunday Harmony
               </p>
             </div>
           `,
