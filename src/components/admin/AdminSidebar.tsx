@@ -6,20 +6,21 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 const navItems = [
-  { href: '/admin', icon: '◈', label: 'Overview' },
-  { href: '/admin/leads', icon: '📥', label: 'Leads' },
-  { href: '/admin/clients', icon: '👥', label: 'Clients' },
-  { href: '/admin/messages', icon: '💬', label: 'Messages' },
-  { href: '/admin/tasks', icon: '✅', label: 'Tasks' },
-  { href: '/admin/files', icon: '📁', label: 'Files' },
-  { href: '/admin/approvals', icon: '📋', label: 'Approvals' },
-  { href: '/admin/revenue', icon: '💰', label: 'Revenue' },
-  { href: '/admin/research', icon: '📊', label: 'Market Research' },
-  { href: '/admin/competitors', icon: '⚔️', label: 'Competitors' },
-  { href: '/admin/packages', icon: '📦', label: 'Packages' },
-  { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap' },
-  { href: '/admin/outreach', icon: '📨', label: 'Outreach' },
-  { href: '/admin/discovery', icon: '🎯', label: 'Discovery' },
+  { href: '/admin', icon: 'â', label: 'Overview' },
+  { href: '/admin/leads', icon: 'ð¥', label: 'Leads' },
+  { href: '/admin/clients', icon: 'ð¥', label: 'Clients' },
+  { href: '/admin/messages', icon: 'ð¬', label: 'Messages' },
+  { href: '/admin/tasks', icon: 'â', label: 'Tasks' },
+  { href: '/admin/files', icon: 'ð', label: 'Files' },
+  { href: '/admin/approvals', icon: 'ð', label: 'Approvals' },
+  { href: '/admin/revenue', icon: 'ð°', label: 'Revenue' },
+  { href: '/admin/research', icon: 'ð', label: 'Market Research' },
+  { href: '/admin/competitors', icon: 'âï¸', label: 'Competitors' },
+  { href: '/admin/packages', icon: 'ð¦', label: 'Packages' },
+  { href: '/admin/roadmap', icon: 'ðºï¸', label: '90-Day Roadmap' },
+  { href: '/admin/outreach', icon: 'ð¨', label: 'Outreach' },
+  { href: '/admin/discovery', icon: 'ð¯', label: 'Discovery' },
+  { href: '/admin/settings', icon: 'âï¸', label: 'Settings' },
 ]
 
 export default function AdminSidebar() {
@@ -88,7 +89,7 @@ export default function AdminSidebar() {
         {/* Footer */}
         <div className="p-4 border-t border-brand-border">
           <Link href="/" className="block text-xs text-brand-dim hover:text-brand-gold mb-3 transition-colors">
-            ← View website
+            â View website
           </Link>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
