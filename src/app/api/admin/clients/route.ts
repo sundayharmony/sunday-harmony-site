@@ -105,13 +105,13 @@ export async function POST(req: NextRequest) {
         transporter.sendMail({
           from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
           to: email,
-          subject: `Welcome to Sunday Harmony, ${escHtml(name.split(' ')[0])}!`,
+          subject: `Welcome to Sunday Harmony, ${escHtml((name || '').split(' ')[0] || 'there')}!`,
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 Welcome to Sunday Harmony
               </h2>
-              <p>Hi ${escHtml(name.split(' ')[0])},</p>
+              <p>Hi ${escHtml((name || '').split(' ')[0] || 'there')},</p>
               <p>We're excited to have <strong>${escHtml(business)}</strong> on board! Your <strong>${escHtml(tierLabels[packageTier] || packageTier)}</strong> package is now active.</p>
               <p>You can access your client dashboard to track progress, view deliverables, and message our team:</p>
               <div style="text-align:center;margin:30px 0">
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
               </div>
               <p style="font-size:13px;color:#666">If you have any questions, simply reply to this email or use the messaging feature in your dashboard.</p>
               <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
-                — The Sunday Harmony Team
+                â The Sunday Harmony Team
               </p>
             </div>
           `,
