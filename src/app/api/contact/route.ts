@@ -3,6 +3,8 @@ import nodemailer from 'nodemailer'
 import { createLead, logActivity } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 // Sanitize user input for HTML email templates
 function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { firstName, lastName, email, phone, business, service, message } = body
 
-    // Input length validation — prevent oversized payloads
+    // Input length validation â prevent oversized payloads
     if (typeof firstName === 'string' && firstName.length > 100) {
       return NextResponse.json({ error: 'First name is too long' }, { status: 400 })
     }
@@ -108,7 +110,7 @@ export async function POST(req: NextRequest) {
 
       // Email sent successfully
     } else {
-      // SMTP not configured — email notification skipped
+      // SMTP not configured â email notification skipped
     }
 
     // Save lead to database
@@ -139,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })
   } catch (error) {
-    console.error('❌ Contact form error:', error)
+    console.error('â Contact form error:', error)
     return NextResponse.json(
       { error: 'Something went wrong. Please try again or email us directly at sales@sundayharmony.com' },
       { status: 500 }
