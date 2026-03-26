@@ -147,8 +147,20 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { id, ...updates } = await req.json()
+  const { id, ...rawUpdates } = await req.json()
   if (!id) return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
+
+  // Whitelist allowed fields to prevent arbitrary column injection
+  const allowedFields = ['name', 'business', 'email', 'phone', 'industry', 'package_tier', 'monthly_price', 'status', 'notes', 'deliverables', 'quick_wins', 'start_date']
+  const updates: Record<string, unknown> = {}
+  for (const key of allowedFields) {
+    if (key in rawUpdates) updates[key] = rawUpdates[key]
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+  }
+
   const client = await updateClient(id, updates)
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
