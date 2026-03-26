@@ -78,7 +78,7 @@ export default function LeadsPage() {
     const headers = ['Name', 'Email', 'Business', 'Phone', 'Industry', 'Service', 'Budget', 'Status', 'Notes', 'Date']
     const rows = filtered.map(l => [
       `${l.first_name || ''} ${l.last_name || ''}`, l.email || '', l.business || '', l.phone || '', l.industry || '',
-      l.service || '', l.budget || '', l.status || '', l.notes || '', (l.created_at && new Date(l.created_at).toLocaleDateString) ? new Date(l.created_at).toLocaleDateString() : '',
+      l.service || '', l.budget || '', l.status || '', l.notes || '', l.created_at ? new Date(l.created_at).toLocaleDateString() : '',
     ])
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })

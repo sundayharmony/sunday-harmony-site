@@ -145,7 +145,7 @@ export default function PerformancePage() {
               return (
                 <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg bg-gray-50 border border-brand-border">
                   <div className="text-xs text-brand-dim whitespace-nowrap pt-0.5">
-                    {item.created_at && new Date(item.created_at).toLocaleDateString ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                    {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-brand-text">{item.action}</p>
