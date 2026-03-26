@@ -1,12 +1,12 @@
 import crypto from 'crypto'
 import { getSupabase } from './supabase'
 
-// ══════════════════════════════════════════════════════════
-// Database Layer — Supabase (PostgreSQL)
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Database Layer â Supabase (PostgreSQL)
 // All functions are async now
-// ══════════════════════════════════════════════════════════
+// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
-// ══════════ PASSWORD HASHING ══════════
+// ââââââââââ PASSWORD HASHING ââââââââââ
 export function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex')
@@ -19,7 +19,7 @@ export function verifyPassword(password: string, stored: string): boolean {
   return hash === verify
 }
 
-// ══════════ USERS ══════════
+// ââââââââââ USERS ââââââââââ
 export interface User {
   id: string
   email: string
@@ -81,7 +81,7 @@ export async function updateUser(id: string, updates: Partial<Omit<User, 'id'>>)
   return data
 }
 
-// ══════════ LEADS ══════════
+// ââââââââââ LEADS ââââââââââ
 export interface Lead {
   id: string
   first_name: string
@@ -148,7 +148,7 @@ export async function updateLead(id: string, updates: Partial<Omit<Lead, 'id' | 
   return data
 }
 
-// ══════════ CLIENTS ══════════
+// ââââââââââ CLIENTS ââââââââââ
 export interface Client {
   id: string
   name: string
@@ -192,7 +192,7 @@ export async function updateClient(id: string, updates: Partial<Omit<Client, 'id
   return data
 }
 
-// ══════════ MESSAGES ══════════
+// ââââââââââ MESSAGES ââââââââââ
 export interface Message {
   id: string
   client_id: string
@@ -225,7 +225,7 @@ export async function createMessage(msgData: {
   return data
 }
 
-// ══════════ ADMIN DATA ══════════
+// ââââââââââ ADMIN DATA ââââââââââ
 export interface AdminData {
   roadmap_tasks: Record<string, boolean>
   positioning_canvas: Record<string, string>
@@ -257,7 +257,7 @@ export async function updateAdminData(updates: Partial<AdminData>): Promise<Admi
   return data
 }
 
-// ══════════ ACTIVITY LOG ══════════
+// ââââââââââ ACTIVITY LOG ââââââââââ
 export interface ActivityLog {
   id: string
   action: string
@@ -292,7 +292,7 @@ export async function getActivityLog(limit = 50): Promise<ActivityLog[]> {
   return data || []
 }
 
-// ══════════ ONBOARDING RESPONSES ══════════
+// ââââââââââ ONBOARDING RESPONSES ââââââââââ
 export interface OnboardingResponse {
   id: string
   client_id: string
@@ -325,7 +325,7 @@ export async function upsertOnboardingResponse(clientId: string, updates: Partia
   return data
 }
 
-// ══════════ FILES ══════════
+// ââââââââââ FILES ââââââââââ
 export interface FileRecord {
   id: string
   client_id: string
@@ -362,7 +362,7 @@ export async function deleteFileRecord(id: string): Promise<boolean> {
   return !error
 }
 
-// ══════════ TASKS ══════════
+// ââââââââââ TASKS ââââââââââ
 export interface Task {
   id: string
   client_id: string
@@ -399,7 +399,7 @@ export async function deleteTask(id: string): Promise<boolean> {
   return !error
 }
 
-// ══════════ NOTIFICATIONS ══════════
+// ââââââââââ NOTIFICATIONS ââââââââââ
 export interface Notification {
   id: string
   user_id: string
@@ -454,7 +454,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
   await getSupabase().from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
 }
 
-// ══════════ APPROVALS ══════════
+// ââââââââââ APPROVALS ââââââââââ
 export interface Approval {
   id: string
   client_id: string
@@ -494,7 +494,7 @@ export async function updateApproval(id: string, updates: Partial<Omit<Approval,
   return data
 }
 
-// ══════════ SEED DEFAULT ADMIN ══════════
+// ââââââââââ SEED DEFAULT ADMIN ââââââââââ
 export async function seedAdmin(): Promise<void> {
   try {
     const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
@@ -513,6 +513,6 @@ export async function seedAdmin(): Promise<void> {
       console.error('seedAdmin error:', error)
     }
   } catch (err) {
-    // Silently ignore seed failures — the admin likely already exists
+    // Silently ignore seed failures â the admin likely already exists
   }
 }
