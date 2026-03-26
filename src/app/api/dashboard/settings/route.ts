@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getUserById, updateUser, verifyPassword } from '@/lib/db'
+import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -14,12 +14,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as { id: string }
+    const user = session.user as { id: string; email?: string; name?: string }
     const userId = user.id
 
-    const userData = await getUserById(userId)
+    // Try by ID first, fall back to email lookup
+    let userData = await getUserById(userId)
+    if (!userData && user.email) {
+      userData = (await getUserByEmail(user.email)) || null
+    }
     if (!userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      // If no DB record, return session data so settings page still loads
+      return NextResponse.json(
+        {
+          id: userId,
+          name: user.name || '',
+          email: user.email || '',
+        },
+        { status: 200 }
+      )
     }
 
     return NextResponse.json(
@@ -44,7 +56,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = session.user as { id: string }
+    const user = session.user as { id: string; email?: string }
     const userId = user.id
 
     // Rate limit: 5 password change attempts per 15 minutes per IP
@@ -79,7 +91,11 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const userData = await getUserById(userId)
+    // Try by ID first, fall back to email lookup
+    let userData = await getUserById(userId)
+    if (!userData && user.email) {
+      userData = (await getUserByEmail(user.email)) || null
+    }
     if (!userData) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -89,7 +105,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 })
     }
 
-    const result = await updateUser(userId, { password: newPassword })
+    const result = await updateUser(userData.id, { password: newPassword })
     if (!result) {
       return NextResponse.json({ error: 'Failed to update password' }, { status: 500 })
     }
