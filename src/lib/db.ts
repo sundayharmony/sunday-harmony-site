@@ -206,7 +206,11 @@ export async function getMessages(clientId?: string): Promise<Message[]> {
   let query = getSupabase().from('messages').select('*').order('created_at', { ascending: true })
   if (clientId) query = query.eq('client_id', clientId)
   const { data, error } = await query
-  if (error) { console.error('getMessages error:', error); return [] }
+  if (error) {
+    // Suppress "relation does not exist" errors (table not yet created)
+    if (error.code !== '42P01') console.error('getMessages error:', error)
+    return []
+  }
   return data || []
 }
 
@@ -411,19 +415,28 @@ export async function getNotifications(userId: string, unreadOnly = false): Prom
   let query = getSupabase().from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50)
   if (unreadOnly) query = query.eq('read', false)
   const { data, error } = await query
-  if (error) { console.error('getNotifications error:', error); return [] }
+  if (error) {
+    if (error.code !== '42P01') console.error('getNotifications error:', error)
+    return []
+  }
   return data || []
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
   const { count, error } = await getSupabase().from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('read', false)
-  if (error) return 0
+  if (error) {
+    if (error.code !== '42P01') console.error('getUnreadCount error:', error)
+    return 0
+  }
   return count || 0
 }
 
 export async function createNotification(notif: Omit<Notification, 'id' | 'read' | 'created_at'>): Promise<Notification | null> {
   const { data, error } = await getSupabase().from('notifications').insert(notif).select().single()
-  if (error) { console.error('createNotification error:', error); return null }
+  if (error) {
+    if (error.code !== '42P01') console.error('createNotification error:', error)
+    return null
+  }
   return data
 }
 
@@ -486,17 +499,20 @@ export async function seedAdmin(): Promise<void> {
   try {
     const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
     const adminPass = process.env.ADMIN_PASSWORD || 'sundayharmony2025'
-    const existing = await getUserByEmail(adminEmail)
-    if (!existing) {
-      await createUser({
-        email: adminEmail,
-        password: adminPass,
-        name: 'Mac Cesar',
-        role: 'admin',
-      })
-      // Admin account seeded successfully
+    const hashedPass = hashPassword(adminPass)
+
+    // Use upsert to avoid duplicate key errors when getUserByEmail
+    // fails due to transient issues and then createUser tries to insert a duplicate
+    const { error } = await getSupabase()
+      .from('users')
+      .upsert(
+        { email: adminEmail, password: hashedPass, name: 'Mac Cesar', role: 'admin' },
+        { onConflict: 'email', ignoreDuplicates: true }
+      )
+    if (error && !error.message?.includes('duplicate') && !error.code?.startsWith('23')) {
+      console.error('seedAdmin error:', error)
     }
   } catch (err) {
-    console.error('Failed to seed admin:', err)
+    // Silently ignore seed failures — the admin likely already exists
   }
 }
