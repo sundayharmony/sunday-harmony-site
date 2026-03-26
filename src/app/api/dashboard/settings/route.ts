@@ -1,5 +1,59 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })undefined { NextRequest, NextResponse } from 'next/server'
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as { id: string; email?: string; name?: string }
+    const userId = user.id
+
+    // Try by ID first, fall back to email lookup
+    let userData = await getUserById(userId)
+    if (!userData && user.email) {
+      userData = (await getUserByEmail(user.email)) || undefined
+    }
+    if (!userData) {
+      // If no DB record, return session data so settings page still loads
+      return NextResponse.json(
+        {
+          id: userId,
+          name: user.name || '',
+          email: user.email || '',
+        },
+        { status: 200 }
+      )
+    }
+
+    return NextResponse.json(
+      {
+        id: userData.id,
+        name: userData.name || '',
+        email: userData.email || '',
+      },
+      { status: 200 }
+    )
+  } catch (error: unknown) {
+    console.error('GET /api/dashboard/settings error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = session.user as { id: string; email?: string }
@@ -62,32 +116,3 @@
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
-
-export const dynamic = 'force-dynamic'
-
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { id: string; email?: string; name?: string }
-    const userId = user.id
-
-    // Try by ID first, fall back to email lookup
-    let userData = await getUserById(userId)
-    if (!userData && user.email) {
-      userData = (await getUserByEmail(user.email)) || undefined
-    }
-    if (!userData) {
-      // If no DB record, return session data so settings page still loads
-      return NextResponse.json(
-
-undefined
