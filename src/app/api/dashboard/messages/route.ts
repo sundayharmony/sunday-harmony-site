@@ -6,6 +6,10 @@ import { getMessages, createMessage, getClientById } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+function escHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
@@ -78,9 +82,9 @@ export async function POST(request: Request) {
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Client Message
             </h2>
-            <p><strong>From:</strong> ${(session.user as { name?: string }).name || 'Client'}${client ? ` &ndash; ${client.business}` : ''}</p>
+            <p><strong>From:</strong> ${escHtml((session.user as { name?: string }).name || 'Client')}${client ? ` &ndash; ${escHtml(client.business)}` : ''}</p>
             <div style="padding:16px;background:#f8f6f0;border-radius:8px;margin:12px 0">
-              <p style="margin:0;white-space:pre-wrap">${text.trim()}</p>
+              <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
             </div>
             <p style="font-size:13px;color:#666">
               Reply from your <a href="${process.env.NEXTAUTH_URL || ''}/admin/messages" style="color:#c9a96e">admin dashboard</a>.
