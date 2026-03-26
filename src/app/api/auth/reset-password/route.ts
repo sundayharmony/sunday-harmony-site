@@ -3,6 +3,8 @@ import { hashPassword } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 attempts per 15 minutes per IP
