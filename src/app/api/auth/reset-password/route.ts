@@ -17,10 +17,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { token, password } = await req.json()
+    const { code, email, password } = await req.json()
 
-    if (!token || !password?.trim()) {
-      return NextResponse.json({ error: 'Token and new password are required' }, { status: 400 })
+    if (!code || !email || !password?.trim()) {
+      return NextResponse.json({ error: 'Verification code, email, and new password are required' }, { status: 400 })
     }
 
     if (password.length < 8) {
@@ -39,20 +39,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Find user with this token
+    // Find user with this email and matching code
+    const normalizedEmail = email.trim().toLowerCase()
     const { data: user, error } = await getSupabase()
       .from('users')
       .select('*')
-      .eq('reset_token', token)
+      .ilike('email', normalizedEmail)
+      .eq('reset_token', code.trim())
       .single()
 
     if (error || !user) {
-      return NextResponse.json({ error: 'Invalid or expired reset link' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
     }
 
     // Check expiry
     if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
-      return NextResponse.json({ error: 'Reset link has expired. Please request a new one.' }, { status: 400 })
+      return NextResponse.json({ error: 'Verification code has expired. Please request a new one.' }, { status: 400 })
     }
 
     // Update password and clear token
