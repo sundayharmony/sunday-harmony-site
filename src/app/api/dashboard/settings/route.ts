@@ -1,59 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
-export const dynamic = 'force-dynamic'
-
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { id: string; email?: string; name?: string }
-    const userId = user.id
-
-    // Try by ID first, fall back to email lookup
-    let userData = await getUserById(userId)
-    if (!userData && user.email) {
-      userData = (await getUserByEmail(user.email)) || null
-    }
-    if (!userData) {
-      // If no DB record, return session data so settings page still loads
-      return NextResponse.json(
-        {
-          id: userId,
-          name: user.name || '',
-          email: user.email || '',
-        },
-        { status: 200 }
-      )
-    }
-
-    return NextResponse.json(
-      {
-        id: userData.id,
-        name: userData.name || '',
-        email: userData.email || '',
-      },
-      { status: 200 }
-    )
-  } catch (error: unknown) {
-    console.error('GET /api/dashboard/settings error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })undefined { NextRequest, NextResponse } from 'next/server'
     }
 
     const user = session.user as { id: string; email?: string }
@@ -94,7 +40,7 @@ export async function PUT(request: NextRequest) {
     // Try by ID first, fall back to email lookup
     let userData = await getUserById(userId)
     if (!userData && user.email) {
-      userData = (await getUserByEmail(user.email)) || null
+      userData = (await getUserByEmail(user.email)) || undefined
     }
     if (!userData) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -105,7 +51,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 })
     }
 
-    const result = await updateUser(userData.id, { password: newPassword })
+    const result = await updateUser(userId, { password: newPassword })
     if (!result) {
       return NextResponse.json({ error: 'Failed to update password' }, { status: 500 })
     }
@@ -116,3 +62,32 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const user = session.user as { id: string; email?: string; name?: string }
+    const userId = user.id
+
+    // Try by ID first, fall back to email lookup
+    let userData = await getUserById(userId)
+    if (!userData && user.email) {
+      userData = (await getUserByEmail(user.email)) || undefined
+    }
+    if (!userData) {
+      // If no DB record, return session data so settings page still loads
+      return NextResponse.json(
+
+undefined
