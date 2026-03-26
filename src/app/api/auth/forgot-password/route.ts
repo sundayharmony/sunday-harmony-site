@@ -5,6 +5,8 @@ import { getUserByEmail } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 requests per 15 minutes per IP
@@ -34,10 +36,15 @@ export async function POST(req: NextRequest) {
     const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
 
     // Store token in user record
-    await getSupabase()
+    const { error: tokenError } = await getSupabase()
       .from('users')
       .update({ reset_token: token, reset_token_expires: expires })
       .eq('id', user.id)
+
+    if (tokenError) {
+      console.error('Failed to save reset token:', tokenError)
+      return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+    }
 
     // Send reset email
     const siteUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -54,7 +61,7 @@ export async function POST(req: NextRequest) {
       await transporter.sendMail({
         from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
         to: email,
-        subject: 'Reset Your Password — Sunday Harmony',
+        subject: 'Reset Your Password \u2014 Sunday Harmony',
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
