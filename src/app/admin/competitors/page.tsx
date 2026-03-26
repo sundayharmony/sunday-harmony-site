@@ -19,6 +19,11 @@ export default function CompetitorsPage() {
     fetch('/api/admin/data').then(r => r.json()).then(d => {
       if (d.positioning_canvas && Object.keys(d.positioning_canvas).length > 0) setCanvasValues(d.positioning_canvas)
     }).catch(() => {})
+
+    // Cleanup: cancel any pending save timer on unmount
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
   }, [])
 
   const saveCanvas = useCallback((values: Record<string, string>) => {
@@ -132,7 +137,7 @@ export default function CompetitorsPage() {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="text-[10px] font-bold uppercase text-brand-red mb-2">Weaknesses</div>
                 {c.weaknesses.map((w, i) => (
-                  <div key={i} className="flex gap-2 mb-1.5 text-xs text-brand-muted"><span className="text-brand-red">−</span>{w}</div>
+                  <div key={i} className="flex gap-2 mb-1.5 text-xs text-brand-muted"><span className="text-brand-red">â</span>{w}</div>
                 ))}
               </div>
             </div>
