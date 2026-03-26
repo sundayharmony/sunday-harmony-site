@@ -20,83 +20,73 @@ export async function POST(req: NextRequest) {
     }
 
     const { email } = await req.json()
-    const normalizedEmail = (email || '').trim().toLowerCase()
-    if (!normalizedEmail) {
+    if (!email?.trim()) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    const smtpConfigured =
-      Boolean(process.env.SMTP_HOST) &&
-      Boolean(process.env.SMTP_USER) &&
-      Boolean(process.env.SMTP_PASS)
-
-    // Fail fast when reset delivery is unavailable so users/admins know
-    // the flow is currently broken instead of receiving a false success.
-    if (!smtpConfigured) {
-      console.error('Forgot password unavailable: SMTP is not configured.')
-      return NextResponse.json(
-        { error: 'Password reset is temporarily unavailable. Please contact support.' },
-        { status: 503 }
-      )
-    }
-
+    const normalizedEmail = email.trim().toLowerCase()
     const user = await getUserByEmail(normalizedEmail)
 
     // Always return success to prevent email enumeration
     if (!user) {
-      return NextResponse.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' })
+      return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })
     }
 
-    // Generate reset token
-    const token = crypto.randomBytes(32).toString('hex')
-    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString() // 1 hour
+    // Generate a 6-digit verification code
+    const code = crypto.randomInt(100000, 999999).toString()
+    const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutes
 
-    // Store token in user record
+    // Store code in user record (reuse reset_token fields)
     const { error: tokenError } = await getSupabase()
       .from('users')
-      .update({ reset_token: token, reset_token_expires: expires })
+      .update({ reset_token: code, reset_token_expires: expires })
       .eq('id', user.id)
 
     if (tokenError) {
-      console.error('Failed to save reset token:', tokenError)
+      console.error('Failed to save reset code:', tokenError)
       return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
     }
 
-    // Send reset email
-    const siteUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    const resetUrl = `${siteUrl}/reset-password?token=${token}`
+    // Send verification code email
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      })
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    })
-
-    await transporter.sendMail({
-      from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
-      to: normalizedEmail,
-      subject: 'Reset Your Password \u2014 Sunday Harmony',
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-          <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
-            Password Reset
-          </h2>
-          <p>Hi ${user.name},</p>
-          <p>We received a request to reset your password. Click the button below to set a new one:</p>
-          <div style="text-align:center;margin:30px 0">
-            <a href="${resetUrl}" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
-              Reset Password
-            </a>
+      await transporter.sendMail({
+        from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
+        to: normalizedEmail,
+        subject: 'Your Password Reset Code \u2014 Sunday Harmony',
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
+              Password Reset Code
+            </h2>
+            <p>Hi ${user.name},</p>
+            <p>We received a request to reset your password. Use the code below on the website to set a new password:</p>
+            <div style="text-align:center;margin:30px 0">
+              <div style="background:#f5f0e6;border:2px solid #c9a96e;border-radius:12px;padding:20px 40px;display:inline-block">
+                <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#333">${code}</span>
+              </div>
+            </div>
+            <p style="font-size:13px;color:#666">This code expires in 15 minutes. If you didn&rsquo;t request this, you can safely ignore this email.</p>
+            <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
+              &mdash; Sunday Harmony
+            </p>
           </div>
-          <p style="font-size:13px;color:#666">This link expires in 1 hour. If you didn&rsquo;t request this, you can safely ignore this email.</p>
-          <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
-            &mdash; Sunday Harmony
-          </p>
-        </div>
-      `,
-    })
-    return NextResponse.json({ success: true, message: 'If an account exists with that email, a reset link has been sent.' })
+        `,
+      })
+    } else {
+      return NextResponse.json(
+        { error: 'Email service is not configured. Please contact support.' },
+        { status: 503 }
+      )
+    }
+
+    return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })
   } catch (error) {
     console.error('Forgot password error:', error)
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
