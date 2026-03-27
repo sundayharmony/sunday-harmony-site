@@ -123,8 +123,8 @@ export default function TasksPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-brand-muted">Loading...</p>
+      <div className="flex items-center justify-center h-64">
+        <p className="text-brand-muted text-sm">Loading your tasks...</p>
       </div>
     );
   }
@@ -133,8 +133,8 @@ export default function TasksPage() {
     <div className="max-w-6xl mx-auto">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-serif text-brand-text mb-2">Tasks & Deliverables</h1>
-        <p className="text-brand-muted">Track your Sunday Harmony project milestones.</p>
+        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Tasks & Deliverables</h1>
+        <p className="text-sm text-brand-muted">Track your Sunday Harmony project milestones.</p>
       </div>
 
       {error && (
@@ -162,7 +162,7 @@ export default function TasksPage() {
       {/* Tasks Section */}
       {totalCount === 0 ? (
         <div className="bg-white border border-brand-border rounded-2xl p-12 text-center">
-          <p className="text-3xl mb-3">📋</p>
+          <p className="text-3xl mb-3">ð</p>
           <p className="text-brand-muted">No tasks yet. Your Sunday Harmony team will add deliverables and milestones here.</p>
         </div>
       ) : (
