@@ -139,13 +139,13 @@ export default function PackagePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
             <div>
               <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">What&rsquo;s Included</div>
               <div className="space-y-1.5">
                 {currentPkg.features.map((f, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <span style={{ color: currentPkg.color }} className="text-xs">✓</span>
+                    <span style={{ color: currentPkg.color }} className="text-xs">â</span>
                     <span className="text-sm text-brand-text">{f}</span>
                   </div>
                 ))}
@@ -157,7 +157,7 @@ export default function PackagePage() {
                 <div className="space-y-1.5">
                   {client.deliverables.map((d, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <span className="text-brand-gold text-xs">◈</span>
+                      <span className="text-brand-gold text-xs">â</span>
                       <span className="text-sm text-brand-text">{d}</span>
                     </div>
                   ))}
@@ -169,7 +169,7 @@ export default function PackagePage() {
               <div className="mt-4">
                 <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
                 <div className="text-sm text-brand-text">
-                  {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                  {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'â'}
                 </div>
               </div>
             </div>
@@ -179,7 +179,7 @@ export default function PackagePage() {
 
       {/* All Packages */}
       <h2 className="text-lg font-bold text-brand-text mb-4">All Packages</h2>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {packages.map((pkg, i) => {
           const isCurrent = pkg.tier === client?.package_tier
           const isUpgrade = i > currentIdx
@@ -213,7 +213,7 @@ export default function PackagePage() {
               <div className="space-y-1 mb-3">
                 {pkg.features.slice(0, 4).map((f, fi) => (
                   <div key={fi} className="flex items-center gap-2">
-                    <span style={{ color: pkg.color }} className="text-[10px]">✓</span>
+                    <span style={{ color: pkg.color }} className="text-[10px]">â</span>
                     <span className="text-xs text-brand-muted">{f}</span>
                   </div>
                 ))}
@@ -242,7 +242,7 @@ export default function PackagePage() {
                     background: pkg.color,
                   }}
                 >
-                  Ask About Upgrading →
+                  Ask About Upgrading â
                 </a>
               ) : (
                 <div className="text-center text-[10px] text-brand-dim py-2">
