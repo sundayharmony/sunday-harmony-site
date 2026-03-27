@@ -91,7 +91,7 @@ export default function MessagesPage() {
   const userName = session?.user?.name || 'You'
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]">
       <div className="mb-4">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Messages</h1>
         <p className="text-sm text-brand-muted">Chat directly with your Sunday Harmony team.</p>
@@ -111,7 +111,7 @@ export default function MessagesPage() {
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2">
-            <span className="text-3xl">💬</span>
+            <span className="text-3xl">ð¬</span>
             <span className="text-sm text-brand-dim">No messages yet</span>
             <span className="text-xs text-brand-dim">Send a message to start a conversation with your team.</span>
           </div>
@@ -141,7 +141,7 @@ export default function MessagesPage() {
                           day: 'numeric',
                           hour: 'numeric',
                           minute: '2-digit',
-                        }) : '—'}
+                        }) : 'â'}
                       </span>
                     </div>
                     <p className="text-sm text-brand-text whitespace-pre-wrap">{msg.text}</p>
