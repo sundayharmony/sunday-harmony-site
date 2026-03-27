@@ -44,6 +44,7 @@ export default function DashboardHome() {
   const [messages, setMessages] = useState<MessageData[]>([])
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -66,6 +67,7 @@ export default function DashboardHome() {
         }
       } catch (err) {
         console.error('Failed to load dashboard data', err)
+        setError('Failed to load some dashboard data. Please try refreshing.')
       } finally {
         setLoading(false)
       }
@@ -100,10 +102,16 @@ export default function DashboardHome() {
         </p>
       </div>
 
+      {error && (
+        <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Onboarding Prompt */}
       {onboardingDone === false && (
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4">
-          <span className="text-3xl">📝</span>
+          <span className="text-3xl">ð</span>
           <div className="flex-1">
             <h2 className="text-sm font-bold text-brand-text">Complete Your Getting Started Questionnaire</h2>
             <p className="text-xs text-brand-muted mt-0.5">
@@ -123,7 +131,7 @@ export default function DashboardHome() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Your Package"
-          value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+          value={client ? tierLabels[client.package_tier] || client.package_tier : 'â'}
           color={client ? tierColors[client.package_tier] || '#c9a96e' : '#c9a96e'}
         />
         <StatCard
@@ -138,7 +146,7 @@ export default function DashboardHome() {
         />
         <StatCard
           label="Monthly Investment"
-          value={client ? `$${client.monthly_price.toLocaleString()}` : '—'}
+          value={client ? `$${client.monthly_price.toLocaleString()}` : 'â'}
           color="#7b68c9"
         />
       </div>
@@ -176,7 +184,7 @@ export default function DashboardHome() {
                   }`}
                 >
                   <span className={`text-sm ${win.done ? 'text-brand-green' : 'text-brand-dim'}`}>
-                    {win.done ? '✓' : '○'}
+                    {win.done ? 'â' : 'â'}
                   </span>
                   <span className={`text-sm ${win.done ? 'text-brand-muted line-through' : 'text-brand-text'}`}>
                     {win.text}
@@ -185,7 +193,7 @@ export default function DashboardHome() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-brand-dim">No quick wins set yet — your team is working on it.</p>
+            <p className="text-xs text-brand-dim">No quick wins set yet â your team is working on it.</p>
           )}
         </div>
 
@@ -199,7 +207,7 @@ export default function DashboardHome() {
                   key={i}
                   className="flex items-center gap-3 p-3 rounded-lg bg-[rgba(184,148,63,0.08)] border border-brand-gold"
                 >
-                  <span className="text-brand-gold text-sm">◈</span>
+                  <span className="text-brand-gold text-sm">â</span>
                   <span className="text-sm text-brand-text">{item}</span>
                 </div>
               ))}
@@ -215,7 +223,7 @@ export default function DashboardHome() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-brand-text">Recent Messages</h2>
           <a href="/dashboard/messages" className="text-xs text-brand-gold hover:underline">
-            View all →
+            View all â
           </a>
         </div>
         {messages.length > 0 ? (
