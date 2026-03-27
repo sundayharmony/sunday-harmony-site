@@ -66,7 +66,7 @@ function generateInvoices(startDate: string, monthlyPrice: number): Invoice[] {
 }
 
 function getNextInvoiceDate(invoices: Invoice[]): string {
-  if (invoices.length === 0) return '—'
+  if (invoices.length === 0) return 'â'
   // The most recent invoice is the current month; next invoice is the following month
   const latest = new Date(invoices[0].date)
   latest.setMonth(latest.getMonth() + 1)
@@ -108,7 +108,7 @@ export default function BillingPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Current Plan"
-          value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+          value={client ? tierLabels[client.package_tier] || client.package_tier : 'â'}
           color="#c9a96e"
         />
         <StatCard
@@ -123,7 +123,7 @@ export default function BillingPage() {
         />
         <StatCard
           label="Account Status"
-          value={client?.status === 'active' ? 'Active' : client?.status || '—'}
+          value={client?.status === 'active' ? 'Active' : client?.status || 'â'}
           color={client?.status === 'active' ? '#4a9e7d' : '#d4564e'}
         />
       </div>
@@ -131,11 +131,11 @@ export default function BillingPage() {
       {/* Plan Details */}
       <div className="bg-white border border-brand-border rounded-2xl p-6 mb-6">
         <h2 className="text-base font-bold text-brand-text mb-4">Plan Details</h2>
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Package</div>
             <div className="text-sm text-brand-text font-semibold">
-              {client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+              {client ? tierLabels[client.package_tier] || client.package_tier : 'â'}
             </div>
           </div>
           <div>
@@ -149,7 +149,7 @@ export default function BillingPage() {
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
             <div className="text-sm text-brand-text font-semibold">
-              {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'}
+              {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : 'â'}
             </div>
           </div>
           <div>
@@ -170,7 +170,7 @@ export default function BillingPage() {
         {invoices.length > 0 ? (
           <div className="space-y-2">
             {/* Header */}
-            <div className="grid grid-cols-5 gap-4 px-3 py-2 text-[10px] font-bold uppercase text-brand-dim">
+            <div className="hidden sm:grid grid-cols-5 gap-4 px-3 py-2 text-[10px] font-bold uppercase text-brand-dim">
               <span>Invoice</span>
               <span>Period</span>
               <span>Date</span>
@@ -182,7 +182,7 @@ export default function BillingPage() {
               return (
                 <div
                   key={inv.id}
-                  className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
+                  className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
                 >
                   <span className="text-sm text-brand-text font-semibold">{inv.id}</span>
                   <span className="text-sm text-brand-muted">{inv.desc}</span>
@@ -202,7 +202,7 @@ export default function BillingPage() {
           </div>
         ) : (
           <div className="text-center py-8">
-            <div className="text-3xl mb-2">🧾</div>
+            <div className="text-3xl mb-2">ð§¾</div>
             <p className="text-sm text-brand-muted">No invoices yet.</p>
             <p className="text-xs text-brand-dim mt-1">Invoices will appear here once your plan is active.</p>
           </div>
