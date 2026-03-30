@@ -29,7 +29,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const updates = await request.json()
-  const data = await updateAdminData(updates)
-  return NextResponse.json(data)
+  try {
+    const updates = await request.json()
+    const data = await updateAdminData(updates)
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('PATCH /api/admin/data error:', error)
+    return NextResponse.json({ error: 'Failed to update admin data' }, { status: 500 })
+  }
 }
