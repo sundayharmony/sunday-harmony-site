@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         `,
       }).catch(err => console.error('Failed to send message notification:', err))
     } catch (err) {
-      console.error('Email notification setup failed:', err)
+      console.error('Failed to send message notification:', err)
     }
   }
 
