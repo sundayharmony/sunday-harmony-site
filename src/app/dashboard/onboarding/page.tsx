@@ -32,10 +32,9 @@ export default function OnboardingPage() {
 
   // Fetch existing onboarding data
   useEffect(() => {
-    const controller = new AbortController();
     const fetchData = async () => {
       try {
-        const res = await fetch('/api/dashboard/onboarding', { signal: controller.signal });
+        const res = await fetch('/api/dashboard/onboarding');
         if (!res.ok) throw new Error('Failed to fetch onboarding data');
         const result = await res.json();
         // Ensure all fields have safe defaults to prevent undefined errors
@@ -55,16 +54,13 @@ export default function OnboardingPage() {
           setIsEditing(true);
         }
       } catch (err) {
-        if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : 'An error occurred');
-        }
+        setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-    return () => controller.abort();
   }, []);
 
   // Auto-save on blur

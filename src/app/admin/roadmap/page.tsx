@@ -10,21 +10,9 @@ export default function RoadmapPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const controller = new AbortController()
-    const fetchData = async () => {
-      try {
-        const r = await fetch('/api/admin/data', { signal: controller.signal })
-        const d = await r.json()
-        if (d.roadmap_tasks && Object.keys(d.roadmap_tasks).length > 0) setTasks(d.roadmap_tasks)
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          setError('Failed to load roadmap tasks')
-          console.error(err)
-        }
-      }
-    }
-    fetchData()
-    return () => controller.abort()
+    fetch('/api/admin/data').then(r => r.json()).then(d => {
+      if (d.roadmap_tasks && Object.keys(d.roadmap_tasks).length > 0) setTasks(d.roadmap_tasks)
+    }).catch(() => {})
   }, [])
 
   const saveToDb = useCallback(async (updated: Record<string, boolean>) => {
@@ -122,7 +110,7 @@ export default function RoadmapPage() {
                     const id = `${wi}-${ti}`
                     const done = tasks[id]
                     return (
-                      <div key={id} onClick={() => toggle(id)}
+                      <div key={ti} onClick={() => toggle(id)}
                         className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${done ? 'bg-[rgba(184,148,63,0.04)]' : 'bg-gray-50'} border border-gray-200`}>
                         <div className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border-2 ${done ? 'bg-brand-gold border-brand-gold' : 'border-gray-300'}`}>
                           {done && <span className="text-white text-xs font-bold">✓</span>}

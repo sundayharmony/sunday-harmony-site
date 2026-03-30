@@ -56,25 +56,21 @@ export default function PerformancePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const controller = new AbortController()
     async function fetchData() {
       try {
         const [clientRes, activityRes] = await Promise.all([
-          fetch('/api/dashboard/profile', { signal: controller.signal }),
-          fetch('/api/dashboard/activity', { signal: controller.signal }),
+          fetch('/api/dashboard/profile'),
+          fetch('/api/dashboard/activity'),
         ])
         if (clientRes.ok) setClient(await clientRes.json())
         if (activityRes.ok) setActivities(await activityRes.json())
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          console.error('Failed to fetch performance data', err)
-        }
+      } catch {
+        // silently fail
       } finally {
         setLoading(false)
       }
     }
     fetchData()
-    return () => controller.abort()
   }, [])
 
   const daysSinceStart = client && client.start_date

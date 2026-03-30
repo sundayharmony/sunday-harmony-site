@@ -24,24 +24,20 @@ export default function FilesPage() {
 
   // Fetch files
   useEffect(() => {
-    const controller = new AbortController();
     const fetchFiles = async () => {
       try {
-        const res = await fetch('/api/dashboard/files', { signal: controller.signal });
+        const res = await fetch('/api/dashboard/files');
         if (!res.ok) throw new Error('Failed to fetch files');
         const result = await res.json();
         setFiles(Array.isArray(result) ? result : (result.data || []));
       } catch (err) {
-        if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : 'An error occurred');
-        }
+        setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);
       }
     };
 
     fetchFiles();
-    return () => controller.abort();
   }, []);
 
   // Format file size
@@ -255,4 +251,18 @@ export default function FilesPage() {
                         <button
                           onClick={() => setDeleteConfirm(file.id)}
                           className="px-3 py-1 text-red-600 hover:text-red-700 text-xs font-medium transition-colors"
-     
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

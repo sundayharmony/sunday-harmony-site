@@ -18,17 +18,14 @@ function ResetPasswordForm() {
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters')
-      setLoading(false)
       return
     }
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
       setError('Password must contain at least one uppercase letter, one lowercase letter, and one number')
-      setLoading(false)
       return
     }
     if (password !== confirm) {
       setError('Passwords do not match')
-      setLoading(false)
       return
     }
 

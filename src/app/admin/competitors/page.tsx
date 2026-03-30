@@ -16,26 +16,9 @@ export default function CompetitorsPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const controller = new AbortController()
-    const fetchData = async () => {
-      try {
-        const r = await fetch('/api/admin/data', { signal: controller.signal })
-        const d = await r.json()
-        if (d.positioning_canvas && Object.keys(d.positioning_canvas).length > 0) setCanvasValues(d.positioning_canvas)
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          setError('Failed to load positioning canvas')
-          console.error(err)
-        }
-      }
-    }
-    fetchData()
-
-    // Cleanup: cancel any pending save timer on unmount
-    return () => {
-      controller.abort()
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-    }
+    fetch('/api/admin/data').then(r => r.json()).then(d => {
+      if (d.positioning_canvas && Object.keys(d.positioning_canvas).length > 0) setCanvasValues(d.positioning_canvas)
+    }).catch(() => {})
   }, [])
 
   const saveCanvas = useCallback((values: Record<string, string>) => {
@@ -220,4 +203,3 @@ export default function CompetitorsPage() {
     </div>
   )
 }
-             

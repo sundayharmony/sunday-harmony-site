@@ -100,11 +100,10 @@ export default function ContactForm() {
               <form onSubmit={handleSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
-                    <label htmlFor="firstName" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       First Name *
                     </label>
                     <input
-                      id="firstName"
                       type="text"
                       required
                       value={form.firstName}
@@ -114,11 +113,10 @@ export default function ContactForm() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="lastName" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Last Name
                     </label>
                     <input
-                      id="lastName"
                       type="text"
                       value={form.lastName}
                       onChange={(e) => update('lastName', e.target.value)}
@@ -129,11 +127,10 @@ export default function ContactForm() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
-                    <label htmlFor="email" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Email *
                     </label>
                     <input
-                      id="email"
                       type="email"
                       required
                       value={form.email}
@@ -143,11 +140,10 @@ export default function ContactForm() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="phone" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Phone Number
                     </label>
                     <input
-                      id="phone"
                       type="tel"
                       value={form.phone}
                       onChange={(e) => update('phone', e.target.value)}
@@ -158,11 +154,10 @@ export default function ContactForm() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
-                    <label htmlFor="business" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Business Name *
                     </label>
                     <input
-                      id="business"
                       type="text"
                       required
                       value={form.business}
@@ -172,11 +167,10 @@ export default function ContactForm() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="service" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       What do you need help with?
                     </label>
                     <select
-                      id="service"
                       value={form.service}
                       onChange={(e) => update('service', e.target.value)}
                       className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors appearance-auto"
@@ -189,11 +183,10 @@ export default function ContactForm() {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <label htmlFor="message" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                  <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                     Anything else you&apos;d like us to know?
                   </label>
                   <textarea
-                    id="message"
                     value={form.message}
                     onChange={(e) => update('message', e.target.value)}
                     placeholder="Tell us about your business goals, challenges, or questions..."

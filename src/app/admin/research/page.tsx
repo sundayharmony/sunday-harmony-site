@@ -10,21 +10,9 @@ export default function ResearchPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const controller = new AbortController()
-    const fetchData = async () => {
-      try {
-        const r = await fetch('/api/admin/data', { signal: controller.signal })
-        const d = await r.json()
-        if (d.research_tasks && Object.keys(d.research_tasks).length > 0) setTasksDone(d.research_tasks)
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          setError('Failed to load research tasks')
-          console.error(err)
-        }
-      }
-    }
-    fetchData()
-    return () => controller.abort()
+    fetch('/api/admin/data').then(r => r.json()).then(d => {
+      if (d.research_tasks && Object.keys(d.research_tasks).length > 0) setTasksDone(d.research_tasks)
+    }).catch(() => {})
   }, [])
 
   const saveToDb = useCallback(async (updated: Record<string, boolean>) => {
@@ -177,7 +165,7 @@ export default function ResearchPage() {
                         const done = tasksDone[key]
                         return (
                           <button
-                            key={key}
+                            key={i}
                             onClick={() => toggleTask(key)}
                             className={`w-full text-left flex items-start gap-3 p-3 rounded-lg transition-all ${
                               done

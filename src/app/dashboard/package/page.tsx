@@ -87,24 +87,10 @@ export default function PackagePage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const controller = new AbortController()
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch('/api/dashboard/profile', { signal: controller.signal })
-        if (res.ok) {
-          const data = await res.json()
-          setClient(data)
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          console.error('Failed to fetch profile', err)
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchProfile()
-    return () => controller.abort()
+    fetch('/api/dashboard/profile')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { setClient(data); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   const currentPkg = packages.find(p => p.tier === client?.package_tier)

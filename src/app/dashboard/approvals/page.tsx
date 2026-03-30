@@ -25,24 +25,20 @@ export default function ApprovalsPage() {
 
   // Fetch approvals
   useEffect(() => {
-    const controller = new AbortController();
     const fetchApprovals = async () => {
       try {
-        const res = await fetch('/api/dashboard/approvals', { signal: controller.signal });
+        const res = await fetch('/api/dashboard/approvals');
         if (!res.ok) throw new Error('Failed to fetch approvals');
         const result = await res.json();
         setApprovals(Array.isArray(result) ? result : (result.data || []));
       } catch (err) {
-        if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : 'An error occurred');
-        }
+        setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);
       }
     };
 
     fetchApprovals();
-    return () => controller.abort();
   }, []);
 
   // Filter approvals

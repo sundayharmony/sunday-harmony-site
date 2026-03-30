@@ -43,12 +43,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    try {
-      await seedAdmin()
-    } catch (seedError) {
-      console.error('seedAdmin error:', seedError)
-      throw seedError
-    }
+    await seedAdmin()
 
     // Only confirm success — never leak admin details
     return NextResponse.json({
@@ -65,3 +60,4 @@ export async function POST(req: NextRequest) {
 }
 
 // Bug fix: add try-catch around seedAdmin
+
