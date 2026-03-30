@@ -24,7 +24,9 @@ export default function MessagesPage() {
     fetchMessages()
     // Poll for new messages every 15 seconds
     const interval = setInterval(fetchMessages, 15000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+    }
   }, [])
 
   useEffect(() => {

@@ -46,14 +46,26 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const controller = new AbortController()
     async function fetchData() {
       try {
         const [clientRes, msgRes, onbRes] = await Promise.all([
-          fetch('/api/dashboard/profile'),
-          fetch('/api/dashboard/messages'),
-          fetch('/api/dashboard/onboarding'),
+          fetch('/api/dashboard/profile', { signal: controller.signal }),
+          fetch('/api/dashboard/messages', { signal: controller.signal }),
+          fetch('/api/dashboard/onboarding', { signal: controller.signal }),
         ])
-        if (clientRes.ok) setClient(await clientRes.json())
+        if (clientRes.ok) {
+          const clientData = await clientRes.json()
+          if (clientData && Array.isArray(clientData.quick_wins) && Array.isArray(clientData.deliverables)) {
+            setClient(clientData)
+          } else if (clientData) {
+            setClient({
+              ...clientData,
+              quick_wins: Array.isArray(clientData.quick_wins) ? clientData.quick_wins : [],
+              deliverables: Array.isArray(clientData.deliverables) ? clientData.deliverables : [],
+            })
+          }
+        }
         if (msgRes.ok) {
           const msgs = await msgRes.json()
           setMessages(msgs.slice(-3))
@@ -65,12 +77,15 @@ export default function DashboardHome() {
           setOnboardingDone(false)
         }
       } catch (err) {
-        console.error('Failed to load dashboard data', err)
+        if (!controller.signal.aborted) {
+          console.error('Failed to load dashboard data', err)
+        }
       } finally {
         setLoading(false)
       }
     }
     fetchData()
+    return () => controller.abort()
   }, [])
 
   const userName = session?.user?.name || 'there'
@@ -245,18 +260,4 @@ export default function DashboardHome() {
       </div>
 
       {/* Help Card */}
-      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-2xl p-6 text-center">
-        <div className="text-base font-bold text-brand-gold mb-1">Need help?</div>
-        <p className="text-xs text-brand-muted mb-3">
-          Questions about your package, results, or next steps? We&rsquo;re one message away.
-        </p>
-        <a
-          href="/dashboard/messages"
-          className="inline-block px-5 py-2 rounded-lg bg-brand-gold border border-brand-gold text-white text-xs font-bold hover:bg-[#b8944f] transition-all"
-        >
-          Send a Message
-        </a>
-      </div>
-    </div>
-  )
-}
+      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gol

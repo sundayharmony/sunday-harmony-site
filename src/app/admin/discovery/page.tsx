@@ -40,7 +40,7 @@ export default function DiscoveryPage() {
                 const key = `${si}-${qi}`
                 const isOpen = expandedQ === key
                 return (
-                  <div key={qi} className={`ml-4 mb-2 rounded-lg border transition-all ${isOpen ? 'bg-gray-50 border-brand-gold' : 'bg-white border-brand-border'}`}>
+                  <div key={key} className={`ml-4 mb-2 rounded-lg border transition-all ${isOpen ? 'bg-gray-50 border-brand-gold' : 'bg-white border-brand-border'}`}>
                     <div onClick={() => setExpandedQ(isOpen ? null : key)} className="p-3 cursor-pointer flex items-start gap-2">
                       <span style={{ color: sec.color }} className="text-sm font-bold mt-0.5">Q</span>
                       <p className="flex-1 text-sm text-brand-text italic leading-relaxed">&ldquo;{item.q}&rdquo;</p>

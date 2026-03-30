@@ -2,13 +2,14 @@
 
 import { useState, FormEvent, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') || '/'
 
@@ -34,14 +35,14 @@ function LoginForm() {
         const role = session?.user?.role
 
         if (role === 'admin') {
-          window.location.href = '/admin'
+          router.push('/admin')
         } else if (role === 'client') {
-          window.location.href = '/dashboard'
+          router.push('/dashboard')
         } else {
-          window.location.href = callbackUrl
+          router.push(callbackUrl)
         }
       } catch {
-        window.location.href = callbackUrl
+        router.push(callbackUrl)
       }
     }
   }
@@ -115,10 +116,4 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-6">
       <Suspense fallback={
-        <div className="text-sm text-brand-muted">Loading...</div>
-      }>
-        <LoginForm />
-      </Suspense>
-    </div>
-  )
-}
+        <div cla

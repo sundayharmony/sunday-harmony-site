@@ -106,9 +106,18 @@ export default function NotificationBell() {
               notifications.slice(0, 20).map(n => (
                 <div
                   key={n.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     if (!n.read) markRead(n.id)
                     if (n.link) window.location.href = n.link
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (!n.read) markRead(n.id)
+                      if (n.link) window.location.href = n.link
+                    }
                   }}
                   className={`flex items-start gap-3 px-3 py-3 border-b border-brand-border cursor-pointer transition-colors ${
                     n.read ? 'bg-white' : 'bg-[rgba(184,148,63,0.04)]'

@@ -1,16 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { channels, outreachScripts } from '@/lib/toolkit-data'
 
 export default function OutreachPage() {
   const [tab, setTab] = useState<'channels' | 'scripts'>('channels')
   const [copied, setCopied] = useState<number | null>(null)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    }
+  }, [])
 
   const copy = (text: string, idx: number) => {
     navigator.clipboard.writeText(text)
     setCopied(idx)
-    setTimeout(() => setCopied(null), 2000)
+    if (copyTimer.current) clearTimeout(copyTimer.current)
+    copyTimer.current = setTimeout(() => setCopied(null), 2000)
   }
 
   return (

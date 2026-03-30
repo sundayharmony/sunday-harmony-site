@@ -122,8 +122,7 @@ export async function POST(req: NextRequest) {
               <div style="background:#f8f6f0;border-radius:8px;padding:16px;margin:20px 0">
                 <p style="margin:0 0 8px;font-size:13px;color:#666"><strong>Your login details:</strong></p>
                 <p style="margin:0;font-size:13px;color:#333">Email: <strong>${escHtml(email)}</strong></p>
-                <p style="margin:0;font-size:13px;color:#333">Password: <strong>${escHtml(loginPassword)}</strong></p>
-                <p style="margin:8px 0 0;font-size:11px;color:#999">We recommend changing your password after your first login.</p>
+                <p style="margin:0;font-size:13px;color:#333">Use the password you were provided to log in. We recommend changing it after first login.</p>
               </div>
               <p style="font-size:13px;color:#666">If you have any questions, simply reply to this email or use the messaging feature in your dashboard.</p>
               <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
@@ -170,7 +169,7 @@ export async function PATCH(req: NextRequest) {
     entity_type: 'client',
     entity_id: id,
     actor_email: (session?.user as { email?: string })?.email || 'admin',
-    details: `Updated client "${client.name}": ${changedFields}`,
+    details: `Updated client fields: ${changedFields}`,
   })
 
   return NextResponse.json(client)

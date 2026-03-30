@@ -23,20 +23,25 @@ export default function LeadsPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    (async () => {
+    const controller = new AbortController()
+    const fetchData = async () => {
       try {
-        const r = await fetch('/api/admin/leads')
+        const r = await fetch('/api/admin/leads', { signal: controller.signal })
         if (!r.ok) throw new Error('Failed to load leads')
         const d = await r.json()
         setLeads(d)
         setError('')
       } catch (err) {
-        setError('Failed to load leads. Please try again.')
-        console.error(err)
+        if (!controller.signal.aborted) {
+          setError('Failed to load leads. Please try again.')
+          console.error(err)
+        }
       } finally {
         setLoading(false)
       }
-    })()
+    }
+    fetchData()
+    return () => controller.abort()
   }, [])
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {

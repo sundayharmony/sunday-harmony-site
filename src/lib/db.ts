@@ -494,25 +494,20 @@ export async function updateApproval(id: string, updates: Partial<Omit<Approval,
   return data
 }
 
-// ââââââââââ SEED DEFAULT ADMIN ââââââââââ
-export async function seedAdmin(): Promise<void> {
-  try {
-    const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
-    const adminPass = process.env.ADMIN_PASSWORD || 'sundayharmony2025'
-    const hashedPass = hashPassword(adminPass)
+export async function deleteApproval(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('approvals').delete().eq('id', id)
+  return !error
+}
 
-    // Use upsert to avoid duplicate key errors when getUserByEmail
-    // fails due to transient issues and then createUser tries to insert a duplicate
-    const { error } = await getSupabase()
-      .from('users')
-      .upsert(
-        { email: adminEmail, password: hashedPass, name: 'Mac Cesar', role: 'admin' },
-        { onConflict: 'email', ignoreDuplicates: true }
-      )
-    if (error && !error.message?.includes('duplicate') && !error.code?.startsWith('23')) {
-      console.error('seedAdmin error:', error)
-    }
-  } catch (err) {
-    // Silently ignore seed failures â the admin likely already exists
-  }
+// ────────── SEED ADMIN ──────────
+export async function seedAdmin(): Promise<void> {
+  const existing = await getUserByEmail('admin@sundayharmony.com')
+  if (existing) return
+
+  await createUser({
+    email: 'admin@sundayharmony.com',
+    password: 'Admin123!',
+    name: 'Admin',
+    role: 'admin',
+  })
 }

@@ -23,20 +23,24 @@ export default function AdminSettingsPage() {
 
   // Fetch user settings
   useEffect(() => {
+    const controller = new AbortController()
     const fetchSettings = async () => {
       try {
-        const res = await fetch('/api/dashboard/settings');
+        const res = await fetch('/api/dashboard/settings', { signal: controller.signal });
         if (!res.ok) throw new Error('Failed to fetch settings');
         const result = await res.json();
         setUser(result);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : 'An error occurred');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchSettings();
+    return () => controller.abort()
   }, []);
 
   // Handle password change

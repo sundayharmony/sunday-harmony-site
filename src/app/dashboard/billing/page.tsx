@@ -78,10 +78,26 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/dashboard/profile')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { setClient(data); setLoading(false) })
-      .catch(() => setLoading(false))
+    const controller = new AbortController()
+    const fetchProfile = async () => {
+      try {
+        const res = await fetch('/api/dashboard/profile', { signal: controller.signal })
+        if (res.ok) {
+          const data = await res.json()
+          if (data && data.start_date) {
+            setClient(data)
+          }
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          console.error('Failed to fetch profile', err)
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProfile()
+    return () => controller.abort()
   }, [])
 
   const monthlyPrice = client?.monthly_price || 0
@@ -213,15 +229,4 @@ export default function BillingPage() {
       <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
           Questions about billing?{' '}
-          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
-            Send us a message
-          </a>{' '}
-          or email{' '}
-          <a href="mailto:sales@sundayharmony.com" className="text-brand-gold hover:underline font-semibold">
-            sales@sundayharmony.com
-          </a>
-        </p>
-      </div>
-    </div>
-  )
-}
+          <a href="/dashboard/messages" className="text-brand-gold hover:underl

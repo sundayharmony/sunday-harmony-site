@@ -43,7 +43,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    await seedAdmin()
+    try {
+      await seedAdmin()
+    } catch (seedError) {
+      console.error('seedAdmin error:', seedError)
+      throw seedError
+    }
 
     // Only confirm success — never leak admin details
     return NextResponse.json({
