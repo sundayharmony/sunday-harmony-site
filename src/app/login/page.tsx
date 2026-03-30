@@ -116,4 +116,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-6">
       <Suspense fallback={
-        <div cla
+        <div className="w-full max-w-md text-center">
+          <div className="font-serif text-3xl font-extrabold text-brand-text">
+            Sunday <span className="text-brand-gold">Harmony</span>
+          </div>
+          <p className="text-sm text-brand-muted mt-2">Loading...</p>
+        </div>
+      }>
+        <LoginForm />
+      </Suspense>
+    </div>
+  )
+}
