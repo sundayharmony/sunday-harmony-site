@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { firstName, lastName, email, phone, business, service, message } = body
 
-    // Input length validation â prevent oversized payloads
+    // Input length validation Ã¢ÂÂ prevent oversized payloads
     if (typeof firstName === 'string' && firstName.length > 100) {
       return NextResponse.json({ error: 'First name is too long' }, { status: 400 })
     }
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
       // Email sent successfully
     } else {
-      // SMTP not configured â email notification skipped
+      // SMTP not configured Ã¢ÂÂ email notification skipped
     }
 
     // Save lead to database
@@ -141,10 +141,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })
   } catch (error) {
-    console.error('â Contact form error:', error)
-    return NextResponse.json(
-      { error: 'Something went wrong. Please try again or email us directly at sales@sundayharmony.com' },
-      { status: 500 }
-    )
+    console.error('Contact form error:', error)
+    return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }
