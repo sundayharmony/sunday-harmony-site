@@ -33,11 +33,13 @@ export async function GET() {
 
     const { data, error } = await query
     if (error) {
-      return NextResponse.json([])
+      console.error('Activity log query error:', error)
+      return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 })
     }
 
     return NextResponse.json(data || [])
-  } catch {
-    return NextResponse.json([])
+  } catch (error) {
+    console.error('Activity log fetch error:', error)
+    return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 })
   }
 }
