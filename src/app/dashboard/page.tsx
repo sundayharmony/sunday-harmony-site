@@ -260,4 +260,18 @@ export default function DashboardHome() {
       </div>
 
       {/* Help Card */}
-      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gol
+      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold/20 rounded-2xl p-5">
+        <h3 className="font-serif text-sm font-bold text-brand-text mb-1">Need Help?</h3>
+        <p className="text-xs text-brand-muted mb-3">
+          Have a question or need support? We're here to help.
+        </p>
+        <a
+          href="/dashboard/messages"
+          className="text-xs font-bold text-brand-gold hover:underline"
+        >
+          Send us a message &rarr;
+        </a>
+      </div>
+    </div>
+  )
+}
