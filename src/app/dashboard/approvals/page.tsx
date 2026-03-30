@@ -138,8 +138,8 @@ export default function ApprovalsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-brand-muted text-sm">Loading approvals...</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-brand-muted">Loading...</p>
       </div>
     );
   }
@@ -148,8 +148,8 @@ export default function ApprovalsPage() {
     <div className="max-w-6xl mx-auto">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Content Approvals</h1>
-        <p className="text-sm text-brand-muted">Review and approve content created by your Sunday Harmony team.</p>
+        <h1 className="text-3xl font-serif text-brand-text mb-2">Content Approvals</h1>
+        <p className="text-brand-muted">Review and approve content created by your Sunday Harmony team.</p>
       </div>
 
       {error && (
@@ -185,7 +185,7 @@ export default function ApprovalsPage() {
       {/* Approvals List */}
       {filteredApprovals.length === 0 ? (
         <div className="bg-white border border-brand-border rounded-2xl p-12 text-center">
-          <p className="text-3xl mb-3">â</p>
+          <p className="text-3xl mb-3">✓</p>
           <p className="text-brand-muted">No content waiting for your approval.</p>
         </div>
       ) : (
@@ -247,7 +247,7 @@ export default function ApprovalsPage() {
                     rel="noopener noreferrer"
                     className="text-brand-gold hover:text-brand-gold/80 font-medium text-sm transition-colors"
                   >
-                    View Content â
+                    View Content →
                   </a>
                 </div>
               )}
@@ -260,13 +260,13 @@ export default function ApprovalsPage() {
                       <button
                         onClick={() => handleApprove(approval.id)}
                         disabled={submittingId === approval.id}
-                        className="flex-1 px-4 py-2 bg-brand-green text-white font-medium rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
+                        className="flex-1 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                       >
                         {submittingId === approval.id ? 'Approving...' : 'Approve'}
                       </button>
                       <button
                         onClick={() => setFeedbackId(approval.id)}
-                        className="flex-1 px-4 py-2 bg-brand-gold/10 text-brand-gold border border-brand-gold/20 font-medium rounded-lg hover:bg-brand-gold/20 transition-all"
+                        className="flex-1 px-4 py-2 bg-amber-100 text-amber-800 font-medium rounded-lg hover:bg-amber-200 transition-colors"
                       >
                         Request Revision
                       </button>
@@ -286,7 +286,7 @@ export default function ApprovalsPage() {
                         <button
                           onClick={() => handleRequestRevision(approval.id)}
                           disabled={submittingId === approval.id || !feedbackText.trim()}
-                          className="flex-1 px-4 py-2 bg-brand-gold text-white font-medium rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
+                          className="flex-1 px-4 py-2 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
                         >
                           {submittingId === approval.id ? 'Submitting...' : 'Submit Feedback'}
                         </button>
@@ -307,14 +307,14 @@ export default function ApprovalsPage() {
 
               {approval.status === 'approved' && (
                 <div className="flex items-center gap-2 text-green-600">
-                  <span className="text-lg">â</span>
+                  <span className="text-lg">✓</span>
                   <span className="font-medium">You approved this content</span>
                 </div>
               )}
 
               {approval.status === 'revision_requested' && (
                 <div className="flex items-center gap-2 text-amber-600">
-                  <span className="text-lg">â³</span>
+                  <span className="text-lg">⟳</span>
                   <span className="font-medium">Awaiting revised version</span>
                 </div>
               )}
