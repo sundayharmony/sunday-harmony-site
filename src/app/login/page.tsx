@@ -27,10 +27,9 @@ function LoginForm() {
       setError('Invalid email or password')
       setLoading(false)
     } else {
-      // Redirect based on role â fetch session to check
+      // Redirect based on role — fetch session to check
       try {
         const res = await fetch('/api/auth/session')
-        if (!res.ok) throw new Error('Session fetch failed')
         const session = await res.json()
         const role = session?.user?.role
 
@@ -88,7 +87,7 @@ function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="â¢â¢â¢â¢â¢â¢â¢â¢"
+              placeholder="••••••••"
               required
               className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
             />
