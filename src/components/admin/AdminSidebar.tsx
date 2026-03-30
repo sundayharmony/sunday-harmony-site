@@ -6,21 +6,21 @@ import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
 const navItems = [
-  { href: '/admin', icon: 'â', label: 'Overview' },
-  { href: '/admin/leads', icon: 'ð¥', label: 'Leads' },
-  { href: '/admin/clients', icon: 'ð¥', label: 'Clients' },
-  { href: '/admin/messages', icon: 'ð¬', label: 'Messages' },
-  { href: '/admin/tasks', icon: 'â', label: 'Tasks' },
-  { href: '/admin/files', icon: 'ð', label: 'Files' },
-  { href: '/admin/approvals', icon: 'ð', label: 'Approvals' },
-  { href: '/admin/revenue', icon: 'ð°', label: 'Revenue' },
-  { href: '/admin/research', icon: 'ð', label: 'Market Research' },
-  { href: '/admin/competitors', icon: 'âï¸', label: 'Competitors' },
-  { href: '/admin/packages', icon: 'ð¦', label: 'Packages' },
-  { href: '/admin/roadmap', icon: 'ðºï¸', label: '90-Day Roadmap' },
-  { href: '/admin/outreach', icon: 'ð¨', label: 'Outreach' },
-  { href: '/admin/discovery', icon: 'ð¯', label: 'Discovery' },
-  { href: '/admin/settings', icon: 'âï¸', label: 'Settings' },
+  { href: '/admin', icon: '\u{1F4CA}', label: 'Overview' },
+  { href: '/admin/leads', icon: '\u{1F525}', label: 'Leads' },
+  { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
+  { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
+  { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
+  { href: '/admin/files', icon: '\u{1F4C1}', label: 'Files' },
+  { href: '/admin/approvals', icon: '\u{1F44D}', label: 'Approvals' },
+  { href: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
+  { href: '/admin/research', icon: '\u{1F50D}', label: 'Market Research' },
+  { href: '/admin/competitors', icon: '\u2694\uFE0F', label: 'Competitors' },
+  { href: '/admin/packages', icon: '\u{1F4E6}', label: 'Packages' },
+  { href: '/admin/roadmap', icon: '\u{1F5FA}\uFE0F', label: '90-Day Roadmap' },
+  { href: '/admin/outreach', icon: '\u{1F4E8}', label: 'Outreach' },
+  { href: '/admin/discovery', icon: '\u{1F3AF}', label: 'Discovery' },
+  { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
 export default function AdminSidebar() {
@@ -88,8 +88,11 @@ export default function AdminSidebar() {
 
         {/* Footer */}
         <div className="p-4 border-t border-brand-border">
-          <Link href="/" className="block text-xs text-brand-dim hover:text-brand-gold mb-3 transition-colors">
-            â View website
+          <Link
+            href="/"
+            className="block text-xs text-brand-dim hover:text-brand-gold mb-3 transition-colors"
+          >
+            ← View website
           </Link>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
