@@ -263,7 +263,7 @@ export default function DashboardHome() {
       <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold/20 rounded-2xl p-5">
         <h3 className="font-serif text-sm font-bold text-brand-text mb-1">Need Help?</h3>
         <p className="text-xs text-brand-muted mb-3">
-          Have a question or need support? We're here to help.
+          Have a question or need support? We&apos;re here to help.
         </p>
         <a
           href="/dashboard/messages"
