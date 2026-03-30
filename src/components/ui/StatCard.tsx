@@ -22,12 +22,12 @@ export default function StatCard({ label, value, sub, color = 'gold' }: StatCard
     <div className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
       <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">{label}</div>
       <div
-        className={`font-serif text-2xl sm:text-3xl font-extrabold ${textClass}`}
+        className={`text-2xl font-bold ${textClass}`}
         style={isHex ? { color } : undefined}
       >
         {value}
       </div>
-      {sub && <div className="text-xs text-brand-dim mt-1">{sub}</div>}
+      {sub && <div className="text-xs text-brand-muted mt-1">{sub}</div>}
     </div>
   )
 }
