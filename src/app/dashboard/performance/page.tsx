@@ -54,7 +54,6 @@ export default function PerformancePage() {
   const [client, setClient] = useState<ClientData | null>(null)
   const [activities, setActivities] = useState<ActivityEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -66,7 +65,7 @@ export default function PerformancePage() {
         if (clientRes.ok) setClient(await clientRes.json())
         if (activityRes.ok) setActivities(await activityRes.json())
       } catch {
-        setError('Failed to load performance data. Please try refreshing.')
+        // silently fail
       } finally {
         setLoading(false)
       }
@@ -93,18 +92,12 @@ export default function PerformancePage() {
         <p className="text-sm text-brand-muted">Track your marketing results and recent activity.</p>
       </div>
 
-      {error && (
-        <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white border border-brand-border rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Package</div>
           <div className="text-lg font-extrabold text-brand-text">
-            {client ? tierLabels[client.package_tier] || client.package_tier : 'â'}
+            {client ? tierLabels[client.package_tier] || client.package_tier : '—'}
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
@@ -114,7 +107,7 @@ export default function PerformancePage() {
         <div className="bg-white border border-brand-border rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Monthly Investment</div>
           <div className="text-lg font-extrabold text-brand-green">
-            {client ? `$${client.monthly_price.toLocaleString()}` : 'â'}
+            {client ? `$${client.monthly_price.toLocaleString()}` : '—'}
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
@@ -125,7 +118,7 @@ export default function PerformancePage() {
 
       {/* Analytics Coming Soon */}
       <div className="bg-white border border-brand-border rounded-2xl p-8 mb-6 text-center">
-        <div className="text-4xl mb-3">ð</div>
+        <div className="text-4xl mb-3">📊</div>
         <h2 className="text-lg font-bold text-brand-text mb-2">Analytics Dashboard Coming Soon</h2>
         <p className="text-sm text-brand-muted max-w-md mx-auto mb-4">
           We&rsquo;re setting up integrations with Google Analytics, Google Business Profile, and social media insights so you can see real-time performance data here.
@@ -152,7 +145,7 @@ export default function PerformancePage() {
               return (
                 <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg bg-gray-50 border border-brand-border">
                   <div className="text-xs text-brand-dim whitespace-nowrap pt-0.5">
-                    {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'â'}
+                    {item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-brand-text">{item.action}</p>
@@ -176,7 +169,7 @@ export default function PerformancePage() {
           </div>
         ) : (
           <div className="text-center py-8">
-            <div className="text-3xl mb-2">ð</div>
+            <div className="text-3xl mb-2">📋</div>
             <p className="text-sm text-brand-muted">No activity logged yet.</p>
             <p className="text-xs text-brand-dim mt-1">
               Your Sunday Harmony team will log work here as your campaign progresses.
