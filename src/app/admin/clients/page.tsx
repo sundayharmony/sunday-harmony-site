@@ -52,41 +52,27 @@ export default function ClientsPage() {
   }, [])
 
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
-    try {
-      const res = await fetch('/api/admin/clients', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...updates }),
-      })
-      if (!res.ok) throw new Error('Failed to update client')
-      const updated = await res.json()
-      setClients(prev => prev.map(c => c.id === id ? updated : c))
-      if (selected?.id === id) setSelected(updated)
-      setError('')
-      return updated
-    } catch (err) {
-      setError('Failed to update client. Please try again.')
-      console.error(err)
-    }
+    const res = await fetch('/api/admin/clients', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...updates }),
+    })
+    const updated = await res.json()
+    setClients(prev => prev.map(c => c.id === id ? updated : c))
+    if (selected?.id === id) setSelected(updated)
+    return updated
   }
 
   const addClient = async () => {
-    try {
-      const res = await fetch('/api/admin/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, monthlyPrice: tierPrices[form.packageTier] }),
-      })
-      if (!res.ok) throw new Error('Failed to create client')
-      const client = await res.json()
-      setClients(prev => [...prev, client])
-      setShowForm(false)
-      setForm({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '' })
-      setError('')
-    } catch (err) {
-      setError('Failed to create client. Please try again.')
-      console.error(err)
-    }
+    const res = await fetch('/api/admin/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...form, monthlyPrice: tierPrices[form.packageTier] }),
+    })
+    const client = await res.json()
+    setClients(prev => [...prev, client])
+    setShowForm(false)
+    setForm({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '' })
   }
 
   const addDeliverable = async () => {
@@ -277,7 +263,7 @@ export default function ClientsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map(client => (
+                     {paginated.map(client => (
                     <tr
                       key={client.id}
                       onClick={() => { setSelected(client); setNotes(client.notes ? String(client.notes) : '') }}
@@ -290,7 +276,7 @@ export default function ClientsPage() {
                       <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
                       <td className="px-4 py-3 text-sm text-brand-text">${(client.monthly_price || 0).toLocaleString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
-                      <td className="px-4 py-3 text-xs text-brand-dim">{client.start_date ? new Date(client.start_date).toLocaleDateString() : 'â'}</td>
+                      <td className="px-4 py-3 text-xs text-brand-dim">{client.start_date ? new Date(client.start_date).toLocaleDateString() : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -298,12 +284,12 @@ export default function ClientsPage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-brand-border">
                   <span className="text-xs text-brand-dim">
-                    Showing {((page - 1) * PAGE_SIZE) + 1}â{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                    Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
                   </span>
                   <div className="flex gap-1">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                       className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gray-50 border border-brand-border text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all">
-                      â Prev
+                      ← Prev
                     </button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button key={p} onClick={() => setPage(p)}
@@ -315,7 +301,7 @@ export default function ClientsPage() {
                     ))}
                     <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
                       className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gray-50 border border-brand-border text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all">
-                      Next â
+                      Next →
                     </button>
                   </div>
                 </div>
@@ -332,7 +318,7 @@ export default function ClientsPage() {
                 <h3 className="text-lg font-bold text-brand-text">{selected.name}</h3>
                 <div className="text-sm text-brand-muted">{selected.business}</div>
               </div>
-              <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">â</button>
+              <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">✕</button>
             </div>
 
             {/* Status */}
@@ -374,15 +360,15 @@ export default function ClientsPage() {
             <div className="mb-4 flex gap-2 flex-wrap">
               <a href={`/admin/tasks?client=${selected.id}`}
                 className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold hover:bg-blue-100 transition-colors">
-                â Tasks
+                ✅ Tasks
               </a>
               <a href={`/admin/files?client=${selected.id}`}
                 className="px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-bold hover:bg-purple-100 transition-colors">
-                ð Files
+                📁 Files
               </a>
               <a href={`/admin/approvals?client=${selected.id}`}
                 className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold hover:bg-amber-100 transition-colors">
-                ð Approvals
+                📋 Approvals
               </a>
             </div>
 
@@ -394,9 +380,9 @@ export default function ClientsPage() {
                   {selected.deliverables.map((d, i) => (
                     <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-[rgba(184,148,63,0.04)] border border-[rgba(184,148,63,0.15)]">
                       <span className="text-sm text-brand-text flex items-center gap-2">
-                        <span className="text-brand-gold text-xs">â</span> {d}
+                        <span className="text-brand-gold text-xs">◈</span> {d}
                       </span>
-                      <button onClick={() => removeDeliverable(i)} className="text-brand-dim hover:text-brand-red text-xs">â</button>
+                      <button onClick={() => removeDeliverable(i)} className="text-brand-dim hover:text-brand-red text-xs">✕</button>
                     </div>
                   ))}
                 </div>
@@ -432,11 +418,11 @@ export default function ClientsPage() {
                         className={`flex items-center gap-2 text-sm ${w.done ? 'text-brand-muted line-through' : 'text-brand-text'}`}
                       >
                         <span className={w.done ? 'text-brand-green' : 'text-brand-dim'}>
-                          {w.done ? 'â' : 'â'}
+                          {w.done ? '✓' : '○'}
                         </span>
                         {w.text}
                       </button>
-                      <button onClick={() => removeQuickWin(i)} className="text-brand-dim hover:text-brand-red text-xs">â</button>
+                      <button onClick={() => removeQuickWin(i)} className="text-brand-dim hover:text-brand-red text-xs">✕</button>
                     </div>
                   ))}
                 </div>
