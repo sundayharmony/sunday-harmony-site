@@ -18,6 +18,7 @@ export default function Error({
           An unexpected error occurred. Please try again.
         </p>
         <button
+          type="button"
           onClick={() => reset()}
           className="px-5 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
         >
