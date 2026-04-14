@@ -115,7 +115,7 @@ export default function LeadsPage() {
           return (
             <div key={s} className="px-3 py-2 rounded-lg bg-gray-50 border border-brand-border text-center min-w-[80px]">
               <div className="text-lg font-bold text-brand-text">{count}</div>
-              <div className="text-[10px] font-bold tracking-[0.08em] uppercase text-brand-dim">{s.replace('_', ' ')}</div>
+              <div className="text-[10px] font-bold tracking-[0.08em] uppercase text-brand-dim">{s.replaceAll('_', ' ')}</div>
             </div>
           )
         })}
@@ -136,7 +136,7 @@ export default function LeadsPage() {
           className="py-2.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-muted text-sm outline-none"
         >
           <option value="all">All Statuses</option>
-          {statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          {statuses.map(s => <option key={s} value={s}>{s.replaceAll('_', ' ')}</option>)}
         </select>
       </div>
 
@@ -167,8 +167,17 @@ export default function LeadsPage() {
                   {paginated.map(lead => (
                     <tr
                       key={lead.id}
+                      tabIndex={0}
+                      aria-label={`Open lead ${lead.first_name} ${lead.last_name}, ${lead.business}`}
                       onClick={() => { setSelected(lead); setNotes(lead.notes) }}
-                      className={`border-b border-gray-200 cursor-pointer transition-colors ${
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setSelected(lead)
+                          setNotes(lead.notes)
+                        }
+                      }}
+                      className={`border-b border-gray-200 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-gold ${
                         selected?.id === lead.id ? 'bg-[rgba(184,148,63,0.04)]' : 'hover:bg-gray-50'
                       }`}
                     >
@@ -262,7 +271,7 @@ export default function LeadsPage() {
                         : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
                     }`}
                   >
-                    {s.replace('_', ' ')}
+                    {s.replaceAll('_', ' ')}
                   </button>
                 ))}
               </div>

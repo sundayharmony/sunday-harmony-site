@@ -68,9 +68,15 @@ export default function ContactForm() {
             </p>
 
             {[
-              { icon: '✉', label: 'Email', value: siteConfig.email },
-              { icon: '🌐', label: 'Website', value: 'sundayharmony.com' },
-              { icon: '📍', label: 'Location', value: siteConfig.location },
+              { icon: '✉', label: 'Email', display: siteConfig.email, href: `mailto:${siteConfig.email}` },
+              {
+                icon: '🌐',
+                label: 'Website',
+                display: siteConfig.url.replace(/^https?:\/\//, '').replace(/^www\./, ''),
+                href: siteConfig.url,
+                external: true,
+              },
+              { icon: '📍', label: 'Location', display: siteConfig.location },
             ].map((item) => (
               <div key={item.label} className="flex gap-3.5 items-start mb-5">
                 <div className="w-10 h-10 rounded-[10px] bg-[rgba(184,148,63,0.08)] border border-[rgba(184,148,63,0.15)] flex items-center justify-center text-base flex-shrink-0">
@@ -80,7 +86,19 @@ export default function ContactForm() {
                   <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-0.5">
                     {item.label}
                   </div>
-                  <div className="text-[15px] text-brand-text font-medium">{item.value}</div>
+                  <div className="text-[15px] text-brand-text font-medium">
+                    {'href' in item ? (
+                      <a
+                        href={item.href}
+                        className="hover:text-brand-gold transition-colors"
+                        {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                      >
+                        {item.display}
+                      </a>
+                    ) : (
+                      item.display
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -100,10 +118,11 @@ export default function ContactForm() {
               <form onSubmit={handleSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
-                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label htmlFor="contact-first-name" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       First Name *
                     </label>
                     <input
+                      id="contact-first-name"
                       type="text"
                       required
                       value={form.firstName}
@@ -113,10 +132,11 @@ export default function ContactForm() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label htmlFor="contact-last-name" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Last Name
                     </label>
                     <input
+                      id="contact-last-name"
                       type="text"
                       value={form.lastName}
                       onChange={(e) => update('lastName', e.target.value)}
@@ -127,10 +147,11 @@ export default function ContactForm() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
-                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label htmlFor="contact-email" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Email *
                     </label>
                     <input
+                      id="contact-email"
                       type="email"
                       required
                       value={form.email}
@@ -140,10 +161,11 @@ export default function ContactForm() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label htmlFor="contact-phone" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Phone Number
                     </label>
                     <input
+                      id="contact-phone"
                       type="tel"
                       value={form.phone}
                       onChange={(e) => update('phone', e.target.value)}
@@ -154,10 +176,11 @@ export default function ContactForm() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
-                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label htmlFor="contact-business" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       Business Name *
                     </label>
                     <input
+                      id="contact-business"
                       type="text"
                       required
                       value={form.business}
@@ -167,10 +190,11 @@ export default function ContactForm() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                    <label htmlFor="contact-service" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                       What do you need help with?
                     </label>
                     <select
+                      id="contact-service"
                       value={form.service}
                       onChange={(e) => update('service', e.target.value)}
                       className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-brand-gold transition-colors appearance-auto"
@@ -183,10 +207,11 @@ export default function ContactForm() {
                   </div>
                 </div>
                 <div className="mb-4">
-                  <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
+                  <label htmlFor="contact-message" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
                     Anything else you&apos;d like us to know?
                   </label>
                   <textarea
+                    id="contact-message"
                     value={form.message}
                     onChange={(e) => update('message', e.target.value)}
                     placeholder="Tell us about your business goals, challenges, or questions..."
