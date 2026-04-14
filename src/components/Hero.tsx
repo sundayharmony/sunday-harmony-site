@@ -1,8 +1,6 @@
-import { heroStats } from '@/lib/data'
+import { heroAuditHighlights, heroStats } from '@/lib/data'
 
 export default function Hero() {
-  const growthBars = [38, 52, 66, 84, 100]
-
   return (
     <section
       className="min-h-screen flex items-center pt-[92px] pb-16 relative overflow-hidden bg-gradient-to-br from-white via-[#fafaf8] to-[#f5f3ee]"
@@ -66,42 +64,46 @@ export default function Hero() {
             <div className="absolute -bottom-10 -right-6 h-24 w-24 rounded-full border border-brand-blue/30 bg-white/65 backdrop-blur-md" />
 
             <div className="relative rounded-3xl border border-brand-border bg-white/80 backdrop-blur-sm p-7 shadow-[0_28px_80px_rgba(10,20,40,0.12)]">
-              <div className="flex items-center justify-between mb-7">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-brand-dim mb-2">Growth Snapshot</p>
-                  <h3 className="text-2xl font-extrabold text-brand-text">Campaign Momentum</h3>
+                  <p className="text-xs uppercase tracking-[0.2em] text-brand-dim mb-2">No obligation</p>
+                  <h3 className="text-2xl font-extrabold text-brand-text leading-tight">
+                    What&apos;s in your free audit
+                  </h3>
                 </div>
-                <div className="px-3 py-1.5 rounded-full bg-[rgba(45,138,98,0.14)] text-[11px] font-bold text-brand-green">
-                  +42% qualified leads
-                </div>
-              </div>
-
-              <div className="space-y-4 mb-8">
-                <div className="grid grid-cols-5 gap-2 items-end h-40">
-                  {growthBars.map((barHeight, index) => (
-                    <div key={barHeight} className="relative">
-                      <div
-                        className="rounded-t-lg bg-gradient-to-t from-brand-gold to-brand-gold-light/80 shadow-[0_8px_20px_rgba(184,148,63,0.22)]"
-                        style={{ height: `${barHeight}%` }}
-                      />
-                      <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-brand-dim">
-                        M{index + 1}
-                      </span>
-                    </div>
-                  ))}
+                <div className="shrink-0 px-3 py-1.5 rounded-full bg-[rgba(184,148,63,0.12)] border border-[rgba(184,148,63,0.25)] text-[11px] font-bold text-brand-gold tracking-wide">
+                  24hr response
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl border border-brand-border bg-[#fcfbf8] p-4">
-                  <p className="text-xs text-brand-dim uppercase tracking-wide mb-1">CTR Lift</p>
-                  <p className="text-2xl font-extrabold text-brand-text">+73%</p>
-                </div>
-                <div className="rounded-xl border border-brand-border bg-[#f7fbff] p-4">
-                  <p className="text-xs text-brand-dim uppercase tracking-wide mb-1">Cost Per Lead</p>
-                  <p className="text-2xl font-extrabold text-brand-text">-28%</p>
-                </div>
-              </div>
+              <p className="text-sm text-brand-muted leading-relaxed mb-6">
+                A practical review of how customers find you today—and the highest-impact fixes first, tailored to New Jersey local businesses.
+              </p>
+
+              <ul className="space-y-3 mb-7">
+                {heroAuditHighlights.map((line) => (
+                  <li key={line} className="flex gap-3 text-sm text-brand-text leading-snug">
+                    <span
+                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(45,138,98,0.12)] text-[11px] font-bold text-brand-green"
+                      aria-hidden
+                    >
+                      ✓
+                    </span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <a
+                href="#contact"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-gold bg-[rgba(184,148,63,0.08)] px-4 py-3.5 text-sm font-semibold text-brand-text transition-all hover:bg-[rgba(184,148,63,0.14)] hover:-translate-y-0.5"
+              >
+                Request your free audit
+                <span aria-hidden className="text-brand-gold">→</span>
+              </a>
+              <p className="mt-3 text-center text-[11px] text-brand-dim">
+                No spam. We&apos;ll email or call with next steps.
+              </p>
             </div>
           </div>
         </div>
