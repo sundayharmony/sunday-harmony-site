@@ -16,19 +16,21 @@ export default function Navbar() {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50)
-    window.addEventListener('scroll', onScroll)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const closeMobile = () => {
-    setMobileOpen(false)
-    document.body.style.overflow = ''
-  }
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileOpen])
 
-  const toggleMobile = () => {
-    setMobileOpen(!mobileOpen)
-    document.body.style.overflow = mobileOpen ? '' : 'hidden'
-  }
+  const closeMobile = () => setMobileOpen(false)
+
+  const toggleMobile = () => setMobileOpen((open) => !open)
 
   return (
     <>

@@ -38,6 +38,14 @@ const tierColors: Record<string, string> = {
   scale: '#7b68c9',
 }
 
+function normalizeClientData(data: ClientData): ClientData {
+  return {
+    ...data,
+    quick_wins: Array.isArray(data.quick_wins) ? data.quick_wins : [],
+    deliverables: Array.isArray(data.deliverables) ? data.deliverables : [],
+  }
+}
+
 export default function DashboardHome() {
   const { data: session } = useSession()
   const [client, setClient] = useState<ClientData | null>(null)
@@ -56,15 +64,7 @@ export default function DashboardHome() {
         ])
         if (clientRes.ok) {
           const clientData = await clientRes.json()
-          if (clientData && Array.isArray(clientData.quick_wins) && Array.isArray(clientData.deliverables)) {
-            setClient(clientData)
-          } else if (clientData) {
-            setClient({
-              ...clientData,
-              quick_wins: Array.isArray(clientData.quick_wins) ? clientData.quick_wins : [],
-              deliverables: Array.isArray(clientData.deliverables) ? clientData.deliverables : [],
-            })
-          }
+          if (clientData) setClient(normalizeClientData(clientData as ClientData))
         }
         if (msgRes.ok) {
           const msgs = await msgRes.json()
@@ -92,8 +92,10 @@ export default function DashboardHome() {
   const daysSinceStart = client && client.start_date
     ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
     : 0
-  const completedWins = (Array.isArray(client?.quick_wins) ? client.quick_wins.filter(w => w.done).length : 0) || 0
-  const totalWins = (Array.isArray(client?.quick_wins) ? client.quick_wins.length : 0) || 0
+  const quickWins = client?.quick_wins ?? []
+  const completedWins = quickWins.filter((w) => w.done).length
+  const totalWins = quickWins.length
+  const winsPercent = totalWins > 0 ? Math.round((completedWins / totalWins) * 100) : 0
 
   if (loading) {
     return (
@@ -163,9 +165,7 @@ export default function DashboardHome() {
         <div className="bg-white border border-brand-border rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-brand-text">Quick Wins</h2>
-            <span className="text-xs text-brand-green font-semibold">
-              {totalWins > 0 ? Math.round((completedWins / totalWins) * 100) : 0}% complete
-            </span>
+            <span className="text-xs text-brand-green font-semibold">{winsPercent}% complete</span>
           </div>
 
           {/* Progress bar */}
@@ -173,7 +173,7 @@ export default function DashboardHome() {
             <div
               className="h-2 rounded-full transition-all"
               style={{
-                width: totalWins > 0 ? `${(completedWins / totalWins) * 100}%` : '0%',
+                width: `${winsPercent}%`,
                 background: '#4a9e7d',
               }}
             />

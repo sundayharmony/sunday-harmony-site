@@ -2,40 +2,32 @@ import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 
+/** Public routes where a logged-in client is sent to the dashboard instead. */
+const CLIENT_HOME_PATHS = new Set(['/', '/login', '/forgot-password', '/reset-password'])
+
+function redirectUnauthorized(req: NextRequest) {
+  return NextResponse.redirect(new URL('/login?error=unauthorized', req.url))
+}
+
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
   const path = req.nextUrl.pathname
 
-  // ── Logged-in clients: redirect away from public pages ──
-  // Clients should only interact with their dashboard.
-  if (token?.role === 'client') {
-    if (path === '/' || path === '/login' || path === '/forgot-password' || path === '/reset-password') {
-      return NextResponse.redirect(new URL('/dashboard', req.url))
-    }
+  if (token?.role === 'client' && CLIENT_HOME_PATHS.has(path)) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
-  // ── Logged-in admins: skip login page ──
   if (token?.role === 'admin' && path === '/login') {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
 
-  // ── Protected admin routes: require admin role ──
   if (path.startsWith('/admin')) {
-    if (!token) {
-      return NextResponse.redirect(new URL('/login?error=unauthorized', req.url))
-    }
-    if (token.role !== 'admin') {
-      return NextResponse.redirect(new URL('/login?error=unauthorized', req.url))
-    }
+    if (!token || token.role !== 'admin') return redirectUnauthorized(req)
   }
 
-  // ── Protected dashboard routes: require client or admin role ──
   if (path.startsWith('/dashboard')) {
-    if (!token) {
-      return NextResponse.redirect(new URL('/login?error=unauthorized', req.url))
-    }
-    if (token.role !== 'client' && token.role !== 'admin') {
-      return NextResponse.redirect(new URL('/login?error=unauthorized', req.url))
+    if (!token || (token.role !== 'client' && token.role !== 'admin')) {
+      return redirectUnauthorized(req)
     }
   }
 

@@ -81,15 +81,15 @@ export default function Hero() {
               </p>
 
               <ul className="space-y-3 mb-7">
-                {heroAuditHighlights.map((line) => (
-                  <li key={line} className="flex gap-3 text-sm text-brand-text leading-snug">
+                {heroAuditHighlights.map(({ id, text }) => (
+                  <li key={id} className="flex gap-3 text-sm text-brand-text leading-snug">
                     <span
                       className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(45,138,98,0.12)] text-[11px] font-bold text-brand-green"
                       aria-hidden
                     >
                       ✓
                     </span>
-                    <span>{line}</span>
+                    <span>{text}</span>
                   </li>
                 ))}
               </ul>
