@@ -19,13 +19,19 @@ CREATE TABLE IF NOT EXISTS leads (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   first_name TEXT NOT NULL,
   last_name TEXT DEFAULT '',
-  email TEXT NOT NULL,
+  email TEXT,
   phone TEXT,
   business TEXT NOT NULL,
   industry TEXT,
   service TEXT,
   budget TEXT,
   message TEXT,
+  source TEXT DEFAULT 'inbound' CHECK (source IN ('inbound', 'outbound')),
+  website TEXT,
+  google_place_id TEXT UNIQUE,
+  location_text TEXT,
+  discovered_at TIMESTAMPTZ,
+  last_contacted_at TIMESTAMPTZ,
   status TEXT DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'audit_sent', 'proposal', 'won', 'lost')),
   notes TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -98,6 +104,8 @@ CREATE POLICY "Service role full access" ON admin_data FOR ALL USING (true);
 -- ══════════ INDEXES ══════════
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
+CREATE INDEX IF NOT EXISTS idx_leads_place_id ON leads(google_place_id);
 CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
 CREATE INDEX IF NOT EXISTS idx_clients_billing_status ON clients(billing_status);
