@@ -69,6 +69,11 @@ export default function AdminTasksPage() {
     })()
   }, [])
 
+  useEffect(() => {
+    const clientParam = new URLSearchParams(window.location.search).get('client')
+    if (clientParam) setSelectedClientId(prev => prev || clientParam)
+  }, [])
+
   // Fetch tasks when client is selected
   useEffect(() => {
     if (!selectedClientId) {

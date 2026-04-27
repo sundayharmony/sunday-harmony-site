@@ -72,6 +72,11 @@ export default function AdminApprovalsPage() {
     })()
   }, [])
 
+  useEffect(() => {
+    const clientParam = new URLSearchParams(window.location.search).get('client')
+    if (clientParam) setSelectedClientId(prev => prev || clientParam)
+  }, [])
+
   // Fetch approvals when client is selected
   useEffect(() => {
     if (!selectedClientId) {

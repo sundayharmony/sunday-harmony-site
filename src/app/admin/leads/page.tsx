@@ -4,26 +4,51 @@ import { useState, useEffect, useMemo } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 interface Lead {
-  id: string; first_name: string; last_name: string; email: string; phone?: string
+  id: string; first_name: string; last_name: string; email?: string; phone?: string
   business: string; industry?: string; service?: string; budget?: string; message?: string
+  source?: 'inbound' | 'outbound'
+  website?: string
+  google_place_id?: string
+  location_text?: string
+  discovered_at?: string
+  last_contacted_at?: string
   status: string; notes: string; created_at: string
 }
 
 const statuses = ['new', 'contacted', 'audit_sent', 'proposal', 'won', 'lost']
 const PAGE_SIZE = 15
+const sourceFilters = ['all', 'inbound', 'outbound'] as const
+
+interface ProspectCandidate {
+  google_place_id: string
+  business: string
+  location_text?: string
+  phone?: string
+  website?: string
+  rating?: number | null
+  review_count?: number | null
+}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [selected, setSelected] = useState<Lead | null>(null)
   const [notes, setNotes] = useState('')
   const [search, setSearch] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<(typeof sourceFilters)[number]>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [savingProspect, setSavingProspect] = useState(false)
+  const [discovering, setDiscovering] = useState(false)
+  const [discoveryQuery, setDiscoveryQuery] = useState({ service: '', city: '', maxResults: '10' })
+  const [prospects, setProspects] = useState<ProspectCandidate[]>([])
+  const [quickProspect, setQuickProspect] = useState({
+    business: '', first_name: '', last_name: '', phone: '', email: '', website: '', location_text: '', industry: '', service: '',
+  })
   const [error, setError] = useState('')
 
   useEffect(() => {
-    (async () => {
+    const loadLeads = async () => {
       try {
         const r = await fetch('/api/admin/leads')
         if (!r.ok) throw new Error('Failed to load leads')
@@ -36,7 +61,8 @@ export default function LeadsPage() {
       } finally {
         setLoading(false)
       }
-    })()
+    }
+    loadLeads()
   }, [])
 
   const updateLead = async (id: string, updates: Partial<Lead>) => {
@@ -57,22 +83,119 @@ export default function LeadsPage() {
     }
   }
 
+  const createOutboundLead = async (payload: Record<string, unknown>) => {
+    const res = await fetch('/api/admin/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error('Failed to create lead')
+    return res.json()
+  }
+
+  const addProspectCandidate = async (candidate: ProspectCandidate) => {
+    try {
+      setSavingProspect(true)
+      const response = await createOutboundLead({
+        first_name: 'Prospect',
+        business: candidate.business,
+        phone: candidate.phone || '',
+        website: candidate.website || '',
+        location_text: candidate.location_text || '',
+        google_place_id: candidate.google_place_id || '',
+        source: 'outbound',
+        discovered_at: new Date().toISOString(),
+      })
+      if (response?.duplicate && response?.lead) {
+        setError(`Lead already exists for ${candidate.business}`)
+        setSelected(response.lead)
+        setNotes(response.lead.notes || '')
+        return
+      }
+      setLeads(prev => [response, ...prev])
+      setError('')
+    } catch (err) {
+      console.error(err)
+      setError('Failed to add prospect')
+    } finally {
+      setSavingProspect(false)
+    }
+  }
+
+  const addQuickProspect = async () => {
+    if (!quickProspect.business.trim()) {
+      setError('Business name is required')
+      return
+    }
+    try {
+      setSavingProspect(true)
+      const response = await createOutboundLead({
+        ...quickProspect,
+        source: 'outbound',
+        discovered_at: new Date().toISOString(),
+      })
+      if (response?.duplicate && response?.lead) {
+        setError(`Lead already exists for ${quickProspect.business}`)
+        setSelected(response.lead)
+        setNotes(response.lead.notes || '')
+        return
+      }
+      setLeads(prev => [response, ...prev])
+      setQuickProspect({ business: '', first_name: '', last_name: '', phone: '', email: '', website: '', location_text: '', industry: '', service: '' })
+      setError('')
+    } catch (err) {
+      console.error(err)
+      setError('Failed to add quick prospect')
+    } finally {
+      setSavingProspect(false)
+    }
+  }
+
+  const findBusinesses = async () => {
+    if (!discoveryQuery.service.trim() || !discoveryQuery.city.trim()) {
+      setError('Service and city are required to discover businesses')
+      return
+    }
+    try {
+      setDiscovering(true)
+      const res = await fetch('/api/admin/leads/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service: discoveryQuery.service,
+          city: discoveryQuery.city,
+          maxResults: parseInt(discoveryQuery.maxResults || '10', 10),
+        }),
+      })
+      if (!res.ok) throw new Error('Discovery request failed')
+      const data = await res.json()
+      setProspects(Array.isArray(data?.results) ? data.results : [])
+      setError('')
+    } catch (err) {
+      console.error(err)
+      setError('Failed to discover businesses')
+    } finally {
+      setDiscovering(false)
+    }
+  }
+
   const filtered = useMemo(() => {
     return leads.filter(l => {
       const matchSearch = !search.trim() ||
         `${l.first_name} ${l.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
         l.business.toLowerCase().includes(search.toLowerCase()) ||
-        l.email.toLowerCase().includes(search.toLowerCase())
+        (l.email || '').toLowerCase().includes(search.toLowerCase())
+      const matchSource = sourceFilter === 'all' || (l.source || 'inbound') === sourceFilter
       const matchStatus = filterStatus === 'all' || l.status === filterStatus
-      return matchSearch && matchStatus
+      return matchSearch && matchSource && matchStatus
     })
-  }, [leads, search, filterStatus])
+  }, [leads, search, filterStatus, sourceFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Reset to page 1 when filters change
-  useEffect(() => { setPage(1) }, [search, filterStatus])
+  useEffect(() => { setPage(1) }, [search, filterStatus, sourceFilter])
 
   const exportCSV = () => {
     const headers = ['Name', 'Email', 'Business', 'Phone', 'Industry', 'Service', 'Budget', 'Status', 'Notes', 'Date']
@@ -95,7 +218,7 @@ export default function LeadsPage() {
       <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Leads</h1>
-          <p className="text-sm text-brand-muted">Manage contact form submissions and track your pipeline.</p>
+          <p className="text-sm text-brand-muted">Manage inbound leads and outbound prospecting in one CRM pipeline.</p>
         </div>
         <button onClick={exportCSV} className="px-4 py-2 rounded-lg bg-gray-50 border border-brand-border text-brand-muted text-xs font-semibold hover:text-brand-text transition-all">
           Export CSV
@@ -119,6 +242,85 @@ export default function LeadsPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Source filters */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {sourceFilters.map(source => (
+          <button
+            key={source}
+            onClick={() => setSourceFilter(source)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${
+              sourceFilter === source
+                ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
+            }`}
+          >
+            {source}
+          </button>
+        ))}
+      </div>
+
+      {/* Outbound prospecting tools */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div className="bg-white border border-brand-border rounded-xl p-4 shadow-sm">
+          <h3 className="text-sm font-bold text-brand-text mb-3">Quick Add Prospect</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+            <input value={quickProspect.business} onChange={e => setQuickProspect(p => ({ ...p, business: e.target.value }))} placeholder="Business *"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.first_name} onChange={e => setQuickProspect(p => ({ ...p, first_name: e.target.value }))} placeholder="Contact first name"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.last_name} onChange={e => setQuickProspect(p => ({ ...p, last_name: e.target.value }))} placeholder="Contact last name"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.phone} onChange={e => setQuickProspect(p => ({ ...p, phone: e.target.value }))} placeholder="Phone"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.email} onChange={e => setQuickProspect(p => ({ ...p, email: e.target.value }))} placeholder="Email"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.website} onChange={e => setQuickProspect(p => ({ ...p, website: e.target.value }))} placeholder="Website"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.location_text} onChange={e => setQuickProspect(p => ({ ...p, location_text: e.target.value }))} placeholder="Location"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={quickProspect.service} onChange={e => setQuickProspect(p => ({ ...p, service: e.target.value }))} placeholder="Service needed"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+          </div>
+          <button onClick={addQuickProspect} disabled={savingProspect}
+            className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60">
+            {savingProspect ? 'Saving...' : 'Add Prospect'}
+          </button>
+        </div>
+        <div className="bg-white border border-brand-border rounded-xl p-4 shadow-sm">
+          <h3 className="text-sm font-bold text-brand-text mb-3">Find Businesses (Google Places)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+            <input value={discoveryQuery.service} onChange={e => setDiscoveryQuery(q => ({ ...q, service: e.target.value }))} placeholder="Service (e.g. dentist)"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={discoveryQuery.city} onChange={e => setDiscoveryQuery(q => ({ ...q, city: e.target.value }))} placeholder="City (e.g. Newark, NJ)"
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+            <input value={discoveryQuery.maxResults} type="number" min={1} max={20} onChange={e => setDiscoveryQuery(q => ({ ...q, maxResults: e.target.value }))}
+              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+          </div>
+          <button onClick={findBusinesses} disabled={discovering}
+            className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60 mb-3">
+            {discovering ? 'Searching...' : 'Find Businesses'}
+          </button>
+          {prospects.length > 0 && (
+            <div className="space-y-2 max-h-56 overflow-y-auto">
+              {prospects.map(candidate => (
+                <div key={candidate.google_place_id || `${candidate.business}-${candidate.location_text}`} className="p-2 rounded-lg border border-brand-border bg-[#fafaf8]">
+                  <div className="text-sm font-semibold text-brand-text">{candidate.business}</div>
+                  <div className="text-xs text-brand-muted">{candidate.location_text || 'No address'}</div>
+                  <div className="text-xs text-brand-dim">{candidate.phone || candidate.website || 'No contact listed'}</div>
+                  <button
+                    onClick={() => addProspectCandidate(candidate)}
+                    disabled={savingProspect}
+                    className="mt-2 px-3 py-1.5 rounded-md bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-semibold"
+                  >
+                    Add to Leads
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search & Filter */}
@@ -245,6 +447,9 @@ export default function LeadsPage() {
               {[
                 ['Email', selected.email],
                 ['Phone', selected.phone],
+                ['Website', selected.website],
+                ['Location', selected.location_text],
+                ['Source', (selected.source || 'inbound').toUpperCase()],
                 ['Industry', selected.industry],
                 ['Service', selected.service],
                 ['Budget', selected.budget],

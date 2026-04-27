@@ -86,13 +86,19 @@ export interface Lead {
   id: string
   first_name: string
   last_name: string
-  email: string
+  email?: string
   phone?: string
   business: string
   industry?: string
   service?: string
   budget?: string
   message?: string
+  source: 'inbound' | 'outbound'
+  website?: string
+  google_place_id?: string
+  location_text?: string
+  discovered_at?: string
+  last_contacted_at?: string
   status: 'new' | 'contacted' | 'audit_sent' | 'proposal' | 'won' | 'lost'
   notes: string
   created_at: string
@@ -111,16 +117,28 @@ export async function getLeadById(id: string): Promise<Lead | undefined> {
   return data
 }
 
+export async function getLeadByGooglePlaceId(googlePlaceId: string): Promise<Lead | undefined> {
+  const { data, error } = await getSupabase().from('leads').select('*').eq('google_place_id', googlePlaceId).single()
+  if (error) return undefined
+  return data
+}
+
 export async function createLead(leadData: {
   first_name: string
   last_name?: string
-  email: string
+  email?: string
   phone?: string
   business: string
   industry?: string
   service?: string
   budget?: string
   message?: string
+  source?: 'inbound' | 'outbound'
+  website?: string
+  google_place_id?: string
+  location_text?: string
+  discovered_at?: string
+  last_contacted_at?: string
 }): Promise<Lead | null> {
   const { data, error } = await getSupabase()
     .from('leads')
@@ -134,6 +152,12 @@ export async function createLead(leadData: {
       service: leadData.service,
       budget: leadData.budget,
       message: leadData.message,
+      source: leadData.source || 'inbound',
+      website: leadData.website,
+      google_place_id: leadData.google_place_id,
+      location_text: leadData.location_text,
+      discovered_at: leadData.discovered_at,
+      last_contacted_at: leadData.last_contacted_at,
     })
     .select()
     .single()
