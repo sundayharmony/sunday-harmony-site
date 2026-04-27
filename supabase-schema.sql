@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS clients (
   monthly_price NUMERIC DEFAULT 0,
   start_date TEXT NOT NULL,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'churned')),
+  is_potential BOOLEAN DEFAULT FALSE,
+  billing_status TEXT DEFAULT 'not_started' CHECK (billing_status IN ('not_started', 'trial', 'paid', 'past_due', 'unpaid')),
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  last_payment_at TIMESTAMPTZ,
+  next_billing_date TIMESTAMPTZ,
   notes TEXT DEFAULT '',
   deliverables JSONB DEFAULT '[]'::jsonb,
   quick_wins JSONB DEFAULT '[]'::jsonb,
@@ -94,6 +100,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
+CREATE INDEX IF NOT EXISTS idx_clients_billing_status ON clients(billing_status);
 CREATE INDEX IF NOT EXISTS idx_messages_client ON messages(client_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 

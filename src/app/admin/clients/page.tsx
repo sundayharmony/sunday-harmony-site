@@ -6,7 +6,14 @@ import StatusBadge from '@/components/ui/StatusBadge'
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
   industry?: string; package_tier: string; monthly_price: number; start_date: string
-  status: string; notes: string; deliverables: string[]; quick_wins: { text: string; done: boolean }[]
+  status: string
+  is_potential?: boolean
+  billing_status?: 'not_started' | 'trial' | 'paid' | 'past_due' | 'unpaid'
+  stripe_customer_id?: string
+  stripe_subscription_id?: string
+  last_payment_at?: string
+  next_billing_date?: string
+  notes: string; deliverables: string[]; quick_wins: { text: string; done: boolean }[]
 }
 
 const tierLabels: Record<string, string> = {
@@ -24,13 +31,16 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Client | null>(null)
-  const [form, setForm] = useState({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '' })
+  const [form, setForm] = useState({
+    name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '', isPotential: false,
+  })
   const [notes, setNotes] = useState('')
   const [newDeliverable, setNewDeliverable] = useState('')
   const [newQuickWin, setNewQuickWin] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const PAGE_SIZE = 15
 
@@ -52,27 +62,77 @@ export default function ClientsPage() {
   }, [])
 
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
-    const res = await fetch('/api/admin/clients', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
-    })
-    const updated = await res.json()
-    setClients(prev => prev.map(c => c.id === id ? updated : c))
-    if (selected?.id === id) setSelected(updated)
-    return updated
+    try {
+      const res = await fetch('/api/admin/clients', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        throw new Error(payload?.error || 'Failed to update client')
+      }
+      const updated = await res.json()
+      setClients(prev => prev.map(c => c.id === id ? updated : c))
+      if (selected?.id === id) setSelected(updated)
+      setError('')
+      return updated
+    } catch (err) {
+      console.error(err)
+      setError('Failed to update client. Please try again.')
+      return null
+    }
   }
 
   const addClient = async () => {
-    const res = await fetch('/api/admin/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, monthlyPrice: tierPrices[form.packageTier] }),
+    if (!form.name.trim() || !form.business.trim() || !form.email.trim()) {
+      setError('Please fill in name, business, and email before creating a client.')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const res = await fetch('/api/admin/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...form,
+          monthlyPrice: form.isPotential ? 0 : tierPrices[form.packageTier],
+        }),
+      })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}))
+        throw new Error(payload?.error || 'Failed to create client')
+      }
+      const client = await res.json()
+      setClients(prev => [...prev, client])
+      setShowForm(false)
+      setForm({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '', isPotential: false })
+      setError('')
+    } catch (err) {
+      console.error(err)
+      setError('Failed to create client. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const setFormField = (key: keyof typeof form, value: string) => {
+    setForm(prev => ({ ...prev, [key]: value }))
+  }
+
+  const setBillingStatus = async (billingStatus: NonNullable<Client['billing_status']>) => {
+    if (!selected) return
+    await updateClient(selected.id, { billing_status: billingStatus })
+  }
+
+  const activatePotentialClient = async () => {
+    if (!selected) return
+    await updateClient(selected.id, {
+      is_potential: false,
+      monthly_price: tierPrices[selected.package_tier] || selected.monthly_price || 0,
+      billing_status: 'not_started',
     })
-    const client = await res.json()
-    setClients(prev => [...prev, client])
-    setShowForm(false)
-    setForm({ name: '', business: '', email: '', phone: '', industry: '', packageTier: 'spark', loginPassword: '' })
   }
 
   const addDeliverable = async () => {
@@ -204,7 +264,7 @@ export default function ClientsPage() {
                 <input
                   type={type}
                   value={form[key as keyof typeof form]}
-                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                  onChange={e => setFormField(key as keyof typeof form, e.currentTarget?.value ?? '')}
                   className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
                 />
               </div>
@@ -216,23 +276,33 @@ export default function ClientsPage() {
               {Object.entries(tierLabels).map(([key, label]) => (
                 <button
                   key={key}
+                  type="button"
                   onClick={() => setForm(f => ({ ...f, packageTier: key }))}
+                  disabled={form.isPotential}
                   className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                     form.packageTier === key
                       ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
                       : 'bg-gray-50 text-brand-dim border border-brand-border'
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   {label} (${tierPrices[key]})
                 </button>
               ))}
             </div>
           </div>
+          <label className="mb-4 flex items-center gap-2 text-xs text-brand-muted cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.isPotential}
+              onChange={e => setForm(prev => ({ ...prev, isPotential: e.currentTarget.checked }))}
+            />
+            Potential client (free until plan is activated)
+          </label>
           <div className="flex gap-2">
-            <button onClick={addClient} className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold">
-              Create Client
+            <button onClick={addClient} type="button" disabled={saving} className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60">
+              {saving ? 'Creating...' : 'Create Client'}
             </button>
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-brand-dim text-xs hover:text-brand-text">
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-brand-dim text-xs hover:text-brand-text">
               Cancel
             </button>
           </div>
@@ -354,6 +424,68 @@ export default function ClientsPage() {
                   <div className="text-sm text-brand-text">{val}</div>
                 </div>
               ) : null)}
+            </div>
+
+            {/* Billing */}
+            <div className="mb-4">
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
+              <div className="text-xs text-brand-muted mb-2">
+                Mode: {selected.is_potential ? 'Potential (Free)' : 'Active Billing'}
+              </div>
+              <div className="text-xs text-brand-muted mb-2">
+                Payment: {selected.billing_status || 'not_started'}
+              </div>
+              {selected.last_payment_at && (
+                <div className="text-xs text-brand-dim mb-2">
+                  Last payment: {new Date(selected.last_payment_at).toLocaleDateString()}
+                </div>
+              )}
+              {selected.next_billing_date && (
+                <div className="text-xs text-brand-dim mb-2">
+                  Next billing: {new Date(selected.next_billing_date).toLocaleDateString()}
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-2 mb-2">
+                <input
+                  type="text"
+                  defaultValue={selected.stripe_customer_id || ''}
+                  onBlur={e => updateClient(selected.id, { stripe_customer_id: e.currentTarget.value.trim() })}
+                  placeholder="Stripe customer ID (cus_...)"
+                  className="w-full py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                />
+                <input
+                  type="text"
+                  defaultValue={selected.stripe_subscription_id || ''}
+                  onBlur={e => updateClient(selected.id, { stripe_subscription_id: e.currentTarget.value.trim() })}
+                  placeholder="Stripe subscription ID (sub_...)"
+                  className="w-full py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                />
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {(['trial', 'paid', 'past_due', 'unpaid'] as const).map(s => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setBillingStatus(s)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
+                      selected.billing_status === s
+                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                        : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
+                    }`}
+                  >
+                    {s.replace('_', ' ')}
+                  </button>
+                ))}
+                {selected.is_potential && (
+                  <button
+                    type="button"
+                    onClick={activatePotentialClient}
+                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-green-50 border border-green-200 text-brand-green hover:bg-green-100 transition-all"
+                  >
+                    Activate Billing
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Quick Links */}

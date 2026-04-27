@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins } = body
+  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins, isPotential } = body
 
   if (!name || !business || !email || !packageTier) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -57,6 +57,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Monthly price must be positive' }, { status: 400 })
   }
 
+  const normalizedIsPotential = Boolean(isPotential)
+  const normalizedMonthlyPrice = normalizedIsPotential ? 0 : (monthlyPrice || 0)
+
   const client = await createClient({
     name,
     business,
@@ -64,9 +67,11 @@ export async function POST(req: NextRequest) {
     phone,
     industry,
     package_tier: packageTier,
-    monthly_price: monthlyPrice || 0,
+    monthly_price: normalizedMonthlyPrice,
     start_date: new Date().toISOString(),
     status: 'active',
+    is_potential: normalizedIsPotential,
+    billing_status: normalizedIsPotential ? 'trial' : 'not_started',
     notes: '',
     deliverables: deliverables || [],
     quick_wins: quickWins || [],
@@ -151,7 +156,12 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
 
   // Whitelist allowed fields to prevent arbitrary column injection
-  const allowedFields = ['name', 'business', 'email', 'phone', 'industry', 'package_tier', 'monthly_price', 'status', 'notes', 'deliverables', 'quick_wins', 'start_date']
+  const allowedFields = [
+    'name', 'business', 'email', 'phone', 'industry', 'package_tier', 'monthly_price',
+    'status', 'notes', 'deliverables', 'quick_wins', 'start_date',
+    'is_potential', 'billing_status', 'stripe_customer_id', 'stripe_subscription_id',
+    'last_payment_at', 'next_billing_date',
+  ]
   const updates: Record<string, unknown> = {}
   for (const key of allowedFields) {
     if (key in rawUpdates) updates[key] = rawUpdates[key]

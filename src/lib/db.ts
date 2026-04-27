@@ -160,6 +160,12 @@ export interface Client {
   monthly_price: number
   start_date: string
   status: 'active' | 'paused' | 'churned'
+  is_potential: boolean
+  billing_status: 'not_started' | 'trial' | 'paid' | 'past_due' | 'unpaid'
+  stripe_customer_id?: string
+  stripe_subscription_id?: string
+  last_payment_at?: string
+  next_billing_date?: string
   notes: string
   deliverables: string[]
   quick_wins: { text: string; done: boolean }[]
@@ -175,6 +181,18 @@ export async function getClients(): Promise<Client[]> {
 
 export async function getClientById(id: string): Promise<Client | undefined> {
   const { data, error } = await getSupabase().from('clients').select('*').eq('id', id).single()
+  if (error) return undefined
+  return data
+}
+
+export async function getClientByStripeCustomerId(stripeCustomerId: string): Promise<Client | undefined> {
+  const { data, error } = await getSupabase().from('clients').select('*').eq('stripe_customer_id', stripeCustomerId).single()
+  if (error) return undefined
+  return data
+}
+
+export async function getClientByStripeSubscriptionId(stripeSubscriptionId: string): Promise<Client | undefined> {
+  const { data, error } = await getSupabase().from('clients').select('*').eq('stripe_subscription_id', stripeSubscriptionId).single()
   if (error) return undefined
   return data
 }
