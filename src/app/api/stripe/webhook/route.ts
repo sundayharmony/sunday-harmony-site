@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       const subscription = event.data.object as Stripe.Subscription
       const stripeSubscriptionId = subscription.id
       const stripeCustomerId = String(subscription.customer)
+      const subscriptionPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
       const client =
         await getClientByStripeSubscriptionId(stripeSubscriptionId) ||
         await getClientByStripeCustomerId(stripeCustomerId)
@@ -48,8 +49,8 @@ export async function POST(req: NextRequest) {
           stripe_customer_id: stripeCustomerId,
           billing_status: toBillingStatus(subscription.status),
           is_potential: false,
-          next_billing_date: subscription.current_period_end
-            ? new Date(subscription.current_period_end * 1000).toISOString()
+          next_billing_date: subscriptionPeriodEnd
+            ? new Date(subscriptionPeriodEnd * 1000).toISOString()
             : undefined,
         })
       }

@@ -251,20 +251,20 @@ export default function ClientsPage() {
         <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
           <h3 className="text-sm font-bold text-brand-gold mb-4">New Client</h3>
           <div className="grid grid-cols-3 gap-3 mb-3">
-            {[
+            {([
               ['name', 'Full Name *', 'text'],
               ['business', 'Business Name *', 'text'],
               ['email', 'Email *', 'email'],
               ['phone', 'Phone', 'tel'],
               ['industry', 'Industry', 'text'],
               ['loginPassword', 'Dashboard Password', 'text'],
-            ].map(([key, label, type]) => (
+            ] as const).map(([key, label, type]) => (
               <div key={key}>
                 <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">{label}</label>
                 <input
                   type={type}
-                  value={form[key as keyof typeof form]}
-                  onChange={e => setFormField(key as keyof typeof form, e.currentTarget?.value ?? '')}
+                  value={form[key]}
+                  onChange={e => setFormField(key, e.currentTarget?.value ?? '')}
                   className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
                 />
               </div>
