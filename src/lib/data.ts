@@ -18,6 +18,15 @@ export const heroStats = [
   { value: '54%', label: 'Owners Do Marketing Solo' },
 ]
 
+/** Hero panel: real expectations for the free audit (replaces decorative “metrics” widget). */
+export const heroAuditHighlights = [
+  { id: 'gbp', text: 'Google Business Profile & local “near me” visibility' },
+  { id: 'site', text: 'Website messaging, speed & conversion basics' },
+  { id: 'social', text: 'Social presence & content consistency' },
+  { id: 'ads', text: 'Ad spend efficiency (if you run paid ads)' },
+  { id: 'roadmap', text: 'Prioritized next steps—plain English, no jargon' },
+] as const
+
 export const proofItems = [
   { icon: '★', label: 'Google Premier Tools' },
   { icon: '◈', label: 'AI-Powered Workflows' },
