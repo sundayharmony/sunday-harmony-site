@@ -10,7 +10,7 @@ type Body = { clientId?: string; action?: 'cancel_at_period_end' | 'resume' | 'c
 
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session instanceof NextResponse) return session
 
   let body: Body
   try {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   }
 
   const stripe = getStripe()
-  const actor = (session.user as { email?: string })?.email || 'admin'
+  const actor = session.user.email || 'admin'
 
   if (action === 'cancel_at_period_end') {
     await stripe.subscriptions.update(subId, { cancel_at_period_end: true })

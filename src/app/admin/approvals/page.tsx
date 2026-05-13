@@ -38,6 +38,20 @@ const statusColors: Record<string, string> = {
   revision_requested: 'bg-red-100 text-red-700',
 }
 
+function parseApprovalContentType(value: string): Approval['content_type'] {
+  if (
+    value === 'social_post' ||
+    value === 'ad_copy' ||
+    value === 'email' ||
+    value === 'blog' ||
+    value === 'graphic' ||
+    value === 'other'
+  ) {
+    return value
+  }
+  return 'other'
+}
+
 export default function AdminApprovalsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
@@ -45,10 +59,17 @@ export default function AdminApprovalsPage() {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    title: string
+    description: string
+    content_type: Approval['content_type']
+    content_url: string
+    content_text: string
+    admin_notes: string
+  }>({
     title: '',
     description: '',
-    content_type: 'social_post' as const,
+    content_type: 'social_post',
     content_url: '',
     content_text: '',
     admin_notes: '',
@@ -191,7 +212,7 @@ export default function AdminApprovalsPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+          className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
         >
           + New Approval
         </button>
@@ -211,7 +232,7 @@ export default function AdminApprovalsPage() {
         <select
           value={selectedClientId || ''}
           onChange={e => setSelectedClientId(e.target.value || null)}
-          className="w-full md:w-64 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+          className="w-full md:w-64 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
         >
           <option value="">Choose a client...</option>
           {clients.map(client => (
@@ -242,8 +263,8 @@ export default function AdminApprovalsPage() {
 
       {/* New Approval Form */}
       {showForm && selectedClientId && (
-        <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-brand-gold mb-4">New Approval Request for {selectedClient?.name}</h3>
+        <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-bold text-accent mb-4">New Approval Request for {selectedClient?.name}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
@@ -254,7 +275,7 @@ export default function AdminApprovalsPage() {
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="e.g., Q1 Social Media Campaign"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -263,8 +284,8 @@ export default function AdminApprovalsPage() {
               </label>
               <select
                 value={form.content_type}
-                onChange={e => setForm(f => ({ ...f, content_type: e.target.value as any }))}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                onChange={e => setForm(f => ({ ...f, content_type: parseApprovalContentType(e.target.value) }))}
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               >
                 <option value="social_post">Social Post</option>
                 <option value="ad_copy">Ad Copy</option>
@@ -284,7 +305,7 @@ export default function AdminApprovalsPage() {
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               placeholder="Brief description of what needs approval..."
               rows={2}
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-none"
+              className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-none"
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -297,7 +318,7 @@ export default function AdminApprovalsPage() {
                 value={form.content_url}
                 onChange={e => setForm(f => ({ ...f, content_url: e.target.value }))}
                 placeholder="https://example.com/content"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -310,7 +331,7 @@ export default function AdminApprovalsPage() {
               onChange={e => setForm(f => ({ ...f, content_text: e.target.value }))}
               placeholder="Paste content for approval here..."
               rows={3}
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-none"
+              className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-none"
             />
           </div>
           <div className="mb-4">
@@ -322,13 +343,13 @@ export default function AdminApprovalsPage() {
               onChange={e => setForm(f => ({ ...f, admin_notes: e.target.value }))}
               placeholder="Instructions or context for the client..."
               rows={2}
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-none"
+              className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-none"
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={addApproval}
-              className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold hover:bg-opacity-90 transition-all"
+              className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold hover:bg-opacity-90 transition-all"
             >
               Create Approval Request
             </button>
@@ -384,7 +405,7 @@ export default function AdminApprovalsPage() {
                               href={approval.content_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-brand-gold font-semibold hover:underline"
+                              className="text-xs text-accent font-semibold hover:underline"
                             >
                               View Content ↗
                             </a>
@@ -394,8 +415,8 @@ export default function AdminApprovalsPage() {
 
                       {/* Admin Notes */}
                       {approval.admin_notes && (
-                        <div className="bg-[rgba(184,148,63,0.04)] rounded-lg p-3 mb-3 border border-[rgba(184,148,63,0.15)]">
-                          <div className="text-[10px] font-bold text-brand-gold mb-1">ADMIN NOTES</div>
+                        <div className="bg-accent-soft rounded-lg p-3 mb-3 border border-brand-border">
+                          <div className="text-[10px] font-bold text-accent mb-1">ADMIN NOTES</div>
                           <p className="text-xs text-brand-text">{approval.admin_notes}</p>
                         </div>
                       )}
@@ -414,7 +435,7 @@ export default function AdminApprovalsPage() {
                       <select
                         value={approval.status}
                         onChange={e => updateApprovalStatus(approval.id, e.target.value as Approval['status'])}
-                        className="py-1.5 px-2 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                        className="py-1.5 px-2 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                       >
                         <option value="pending">Pending</option>
                         <option value="approved">Approved</option>

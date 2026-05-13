@@ -129,22 +129,19 @@ export default function BillingPage() {
         <StatCard
           label="Current Plan"
           value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
-          color="#c9a96e"
+          color="accent"
         />
         <StatCard
           label="Monthly Rate (on file)"
           value={`$${monthlyPrice.toLocaleString()}`}
-          color="#4a9e7d"
         />
         <StatCard
           label="Total Paid (Stripe)"
           value={formatMoneyCents(totalPaid, invoices[0]?.currency || 'usd')}
-          color="#3a8bc2"
         />
         <StatCard
           label="Account Status"
           value={client?.status === 'active' ? 'Active' : client?.status || '—'}
-          color={client?.status === 'active' ? '#4a9e7d' : '#d4564e'}
         />
       </div>
 
@@ -180,7 +177,7 @@ export default function BillingPage() {
           </div>
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Annual value (plan rate)</div>
-            <div className="text-sm text-brand-gold font-semibold">${(monthlyPrice * 12).toLocaleString()}/yr</div>
+            <div className="text-sm text-accent font-semibold">${(monthlyPrice * 12).toLocaleString()}/yr</div>
           </div>
         </div>
         {invoiceNote && (
@@ -222,7 +219,7 @@ export default function BillingPage() {
                   </span>
                   <span className="text-right text-sm">
                     {inv.hosted_invoice_url ? (
-                      <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-brand-gold font-semibold hover:underline">
+                      <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-accent font-semibold hover:underline">
                         View
                       </a>
                     ) : (
@@ -245,14 +242,14 @@ export default function BillingPage() {
       </div>
 
       {/* Questions */}
-      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 text-center">
+      <div className="mt-6 bg-accent-soft border border-accent rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
           Questions about billing?{' '}
-          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
+          <a href="/dashboard/messages" className="text-accent hover:underline font-semibold">
             Send us a message
           </a>{' '}
           or email{' '}
-          <a href="mailto:sales@sundayharmony.com" className="text-brand-gold hover:underline font-semibold">
+          <a href="mailto:sales@sundayharmony.com" className="text-accent hover:underline font-semibold">
             sales@sundayharmony.com
           </a>
         </p>

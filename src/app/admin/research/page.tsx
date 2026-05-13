@@ -56,7 +56,7 @@ export default function ResearchPage() {
           {error ? (
             <span className="text-xs text-red-600">Error saving</span>
           ) : saving ? (
-            <span className="text-xs text-brand-gold animate-pulse">Saving...</span>
+            <span className="text-xs text-accent animate-pulse">Saving...</span>
           ) : null}
         </div>
       </div>
@@ -74,21 +74,21 @@ export default function ResearchPage() {
             key={stat.label}
             className="bg-white border border-brand-border rounded-xl p-4 text-center shadow-sm"
           >
-            <div className="text-2xl font-extrabold text-brand-gold mb-1">{stat.value}</div>
+            <div className="text-2xl font-extrabold text-accent mb-1">{stat.value}</div>
             <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim">{stat.label}</div>
           </div>
         ))}
       </div>
 
       {/* Overall Progress */}
-      <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 mb-6">
+      <div className="bg-accent-soft border border-accent rounded-xl p-4 mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-bold text-brand-text">Research Progress</span>
-          <span className="text-xs text-brand-gold font-semibold">{doneTasks}/{totalTasks} tasks ({progressPercent}%)</span>
+          <span className="text-xs text-accent font-semibold">{doneTasks}/{totalTasks} tasks ({progressPercent}%)</span>
         </div>
         <div className="w-full h-2 bg-gray-200 rounded-full">
           <div
-            className="h-2 rounded-full transition-all bg-brand-gold"
+            className="h-2 rounded-full transition-all bg-brand-text"
             style={{ width: `${progressPercent}%` }}
           />
         </div>

@@ -91,6 +91,18 @@ NOTIFY_EMAIL=sales@sundayharmony.com
 2. Run `npm run build`
 3. Deploy the `out/` folder
 
+## Rate limiting
+
+Login and contact endpoints use an in-memory rate limiter (`src/lib/rate-limit.ts`). On Vercel or any multi-instance host, limits are **per instance** and reset when a function cold-starts. That is acceptable for light traffic; for stronger guarantees use a shared store (for example Upstash Redis or Vercel KV).
+
+## Stripe webhooks
+
+Apply `supabase-migration-005-stripe-webhook-events.sql` (or the matching block in `supabase-schema.sql`) so duplicate Stripe deliveries are ignored after a successful run. Test locally with the [Stripe CLI](https://stripe.com/docs/stripe-cli): `stripe listen --forward-to localhost:3000/api/stripe/webhook`. Example event payloads for manual testing live under `tests/fixtures/`.
+
+## E2E smoke tests (optional)
+
+After `npm install`, install browsers once with `npx playwright install`. Run `npm run test:e2e` with the dev server stopped (Playwright starts `next dev` via config) or set `PLAYWRIGHT_BASE_URL` to a running app URL.
+
 ## Editing Content
 
 All website content lives in `src/lib/data.ts`. Edit services, packages, team members, and pricing there — the components will update automatically.

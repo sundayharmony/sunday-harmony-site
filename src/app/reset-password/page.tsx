@@ -70,13 +70,13 @@ function ResetPasswordForm() {
     return (
       <div className="w-full max-w-md text-center">
         <div className="font-serif text-3xl font-extrabold text-brand-text mb-4">
-          Sunday <span className="text-brand-gold">Harmony</span>
+          Sunday <span className="text-accent">Harmony</span>
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-6">
           <p className="text-sm text-brand-green font-semibold mb-2">Password Reset Successful</p>
           <p className="text-sm text-brand-muted">Your password has been updated. You can now sign in with your new password.</p>
         </div>
-        <a href="/login" className="inline-block mt-6 px-6 py-3 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all">
+        <a href="/login" className="inline-block mt-6 px-6 py-3 rounded-xl bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all">
           Sign In
         </a>
       </div>
@@ -87,7 +87,7 @@ function ResetPasswordForm() {
     <div className="w-full max-w-md">
       <div className="text-center mb-10">
         <a href="/" className="font-serif text-3xl font-extrabold text-brand-text">
-          Sunday <span className="text-brand-gold">Harmony</span>
+          Sunday <span className="text-accent">Harmony</span>
         </a>
         <p className="text-sm text-brand-muted mt-2">Enter your code and new password</p>
       </div>
@@ -113,7 +113,7 @@ function ResetPasswordForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@business.com"
               required
-              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+              className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
             />
           </div>
           <div className="mb-5">
@@ -128,7 +128,7 @@ function ResetPasswordForm() {
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               placeholder="6-digit code"
               required
-              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm tracking-widest outline-none focus:border-brand-gold transition-colors"
+              className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm tracking-widest outline-none focus:border-accent transition-colors"
             />
           </div>
           <div className="mb-5">
@@ -140,7 +140,7 @@ function ResetPasswordForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="At least 8 characters (A-Z, a-z, 0-9)"
               required
-              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+              className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
             />
           </div>
           <div className="mb-6">
@@ -152,13 +152,13 @@ function ResetPasswordForm() {
               onChange={(e) => setConfirm(e.target.value)}
               placeholder="••••••••"
               required
-              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+              className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-brand-gold text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(184,148,63,0.25)] transition-all disabled:opacity-60"
+            className="w-full py-3.5 rounded-xl bg-brand-text text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-60"
           >
             {loading ? 'Resetting...' : 'Reset password'}
           </button>
@@ -166,10 +166,10 @@ function ResetPasswordForm() {
       </div>
 
       <div className="text-center mt-6 space-y-2">
-        <a href="/forgot-password" className="block text-xs text-brand-dim hover:text-brand-gold transition-colors">
+        <a href="/forgot-password" className="block text-xs text-brand-dim hover:text-accent transition-colors">
           Request a new code
         </a>
-        <a href="/login" className="block text-xs text-brand-dim hover:text-brand-gold transition-colors">
+        <a href="/login" className="block text-xs text-brand-dim hover:text-accent transition-colors">
           &larr; Back to login
         </a>
       </div>
@@ -179,7 +179,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
       <Suspense fallback={<div className="text-sm text-brand-muted">Loading...</div>}>
         <ResetPasswordForm />
       </Suspense>

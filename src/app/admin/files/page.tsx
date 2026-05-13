@@ -36,6 +36,13 @@ const formatFileSize = (bytes: number): string => {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
+function parseFileCategory(value: string): File['category'] {
+  if (value === 'report' || value === 'graphic' || value === 'content' || value === 'brand' || value === 'general') {
+    return value
+  }
+  return 'general'
+}
+
 export default function AdminFilesPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
@@ -43,12 +50,18 @@ export default function AdminFilesPage() {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string
+    file_url: string
+    file_type: string
+    file_size: string
+    category: File['category']
+  }>({
     name: '',
     file_url: '',
     file_type: '',
     file_size: '',
-    category: 'general' as const,
+    category: 'general',
   })
 
   // Fetch clients on mount
@@ -161,7 +174,7 @@ export default function AdminFilesPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+          className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
         >
           + Upload File
         </button>
@@ -181,7 +194,7 @@ export default function AdminFilesPage() {
         <select
           value={selectedClientId || ''}
           onChange={e => setSelectedClientId(e.target.value || null)}
-          className="w-full md:w-64 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+          className="w-full md:w-64 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
         >
           <option value="">Choose a client...</option>
           {clients.map(client => (
@@ -194,8 +207,8 @@ export default function AdminFilesPage() {
 
       {/* Upload File Form */}
       {showForm && selectedClientId && (
-        <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-brand-gold mb-4">Upload File for {selectedClient?.name}</h3>
+        <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-bold text-accent mb-4">Upload File for {selectedClient?.name}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
@@ -206,7 +219,7 @@ export default function AdminFilesPage() {
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g., Q1_Report_2024"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -218,7 +231,7 @@ export default function AdminFilesPage() {
                 value={form.file_type}
                 onChange={e => setForm(f => ({ ...f, file_type: e.target.value }))}
                 placeholder="e.g., pdf, png, docx"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -230,7 +243,7 @@ export default function AdminFilesPage() {
                 value={form.file_url}
                 onChange={e => setForm(f => ({ ...f, file_url: e.target.value }))}
                 placeholder="https://example.com/file.pdf"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -242,7 +255,7 @@ export default function AdminFilesPage() {
                 value={form.file_size}
                 onChange={e => setForm(f => ({ ...f, file_size: e.target.value }))}
                 placeholder="e.g., 1048576"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -252,8 +265,8 @@ export default function AdminFilesPage() {
             </label>
             <select
               value={form.category}
-              onChange={e => setForm(f => ({ ...f, category: e.target.value as any }))}
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+              onChange={e => setForm(f => ({ ...f, category: parseFileCategory(e.target.value) }))}
+              className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
             >
               <option value="report">Report</option>
               <option value="graphic">Graphic</option>
@@ -265,7 +278,7 @@ export default function AdminFilesPage() {
           <div className="flex gap-2">
             <button
               onClick={addFile}
-              className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold hover:bg-opacity-90 transition-all"
+              className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold hover:bg-opacity-90 transition-all"
             >
               Upload File
             </button>
@@ -318,7 +331,7 @@ export default function AdminFilesPage() {
                             href={file.file_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-[rgba(184,148,63,0.1)] text-brand-gold text-xs font-semibold hover:bg-[rgba(184,148,63,0.2)] transition-all"
+                            className="px-3 py-1.5 rounded-lg bg-accent-soft text-accent text-xs font-semibold hover:bg-neutral-200 transition-all"
                           >
                             Download
                           </a>

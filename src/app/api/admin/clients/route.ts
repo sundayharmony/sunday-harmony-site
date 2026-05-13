@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { getClients, createClient, updateClient, createUser, logActivity } from '@/lib/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,20 +17,16 @@ const tierLabels: Record<string, string> = {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string })?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const clients = await getClients()
   return NextResponse.json(clients)
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user as { role?: string })?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const body = await req.json()
   const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins, isPotential } = body
@@ -83,7 +78,7 @@ export async function POST(req: NextRequest) {
     action: 'created',
     entity_type: 'client',
     entity_id: client.id,
-    actor_email: (session?.user as { email?: string })?.email || 'admin',
+    actor_email: session.user.email || 'admin',
     details: `Created client "${name}" (${business}) on ${tierLabels[packageTier] || packageTier} plan`,
   })
 
@@ -147,10 +142,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const { id, ...rawUpdates } = await req.json()
   if (!id) return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
@@ -179,7 +172,7 @@ export async function PATCH(req: NextRequest) {
     action: 'updated',
     entity_type: 'client',
     entity_id: id,
-    actor_email: (session?.user as { email?: string })?.email || 'admin',
+    actor_email: session.user.email || 'admin',
     details: `Updated client "${client.name}": ${changedFields}`,
   })
 

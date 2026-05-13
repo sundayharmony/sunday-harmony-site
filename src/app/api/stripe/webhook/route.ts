@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { getStripe } from '@/lib/stripe'
+import { logApiRouteError } from '@/lib/api-route-log'
 import {
   getClientById,
   getClientByStripeCustomerId,
   getClientByStripeSubscriptionId,
+  isStripeWebhookEventRecorded,
+  recordStripeWebhookEvent,
   updateClient,
 } from '@/lib/db'
+import { getStripe } from '@/lib/stripe'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,7 +38,12 @@ export async function POST(req: NextRequest) {
     const payload = await req.text()
     event = getStripe().webhooks.constructEvent(payload, signature, webhookSecret)
   } catch (err) {
+    logApiRouteError(req, 'stripe webhook signature', err)
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 })
+  }
+
+  if (await isStripeWebhookEventRecorded(event.id)) {
+    return NextResponse.json({ received: true })
   }
 
   try {
@@ -135,9 +143,10 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (err) {
-    console.error('Stripe webhook handling error:', err)
+    logApiRouteError(req, 'stripe webhook handler', err)
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 
+  await recordStripeWebhookEvent(event.id)
   return NextResponse.json({ received: true })
 }

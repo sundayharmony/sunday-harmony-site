@@ -176,7 +176,7 @@ export default function OnboardingPage() {
             </div>
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 text-brand-gold hover:text-brand-gold/80 font-medium transition-colors"
+              className="px-4 py-2 text-accent hover:text-accent/80 font-medium transition-colors"
             >
               Edit
             </button>
@@ -203,7 +203,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, business_goals: e.target.value })}
               onBlur={(e) => handleBlur('business_goals', e.target.value)}
               rows={4}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="E.g., Increase brand awareness, Launch new product line, Grow email list to 5000 subscribers..."
             />
           </div>
@@ -219,7 +219,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, target_audience: e.target.value })}
               onBlur={(e) => handleBlur('target_audience', e.target.value)}
               rows={4}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="E.g., Women ages 25-45, interested in wellness and sustainable products, located in urban areas..."
             />
           </div>
@@ -235,7 +235,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, brand_voice: e.target.value })}
               onBlur={(e) => handleBlur('brand_voice', e.target.value)}
               rows={4}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="E.g., Warm and approachable, with a modern edge. We speak to our audience like we're sharing a secret..."
             />
           </div>
@@ -256,7 +256,7 @@ export default function OnboardingPage() {
                     value={(data.social_accounts || {})[platform as keyof typeof data.social_accounts] || ''}
                     onChange={(e) => handleSocialAccountChange(platform, e.target.value)}
                     placeholder={`Your ${platform} ${platform === 'website' ? 'URL' : 'handle or URL'}`}
-                    className="w-full px-4 py-2 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim text-sm"
+                    className="w-full px-4 py-2 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim text-sm"
                   />
                 </div>
               ))}
@@ -275,7 +275,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, google_business_url: e.target.value })}
               onBlur={(e) => handleBlur('google_business_url', e.target.value)}
               placeholder="https://www.google.com/business/..."
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
             />
           </div>
 
@@ -290,7 +290,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, existing_assets: e.target.value })}
               onBlur={(e) => handleBlur('existing_assets', e.target.value)}
               rows={3}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="E.g., Professional logo, 50+ product photos, company video, brand guidelines document..."
             />
           </div>
@@ -306,7 +306,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, competitors: e.target.value })}
               onBlur={(e) => handleBlur('competitors', e.target.value)}
               rows={3}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="E.g., Company A (www.companya.com), Company B (www.companyb.com), Company C..."
             />
           </div>
@@ -322,7 +322,7 @@ export default function OnboardingPage() {
               onChange={(e) => setData({ ...data, additional_notes: e.target.value })}
               onBlur={(e) => handleBlur('additional_notes', e.target.value)}
               rows={3}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="Share any additional context that would help our team..."
             />
           </div>
@@ -344,7 +344,7 @@ export default function OnboardingPage() {
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-3 bg-brand-gold text-white font-medium rounded-lg hover:bg-brand-gold/90 transition-colors disabled:opacity-50"
+              className="px-6 py-3 bg-brand-text text-white font-medium rounded-lg hover:bg-brand-text/90 transition-colors disabled:opacity-50"
             >
               {saving ? 'Submitting...' : 'Complete Onboarding'}
             </button>

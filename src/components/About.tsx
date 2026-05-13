@@ -35,8 +35,8 @@ export default function About() {
             </div>
 
             <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
-              <div className="w-full h-full bg-gradient-to-br from-[#fafaf8] via-[#f5f0e6] to-[#f0ebe0] flex flex-col items-center justify-center p-10">
-                <div className="font-serif text-[80px] font-extrabold bg-gradient-to-br from-brand-gold to-brand-gold-light bg-clip-text text-transparent mb-4 leading-none">
+              <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-10">
+                <div className="font-serif text-[80px] font-extrabold accent-text mb-4 leading-none">
                   SH
                 </div>
                 <div className="text-[13px] font-bold tracking-[0.2em] uppercase text-brand-dim">
@@ -61,12 +61,12 @@ export default function About() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-12 max-w-[700px]">
             {team.map((member) => (
-              <div key={member.name} className="bg-white border border-brand-border rounded-2xl p-8 text-center transition-all hover:shadow-md hover:border-[rgba(184,148,63,0.25)]">
-                <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-[rgba(184,148,63,0.08)] border-2 border-[rgba(184,148,63,0.2)] flex items-center justify-center font-serif text-[28px] font-extrabold text-brand-gold">
+              <div key={member.name} className="bg-white border border-brand-border rounded-2xl p-8 text-center transition-all hover:shadow-sm hover:border-neutral-300">
+                <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-accent-soft border-2 border-brand-border flex items-center justify-center font-serif text-[28px] font-extrabold text-accent">
                   {member.initials}
                 </div>
                 <h4 className="text-[17px] font-bold text-brand-text mb-1">{member.name}</h4>
-                <div className="text-xs font-semibold text-brand-gold mb-3 tracking-wide">{member.role}</div>
+                <div className="text-xs font-semibold text-brand-dim mb-3 tracking-wide">{member.role}</div>
                 <p className="text-[13px] text-brand-muted leading-relaxed">{member.bio}</p>
               </div>
             ))}

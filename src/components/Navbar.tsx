@@ -41,7 +41,7 @@ export default function Navbar() {
       >
         <div className="max-w-[1100px] mx-auto px-7 flex items-center justify-between h-[72px]">
           <Link href="/" className="font-serif text-[22px] font-extrabold text-brand-text tracking-wide">
-            Sunday <span className="text-brand-gold">Harmony</span>
+            Sunday <span className="text-accent">Harmony</span>
           </Link>
 
           {/* Desktop Links */}
@@ -50,20 +50,20 @@ export default function Navbar() {
               <a
                 key={link.href}
                 href={link.href}
-                className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-gold transition-colors"
+                className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
               >
                 {link.label}
               </a>
             ))}
             <Link
               href="/login"
-              className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-green transition-colors"
+              className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
             >
               Login
             </Link>
             <a
               href="#contact"
-              className="px-6 py-2.5 rounded-md bg-brand-gold text-white font-semibold text-[13px] hover:bg-[#a6832e] transition-all"
+              className="px-6 py-2.5 rounded-md bg-brand-text text-white font-semibold text-[13px] hover:bg-neutral-800 transition-all"
             >
               Free Audit
             </a>
@@ -98,14 +98,14 @@ export default function Navbar() {
           <Link
             href="/login"
             onClick={closeMobile}
-            className="text-lg font-medium text-brand-green py-4 border-b border-brand-border"
+            className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
           >
             Login
           </Link>
           <a
             href="#contact"
             onClick={closeMobile}
-            className="text-lg font-semibold text-brand-gold py-4"
+            className="text-lg font-semibold text-accent py-4"
           >
             Get Your Free Audit
           </a>

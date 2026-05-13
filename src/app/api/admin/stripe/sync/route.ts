@@ -17,7 +17,7 @@ function toBillingStatus(status: Stripe.Subscription.Status): 'trial' | 'paid' |
 
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session instanceof NextResponse) return session
 
   let body: { clientId?: string }
   try {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       : undefined,
   })
 
-  const actor = (session.user as { email?: string })?.email || 'admin'
+  const actor = session.user.email || 'admin'
   await logActivity({
     action: 'updated',
     entity_type: 'client',

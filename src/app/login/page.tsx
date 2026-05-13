@@ -52,7 +52,7 @@ function LoginForm() {
       {/* Logo */}
       <div className="text-center mb-10">
         <a href="/" className="font-serif text-3xl font-extrabold text-brand-text">
-          Sunday <span className="text-brand-gold">Harmony</span>
+          Sunday <span className="text-accent">Harmony</span>
         </a>
         <p className="text-sm text-brand-muted mt-2">Sign in to your dashboard</p>
       </div>
@@ -77,13 +77,13 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@business.com"
               required
-              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+              className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
             />
           </div>
           <div className="mb-6">
             <div className="flex justify-between items-center mb-1.5">
               <label htmlFor="login-password" className="block text-xs font-semibold text-brand-muted tracking-wide">Password</label>
-              <a href="/forgot-password" className="text-[10px] text-brand-gold hover:underline">Forgot password?</a>
+              <a href="/forgot-password" className="text-[10px] text-accent hover:underline">Forgot password?</a>
             </div>
             <input
               id="login-password"
@@ -92,13 +92,13 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+              className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-brand-gold text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(184,148,63,0.25)] transition-all disabled:opacity-60"
+            className="w-full py-3.5 rounded-xl bg-brand-text text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-60"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -106,7 +106,7 @@ function LoginForm() {
       </div>
 
       <div className="text-center mt-6">
-        <a href="/" className="text-xs text-brand-dim hover:text-brand-gold transition-colors">
+        <a href="/" className="text-xs text-brand-dim hover:text-accent transition-colors">
           &larr; Back to website
         </a>
       </div>
@@ -116,11 +116,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
       <Suspense fallback={
         <div className="w-full max-w-md text-center">
           <div className="font-serif text-3xl font-extrabold text-brand-text">
-            Sunday <span className="text-brand-gold">Harmony</span>
+            Sunday <span className="text-accent">Harmony</span>
           </div>
           <p className="text-sm text-brand-muted mt-2">Loading...</p>
         </div>

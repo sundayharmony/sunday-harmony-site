@@ -44,7 +44,12 @@ export default function ClientSidebar() {
       </div>
 
       {open && (
-        <div className="md:hidden fixed inset-0 bg-black/50 z-[49]" onClick={() => setOpen(false)} />
+        <button
+          type="button"
+          className="md:hidden fixed inset-0 bg-black/50 z-[49] cursor-default border-0 p-0"
+          aria-label="Close menu"
+          onClick={() => setOpen(false)}
+        />
       )}
 
       <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
@@ -53,13 +58,13 @@ export default function ClientSidebar() {
         <div className="p-5 pb-4 border-b border-brand-border">
           <div className="flex items-center justify-between">
             <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
-              Sunday <span className="text-brand-gold">Harmony</span>
+              Sunday <span className="text-accent">Harmony</span>
             </Link>
             <div className="hidden md:block">
               <NotificationBell />
             </div>
           </div>
-          <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-green mt-1">Client Dashboard</div>
+          <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Client Dashboard</div>
         </div>
 
         <nav className="flex-1 py-4 px-3 overflow-y-auto">
@@ -69,8 +74,8 @@ export default function ClientSidebar() {
               <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-[13px] font-medium transition-all ${
                   active
-                    ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold text-brand-text'
-                    : 'text-brand-muted hover:text-brand-text hover:bg-gray-50 border border-transparent'
+                    ? 'bg-accent-soft border border-brand-border text-brand-text'
+                    : 'text-brand-muted hover:text-brand-text hover:bg-neutral-50 border border-transparent'
                 }`}>
                 <span className="text-base">{item.icon}</span>{item.label}
               </Link>

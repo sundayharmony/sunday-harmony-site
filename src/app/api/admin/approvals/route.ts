@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getApprovalsByClient, createApproval, updateApproval, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 
@@ -8,16 +7,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('client_id')
@@ -36,16 +27,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { client_id, title, description, content_type, content_url, content_text, admin_notes } = body
@@ -111,16 +94,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { id, ...updates } = body

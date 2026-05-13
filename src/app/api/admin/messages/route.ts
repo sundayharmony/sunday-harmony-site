@@ -1,7 +1,6 @@
-import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { authOptions } from '@/lib/auth'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getMessages, createMessage, getClientById, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 
@@ -12,12 +11,8 @@ function escHtml(str: string): string {
 }
 
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userGet = session.user as { role?: string }
-  if (userGet.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)
   const clientId = searchParams.get('clientId')
@@ -27,12 +22,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const userPost = session.user as { role?: string; name?: string }
-  if (userPost.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const { clientId, text } = await request.json()
   if (!clientId || !text?.trim()) {
@@ -47,7 +38,7 @@ export async function POST(request: Request) {
   const message = await createMessage({
     client_id: clientId,
     from_role: 'admin',
-    from_name: userPost.name || 'Sunday Harmony',
+    from_name: session.user.name || 'Sunday Harmony',
     text: text.trim(),
   })
 

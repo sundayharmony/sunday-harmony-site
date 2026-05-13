@@ -30,7 +30,7 @@ function normalizeInvoice(inv: Stripe.Invoice) {
 
 export async function GET(req: NextRequest) {
   const session = await requireAdminSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(req.url)
   const clientId = searchParams.get('clientId')?.trim()

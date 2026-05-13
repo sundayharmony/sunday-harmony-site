@@ -536,6 +536,39 @@ export async function updateApproval(id: string, updates: Partial<Omit<Approval,
   return data
 }
 
+export async function isStripeWebhookEventRecorded(eventId: string): Promise<boolean> {
+  try {
+    const { data, error } = await getSupabase()
+      .from('stripe_webhook_events')
+      .select('id')
+      .eq('id', eventId)
+      .maybeSingle()
+    if (error) {
+      const msg = error.message || ''
+      if (msg.includes('does not exist') || msg.includes('schema cache')) {
+        return false
+      }
+      console.error('isStripeWebhookEventRecorded:', error)
+      return false
+    }
+    return Boolean(data)
+  } catch (err) {
+    console.error('isStripeWebhookEventRecorded:', err)
+    return false
+  }
+}
+
+export async function recordStripeWebhookEvent(eventId: string): Promise<void> {
+  try {
+    const { error } = await getSupabase().from('stripe_webhook_events').insert({ id: eventId })
+    if (error && error.code !== '23505') {
+      console.error('recordStripeWebhookEvent:', error)
+    }
+  } catch (err) {
+    console.error('recordStripeWebhookEvent:', err)
+  }
+}
+
 // ââââââââââ SEED DEFAULT ADMIN ââââââââââ
 export async function seedAdmin(): Promise<void> {
   try {

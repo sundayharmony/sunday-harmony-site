@@ -157,7 +157,7 @@ export default function PackagePage() {
                 <div className="space-y-1.5">
                   {client.deliverables.map((d, i) => (
                     <div key={i} className="flex items-center gap-2">
-                      <span className="text-brand-gold text-xs">◈</span>
+                      <span className="text-accent text-xs">◈</span>
                       <span className="text-sm text-brand-text">{d}</span>
                     </div>
                   ))}

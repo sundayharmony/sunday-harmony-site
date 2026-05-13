@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { sanitizeNotificationLink } from '@/lib/safe-notification-link'
 
 interface NotificationItem {
   id: string
@@ -22,14 +24,16 @@ const typeIcons: Record<string, string> = {
 }
 
 export default function NotificationBell() {
+  const router = useRouter()
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [open, setOpen] = useState(false)
+  const [fetchWarning, setFetchWarning] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30000) // poll every 30s
+    const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -48,8 +52,15 @@ export default function NotificationBell() {
         const data = await res.json()
         setNotifications(data)
         setUnreadCount(data.filter((n: NotificationItem) => !n.read).length)
+        setFetchWarning(false)
+      } else {
+        console.warn('Notifications fetch failed:', res.status)
+        setFetchWarning(true)
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      console.warn('Notifications fetch error:', err)
+      setFetchWarning(true)
+    }
   }
 
   async function markRead(id: string) {
@@ -72,9 +83,18 @@ export default function NotificationBell() {
     setUnreadCount(0)
   }
 
+  function navigateForNotification(n: NotificationItem) {
+    const safe = sanitizeNotificationLink(n.link)
+    if (safe) {
+      router.push(safe)
+    }
+    setOpen(false)
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
         aria-label="Notifications"
@@ -84,7 +104,7 @@ export default function NotificationBell() {
           <path d="M8.5 17a1.5 1.5 0 003 0" strokeLinecap="round" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold text-white bg-brand-red rounded-full px-1">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold text-white bg-brand-text rounded-full px-1">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -95,23 +115,34 @@ export default function NotificationBell() {
           <div className="flex items-center justify-between p-3 border-b border-brand-border">
             <span className="text-sm font-bold text-brand-text">Notifications</span>
             {unreadCount > 0 && (
-              <button onClick={markAllRead} className="text-[10px] text-brand-gold hover:underline font-semibold">
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="text-[10px] text-accent hover:underline font-semibold"
+              >
                 Mark all read
               </button>
             )}
           </div>
 
+          {fetchWarning && (
+            <div className="px-3 py-1.5 text-[10px] text-amber-800 bg-amber-50 border-b border-amber-100">
+              Could not refresh notifications. Will retry automatically.
+            </div>
+          )}
+
           <div className="overflow-y-auto flex-1">
             {notifications.length > 0 ? (
               notifications.slice(0, 20).map(n => (
-                <div
+                <button
                   key={n.id}
+                  type="button"
                   onClick={() => {
-                    if (!n.read) markRead(n.id)
-                    if (n.link) window.location.href = n.link
+                    if (!n.read) void markRead(n.id)
+                    navigateForNotification(n)
                   }}
-                  className={`flex items-start gap-3 px-3 py-3 border-b border-brand-border cursor-pointer transition-colors ${
-                    n.read ? 'bg-white' : 'bg-[rgba(184,148,63,0.04)]'
+                  className={`w-full text-left flex items-start gap-3 px-3 py-3 border-b border-brand-border cursor-pointer transition-colors ${
+                    n.read ? 'bg-white' : 'bg-accent-soft'
                   } hover:bg-gray-50`}
                 >
                   <span className="text-base mt-0.5">{typeIcons[n.type] || 'ℹ️'}</span>
@@ -120,7 +151,7 @@ export default function NotificationBell() {
                       <span className={`text-xs font-semibold ${n.read ? 'text-brand-muted' : 'text-brand-text'}`}>
                         {n.title}
                       </span>
-                      {!n.read && <span className="w-2 h-2 rounded-full bg-brand-gold flex-shrink-0" />}
+                      {!n.read && <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" aria-hidden />}
                     </div>
                     {n.message && (
                       <p className="text-[11px] text-brand-dim mt-0.5 truncate">{n.message}</p>
@@ -129,7 +160,7 @@ export default function NotificationBell() {
                       {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                     </span>
                   </div>
-                </div>
+                </button>
               ))
             ) : (
               <div className="p-6 text-center">

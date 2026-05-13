@@ -54,7 +54,9 @@ export default function AdminMessagesPage() {
       try {
         const res = await fetch('/api/admin/messages')
         if (res.ok) setAllMessages(await res.json())
-      } catch {}
+      } catch (err) {
+        console.warn('Message poll failed:', err)
+      }
     }, 10000)
     return () => clearInterval(interval)
   }, [])
@@ -178,14 +180,14 @@ export default function AdminMessagesPage() {
                     onClick={() => setSelectedClient(client.id)}
                     className={`w-full text-left p-3 rounded-lg mb-1 transition-all ${
                       isSelected
-                        ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                        ? 'bg-accent-soft border border-accent'
                         : 'hover:bg-gray-50 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-brand-text">{client.name}</span>
                       {msgCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(184,148,63,0.1)] text-brand-gold">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-accent-soft text-accent">
                           {msgCount}
                         </span>
                       )}
@@ -231,12 +233,12 @@ export default function AdminMessagesPage() {
                         <div
                           className={`max-w-[70%] rounded-2xl p-4 ${
                             isAdmin
-                              ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                              ? 'bg-accent-soft border border-accent'
                               : 'bg-green-50 border border-green-200'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-bold ${isAdmin ? 'text-brand-gold' : 'text-brand-green'}`}>
+                            <span className={`text-xs font-bold ${isAdmin ? 'text-accent' : 'text-brand-muted'}`}>
                               {msg.from_name}
                             </span>
                             <span className="text-[10px] text-brand-dim">
@@ -261,12 +263,12 @@ export default function AdminMessagesPage() {
                   value={newMsg}
                   onChange={e => setNewMsg(e.target.value)}
                   placeholder={`Reply to ${selectedClientData?.name ? selectedClientData.name.split(' ')[0] : 'client'}...`}
-                  className="flex-1 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+                  className="flex-1 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={!newMsg.trim() || sending}
-                  className="px-5 py-2.5 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+                  className="px-5 py-2.5 rounded-xl bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
                 >
                   {sending ? 'Sending...' : 'Send'}
                 </button>

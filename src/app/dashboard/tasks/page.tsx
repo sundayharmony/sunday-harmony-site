@@ -151,7 +151,7 @@ export default function TasksPage() {
           </p>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className="bg-brand-gold h-2 rounded-full transition-all duration-500"
+              className="bg-brand-text h-2 rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -191,7 +191,7 @@ export default function TasksPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                           {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
                         </span>
-                        <span className="px-3 py-1 bg-[rgba(184,148,63,0.08)] text-brand-gold border border-brand-gold/20 rounded-full text-xs font-medium">
+                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
                           {task.category}
                         </span>
                       </div>
@@ -229,7 +229,7 @@ export default function TasksPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                           {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
                         </span>
-                        <span className="px-3 py-1 bg-[rgba(184,148,63,0.08)] text-brand-gold border border-brand-gold/20 rounded-full text-xs font-medium">
+                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
                           {task.category}
                         </span>
                       </div>
@@ -267,7 +267,7 @@ export default function TasksPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                           {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
                         </span>
-                        <span className="px-3 py-1 bg-[rgba(184,148,63,0.08)] text-brand-gold border border-brand-gold/20 rounded-full text-xs font-medium">
+                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
                           {task.category}
                         </span>
                       </div>
@@ -307,7 +307,7 @@ export default function TasksPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
                           {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
                         </span>
-                        <span className="px-3 py-1 bg-[rgba(184,148,63,0.08)] text-brand-gold border border-brand-gold/20 rounded-full text-xs font-medium">
+                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
                           {task.category}
                         </span>
                       </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { logApiRouteError } from '@/lib/api-route-log'
 import { createLead, logActivity } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })
   } catch (error) {
-    console.error('Contact form error:', error)
+    logApiRouteError(req, 'contact', error)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }

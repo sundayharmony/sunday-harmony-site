@@ -46,8 +46,10 @@ export default function AdminSidebar() {
 
       {/* Backdrop (mobile) */}
       {open && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/50 z-[49]"
+        <button
+          type="button"
+          className="md:hidden fixed inset-0 bg-black/50 z-[49] cursor-default border-0 p-0"
+          aria-label="Close menu"
           onClick={() => setOpen(false)}
         />
       )}
@@ -59,9 +61,9 @@ export default function AdminSidebar() {
         {/* Logo */}
         <div className="p-5 pb-4 border-b border-brand-border">
           <Link href="/admin" className="font-serif text-lg font-extrabold text-brand-text">
-            Sunday <span className="text-brand-gold">Harmony</span>
+            Sunday <span className="text-accent">Harmony</span>
           </Link>
-          <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-gold mt-1">Admin Dashboard</div>
+          <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Admin Dashboard</div>
         </div>
 
         {/* Nav */}
@@ -75,8 +77,8 @@ export default function AdminSidebar() {
                 onClick={() => setOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-[13px] font-medium transition-all ${
                   active
-                    ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold text-brand-gold'
-                    : 'text-brand-muted hover:text-brand-text hover:bg-gray-50 border border-transparent'
+                    ? 'bg-accent-soft border border-brand-border text-brand-text'
+                    : 'text-brand-muted hover:text-brand-text hover:bg-neutral-50 border border-transparent'
                 }`}
               >
                 <span className="text-base">{item.icon}</span>
@@ -90,7 +92,7 @@ export default function AdminSidebar() {
         <div className="p-4 border-t border-brand-border">
           <Link
             href="/"
-            className="block text-xs text-brand-dim hover:text-brand-gold mb-3 transition-colors"
+            className="block text-xs text-brand-dim hover:text-brand-text mb-3 transition-colors"
           >
             ← View website
           </Link>

@@ -252,7 +252,7 @@ export default function LeadsPage() {
             onClick={() => setSourceFilter(source)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${
               sourceFilter === source
-                ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                ? 'bg-accent-soft text-accent border border-accent'
                 : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
             }`}
           >
@@ -267,24 +267,24 @@ export default function LeadsPage() {
           <h3 className="text-sm font-bold text-brand-text mb-3">Quick Add Prospect</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
             <input value={quickProspect.business} onChange={e => setQuickProspect(p => ({ ...p, business: e.target.value }))} placeholder="Business *"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.first_name} onChange={e => setQuickProspect(p => ({ ...p, first_name: e.target.value }))} placeholder="Contact first name"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.last_name} onChange={e => setQuickProspect(p => ({ ...p, last_name: e.target.value }))} placeholder="Contact last name"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.phone} onChange={e => setQuickProspect(p => ({ ...p, phone: e.target.value }))} placeholder="Phone"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.email} onChange={e => setQuickProspect(p => ({ ...p, email: e.target.value }))} placeholder="Email"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.website} onChange={e => setQuickProspect(p => ({ ...p, website: e.target.value }))} placeholder="Website"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.location_text} onChange={e => setQuickProspect(p => ({ ...p, location_text: e.target.value }))} placeholder="Location"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={quickProspect.service} onChange={e => setQuickProspect(p => ({ ...p, service: e.target.value }))} placeholder="Service needed"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
           </div>
           <button onClick={addQuickProspect} disabled={savingProspect}
-            className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60">
+            className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-60">
             {savingProspect ? 'Saving...' : 'Add Prospect'}
           </button>
         </div>
@@ -292,20 +292,20 @@ export default function LeadsPage() {
           <h3 className="text-sm font-bold text-brand-text mb-3">Find Businesses (Google Places)</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
             <input value={discoveryQuery.service} onChange={e => setDiscoveryQuery(q => ({ ...q, service: e.target.value }))} placeholder="Service (e.g. dentist)"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={discoveryQuery.city} onChange={e => setDiscoveryQuery(q => ({ ...q, city: e.target.value }))} placeholder="City (e.g. Newark, NJ)"
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
             <input value={discoveryQuery.maxResults} type="number" min={1} max={20} onChange={e => setDiscoveryQuery(q => ({ ...q, maxResults: e.target.value }))}
-              className="py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-sm outline-none focus:border-brand-gold" />
+              className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent" />
           </div>
           <button onClick={findBusinesses} disabled={discovering}
-            className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60 mb-3">
+            className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-60 mb-3">
             {discovering ? 'Searching...' : 'Find Businesses'}
           </button>
           {prospects.length > 0 && (
             <div className="space-y-2 max-h-56 overflow-y-auto">
               {prospects.map(candidate => (
-                <div key={candidate.google_place_id || `${candidate.business}-${candidate.location_text}`} className="p-2 rounded-lg border border-brand-border bg-[#fafaf8]">
+                <div key={candidate.google_place_id || `${candidate.business}-${candidate.location_text}`} className="p-2 rounded-lg border border-brand-border bg-neutral-50">
                   <div className="text-sm font-semibold text-brand-text">{candidate.business}</div>
                   <div className="text-xs text-brand-muted">{candidate.location_text || 'No address'}</div>
                   <div className="text-xs text-brand-dim">{candidate.phone || candidate.website || 'No contact listed'}</div>
@@ -330,12 +330,12 @@ export default function LeadsPage() {
           placeholder="Search by name, business, or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold placeholder:text-brand-dim"
+          className="flex-1 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent placeholder:text-brand-dim"
         />
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          className="py-2.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-muted text-sm outline-none"
+          className="py-2.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-muted text-sm outline-none"
         >
           <option value="all">All Statuses</option>
           {statuses.map(s => <option key={s} value={s}>{s.replaceAll('_', ' ')}</option>)}
@@ -379,8 +379,8 @@ export default function LeadsPage() {
                           setNotes(lead.notes)
                         }
                       }}
-                      className={`border-b border-gray-200 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-gold ${
-                        selected?.id === lead.id ? 'bg-[rgba(184,148,63,0.04)]' : 'hover:bg-gray-50'
+                      className={`border-b border-gray-200 cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+                        selected?.id === lead.id ? 'bg-accent-soft' : 'hover:bg-gray-50'
                       }`}
                     >
                       <td className="px-4 py-3 text-sm text-brand-text font-medium">{lead.first_name} {lead.last_name}</td>
@@ -413,7 +413,7 @@ export default function LeadsPage() {
                         onClick={() => setPage(p)}
                         className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
                           page === p
-                            ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                            ? 'bg-accent-soft text-accent border border-accent'
                             : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
                         }`}
                       >
@@ -472,7 +472,7 @@ export default function LeadsPage() {
                     onClick={() => updateLead(selected.id, { status: s as Lead['status'] })}
                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold tracking-wide uppercase transition-all ${
                       selected.status === s
-                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                        ? 'bg-accent-soft text-accent border border-accent'
                         : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
                     }`}
                   >
@@ -490,11 +490,11 @@ export default function LeadsPage() {
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Add notes about this lead..."
                 rows={4}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-y"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-y"
               />
               <button
                 onClick={() => updateLead(selected.id, { notes })}
-                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(184,148,63,0.1)] border border-brand-gold text-brand-gold text-xs font-semibold hover:bg-[rgba(184,148,63,0.15)] transition-all"
+                className="mt-2 px-4 py-2 rounded-lg bg-accent-soft border border-accent text-accent text-xs font-semibold hover:bg-neutral-100 transition-all"
               >
                 Save Notes
               </button>

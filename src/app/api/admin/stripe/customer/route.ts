@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session instanceof NextResponse) return session
 
   let body: { clientId?: string }
   try {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const client = await getClientById(clientId)
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
-  const actor = (session.user as { email?: string })?.email || 'admin'
+  const actor = session.user.email || 'admin'
 
   const result = await ensureStripeCustomerForClient(clientId)
   if (!result.ok) {

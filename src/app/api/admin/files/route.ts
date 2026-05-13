@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 
@@ -8,16 +7,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string; name?: string; email?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('client_id')
@@ -36,16 +27,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string; name?: string; email?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { client_id, name, file_url, file_size, file_type, category } = body
@@ -65,7 +48,7 @@ export async function POST(request: NextRequest) {
       file_type,
       category: category || '',
       uploaded_by_role: 'admin',
-      uploaded_by_name: user.name || user.email || 'Admin',
+      uploaded_by_name: session.user.name || session.user.email || 'Admin',
     })
 
     if (!fileRecord) {
@@ -98,16 +81,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string; name?: string; email?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { id } = body

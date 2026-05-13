@@ -129,3 +129,13 @@ CREATE TRIGGER clients_updated_at BEFORE UPDATE ON clients
 
 CREATE TRIGGER admin_data_updated_at BEFORE UPDATE ON admin_data
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ══════════ STRIPE WEBHOOK IDEMPOTENCY ══════════
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+  id TEXT PRIMARY KEY,
+  processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE stripe_webhook_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role full access" ON stripe_webhook_events FOR ALL USING (true);

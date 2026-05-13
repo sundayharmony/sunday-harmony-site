@@ -112,7 +112,7 @@ export default function FilesPage() {
       case 'content':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'brand':
-        return 'bg-[rgba(184,148,63,0.08)] text-brand-gold border border-brand-gold/20';
+        return 'bg-accent-soft text-accent border border-accent/20';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -144,7 +144,7 @@ export default function FilesPage() {
       <div className="mb-8 bg-white border border-brand-border rounded-2xl p-6">
         <h2 className="text-lg font-serif text-brand-text mb-4">Upload a File</h2>
         <div className="space-y-4">
-          <div className="border-2 border-dashed border-brand-border rounded-lg p-8 text-center hover:border-brand-gold/50 transition-colors">
+          <div className="border-2 border-dashed border-brand-border rounded-lg p-8 text-center hover:border-accent/50 transition-colors">
             <input
               ref={fileInputRef}
               type="file"
@@ -153,7 +153,7 @@ export default function FilesPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="text-brand-gold hover:text-brand-gold/80 font-medium transition-colors"
+              className="text-accent hover:text-accent/80 font-medium transition-colors"
             >
               Click to select a file
             </button>
@@ -161,7 +161,7 @@ export default function FilesPage() {
           </div>
 
           {selectedFile && (
-            <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold/20 rounded-lg p-4">
+            <div className="bg-accent-soft border border-accent/20 rounded-lg p-4">
               <p className="text-brand-text font-medium">{selectedFile.name}</p>
               <p className="text-brand-muted text-sm mt-1">{formatFileSize(selectedFile.size)}</p>
             </div>
@@ -172,7 +172,7 @@ export default function FilesPage() {
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="px-4 py-2 bg-brand-gold text-white font-medium rounded-lg hover:bg-brand-gold/90 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-brand-text text-white font-medium rounded-lg hover:bg-brand-text/90 transition-colors disabled:opacity-50"
               >
                 {uploading ? 'Uploading...' : 'Upload File'}
               </button>

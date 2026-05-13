@@ -58,7 +58,7 @@ export default function RoadmapPage() {
           {error ? (
             <span className="text-xs text-red-600">Error saving</span>
           ) : saving ? (
-            <span className="text-xs text-brand-gold animate-pulse">Saving...</span>
+            <span className="text-xs text-accent animate-pulse">Saving...</span>
           ) : null}
         </div>
       </div>
@@ -70,16 +70,16 @@ export default function RoadmapPage() {
       )}
 
       {/* Overall Progress */}
-      <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-5 mb-6 flex items-center justify-between">
+      <div className="bg-accent-soft border border-accent rounded-xl p-5 mb-6 flex items-center justify-between">
         <div>
-          <div className="text-sm font-bold text-brand-gold">Overall Progress</div>
+          <div className="text-sm font-bold text-accent">Overall Progress</div>
           <div className="text-xs text-brand-muted">{totalDone} of {totalTasks} tasks completed</div>
         </div>
         <div className="flex items-center gap-3">
           <div className="w-40 h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-brand-gold to-brand-gold-light rounded-full transition-all duration-500" style={{ width: `${totalPct}%` }} />
+            <div className="h-full bg-gradient-to-r from-neutral-300 to-brand-text rounded-full transition-all duration-500" style={{ width: `${totalPct}%` }} />
           </div>
-          <span className="text-sm font-bold text-brand-gold">{totalPct}%</span>
+          <span className="text-sm font-bold text-accent">{totalPct}%</span>
         </div>
       </div>
 
@@ -111,8 +111,8 @@ export default function RoadmapPage() {
                     const done = tasks[id]
                     return (
                       <div key={ti} onClick={() => toggle(id)}
-                        className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${done ? 'bg-[rgba(184,148,63,0.04)]' : 'bg-gray-50'} border border-gray-200`}>
-                        <div className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border-2 ${done ? 'bg-brand-gold border-brand-gold' : 'border-gray-300'}`}>
+                        className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${done ? 'bg-accent-soft' : 'bg-gray-50'} border border-gray-200`}>
+                        <div className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border-2 ${done ? 'bg-brand-text border-accent' : 'border-gray-300'}`}>
                           {done && <span className="text-white text-xs font-bold">✓</span>}
                         </div>
                         <span className={`text-sm ${done ? 'text-brand-muted line-through' : 'text-brand-text'}`}>{task}</span>
@@ -121,12 +121,12 @@ export default function RoadmapPage() {
                   })}
                 </div>
                 {/* Milestone & KPIs */}
-                <div className="mt-4 p-4 rounded-lg bg-[rgba(184,148,63,0.04)] border border-[rgba(184,148,63,0.15)]">
-                  <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-gold mb-2">Milestone</div>
+                <div className="mt-4 p-4 rounded-lg bg-accent-soft border border-brand-border">
+                  <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-accent mb-2">Milestone</div>
                   <p className="text-sm text-brand-muted mb-3">{week.milestone}</p>
                   <div className="flex gap-2 flex-wrap">
                     {week.kpis.map((kpi, i) => (
-                      <span key={i} className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold">{kpi}</span>
+                      <span key={i} className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-accent-soft text-accent border border-accent">{kpi}</span>
                     ))}
                   </div>
                 </div>

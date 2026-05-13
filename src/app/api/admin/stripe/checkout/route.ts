@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session instanceof NextResponse) return session
 
   let body: { clientId?: string; tier?: string; allowPotential?: boolean }
   try {
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const stripe = getStripe()
   const base = getSiteBaseUrl()
-  const actor = (session.user as { email?: string })?.email || 'admin'
+  const actor = session.user.email || 'admin'
 
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: 'subscription',

@@ -281,7 +281,7 @@ export default function ClientsPage() {
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+            className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
           >
             + Add Client
           </button>
@@ -301,14 +301,14 @@ export default function ClientsPage() {
           placeholder="Search clients by name, business, or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold placeholder:text-brand-dim"
+          className="w-full py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent placeholder:text-brand-dim"
         />
       </div>
 
       {/* New Client Form */}
       {showForm && (
-        <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-brand-gold mb-4">New Client</h3>
+        <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-bold text-accent mb-4">New Client</h3>
           <div className="grid grid-cols-3 gap-3 mb-3">
             {([
               ['name', 'Full Name *', 'text'],
@@ -324,7 +324,7 @@ export default function ClientsPage() {
                   type={type}
                   value={form[key]}
                   onChange={e => setFormField(key, e.currentTarget?.value ?? '')}
-                  className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                  className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
                 />
               </div>
             ))}
@@ -340,7 +340,7 @@ export default function ClientsPage() {
                   disabled={form.isPotential}
                   className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                     form.packageTier === key
-                      ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                      ? 'bg-accent-soft text-accent border border-accent'
                       : 'bg-gray-50 text-brand-dim border border-brand-border'
                   } disabled:opacity-50`}
                 >
@@ -358,7 +358,7 @@ export default function ClientsPage() {
             Potential client (free until plan is activated)
           </label>
           <div className="flex gap-2">
-            <button onClick={addClient} type="button" disabled={saving} className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60">
+            <button onClick={addClient} type="button" disabled={saving} className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-60">
               {saving ? 'Creating...' : 'Create Client'}
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-brand-dim text-xs hover:text-brand-text">
@@ -397,12 +397,12 @@ export default function ClientsPage() {
                       key={client.id}
                       onClick={() => { setSelected(client); setNotes(client.notes ? String(client.notes) : '') }}
                       className={`border-b border-gray-200 cursor-pointer transition-colors ${
-                        selected?.id === client.id ? 'bg-[rgba(184,148,63,0.04)]' : 'hover:bg-gray-50'
+                        selected?.id === client.id ? 'bg-accent-soft' : 'hover:bg-gray-50'
                       }`}
                     >
                       <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
                       <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                      <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
+                      <td className="px-4 py-3 text-xs text-accent font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
                       <td className="px-4 py-3 text-sm text-brand-text">${(client.monthly_price || 0).toLocaleString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
                       <td className="px-4 py-3 text-xs text-brand-dim">{client.start_date ? new Date(client.start_date).toLocaleDateString() : '—'}</td>
@@ -423,7 +423,7 @@ export default function ClientsPage() {
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button key={p} onClick={() => setPage(p)}
                         className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
-                          page === p ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold' : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
+                          page === p ? 'bg-accent-soft text-accent border border-accent' : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
                         }`}>
                         {p}
                       </button>
@@ -460,7 +460,7 @@ export default function ClientsPage() {
                     onClick={() => updateClient(selected.id, { status: s })}
                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
                       selected.status === s
-                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                        ? 'bg-accent-soft text-accent border border-accent'
                         : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
                     }`}
                   >
@@ -511,7 +511,7 @@ export default function ClientsPage() {
                 </div>
               )}
 
-              <div className="rounded-lg border border-brand-border bg-[#fafaf8] p-3 mb-3">
+              <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 mb-3">
                 <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Stripe actions</div>
                 <div className="flex flex-col gap-2">
                   <button
@@ -536,7 +536,7 @@ export default function ClientsPage() {
                         setStripeAction(null)
                       }
                     }}
-                    className="w-full py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-brand-gold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="w-full py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     {stripeAction === 'customer' ? 'Working…' : selected.stripe_customer_id?.trim() ? 'Stripe customer linked' : 'Create / link Stripe customer'}
                   </button>
@@ -546,7 +546,7 @@ export default function ClientsPage() {
                       value={checkoutTier}
                       onChange={e => setCheckoutTier(e.target.value)}
                       disabled={selected.is_potential || stripeAction !== null}
-                      className="flex-1 min-w-[140px] py-2 px-2 rounded-lg bg-white border border-brand-border text-xs text-brand-text outline-none focus:border-brand-gold disabled:opacity-50"
+                      className="flex-1 min-w-[140px] py-2 px-2 rounded-lg bg-white border border-brand-border text-xs text-brand-text outline-none focus:border-accent disabled:opacity-50"
                     >
                       {Object.entries(tierLabels).map(([key, label]) => (
                         <option key={key} value={key}>{label}</option>
@@ -574,7 +574,7 @@ export default function ClientsPage() {
                           setStripeAction(null)
                         }
                       }}
-                      className="py-2 px-3 rounded-lg bg-brand-gold text-white text-xs font-bold hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="py-2 px-3 rounded-lg bg-brand-text text-white text-xs font-bold hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {stripeAction === 'checkout' ? '…' : 'Start subscription'}
                     </button>
@@ -602,7 +602,7 @@ export default function ClientsPage() {
                           setStripeAction(null)
                         }
                       }}
-                      className="flex-1 py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-brand-gold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="flex-1 py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {stripeAction === 'portal' ? '…' : 'Billing portal'}
                     </button>
@@ -627,7 +627,7 @@ export default function ClientsPage() {
                           setStripeAction(null)
                         }
                       }}
-                      className="flex-1 py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-brand-gold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="flex-1 py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {stripeAction === 'sync' ? '…' : 'Refresh from Stripe'}
                     </button>
@@ -745,7 +745,7 @@ export default function ClientsPage() {
                           <span className="text-right font-semibold">{amt}</span>
                           <span className="text-right">
                             {inv.hosted_invoice_url ? (
-                              <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-brand-gold font-semibold hover:underline">
+                              <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-accent font-semibold hover:underline">
                                 View
                               </a>
                             ) : (
@@ -767,7 +767,7 @@ export default function ClientsPage() {
                     onClick={() => setBillingStatus(s)}
                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
                       selected.billing_status === s
-                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                        ? 'bg-accent-soft text-accent border border-accent'
                         : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
                     }`}
                   >
@@ -788,7 +788,7 @@ export default function ClientsPage() {
               <button
                 type="button"
                 onClick={() => setShowBillingAdvanced(v => !v)}
-                className="text-[10px] font-bold uppercase text-brand-gold mb-2 hover:underline"
+                className="text-[10px] font-bold uppercase text-accent mb-2 hover:underline"
               >
                 {showBillingAdvanced ? 'Hide' : 'Show'} advanced (manual Stripe IDs)
               </button>
@@ -800,7 +800,7 @@ export default function ClientsPage() {
                     defaultValue={selected.stripe_customer_id || ''}
                     onBlur={e => updateClient(selected.id, { stripe_customer_id: e.currentTarget.value.trim() })}
                     placeholder="Stripe customer ID (cus_...)"
-                    className="w-full py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                    className="w-full py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                   />
                   <input
                     type="text"
@@ -808,7 +808,7 @@ export default function ClientsPage() {
                     defaultValue={selected.stripe_subscription_id || ''}
                     onBlur={e => updateClient(selected.id, { stripe_subscription_id: e.currentTarget.value.trim() })}
                     placeholder="Stripe subscription ID (sub_...)"
-                    className="w-full py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                    className="w-full py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                   />
                 </div>
               )}
@@ -836,9 +836,9 @@ export default function ClientsPage() {
               {selected.deliverables && selected.deliverables.length > 0 ? (
                 <div className="space-y-1.5 mb-2">
                   {selected.deliverables.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-[rgba(184,148,63,0.04)] border border-[rgba(184,148,63,0.15)]">
+                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-accent-soft border border-brand-border">
                       <span className="text-sm text-brand-text flex items-center gap-2">
-                        <span className="text-brand-gold text-xs">◈</span> {d}
+                        <span className="text-accent text-xs">◈</span> {d}
                       </span>
                       <button onClick={() => removeDeliverable(i)} className="text-brand-dim hover:text-brand-red text-xs">✕</button>
                     </div>
@@ -854,9 +854,9 @@ export default function ClientsPage() {
                   onChange={e => setNewDeliverable(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addDeliverable()}
                   placeholder="Add deliverable..."
-                  className="flex-1 py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                  className="flex-1 py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                 />
-                <button onClick={addDeliverable} className="px-3 py-1.5 rounded-lg bg-[rgba(184,148,63,0.1)] text-brand-gold text-xs font-semibold">+</button>
+                <button onClick={addDeliverable} className="px-3 py-1.5 rounded-lg bg-accent-soft text-accent text-xs font-semibold">+</button>
               </div>
             </div>
 
@@ -894,7 +894,7 @@ export default function ClientsPage() {
                   onChange={e => setNewQuickWin(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addQuickWin()}
                   placeholder="Add quick win..."
-                  className="flex-1 py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                  className="flex-1 py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                 />
                 <button onClick={addQuickWin} className="px-3 py-1.5 rounded-lg bg-green-100 text-brand-green text-xs font-semibold">+</button>
               </div>
@@ -908,11 +908,11 @@ export default function ClientsPage() {
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Add notes about this client..."
                 rows={3}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-y"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-y"
               />
               <button
                 onClick={() => updateClient(selected.id, { notes })}
-                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(184,148,63,0.1)] border border-brand-gold text-brand-gold text-xs font-semibold hover:bg-[rgba(184,148,63,0.15)] transition-all"
+                className="mt-2 px-4 py-2 rounded-lg bg-accent-soft border border-accent text-accent text-xs font-semibold hover:bg-neutral-100 transition-all"
               >
                 Save Notes
               </button>
