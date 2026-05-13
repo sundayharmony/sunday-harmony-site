@@ -48,9 +48,15 @@ export default function ForgotPasswordPage() {
                 <span className="text-brand-green text-xl">✓</span>
               </div>
               <p className="text-sm text-brand-text font-semibold mb-2">Check your email</p>
-              <p className="text-xs text-brand-muted">
-                If an account exists with <span className="text-brand-text">{email}</span>, we sent a password reset link. It expires in 1 hour.
+              <p className="text-xs text-brand-muted mb-4">
+                If an account exists with <span className="text-brand-text">{email}</span>, we sent a <strong className="text-brand-text">6-digit code</strong>. It expires in <strong className="text-brand-text">15 minutes</strong>.
               </p>
+              <a
+                href={`/reset-password?email=${encodeURIComponent(email)}`}
+                className="inline-block w-full py-3 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+              >
+                Enter code &amp; new password
+              </a>
             </div>
           ) : (
             <>
@@ -60,7 +66,7 @@ export default function ForgotPasswordPage() {
                 </div>
               )}
               <p className="text-sm text-brand-muted mb-6">
-                Enter your email address and we&apos;ll send you a link to reset your password.
+                Enter your email address and we&apos;ll send you a 6-digit code to reset your password.
               </p>
               <form onSubmit={handleSubmit}>
                 <div className="mb-5">
@@ -80,7 +86,7 @@ export default function ForgotPasswordPage() {
                   disabled={loading}
                   className="w-full py-3.5 rounded-xl bg-brand-gold text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(184,148,63,0.25)] transition-all disabled:opacity-60"
                 >
-                  {loading ? 'Sending...' : 'Send Reset Link'}
+                  {loading ? 'Sending...' : 'Send reset code'}
                 </button>
               </form>
             </>
