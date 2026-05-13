@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification } from '@/lib/db'
+import { removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
+import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getFileById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -89,6 +90,15 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: 'Missing file id' }, { status: 400 })
+    }
+
+    const existing = await getFileById(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    }
+
+    if (existing.file_url) {
+      await removeClientFileByPublicUrlIfOurs(existing.file_url)
     }
 
     const success = await deleteFileRecord(id)

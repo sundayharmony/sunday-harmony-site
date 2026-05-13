@@ -99,6 +99,17 @@ Login and contact endpoints use an in-memory rate limiter (`src/lib/rate-limit.t
 
 Apply `supabase-migration-005-stripe-webhook-events.sql` (or the matching block in `supabase-schema.sql`) so duplicate Stripe deliveries are ignored after a successful run. Test locally with the [Stripe CLI](https://stripe.com/docs/stripe-cli): `stripe listen --forward-to localhost:3000/api/stripe/webhook`. Example event payloads for manual testing live under `tests/fixtures/`.
 
+## Client file vault (Supabase Storage)
+
+Admin and client **Document vault** uploads go to a **public** Storage bucket `client-files` (object keys include UUIDs). One-time setup:
+
+1. In Supabase **SQL Editor**, run [`supabase-migration-006-client-files-bucket.sql`](supabase-migration-006-client-files-bucket.sql) **or** create a bucket named `client-files` in **Storage** and mark it **Public** with a **4 MB** file size limit if you prefer the dashboard.
+2. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set (same as the rest of the app).
+
+**Limits:** uploads are capped at **4 MB** per file in code (`src/lib/client-files-storage.ts`) to stay within typical **Vercel serverless request body** limits. Raising the limit requires a compatible Vercel plan and confidence your function timeout and body parser behavior support larger payloads.
+
+**Allowed types:** PDF, common images, plain text, CSV, Word, Excel, zip (see allowlist in `client-files-storage.ts`). Deletes remove both the DB row and the Storage object when the `file_url` is a Supabase public object URL for this bucket.
+
 ## E2E smoke tests (optional)
 
 After `npm install`, install browsers once with `npx playwright install`. Run `npm run test:e2e` with the dev server stopped (Playwright starts `next dev` via config) or set `PLAYWRIGHT_BASE_URL` to a running app URL.
