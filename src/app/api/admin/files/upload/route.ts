@@ -88,11 +88,9 @@ export async function POST(request: NextRequest) {
     uploadedPublicUrl = null
 
     try {
-      const { data: clientUser } = await getSupabase()
-        .from('users')
-        .select('id')
-        .eq('client_id', client_id)
-        .single()
+      const { data: clientUser } = await (
+        getSupabase().from('users').select('id').eq('client_id', client_id).single()
+      )
 
       if (clientUser) {
         await createNotification({

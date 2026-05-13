@@ -64,11 +64,9 @@ export async function POST(request: NextRequest) {
     const clientData = await getClientById(client_id)
     if (clientData) {
       // Find user with this client_id to send notification
-      const { data: clientUser } = await getSupabase()
-        .from('users')
-        .select('id')
-        .eq('client_id', client_id)
-        .single()
+      const { data: clientUser } = await (
+        getSupabase().from('users').select('id').eq('client_id', client_id).single()
+      )
 
       if (clientUser) {
         await createNotification({

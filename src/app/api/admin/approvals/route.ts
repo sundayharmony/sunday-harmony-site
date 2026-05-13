@@ -69,15 +69,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create notification for client
-    const clientUser = await getSupabase()
-      .from('users')
-      .select('id')
-      .eq('client_id', client_id)
-      .single()
+    const { data: clientUser } = await (
+      getSupabase().from('users').select('id').eq('client_id', client_id).single()
+    )
 
-    if (clientUser.data) {
+    if (clientUser) {
       await createNotification({
-        user_id: clientUser.data.id,
+        user_id: clientUser.id,
         title: 'Content Needs Approval',
         message: title,
         type: 'approval',

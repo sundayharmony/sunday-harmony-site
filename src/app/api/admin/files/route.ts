@@ -57,15 +57,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create notification for client
-    const sbClient = await getSupabase()
-      .from('users')
-      .select('id')
-      .eq('client_id', client_id)
-      .single()
+    const { data: notifyUser } = await (
+      getSupabase().from('users').select('id').eq('client_id', client_id).single()
+    )
 
-    if (sbClient.data) {
+    if (notifyUser) {
       await createNotification({
-        user_id: sbClient.data.id,
+        user_id: notifyUser.id,
         title: 'New File Shared',
         message: name,
         type: 'file',

@@ -43,15 +43,13 @@ export async function POST(request: Request) {
   })
 
   // Create in-app notification for client
-  const clientUser = await getSupabase()
-    .from('users')
-    .select('id')
-    .eq('client_id', clientId)
-    .single()
+  const { data: clientUser } = await (
+    getSupabase().from('users').select('id').eq('client_id', clientId).single()
+  )
 
-  if (clientUser.data) {
+  if (clientUser) {
     await createNotification({
-      user_id: clientUser.data.id,
+      user_id: clientUser.id,
       title: 'New Message',
       message: text.trim().substring(0, 50),
       type: 'message',
