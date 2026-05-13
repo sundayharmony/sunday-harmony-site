@@ -1,11 +1,17 @@
 'use client'
 
-import { useState, FormEvent, Suspense } from 'react'
+import { useState, useEffect, FormEvent, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
-  const token = searchParams.get('token')
+  const emailFromUrl = searchParams.get('email') || ''
+  const [email, setEmail] = useState(emailFromUrl)
+
+  useEffect(() => {
+    if (emailFromUrl) setEmail(emailFromUrl)
+  }, [emailFromUrl])
+  const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -16,6 +22,14 @@ function ResetPasswordForm() {
     e.preventDefault()
     setError('')
 
+    if (!email.trim()) {
+      setError('Email is required')
+      return
+    }
+    if (!code.trim()) {
+      setError('Enter the 6-digit code from your email')
+      return
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters')
       return
@@ -34,7 +48,11 @@ function ResetPasswordForm() {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          code: code.trim().replace(/\s/g, ''),
+          password,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -46,22 +64,6 @@ function ResetPasswordForm() {
       setError('Something went wrong. Please try again.')
     }
     setLoading(false)
-  }
-
-  if (!token) {
-    return (
-      <div className="w-full max-w-md text-center">
-        <div className="font-serif text-3xl font-extrabold text-brand-text mb-4">
-          Sunday <span className="text-brand-gold">Harmony</span>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-          <p className="text-sm text-brand-red">Invalid reset link. Please request a new password reset.</p>
-        </div>
-        <a href="/login" className="inline-block mt-6 text-xs text-brand-dim hover:text-brand-gold transition-colors">
-          &larr; Back to login
-        </a>
-      </div>
-    )
   }
 
   if (success) {
@@ -87,7 +89,7 @@ function ResetPasswordForm() {
         <a href="/" className="font-serif text-3xl font-extrabold text-brand-text">
           Sunday <span className="text-brand-gold">Harmony</span>
         </a>
-        <p className="text-sm text-brand-muted mt-2">Set your new password</p>
+        <p className="text-sm text-brand-muted mt-2">Enter your code and new password</p>
       </div>
 
       <div className="bg-white border border-brand-border rounded-2xl p-8 shadow-sm">
@@ -97,9 +99,40 @@ function ResetPasswordForm() {
           </div>
         )}
 
+        <p className="text-xs text-brand-muted mb-6">
+          Use the 6-digit code from your email (valid for 15 minutes). Then choose a new password.
+        </p>
+
         <form onSubmit={handleSubmit}>
           <div className="mb-5">
-            <label htmlFor="reset-password-new" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">New Password</label>
+            <label htmlFor="reset-email" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">Email</label>
+            <input
+              id="reset-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@business.com"
+              required
+              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+            />
+          </div>
+          <div className="mb-5">
+            <label htmlFor="reset-code" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">Verification code</label>
+            <input
+              id="reset-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={8}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="6-digit code"
+              required
+              className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm tracking-widest outline-none focus:border-brand-gold transition-colors"
+            />
+          </div>
+          <div className="mb-5">
+            <label htmlFor="reset-password-new" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">New password</label>
             <input
               id="reset-password-new"
               type="password"
@@ -111,7 +144,7 @@ function ResetPasswordForm() {
             />
           </div>
           <div className="mb-6">
-            <label htmlFor="reset-password-confirm" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">Confirm Password</label>
+            <label htmlFor="reset-password-confirm" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">Confirm password</label>
             <input
               id="reset-password-confirm"
               type="password"
@@ -127,13 +160,16 @@ function ResetPasswordForm() {
             disabled={loading}
             className="w-full py-3.5 rounded-xl bg-brand-gold text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(184,148,63,0.25)] transition-all disabled:opacity-60"
           >
-            {loading ? 'Resetting...' : 'Reset Password'}
+            {loading ? 'Resetting...' : 'Reset password'}
           </button>
         </form>
       </div>
 
-      <div className="text-center mt-6">
-        <a href="/login" className="text-xs text-brand-dim hover:text-brand-gold transition-colors">
+      <div className="text-center mt-6 space-y-2">
+        <a href="/forgot-password" className="block text-xs text-brand-dim hover:text-brand-gold transition-colors">
+          Request a new code
+        </a>
+        <a href="/login" className="block text-xs text-brand-dim hover:text-brand-gold transition-colors">
           &larr; Back to login
         </a>
       </div>
