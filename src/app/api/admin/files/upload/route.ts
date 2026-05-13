@@ -88,15 +88,15 @@ export async function POST(request: NextRequest) {
     uploadedPublicUrl = null
 
     try {
-      const sbClient = getSupabase()
+      const { data: clientUser } = await getSupabase()
         .from('users')
         .select('id')
         .eq('client_id', client_id)
         .single()
 
-      if (sbClient.data) {
+      if (clientUser) {
         await createNotification({
-          user_id: sbClient.data.id,
+          user_id: clientUser.id,
           title: 'New File Shared',
           message: displayName,
           type: 'file',

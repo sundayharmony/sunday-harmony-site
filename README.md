@@ -110,6 +110,10 @@ Admin and client **Document vault** uploads go to a **public** Storage bucket `c
 
 **Allowed types:** PDF, common images, plain text, CSV, Word, Excel, zip (see allowlist in `client-files-storage.ts`). Deletes remove both the DB row and the Storage object when the `file_url` is a Supabase public object URL for this bucket.
 
+## Admin Leads — Google Places discovery
+
+The **Find Businesses** tool on `/admin/leads` calls Google’s **Places API (New)** (`places:searchText`). For production (e.g. Vercel), set **`GOOGLE_PLACES_API_KEY`** in the host’s environment variables, enable **Places API (New)** on that key in [Google Cloud Console](https://console.cloud.google.com/), and redeploy. Without the key, the API returns **503** and the UI shows the server error message.
+
 ## E2E smoke tests (optional)
 
 After `npm install`, install browsers once with `npx playwright install`. Run `npm run test:e2e` with the dev server stopped (Playwright starts `next dev` via config) or set `PLAYWRIGHT_BASE_URL` to a running app URL.

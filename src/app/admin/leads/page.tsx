@@ -167,9 +167,13 @@ export default function LeadsPage() {
           maxResults: parseInt(discoveryQuery.maxResults || '10', 10),
         }),
       })
-      if (!res.ok) throw new Error('Discovery request failed')
-      const data = await res.json()
-      setProspects(Array.isArray(data?.results) ? data.results : [])
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        console.error('Discovery request failed', res.status, body)
+        setError(typeof body.error === 'string' ? body.error : 'Failed to discover businesses')
+        return
+      }
+      setProspects(Array.isArray(body?.results) ? body.results : [])
       setError('')
     } catch (err) {
       console.error(err)
