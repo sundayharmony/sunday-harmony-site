@@ -9,6 +9,7 @@ html {
 }
 
 body {
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
   background: #ffffff;
   color: #374151;
   -webkit-font-smoothing: antialiased;

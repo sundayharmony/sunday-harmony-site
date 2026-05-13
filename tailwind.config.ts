@@ -25,8 +25,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['Montserrat', 'Helvetica Neue', 'Arial', 'sans-serif'],
-        serif: ['Montserrat', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['var(--font-montserrat)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-montserrat)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
     },
   },

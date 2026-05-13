@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
           to: email,
           subject: `Welcome to Sunday Harmony, ${escHtml((name || '').split(' ')[0] || 'there')}!`,
           html: `
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+            <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 Welcome to Sunday Harmony
               </h2>

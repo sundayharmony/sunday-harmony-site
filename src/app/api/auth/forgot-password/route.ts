@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
         to: normalizedEmail,
         subject: 'Your Password Reset Code \u2014 Sunday Harmony',
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               Password Reset Code
             </h2>
