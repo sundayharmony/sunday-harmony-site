@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getStripe } from '@/lib/stripe'
-import { getClientByStripeCustomerId, getClientByStripeSubscriptionId, updateClient } from '@/lib/db'
+import {
+  getClientById,
+  getClientByStripeCustomerId,
+  getClientByStripeSubscriptionId,
+  updateClient,
+} from '@/lib/db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +39,54 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    if (event.type === 'checkout.session.completed') {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session
+      if (checkoutSession.mode === 'subscription') {
+        const clientIdMeta = checkoutSession.metadata?.client_id || checkoutSession.client_reference_id
+        const customerRaw = checkoutSession.customer
+        const customerId = typeof customerRaw === 'string' ? customerRaw : customerRaw?.id
+        const subRaw = checkoutSession.subscription
+        const subscriptionId = typeof subRaw === 'string' ? subRaw : subRaw?.id
+
+        if (subscriptionId && customerId) {
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
+          const stripeSubscriptionId = subscription.id
+          const stripeCustomerId = String(subscription.customer)
+          const subscriptionPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number })
+            .current_period_end
+
+          let client =
+            (clientIdMeta ? await getClientById(clientIdMeta) : undefined) ||
+            (await getClientByStripeCustomerId(stripeCustomerId))
+
+          if (client) {
+            await updateClient(client.id, {
+              stripe_subscription_id: stripeSubscriptionId,
+              stripe_customer_id: stripeCustomerId,
+              billing_status: toBillingStatus(subscription.status),
+              is_potential: false,
+              next_billing_date: subscriptionPeriodEnd
+                ? new Date(subscriptionPeriodEnd * 1000).toISOString()
+                : undefined,
+            })
+          }
+        }
+      }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription
+      const stripeSubscriptionId = subscription.id
+      const client = await getClientByStripeSubscriptionId(stripeSubscriptionId)
+      if (client) {
+        await updateClient(client.id, {
+          stripe_subscription_id: '',
+          billing_status: 'not_started',
+          next_billing_date: undefined,
+        })
+      }
+    }
+
     if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
       const subscription = event.data.object as Stripe.Subscription
       const stripeSubscriptionId = subscription.id
@@ -61,12 +114,12 @@ export async function POST(req: NextRequest) {
       const stripeCustomerId = String(invoice.customer || '')
       const client = stripeCustomerId ? await getClientByStripeCustomerId(stripeCustomerId) : undefined
       if (client) {
+        const paidAtRaw = invoice.status_transitions?.paid_at
+        const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null
         await updateClient(client.id, {
           billing_status: 'paid',
           is_potential: false,
-          last_payment_at: invoice.status_transitions?.paid_at
-            ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
-            : new Date().toISOString(),
+          last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
         })
       }
     }

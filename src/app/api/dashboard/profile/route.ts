@@ -37,6 +37,10 @@ export async function GET() {
     monthly_price: client.monthly_price || 0,
     start_date: client.start_date || new Date().toISOString(),
     status: client.status || 'active',
+    billing_status: client.billing_status || 'not_started',
+    next_billing_date: client.next_billing_date || null,
+    last_payment_at: client.last_payment_at || null,
+    stripe_customer_id: client.stripe_customer_id || '',
     deliverables: Array.isArray(client.deliverables) ? client.deliverables : [],
     quick_wins: Array.isArray(client.quick_wins) ? client.quick_wins : [],
   })

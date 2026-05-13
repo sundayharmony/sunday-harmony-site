@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import StatCard from '@/components/ui/StatCard'
 
 interface ClientData {
@@ -11,14 +11,24 @@ interface ClientData {
   monthly_price: number
   start_date: string
   status: string
+  billing_status?: string
+  next_billing_date?: string | null
+  last_payment_at?: string | null
+  stripe_customer_id?: string
 }
 
-interface Invoice {
+interface StripeInvoiceRow {
   id: string
-  date: string
-  amount: number
-  status: 'paid' | 'current' | 'overdue'
-  desc: string
+  number: string | null
+  status: string | null
+  amount_paid: number
+  amount_due: number
+  currency: string
+  hosted_invoice_url: string | null
+  created: number
+  period_start: number | null
+  period_end: number | null
+  paid_at: string | null
 }
 
 const tierLabels: Record<string, string> = {
@@ -30,64 +40,74 @@ const tierLabels: Record<string, string> = {
 
 const statusStyles: Record<string, { color: string; bg: string; label: string }> = {
   paid: { color: '#2d8a62', bg: '#f0fdf4', label: 'Paid' },
-  current: { color: '#2e7bb5', bg: '#eff6ff', label: 'Current' },
-  overdue: { color: '#c94a42', bg: '#fef2f2', label: 'Overdue' },
+  current: { color: '#2e7bb5', bg: '#eff6ff', label: 'Open' },
+  overdue: { color: '#c94a42', bg: '#fef2f2', label: 'Issue' },
 }
 
-function generateInvoices(startDate: string, monthlyPrice: number): Invoice[] {
-  const startTime = startDate ? new Date(startDate).getTime() : new Date().getTime()
-  const start = new Date(startTime)
-  const now = new Date()
-  const invoices: Invoice[] = []
+function stripeInvoiceUiStatus(status: string | null): keyof typeof statusStyles {
+  if (status === 'paid') return 'paid'
+  if (status === 'open' || status === 'draft') return 'current'
+  if (status === 'uncollectible' || status === 'void') return 'overdue'
+  return 'current'
+}
 
-  // Generate one invoice per month from start_date to now
-  const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  let counter = 1
-
-  while (cursor <= currentMonth) {
-    const isCurrentMonth = cursor.getFullYear() === currentMonth.getFullYear() && cursor.getMonth() === currentMonth.getMonth()
-    const monthName = cursor.toLocaleDateString ? cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'
-
-    invoices.push({
-      id: `INV-${String(counter).padStart(3, '0')}`,
-      date: cursor.toISOString().split('T')[0],
-      amount: monthlyPrice,
-      status: isCurrentMonth ? 'current' : 'paid',
-      desc: monthName,
-    })
-
-    cursor.setMonth(cursor.getMonth() + 1)
-    counter++
+function formatMoneyCents(cents: number, currency: string): string {
+  const cur = (currency || 'usd').toUpperCase()
+  try {
+    return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: cur })
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`
   }
-
-  // Return newest first
-  return invoices.reverse()
-}
-
-function getNextInvoiceDate(invoices: Invoice[]): string {
-  if (invoices.length === 0) return '—'
-  // The most recent invoice is the current month; next invoice is the following month
-  const latest = new Date(invoices[0].date)
-  latest.setMonth(latest.getMonth() + 1)
-  return latest.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 export default function BillingPage() {
   const [client, setClient] = useState<ClientData | null>(null)
+  const [invoices, setInvoices] = useState<StripeInvoiceRow[]>([])
+  const [invoiceNote, setInvoiceNote] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/dashboard/profile')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { setClient(data); setLoading(false) })
-      .catch(() => setLoading(false))
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [profileRes, invRes] = await Promise.all([
+          fetch('/api/dashboard/profile'),
+          fetch('/api/dashboard/billing/invoices'),
+        ])
+        if (cancelled) return
+        const profile = profileRes.ok ? await profileRes.json() : null
+        setClient(profile)
+        const invPayload = invRes.ok ? await invRes.json().catch(() => ({})) : {}
+        setInvoices(Array.isArray(invPayload.invoices) ? invPayload.invoices : [])
+        setInvoiceNote(typeof invPayload.message === 'string' ? invPayload.message : null)
+      } catch {
+        if (!cancelled) {
+          setClient(null)
+          setInvoices([])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   const monthlyPrice = client?.monthly_price || 0
-  const invoices = client ? generateInvoices(client.start_date, monthlyPrice) : []
-  const totalPaid = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0)
-  const nextInvoice = getNextInvoiceDate(invoices)
+  const totalPaid = useMemo(
+    () => invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (i.amount_paid || 0), 0),
+    [invoices]
+  )
+
+  const nextInvoiceLabel = useMemo(() => {
+    if (client?.next_billing_date) {
+      return new Date(client.next_billing_date).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    }
+    return '—'
+  }, [client?.next_billing_date])
 
   if (loading) {
     return (
@@ -101,7 +121,7 @@ export default function BillingPage() {
     <div>
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Billing</h1>
-        <p className="text-sm text-brand-muted">View your plan, invoices, and payment history.</p>
+        <p className="text-sm text-brand-muted">Your plan on file and invoice history from Stripe.</p>
       </div>
 
       {/* Summary Cards */}
@@ -112,13 +132,13 @@ export default function BillingPage() {
           color="#c9a96e"
         />
         <StatCard
-          label="Monthly Rate"
+          label="Monthly Rate (on file)"
           value={`$${monthlyPrice.toLocaleString()}`}
           color="#4a9e7d"
         />
         <StatCard
-          label="Total Paid"
-          value={`$${totalPaid.toLocaleString()}`}
+          label="Total Paid (Stripe)"
+          value={formatMoneyCents(totalPaid, invoices[0]?.currency || 'usd')}
           color="#3a8bc2"
         />
         <StatCard
@@ -143,8 +163,8 @@ export default function BillingPage() {
             <div className="text-sm text-brand-text font-semibold">Monthly</div>
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Next Invoice</div>
-            <div className="text-sm text-brand-text font-semibold">{nextInvoice}</div>
+            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Next billing</div>
+            <div className="text-sm text-brand-text font-semibold">{nextInvoiceLabel}</div>
           </div>
           <div>
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
@@ -153,48 +173,61 @@ export default function BillingPage() {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Payment Method</div>
-            <div className="text-sm text-brand-text font-semibold">Contact us to set up</div>
+            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Payment status</div>
+            <div className="text-sm text-brand-text font-semibold">
+              {client?.billing_status ? client.billing_status.replace('_', ' ') : '—'}
+            </div>
           </div>
           <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Annual Value</div>
+            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Annual value (plan rate)</div>
             <div className="text-sm text-brand-gold font-semibold">${(monthlyPrice * 12).toLocaleString()}/yr</div>
           </div>
         </div>
+        {invoiceNote && (
+          <p className="mt-4 text-xs text-brand-dim">{invoiceNote}</p>
+        )}
       </div>
 
       {/* Invoice History */}
       <div className="bg-white border border-brand-border rounded-2xl p-6">
-        <h2 className="text-base font-bold text-brand-text mb-4">Invoice History</h2>
+        <h2 className="text-base font-bold text-brand-text mb-4">Invoice History (Stripe)</h2>
 
         {invoices.length > 0 ? (
           <div className="space-y-2">
-            {/* Header */}
             <div className="grid grid-cols-5 gap-4 px-3 py-2 text-[10px] font-bold uppercase text-brand-dim">
               <span>Invoice</span>
-              <span>Period</span>
-              <span>Date</span>
+              <span>Issued</span>
               <span>Amount</span>
               <span>Status</span>
+              <span className="text-right">Receipt</span>
             </div>
             {invoices.map((inv) => {
-              const style = statusStyles[inv.status] || statusStyles.paid
+              const uiKey = stripeInvoiceUiStatus(inv.status)
+              const style = statusStyles[uiKey] || statusStyles.current
+              const cents = inv.amount_paid > 0 ? inv.amount_paid : inv.amount_due
+              const when = inv.created ? new Date(inv.created * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
               return (
                 <div
                   key={inv.id}
                   className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
                 >
-                  <span className="text-sm text-brand-text font-semibold">{inv.id}</span>
-                  <span className="text-sm text-brand-muted">{inv.desc}</span>
-                  <span className="text-sm text-brand-muted">
-                    {new Date(inv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span className="text-sm text-brand-text font-semibold">${inv.amount.toLocaleString()}</span>
+                  <span className="text-xs font-mono font-semibold text-brand-text">{inv.number || inv.id}</span>
+                  <span className="text-sm text-brand-muted">{when}</span>
+                  <span className="text-sm text-brand-text font-semibold">{formatMoneyCents(cents, inv.currency)}</span>
                   <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit"
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit capitalize"
                     style={{ color: style.color, background: style.bg }}
                   >
-                    {style.label}
+                    {inv.status || 'unknown'}
+                  </span>
+                  <span className="text-right text-sm">
+                    {inv.hosted_invoice_url ? (
+                      <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-brand-gold font-semibold hover:underline">
+                        View
+                      </a>
+                    ) : (
+                      <span className="text-brand-dim">—</span>
+                    )}
                   </span>
                 </div>
               )
@@ -203,8 +236,10 @@ export default function BillingPage() {
         ) : (
           <div className="text-center py-8">
             <div className="text-3xl mb-2">🧾</div>
-            <p className="text-sm text-brand-muted">No invoices yet.</p>
-            <p className="text-xs text-brand-dim mt-1">Invoices will appear here once your plan is active.</p>
+            <p className="text-sm text-brand-muted">No Stripe invoices to show yet.</p>
+            <p className="text-xs text-brand-dim mt-1">
+              {invoiceNote || 'Once billing is connected, your invoices will appear here.'}
+            </p>
           </div>
         )}
       </div>
