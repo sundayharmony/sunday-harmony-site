@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { createLead, getLeadByGooglePlaceId, getLeads, logActivity, updateLead } from '@/lib/db'
+import { createLead, deleteLead, getLeadByGooglePlaceId, getLeadById, getLeads, logActivity, updateLead } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,7 +133,7 @@ export async function PATCH(req: NextRequest) {
   // Whitelist allowed fields
   const allowedFields = [
     'status', 'notes', 'phone', 'email', 'business', 'industry', 'service', 'budget',
-    'first_name', 'last_name', 'source', 'website', 'location_text', 'last_contacted_at',
+    'first_name', 'last_name', 'source', 'website', 'location_text', 'last_contacted_at', 'message',
   ]
   const updates = Object.fromEntries(
     Object.entries(allUpdates).filter(([key]) => allowedFields.includes(key))
@@ -152,4 +152,29 @@ export async function PATCH(req: NextRequest) {
   })
 
   return NextResponse.json(lead)
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
+
+  const body = await req.json().catch(() => ({}))
+  const id = typeof body?.id === 'string' ? body.id.trim() : ''
+  if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
+
+  const existing = await getLeadById(id)
+  if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
+
+  const ok = await deleteLead(id)
+  if (!ok) return NextResponse.json({ error: 'Failed to delete lead' }, { status: 500 })
+
+  logActivity({
+    action: 'deleted',
+    entity_type: 'lead',
+    entity_id: id,
+    actor_email: session.user.email || 'admin',
+    details: `Deleted lead "${existing.first_name} ${existing.last_name}" (${existing.business})`,
+  })
+
+  return NextResponse.json({ ok: true })
 }

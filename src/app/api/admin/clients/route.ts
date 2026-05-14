@@ -9,6 +9,74 @@ function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+/** Plain-text fragment safe for email Subject headers (no HTML entities). */
+function safeSubjectName(str: string): string {
+  return (str || 'there').replace(/[\r\n\u0000]/g, ' ').replace(/[\u007F-\u009F]/g, '').trim().slice(0, 60) || 'there'
+}
+
+function sendNewClientWelcomeEmail(params: {
+  to: string
+  clientName: string
+  business: string
+  tierLabel: string
+  siteUrl: string
+  isPotential: boolean
+  loginPassword?: string
+}): void {
+  const { to, clientName, business, tierLabel, siteUrl, isPotential, loginPassword } = params
+  const first = (clientName || '').trim().split(/\s+/)[0] || 'there'
+  const fn = escHtml(first)
+  const biz = escHtml(business)
+  const tier = escHtml(tierLabel)
+
+  const intro = isPotential
+    ? `<p>Hi ${fn},</p><p>Thank you for connecting with Sunday Harmony. We've added <strong>${biz}</strong> to our client list as a <strong>potential</strong> engagement and will follow up with next steps.</p>`
+    : `<p>Hi ${fn},</p><p>We're excited to have <strong>${biz}</strong> on board! Your <strong>${tier}</strong> package is now active.</p>`
+
+  const credentialsBlock = loginPassword
+    ? `<div style="background:#f8f6f0;border-radius:8px;padding:16px;margin:20px 0">
+        <p style="margin:0 0 8px;font-size:13px;color:#666"><strong>Your login details</strong></p>
+        <p style="margin:0;font-size:13px;color:#333">Email: <strong>${escHtml(to)}</strong></p>
+        <p style="margin:0;font-size:13px;color:#333">Password: <strong>${escHtml(loginPassword)}</strong></p>
+        <p style="margin:8px 0 0;font-size:11px;color:#999">We recommend changing your password after your first login.</p>
+      </div>`
+    : `<p style="font-size:14px;color:#444;margin:16px 0">You can log in to your client dashboard with the email address above once your account has been activated. If you need access or have questions, reply to this email and we'll help right away.</p>`
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+  })
+
+  transporter
+    .sendMail({
+      from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
+      to,
+      subject: `Welcome to Sunday Harmony, ${safeSubjectName(first)}!`,
+      html: `
+            <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
+              <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
+                Welcome to Sunday Harmony
+              </h2>
+              ${intro}
+              <p>You can use your client dashboard to track progress, view deliverables, and message our team:</p>
+              <div style="text-align:center;margin:30px 0">
+                <a href="${escHtml(siteUrl)}/login" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+                  Open your dashboard
+                </a>
+              </div>
+              ${credentialsBlock}
+              <p style="font-size:13px;color:#666">If you have any questions, reply to this email or use the messaging feature in your dashboard.</p>
+              <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
+                - The Sunday Harmony Team
+              </p>
+            </div>
+          `,
+    })
+    .catch(err => console.error('Failed to send client welcome email:', err))
+}
+
 const tierLabels: Record<string, string> = {
   social_essentials: 'Social Essentials',
   spark: 'Spark',
@@ -82,59 +150,38 @@ export async function POST(req: NextRequest) {
     details: `Created client "${name}" (${business}) on ${tierLabels[packageTier] || packageTier} plan`,
   })
 
-  if (loginPassword) {
-    await createUser({
+  const trimmedPassword = typeof loginPassword === 'string' ? loginPassword.trim() : ''
+
+  if (trimmedPassword) {
+    const user = await createUser({
       email,
-      password: loginPassword,
+      password: trimmedPassword,
       name,
       role: 'client',
       client_id: client.id,
     })
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Client was saved but dashboard login could not be created (email may already exist). Fix in Supabase or use a different email.' },
+        { status: 409 }
+      )
+    }
+  }
 
-    // Send welcome email to client
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      try {
-        const siteUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: process.env.SMTP_SECURE === 'true',
-          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-        })
-
-        transporter.sendMail({
-          from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
-          to: email,
-          subject: `Welcome to Sunday Harmony, ${escHtml((name || '').split(' ')[0] || 'there')}!`,
-          html: `
-            <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
-              <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
-                Welcome to Sunday Harmony
-              </h2>
-              <p>Hi ${escHtml((name || '').split(' ')[0] || 'there')},</p>
-              <p>We're excited to have <strong>${escHtml(business)}</strong> on board! Your <strong>${escHtml(tierLabels[packageTier] || packageTier)}</strong> package is now active.</p>
-              <p>You can access your client dashboard to track progress, view deliverables, and message our team:</p>
-              <div style="text-align:center;margin:30px 0">
-                <a href="${siteUrl}/login" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
-                  Log In to Your Dashboard
-                </a>
-              </div>
-              <div style="background:#f8f6f0;border-radius:8px;padding:16px;margin:20px 0">
-                <p style="margin:0 0 8px;font-size:13px;color:#666"><strong>Your login details:</strong></p>
-                <p style="margin:0;font-size:13px;color:#333">Email: <strong>${escHtml(email)}</strong></p>
-                <p style="margin:0;font-size:13px;color:#333">Password: <strong>${escHtml(loginPassword)}</strong></p>
-                <p style="margin:8px 0 0;font-size:11px;color:#999">We recommend changing your password after your first login.</p>
-              </div>
-              <p style="font-size:13px;color:#666">If you have any questions, simply reply to this email or use the messaging feature in your dashboard.</p>
-              <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
-                â The Sunday Harmony Team
-              </p>
-            </div>
-          `,
-        }).catch(err => console.error('Failed to send welcome email:', err))
-      } catch (err) {
-        console.error('Welcome email setup failed:', err)
-      }
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      const siteUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      sendNewClientWelcomeEmail({
+        to: email,
+        clientName: name,
+        business,
+        tierLabel: tierLabels[packageTier] || packageTier,
+        siteUrl,
+        isPotential: normalizedIsPotential,
+        loginPassword: trimmedPassword || undefined,
+      })
+    } catch (err) {
+      console.error('Welcome email setup failed:', err)
     }
   }
 

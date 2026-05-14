@@ -185,7 +185,11 @@ export default function AdminApprovalsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: approvalId }),
       })
-      if (!res.ok) throw new Error('Failed to delete approval')
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body.error === 'string' ? body.error : 'Failed to delete approval')
+        return
+      }
       setApprovals(prev => prev.filter(a => a.id !== approvalId))
       setError('')
     } catch (err) {

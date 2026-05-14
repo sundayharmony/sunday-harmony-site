@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { getApprovalsByClient, createApproval, updateApproval, createNotification } from '@/lib/db'
+import { getApprovalsByClient, createApproval, updateApproval, deleteApproval, getApprovalById, createNotification, logActivity } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -110,6 +110,42 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(result, { status: 200 })
   } catch (error: unknown) {
     console.error('PUT /api/admin/approvals error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
+
+    const body = await request.json().catch(() => ({}))
+    const id = typeof body?.id === 'string' ? body.id.trim() : ''
+    if (!id) {
+      return NextResponse.json({ error: 'Missing approval id' }, { status: 400 })
+    }
+
+    const existing = await getApprovalById(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
+    }
+
+    const ok = await deleteApproval(id)
+    if (!ok) {
+      return NextResponse.json({ error: 'Failed to delete approval' }, { status: 500 })
+    }
+
+    logActivity({
+      action: 'deleted',
+      entity_type: 'approval',
+      entity_id: id,
+      actor_email: session.user.email || 'admin',
+      details: `Deleted approval "${existing.title}"`,
+    })
+
+    return NextResponse.json({ ok: true }, { status: 200 })
+  } catch (error: unknown) {
+    console.error('DELETE /api/admin/approvals error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

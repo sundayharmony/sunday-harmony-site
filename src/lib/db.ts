@@ -172,6 +172,15 @@ export async function updateLead(id: string, updates: Partial<Omit<Lead, 'id' | 
   return data
 }
 
+export async function deleteLead(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('leads').delete().eq('id', id)
+  if (error) {
+    console.error('deleteLead error:', error)
+    return false
+  }
+  return true
+}
+
 // ââââââââââ CLIENTS ââââââââââ
 export interface Client {
   id: string
@@ -534,6 +543,15 @@ export async function updateApproval(id: string, updates: Partial<Omit<Approval,
   const { data, error } = await getSupabase().from('approvals').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
   if (error) { console.error('updateApproval error:', error); return null }
   return data
+}
+
+export async function deleteApproval(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('approvals').delete().eq('id', id)
+  if (error) {
+    console.error('deleteApproval error:', error)
+    return false
+  }
+  return true
 }
 
 export async function isStripeWebhookEventRecorded(eventId: string): Promise<boolean> {
