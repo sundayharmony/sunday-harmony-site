@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getApprovalsByClient, updateApproval, getApprovalById } from '@/lib/db'
+import { getApprovalsByClient, updateApproval, getApprovalById, getClientById } from '@/lib/db'
+import {
+  getAdminNotifyEmail,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+  staffPortalEmailHtml,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +82,38 @@ export async function PUT(request: NextRequest) {
     const result = await updateApproval(id, updates)
     if (!result) {
       return NextResponse.json({ error: 'Failed to update approval' }, { status: 500 })
+    }
+
+    if (isSmtpConfigured()) {
+      try {
+        const c = await getClientById(clientId)
+        const who =
+          c && (c.name || c.business)
+            ? `${c.name || 'Client'}${c.business ? ` (${c.business})` : ''}`
+            : 'A client'
+        const statusLabel = status === 'approved' ? 'Approved' : 'Revision requested'
+        const fbRaw =
+          typeof client_feedback === 'string' ? client_feedback.trim().slice(0, 500) : ''
+        const bodyParagraphs = [
+          `${who} updated an approval in the client portal.`,
+          `Item: ${existing.title}`,
+          `Decision: ${statusLabel}`,
+        ]
+        if (fbRaw) bodyParagraphs.push(`Feedback: ${fbRaw}`)
+        const html = staffPortalEmailHtml({
+          heading: 'Client approval update',
+          bodyParagraphs,
+          pathWithQuery: `/admin/approvals?client=${encodeURIComponent(clientId)}`,
+        })
+        sendHtmlMailNonBlocking({
+          to: getAdminNotifyEmail(),
+          subject: sanitizeEmailSubjectPart(`Approval ${statusLabel}: ${existing.title}`),
+          html,
+          logLabel: 'dashboard-approval-to-staff',
+        })
+      } catch (e: unknown) {
+        console.error('Dashboard approval: staff notify email failed:', e)
+      }
     }
 
     return NextResponse.json(result, { status: 200 })

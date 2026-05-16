@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getTasksByClient, createTask, updateTask, deleteTask, getClientById, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import {
+  clientDashboardAlertEmailHtml,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,6 +82,29 @@ export async function POST(request: NextRequest) {
           type: 'task',
           link: '/dashboard/tasks',
         })
+      }
+    }
+
+    if (isSmtpConfigured() && clientData?.email) {
+      try {
+        const first = (clientData.name || 'there').split(' ')[0]
+        const html = clientDashboardAlertEmailHtml({
+          heading: 'New Task',
+          firstName: first,
+          bodyParagraphs: [
+            'The Sunday Harmony team added a new task for you:',
+            typeof title === 'string' ? title : String(title),
+          ],
+          dashboardPath: '/dashboard/tasks',
+        })
+        sendHtmlMailNonBlocking({
+          to: clientData.email,
+          subject: sanitizeEmailSubjectPart(`New task: ${title}`),
+          html,
+          logLabel: 'admin-task-to-client',
+        })
+      } catch (mailErr) {
+        console.error('Admin task: client email failed:', mailErr)
       }
     }
 

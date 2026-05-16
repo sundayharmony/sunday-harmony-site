@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { getApprovalsByClient, createApproval, updateApproval, deleteApproval, getApprovalById, createNotification, logActivity } from '@/lib/db'
+import { getApprovalsByClient, createApproval, updateApproval, deleteApproval, getApprovalById, createNotification, logActivity, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import {
+  clientDashboardAlertEmailHtml,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +87,32 @@ export async function POST(request: NextRequest) {
         type: 'approval',
         link: '/dashboard/approvals',
       })
+    }
+
+    if (isSmtpConfigured()) {
+      try {
+        const c = await getClientById(client_id)
+        if (c?.email) {
+          const first = (c.name || 'there').split(' ')[0]
+          const html = clientDashboardAlertEmailHtml({
+            heading: 'Content Needs Your Approval',
+            firstName: first,
+            bodyParagraphs: [
+              'The Sunday Harmony team shared something that needs your review:',
+              typeof title === 'string' ? title : String(title),
+            ],
+            dashboardPath: '/dashboard/approvals',
+          })
+          sendHtmlMailNonBlocking({
+            to: c.email,
+            subject: sanitizeEmailSubjectPart(`Please review: ${title}`),
+            html,
+            logLabel: 'admin-approval-to-client',
+          })
+        }
+      } catch (mailErr) {
+        console.error('Admin approval: client email failed:', mailErr)
+      }
     }
 
     return NextResponse.json(result, { status: 201 })

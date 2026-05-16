@@ -3,6 +3,12 @@ import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { removeClientFileByPublicUrlIfOurs, uploadClientFileToVault } from '@/lib/client-files-storage'
 import { createFileRecord, createNotification, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import {
+  clientDashboardAlertEmailHtml,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -103,6 +109,29 @@ export async function POST(request: NextRequest) {
       }
     } catch (notifErr) {
       console.error('Admin file upload: notification error:', notifErr)
+    }
+
+    if (isSmtpConfigured() && client.email) {
+      try {
+        const first = (client.name || 'there').split(' ')[0]
+        const html = clientDashboardAlertEmailHtml({
+          heading: 'New File Shared',
+          firstName: first,
+          bodyParagraphs: [
+            'The Sunday Harmony team shared a new file with you:',
+            displayName,
+          ],
+          dashboardPath: '/dashboard/files',
+        })
+        sendHtmlMailNonBlocking({
+          to: client.email,
+          subject: sanitizeEmailSubjectPart(`New file: ${displayName}`),
+          html,
+          logLabel: 'admin-file-upload-to-client',
+        })
+      } catch (mailErr) {
+        console.error('Admin file upload: client email failed:', mailErr)
+      }
     }
 
     return NextResponse.json(fileRecord, { status: 201 })

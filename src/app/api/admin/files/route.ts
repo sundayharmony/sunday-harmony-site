@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
-import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getFileById } from '@/lib/db'
+import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getFileById, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import {
+  clientDashboardAlertEmailHtml,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +75,32 @@ export async function POST(request: NextRequest) {
         type: 'file',
         link: '/dashboard/files',
       })
+    }
+
+    if (isSmtpConfigured()) {
+      try {
+        const c = await getClientById(client_id)
+        if (c?.email) {
+          const first = (c.name || 'there').split(' ')[0]
+          const html = clientDashboardAlertEmailHtml({
+            heading: 'New File Shared',
+            firstName: first,
+            bodyParagraphs: [
+              'The Sunday Harmony team shared a new file with you:',
+              typeof name === 'string' ? name : String(name),
+            ],
+            dashboardPath: '/dashboard/files',
+          })
+          sendHtmlMailNonBlocking({
+            to: c.email,
+            subject: sanitizeEmailSubjectPart(`New file: ${name}`),
+            html,
+            logLabel: 'admin-file-json-to-client',
+          })
+        }
+      } catch (mailErr) {
+        console.error('Admin file (JSON): client email failed:', mailErr)
+      }
     }
 
     return NextResponse.json(fileRecord, { status: 201 })

@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { getClients, createClient, updateClient, createUser, logActivity } from '@/lib/db'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { createEmailTransporter, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
 function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-/** Plain-text fragment safe for email Subject headers (no HTML entities). */
-function safeSubjectName(str: string): string {
-  return (str || 'there').replace(/[\r\n\u0000]/g, ' ').replace(/[\u007F-\u009F]/g, '').trim().slice(0, 60) || 'there'
 }
 
 function sendNewClientWelcomeEmail(params: {
@@ -42,18 +37,13 @@ function sendNewClientWelcomeEmail(params: {
       </div>`
     : `<p style="font-size:14px;color:#444;margin:16px 0">You can log in to your client dashboard with the email address above once your account has been activated. If you need access or have questions, reply to this email and we'll help right away.</p>`
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
-  })
+  const transporter = createEmailTransporter()
 
   transporter
     .sendMail({
       from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
       to,
-      subject: `Welcome to Sunday Harmony, ${safeSubjectName(first)}!`,
+      subject: `Welcome to Sunday Harmony, ${sanitizeEmailSubjectPart(first || 'there', 60)}!`,
       html: `
             <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
@@ -168,15 +158,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  if (isSmtpConfigured()) {
     try {
-      const siteUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       sendNewClientWelcomeEmail({
         to: email,
         clientName: name,
         business,
         tierLabel: tierLabels[packageTier] || packageTier,
-        siteUrl,
+        siteUrl: getPublicSiteUrl(),
         isPotential: normalizedIsPotential,
         loginPassword: trimmedPassword || undefined,
       })

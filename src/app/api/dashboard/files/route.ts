@@ -2,12 +2,43 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { removeClientFileByPublicUrlIfOurs, uploadClientFileToVault } from '@/lib/client-files-storage'
-import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById } from '@/lib/db'
+import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById, getClientById } from '@/lib/db'
+import {
+  getAdminNotifyEmail,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+  staffPortalEmailHtml,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const CATEGORY_OK = new Set(['report', 'graphic', 'content', 'brand', 'general'])
+
+async function notifyStaffClientFileUploaded(clientId: string, fileName: string) {
+  if (!isSmtpConfigured()) return
+  try {
+    const c = await getClientById(clientId)
+    const who =
+      c && (c.name || c.business)
+        ? `${c.name || 'Client'}${c.business ? ` (${c.business})` : ''}`
+        : 'A client'
+    const html = staffPortalEmailHtml({
+      heading: 'Client uploaded a file',
+      bodyParagraphs: [`${who} uploaded a file to the client vault.`, `File: ${fileName}`],
+      pathWithQuery: `/admin/files?client=${encodeURIComponent(clientId)}`,
+    })
+    sendHtmlMailNonBlocking({
+      to: getAdminNotifyEmail(),
+      subject: sanitizeEmailSubjectPart(`Client upload: ${fileName}`),
+      html,
+      logLabel: 'dashboard-file-to-staff',
+    })
+  } catch (e: unknown) {
+    console.error('Dashboard file: staff notify email failed:', e)
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -112,6 +143,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create file record' }, { status: 500 })
       }
 
+      await notifyStaffClientFileUploaded(clientId, fileRecord.name)
+
       return NextResponse.json(fileRecord, { status: 201 })
     }
 
@@ -136,6 +169,8 @@ export async function POST(request: NextRequest) {
     if (!fileRecord) {
       return NextResponse.json({ error: 'Failed to create file record' }, { status: 500 })
     }
+
+    await notifyStaffClientFileUploaded(clientId, fileRecord.name)
 
     return NextResponse.json(fileRecord, { status: 201 })
   } catch (error: unknown) {
