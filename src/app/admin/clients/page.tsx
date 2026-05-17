@@ -385,7 +385,10 @@ export default function ClientsPage() {
             <input
               type="checkbox"
               checked={form.isPotential}
-              onChange={e => setForm(prev => ({ ...prev, isPotential: e.currentTarget.checked }))}
+              onChange={e => {
+                const isPotential = (e.target as HTMLInputElement).checked
+                setForm(prev => ({ ...prev, isPotential }))
+              }}
             />
             Potential client (free until plan is activated)
           </label>
