@@ -243,6 +243,27 @@ export async function updateClient(id: string, updates: Partial<Omit<Client, 'id
   return data
 }
 
+export async function deleteUsersByClientId(clientId: string): Promise<boolean> {
+  const { error } = await getSupabase().from('users').delete().eq('client_id', clientId)
+  if (error) {
+    console.error('deleteUsersByClientId error:', error)
+    return false
+  }
+  return true
+}
+
+export async function deleteClient(id: string): Promise<boolean> {
+  const usersOk = await deleteUsersByClientId(id)
+  if (!usersOk) return false
+
+  const { error } = await getSupabase().from('clients').delete().eq('id', id)
+  if (error) {
+    console.error('deleteClient error:', error)
+    return false
+  }
+  return true
+}
+
 // ââââââââââ MESSAGES ââââââââââ
 export interface Message {
   id: string

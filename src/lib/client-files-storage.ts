@@ -155,3 +155,19 @@ export async function removeClientFileByPublicUrlIfOurs(fileUrl: string): Promis
   const { error } = await getSupabase().storage.from(CLIENT_FILES_BUCKET).remove([path])
   if (error) console.error('Storage remove error:', error)
 }
+
+/** Remove all objects under a client prefix in the vault bucket. */
+export async function removeAllClientFilesFromVault(clientId: string): Promise<void> {
+  const supabase = getSupabase()
+  const { data, error } = await supabase.storage.from(CLIENT_FILES_BUCKET).list(clientId, { limit: 1000 })
+  if (error) {
+    console.error('Storage list error:', error)
+    return
+  }
+  const paths = (data || [])
+    .filter(item => item.name)
+    .map(item => `${clientId}/${item.name}`)
+  if (paths.length === 0) return
+  const { error: removeErr } = await supabase.storage.from(CLIENT_FILES_BUCKET).remove(paths)
+  if (removeErr) console.error('Storage bulk remove error:', removeErr)
+}

@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getClients, createClient, updateClient, createUser, logActivity } from '@/lib/db'
+import {
+  getClients,
+  createClient,
+  updateClient,
+  deleteClient,
+  getClientById,
+  getFilesByClient,
+  createUser,
+  logActivity,
+} from '@/lib/db'
+import { removeAllClientFilesFromVault, removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { createEmailTransporter, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
 
@@ -213,4 +223,33 @@ export async function PATCH(req: NextRequest) {
   })
 
   return NextResponse.json(client)
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
+
+  const body = await req.json().catch(() => ({}))
+  const id = typeof body?.id === 'string' ? body.id.trim() : ''
+  if (!id) return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
+
+  const existing = await getClientById(id)
+  if (!existing) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+
+  const files = await getFilesByClient(id)
+  await Promise.all(files.map(f => removeClientFileByPublicUrlIfOurs(f.file_url)))
+  await removeAllClientFilesFromVault(id)
+
+  const ok = await deleteClient(id)
+  if (!ok) return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 })
+
+  logActivity({
+    action: 'deleted',
+    entity_type: 'client',
+    entity_id: id,
+    actor_email: session.user.email || 'admin',
+    details: `Deleted client "${existing.name}" (${existing.business})`,
+  })
+
+  return NextResponse.json({ ok: true })
 }

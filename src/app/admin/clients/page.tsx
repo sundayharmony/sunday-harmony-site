@@ -51,6 +51,7 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [billingStripeError, setBillingStripeError] = useState('')
   const [stripeAction, setStripeAction] = useState<string | null>(null)
@@ -113,6 +114,37 @@ export default function ClientsPage() {
       console.error(err)
       setError('Failed to update client. Please try again.')
       return null
+    }
+  }
+
+  const deleteSelectedClient = async () => {
+    if (!selected) return
+    const label = selected.name.trim() || selected.business
+    if (!window.confirm(
+      `Delete client "${label}" at ${selected.business}? Their dashboard login, messages, tasks, files, and billing records will be removed. This cannot be undone.`
+    )) return
+
+    try {
+      setDeleting(true)
+      const res = await fetch('/api/admin/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body.error === 'string' ? body.error : 'Failed to delete client')
+        return
+      }
+      setClients(prev => prev.filter(c => c.id !== selected.id))
+      setSelected(null)
+      setNotes('')
+      setError('')
+    } catch (err) {
+      console.error(err)
+      setError('Failed to delete client')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -448,6 +480,17 @@ export default function ClientsPage() {
                 <div className="text-sm text-brand-muted">{selected.business}</div>
               </div>
               <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">✕</button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => { void deleteSelectedClient() }}
+                disabled={deleting || saving || stripeAction !== null}
+                className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-100 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete client'}
+              </button>
             </div>
 
             {/* Status */}
