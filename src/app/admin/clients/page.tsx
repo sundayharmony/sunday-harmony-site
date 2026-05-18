@@ -19,6 +19,7 @@ interface Client {
 }
 
 const tierLabels: Record<string, string> = {
+  free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Spark',
   growth: 'Growth',
@@ -26,7 +27,11 @@ const tierLabels: Record<string, string> = {
 }
 
 const tierPrices: Record<string, number> = {
-  social_essentials: 250, spark: 500, growth: 1800, scale: 3500,
+  free: 0,
+  social_essentials: 250,
+  spark: 500,
+  growth: 1800,
+  scale: 3500,
 }
 
 export default function ClientsPage() {
@@ -148,7 +153,8 @@ export default function ClientsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          monthlyPrice: form.isPotential ? 0 : tierPrices[form.packageTier],
+          monthlyPrice:
+            form.isPotential || form.packageTier === 'free' ? 0 : tierPrices[form.packageTier],
         }),
       })
       if (!res.ok) {
@@ -174,10 +180,11 @@ export default function ClientsPage() {
 
   const activatePotentialClient = async () => {
     if (!selected) return
+    const isFree = selected.package_tier === 'free'
     await updateClient(selected.id, {
       is_potential: false,
-      monthly_price: tierPrices[selected.package_tier] || selected.monthly_price || 0,
-      billing_status: 'not_started',
+      monthly_price: isFree ? 0 : tierPrices[selected.package_tier] || selected.monthly_price || 0,
+      billing_status: isFree ? 'paid' : 'not_started',
     })
   }
 

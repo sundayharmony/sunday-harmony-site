@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS clients (
   email TEXT NOT NULL,
   phone TEXT,
   industry TEXT,
-  package_tier TEXT NOT NULL CHECK (package_tier IN ('social_essentials', 'spark', 'growth', 'scale')),
+  package_tier TEXT NOT NULL CHECK (package_tier IN ('free', 'social_essentials', 'spark', 'growth', 'scale')),
   monthly_price NUMERIC DEFAULT 0,
   start_date TEXT NOT NULL,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'churned')),

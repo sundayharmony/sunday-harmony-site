@@ -26,6 +26,7 @@ interface MessageData {
 }
 
 const tierLabels: Record<string, string> = {
+  free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Spark',
   growth: 'Growth',

@@ -1,6 +1,12 @@
 import { describe, it, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { getTierFromPriceId, monthlyPriceFromStripeUnitAmount } from '../stripe-catalog'
+import {
+  formatTierListPrice,
+  getTierFromPriceId,
+  isFreeTier,
+  isStripeBillableTier,
+  monthlyPriceFromStripeUnitAmount,
+} from '../stripe-catalog'
 
 describe('stripe-catalog', () => {
   const original = process.env
@@ -25,5 +31,14 @@ describe('stripe-catalog', () => {
   it('converts unit amount cents to dollars', () => {
     assert.equal(monthlyPriceFromStripeUnitAmount(50000), 500)
     assert.equal(monthlyPriceFromStripeUnitAmount(null), undefined)
+  })
+
+  it('identifies free tier', () => {
+    assert.equal(isFreeTier('free'), true)
+    assert.equal(isFreeTier('spark'), false)
+    assert.equal(isStripeBillableTier('spark'), true)
+    assert.equal(isStripeBillableTier('free'), false)
+    assert.equal(formatTierListPrice('free'), 'Free')
+    assert.equal(formatTierListPrice('spark'), '$500')
   })
 })

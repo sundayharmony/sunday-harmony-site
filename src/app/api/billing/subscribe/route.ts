@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeBillingClient } from '@/lib/billing-access'
 import { createOrUpdateSubscription, logBillingActivity } from '@/lib/billing-service'
-import { PACKAGE_TIERS, type PackageTier } from '@/lib/stripe-catalog'
+import { isFreeTier, STRIPE_BILLABLE_TIERS, type PackageTier } from '@/lib/stripe-catalog'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
 export const runtime = 'nodejs'
@@ -15,7 +15,13 @@ export async function POST(req: NextRequest) {
   const tier = typeof body.tier === 'string' ? body.tier.trim() : ''
   const paymentMethodId = typeof body.paymentMethodId === 'string' ? body.paymentMethodId.trim() : ''
 
-  if (!PACKAGE_TIERS.includes(tier as PackageTier)) {
+  if (isFreeTier(tier)) {
+    return NextResponse.json(
+      { error: 'Free tier cannot be purchased. Ask your admin or switch plans in billing.' },
+      { status: 400 }
+    )
+  }
+  if (!STRIPE_BILLABLE_TIERS.includes(tier as (typeof STRIPE_BILLABLE_TIERS)[number])) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 })
   }
   if (!paymentMethodId) {

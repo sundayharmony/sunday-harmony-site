@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react'
 import StripeElementsProvider from '@/components/billing/StripeElementsProvider'
 import EmbeddedSubscribeForm from '@/components/billing/EmbeddedSubscribeForm'
 import {
+  formatTierListPrice,
+  isFreeTier,
+  PACKAGE_TIERS,
   TIER_LABELS,
-  TIER_LIST_PRICES,
   type PackageTier,
 } from '@/lib/stripe-catalog'
 
@@ -137,8 +139,11 @@ export default function BillingPanel({
     if (!clientSecret) void loadSetupIntent()
   }
 
+  const clientOnFree = isFreeTier(client.package_tier)
+  const selectedIsFree = isFreeTier(tier)
+
   const runChangePlan = async () => {
-    if (!client.stripe_subscription_id?.trim()) return
+    if (!client.stripe_subscription_id?.trim() && !selectedIsFree) return
     setBusy('change_plan')
     setError('')
     try {
@@ -154,6 +159,9 @@ export default function BillingPanel({
       if (!res.ok) {
         setError(typeof data.error === 'string' ? data.error : 'Plan change failed')
         return
+      }
+      if (data.free) {
+        setCancelAtPeriodEnd(false)
       }
       onUpdated?.()
     } finally {
@@ -205,6 +213,12 @@ export default function BillingPanel({
     <div className="space-y-4 text-sm">
       {error && (
         <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>
+      )}
+
+      {clientOnFree && (
+        <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900">
+          <strong>Free testing tier</strong> — full dashboard access with no Stripe subscription or card required.
+        </div>
       )}
 
       <div className="text-xs text-brand-muted space-y-1">
@@ -263,7 +277,7 @@ export default function BillingPanel({
       <div>
         <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Plan</div>
         <div className="flex flex-wrap gap-1.5 mb-2">
-          {(Object.keys(TIER_LABELS) as PackageTier[]).map(key => (
+          {PACKAGE_TIERS.map(key => (
             <button
               key={key}
               type="button"
@@ -275,23 +289,27 @@ export default function BillingPanel({
                   : 'bg-gray-50 text-brand-dim border border-brand-border'
               }`}
             >
-              {TIER_LABELS[key]} (${TIER_LIST_PRICES[key]})
+              {TIER_LABELS[key]} ({formatTierListPrice(key)})
             </button>
           ))}
         </div>
-        {client.stripe_subscription_id?.trim() && (
+        {(client.stripe_subscription_id?.trim() || selectedIsFree) && tier !== client.package_tier && (
           <button
             type="button"
-            disabled={busy !== null || tier === client.package_tier}
+            disabled={busy !== null}
             onClick={() => void runChangePlan()}
             className="px-3 py-1.5 rounded-lg bg-white border border-brand-border text-xs font-semibold disabled:opacity-50"
           >
-            {busy === 'change_plan' ? 'Updating…' : 'Apply plan change (existing subscription)'}
+            {busy === 'change_plan'
+              ? 'Updating…'
+              : selectedIsFree
+                ? 'Switch to free (testing)'
+                : 'Apply plan change (existing subscription)'}
           </button>
         )}
       </div>
 
-      {!adminView && !client.is_potential && (
+      {!adminView && !client.is_potential && !clientOnFree && !selectedIsFree && (
         <div className="rounded-lg border border-brand-border bg-white p-4">
           <div className="text-[10px] font-bold uppercase text-brand-dim mb-3">
             {client.stripe_subscription_id?.trim() ? 'Update payment & resubscribe' : 'Subscribe'}
@@ -369,7 +387,7 @@ export default function BillingPanel({
         </div>
       )}
 
-      {client.stripe_subscription_id?.trim() && (
+      {client.stripe_subscription_id?.trim() && !clientOnFree && (
         <div className="flex flex-wrap gap-2 pt-2 border-t border-brand-border">
           {!cancelAtPeriodEnd && (
             <button

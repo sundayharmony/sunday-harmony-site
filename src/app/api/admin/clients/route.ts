@@ -79,6 +79,7 @@ function sendNewClientWelcomeEmail(params: {
 }
 
 const tierLabels: Record<string, string> = {
+  free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Spark',
   growth: 'Growth',
@@ -111,18 +112,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate package_tier is one of allowed values
-  const allowedTiers = ['social_essentials', 'spark', 'growth', 'scale']
+  const allowedTiers = ['free', 'social_essentials', 'spark', 'growth', 'scale']
   if (!allowedTiers.includes(packageTier)) {
     return NextResponse.json({ error: 'Invalid package tier' }, { status: 400 })
   }
 
-  // Validate monthly_price is positive
   if (monthlyPrice !== undefined && monthlyPrice !== null && monthlyPrice < 0) {
-    return NextResponse.json({ error: 'Monthly price must be positive' }, { status: 400 })
+    return NextResponse.json({ error: 'Monthly price cannot be negative' }, { status: 400 })
   }
 
   const normalizedIsPotential = Boolean(isPotential)
-  const normalizedMonthlyPrice = normalizedIsPotential ? 0 : (monthlyPrice || 0)
+  const isFree = packageTier === 'free'
+  const normalizedMonthlyPrice =
+    normalizedIsPotential || isFree ? 0 : (monthlyPrice ?? 0)
 
   const client = await createClient({
     name,
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
     start_date: new Date().toISOString(),
     status: 'active',
     is_potential: normalizedIsPotential,
-    billing_status: 'not_started',
+    billing_status: isFree ? 'paid' : 'not_started',
     notes: '',
     deliverables: deliverables || [],
     quick_wins: quickWins || [],

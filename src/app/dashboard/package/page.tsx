@@ -16,6 +16,20 @@ interface ClientData {
 
 const packages = [
   {
+    tier: 'free',
+    name: 'Free (Testing)',
+    price: 0,
+    color: '#6b7280',
+    tagline: 'Internal testing access',
+    features: [
+      'Full client dashboard',
+      'Messages, files, and tasks',
+      'No Stripe subscription required',
+      'For demos and QA only',
+    ],
+    ideal: 'Test accounts and internal demos — not for production clients.',
+  },
+  {
     tier: 'social_essentials',
     name: 'Social Essentials',
     price: 250,

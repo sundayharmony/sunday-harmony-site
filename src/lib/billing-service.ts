@@ -1,7 +1,13 @@
 import type Stripe from 'stripe'
 import { getClientById, logActivity, updateClient } from '@/lib/db'
 import { ensureStripeCustomerForClient } from '@/lib/stripe-customer-utils'
-import { getStripePriceIdForTier, type PackageTier } from '@/lib/stripe-catalog'
+import {
+  getStripePriceIdForTier,
+  isFreeTier,
+  isStripeBillableTier,
+  TIER_LIST_PRICES,
+  type PackageTier,
+} from '@/lib/stripe-catalog'
 import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
 import { getStripe } from '@/lib/stripe'
 import { isStripeMissingResource } from '@/lib/stripe-errors'
@@ -108,6 +114,36 @@ async function attachDefaultPaymentMethod(
   })
 }
 
+/** Assign free testing tier — no Stripe subscription; dashboard access without payment. */
+export async function setClientToFreeTier(
+  clientId: string
+): Promise<{ subscription: null } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const blocked = rejectPotential(client)
+  if (blocked) return blocked
+
+  const subId = client.stripe_subscription_id?.trim()
+  if (subId) {
+    try {
+      await getStripe().subscriptions.cancel(subId)
+    } catch (err) {
+      console.error('setClientToFreeTier cancel subscription:', err)
+    }
+  }
+
+  await updateClient(clientId, {
+    package_tier: 'free',
+    monthly_price: TIER_LIST_PRICES.free,
+    billing_status: 'paid',
+    is_potential: false,
+    stripe_subscription_id: '',
+    next_billing_date: undefined,
+  })
+
+  return { subscription: null }
+}
+
 export async function createOrUpdateSubscription(
   clientId: string,
   tier: PackageTier,
@@ -117,6 +153,13 @@ export async function createOrUpdateSubscription(
   if (!client) return { error: 'Client not found', status: 404 }
   const blocked = rejectPotential(client)
   if (blocked) return blocked
+
+  if (isFreeTier(tier)) {
+    return {
+      error: 'Free tier does not use card checkout. Switch plans in billing or ask your admin.',
+      status: 400,
+    }
+  }
 
   const priceId = getStripePriceIdForTier(tier)
   if (!priceId) {
@@ -169,14 +212,27 @@ export async function createOrUpdateSubscription(
 export async function changeSubscriptionTier(
   clientId: string,
   tier: PackageTier
-): Promise<{ subscription: Stripe.Subscription } | { error: string; status: number }> {
+): Promise<{ subscription: Stripe.Subscription | null } | { error: string; status: number }> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
   const blocked = rejectPotential(client)
   if (blocked) return blocked
 
+  if (isFreeTier(tier)) {
+    return setClientToFreeTier(clientId)
+  }
+
   const subId = client.stripe_subscription_id?.trim()
-  if (!subId) return { error: 'No active subscription', status: 400 }
+  if (!subId) {
+    return {
+      error: 'No active Stripe subscription. Use Subscribe to add a payment method first.',
+      status: 400,
+    }
+  }
+
+  if (!isStripeBillableTier(tier)) {
+    return { error: 'Invalid tier', status: 400 }
+  }
 
   const priceId = getStripePriceIdForTier(tier)
   if (!priceId) return { error: `Missing Stripe price for tier "${tier}"`, status: 500 }

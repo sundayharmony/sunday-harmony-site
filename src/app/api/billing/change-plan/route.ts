@@ -26,6 +26,10 @@ export async function POST(req: NextRequest) {
   }
 
   await logBillingActivity(auth.clientId, auth.actorEmail, `Changed plan to ${tier}`)
+  if (result.subscription === null) {
+    return NextResponse.json({ ok: true, free: true, subscription: null })
+  }
+
   return NextResponse.json({
     subscriptionId: result.subscription.id,
     status: result.subscription.status,

@@ -189,7 +189,7 @@ export interface Client {
   email: string
   phone?: string
   industry?: string
-  package_tier: 'social_essentials' | 'spark' | 'growth' | 'scale'
+  package_tier: 'free' | 'social_essentials' | 'spark' | 'growth' | 'scale'
   monthly_price: number
   start_date: string
   status: 'active' | 'paused' | 'churned'
