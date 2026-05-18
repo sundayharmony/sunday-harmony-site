@@ -575,44 +575,50 @@ export async function deleteApproval(id: string): Promise<boolean> {
   return true
 }
 
-export async function isStripeWebhookEventRecorded(eventId: string): Promise<boolean> {
+/** Insert event id before processing. Returns duplicate if already handled. */
+export async function claimStripeWebhookEvent(
+  eventId: string
+): Promise<'claimed' | 'duplicate' | 'failed'> {
   try {
-    const { data, error } = await getSupabase()
-      .from('stripe_webhook_events')
-      .select('id')
-      .eq('id', eventId)
-      .maybeSingle()
+    const { error } = await getSupabase().from('stripe_webhook_events').insert({ id: eventId })
     if (error) {
-      const msg = error.message || ''
-      if (msg.includes('does not exist') || msg.includes('schema cache')) {
-        return false
-      }
-      console.error('isStripeWebhookEventRecorded:', error)
-      return false
+      if (error.code === '23505') return 'duplicate'
+      console.error('claimStripeWebhookEvent:', error)
+      return 'failed'
     }
-    return Boolean(data)
+    return 'claimed'
   } catch (err) {
-    console.error('isStripeWebhookEventRecorded:', err)
-    return false
+    console.error('claimStripeWebhookEvent:', err)
+    return 'failed'
   }
 }
 
-export async function recordStripeWebhookEvent(eventId: string): Promise<void> {
+/** Release claim so Stripe retries can re-process after a handler failure. */
+export async function releaseStripeWebhookEvent(eventId: string): Promise<void> {
   try {
-    const { error } = await getSupabase().from('stripe_webhook_events').insert({ id: eventId })
-    if (error && error.code !== '23505') {
-      console.error('recordStripeWebhookEvent:', error)
-    }
+    const { error } = await getSupabase().from('stripe_webhook_events').delete().eq('id', eventId)
+    if (error) console.error('releaseStripeWebhookEvent:', error)
   } catch (err) {
-    console.error('recordStripeWebhookEvent:', err)
+    console.error('releaseStripeWebhookEvent:', err)
   }
 }
+
+let adminSeededThisProcess = false
 
 // ââââââââââ SEED DEFAULT ADMIN ââââââââââ
 export async function seedAdmin(): Promise<void> {
+  if (adminSeededThisProcess) return
+
+  const adminPass = process.env.ADMIN_PASSWORD
+  if (!adminPass) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('seedAdmin: ADMIN_PASSWORD is required in production')
+    }
+    return
+  }
+
   try {
     const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
-    const adminPass = process.env.ADMIN_PASSWORD || 'sundayharmony2025'
     const hashedPass = hashPassword(adminPass)
 
     // Use upsert to avoid duplicate key errors when getUserByEmail
@@ -625,8 +631,42 @@ export async function seedAdmin(): Promise<void> {
       )
     if (error && !error.message?.includes('duplicate') && !error.code?.startsWith('23')) {
       console.error('seedAdmin error:', error)
+    } else {
+      adminSeededThisProcess = true
     }
   } catch (err) {
     // Silently ignore seed failures â the admin likely already exists
   }
+}
+
+function normalizeLeadLoose(value?: string): string {
+  return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function normalizeLeadPhone(value?: string): string {
+  return (value || '').replace(/\D+/g, '')
+}
+
+/** Find duplicate lead by business + phone or website without loading all leads. */
+export async function findLeadDuplicate(
+  business: string,
+  phone?: string,
+  website?: string
+): Promise<Lead | undefined> {
+  const trimmed = business.trim()
+  if (!trimmed) return undefined
+
+  const { data, error } = await getSupabase().from('leads').select('*').ilike('business', trimmed)
+  if (error || !data?.length) return undefined
+
+  const businessNorm = normalizeLeadLoose(trimmed)
+  const phoneNorm = normalizeLeadPhone(phone)
+  const websiteNorm = normalizeLeadLoose(website)
+
+  return data.find(lead => {
+    if (normalizeLeadLoose(lead.business) !== businessNorm) return false
+    const samePhone = phoneNorm && normalizeLeadPhone(lead.phone) === phoneNorm
+    const sameWebsite = websiteNorm && normalizeLeadLoose(lead.website) === websiteNorm
+    return Boolean(samePhone || sameWebsite)
+  })
 }

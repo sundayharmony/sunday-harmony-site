@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeBillingMetrics } from '../billing-metrics'
+import { computeBillingMetrics, isPayingClient } from '../billing-metrics'
 
 describe('billing-metrics', () => {
   it('computes contracted and stripe MRR', () => {
@@ -32,5 +32,39 @@ describe('billing-metrics', () => {
     assert.equal(m.stripeMrr, 500)
     assert.equal(m.atRiskCount, 1)
     assert.equal(m.potentialCount, 1)
+    assert.equal(m.activePayingCount, 1)
+  })
+
+  it('isPayingClient matches paid/trial with subscription', () => {
+    assert.equal(
+      isPayingClient({
+        status: 'active',
+        is_potential: false,
+        monthly_price: 500,
+        billing_status: 'paid',
+        stripe_subscription_id: 'sub_1',
+      }),
+      true
+    )
+    assert.equal(
+      isPayingClient({
+        status: 'active',
+        is_potential: false,
+        monthly_price: 500,
+        billing_status: 'trial',
+        stripe_subscription_id: 'sub_1',
+      }),
+      true
+    )
+    assert.equal(
+      isPayingClient({
+        status: 'active',
+        is_potential: true,
+        monthly_price: 0,
+        billing_status: 'paid',
+        stripe_subscription_id: 'sub_1',
+      }),
+      false
+    )
   })
 })

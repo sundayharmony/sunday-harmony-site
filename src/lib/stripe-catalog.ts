@@ -10,6 +10,13 @@ export function getSiteBaseUrl(): string {
 
 export type PackageTier = Client['package_tier']
 
+export const PACKAGE_TIERS: PackageTier[] = [
+  'social_essentials',
+  'spark',
+  'growth',
+  'scale',
+]
+
 export const TIER_LABELS: Record<PackageTier, string> = {
   social_essentials: 'Social Essentials',
   spark: 'Spark',

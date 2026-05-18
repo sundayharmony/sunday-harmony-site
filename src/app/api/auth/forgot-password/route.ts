@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 requests per 15 minutes per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
-    if (!rl.allowed) {
+    const rlIp = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rlIp.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         { status: 429 }
@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
+    const rlEmail = rateLimit(`forgot-password:email:${normalizedEmail}`, 3, 15 * 60 * 1000)
+    if (!rlEmail.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
     const user = await getUserByEmail(normalizedEmail)
 
     // Always return success to prevent email enumeration
@@ -83,10 +90,7 @@ export async function POST(req: NextRequest) {
         `,
       })
     } else {
-      return NextResponse.json(
-        { error: 'Email service is not configured. Please contact support.' },
-        { status: 503 }
-      )
+      console.error('Forgot password: SMTP not configured')
     }
 
     return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeBillingClient } from '@/lib/billing-access'
 import { cancelSubscription, logBillingActivity, type CancelAction } from '@/lib/billing-service'
+import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,8 +21,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const result = await cancelSubscription(auth.clientId, action)
-  if ('error' in result) {
+  const result = await withStripeHandler(() => cancelSubscription(auth.clientId, action))
+  if (result instanceof NextResponse) return result
+  if (isServiceError(result)) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 

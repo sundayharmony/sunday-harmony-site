@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     start_date: new Date().toISOString(),
     status: 'active',
     is_potential: normalizedIsPotential,
-    billing_status: normalizedIsPotential ? 'trial' : 'not_started',
+    billing_status: 'not_started',
     notes: '',
     deliverables: deliverables || [],
     quick_wins: quickWins || [],

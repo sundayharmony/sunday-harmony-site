@@ -44,10 +44,12 @@ export default function BillingPanel({
     (client.package_tier as PackageTier) || 'spark'
   )
   const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [setupLoading, setSetupLoading] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false)
 
   const clientIdParam = adminView ? client.id : undefined
 
@@ -97,8 +99,10 @@ export default function BillingPanel({
   }, [refreshPaymentMethods, client.stripe_customer_id])
 
   useEffect(() => {
-    void loadSetupIntent()
-  }, [loadSetupIntent])
+    setCancelAtPeriodEnd(false)
+    setShowPaymentForm(false)
+    setClientSecret(null)
+  }, [client.id, client.stripe_subscription_id])
 
   const billingLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/billing`
 
@@ -119,10 +123,18 @@ export default function BillingPanel({
         setError(typeof data.error === 'string' ? data.error : 'Action failed')
         return
       }
+      if (data.subscription && typeof data.subscription.cancel_at_period_end === 'boolean') {
+        setCancelAtPeriodEnd(data.subscription.cancel_at_period_end)
+      }
       onUpdated?.()
     } finally {
       setBusy(null)
     }
+  }
+
+  const openPaymentForm = () => {
+    setShowPaymentForm(true)
+    if (!clientSecret) void loadSetupIntent()
   }
 
   const runChangePlan = async () => {
@@ -197,7 +209,12 @@ export default function BillingPanel({
 
       <div className="text-xs text-brand-muted space-y-1">
         <div>Payment status: <span className="font-semibold text-brand-text">{client.billing_status || 'not_started'}</span></div>
-        {client.next_billing_date && (
+        {cancelAtPeriodEnd && client.next_billing_date && (
+          <div className="text-amber-800 font-semibold">
+            Cancels on {new Date(client.next_billing_date).toLocaleDateString()}
+          </div>
+        )}
+        {!cancelAtPeriodEnd && client.next_billing_date && (
           <div>Next billing: {new Date(client.next_billing_date).toLocaleDateString()}</div>
         )}
         {client.last_payment_at && (
@@ -279,20 +296,33 @@ export default function BillingPanel({
           <div className="text-[10px] font-bold uppercase text-brand-dim mb-3">
             {client.stripe_subscription_id?.trim() ? 'Update payment & resubscribe' : 'Subscribe'}
           </div>
-          {setupLoading && <p className="text-xs text-brand-dim">Loading secure payment form…</p>}
-          {!setupLoading && clientSecret && (
-            <StripeElementsProvider clientSecret={clientSecret}>
-              <EmbeddedSubscribeForm
-                clientId={clientIdParam}
-                tier={tier}
-                onSuccess={() => {
-                  onUpdated?.()
-                  void refreshPaymentMethods()
-                  void loadSetupIntent()
-                }}
-                onError={setError}
-              />
-            </StripeElementsProvider>
+          {!showPaymentForm ? (
+            <button
+              type="button"
+              onClick={openPaymentForm}
+              className="w-full py-2 rounded-lg bg-accent-soft text-accent text-xs font-bold border border-accent"
+            >
+              {client.stripe_subscription_id?.trim() ? 'Add or update card' : 'Set up payment & subscribe'}
+            </button>
+          ) : (
+            <>
+              {setupLoading && <p className="text-xs text-brand-dim">Loading secure payment form…</p>}
+              {!setupLoading && clientSecret && (
+                <StripeElementsProvider clientSecret={clientSecret}>
+                  <EmbeddedSubscribeForm
+                    clientId={clientIdParam}
+                    tier={tier}
+                    onSuccess={() => {
+                      onUpdated?.()
+                      void refreshPaymentMethods()
+                      setShowPaymentForm(false)
+                      setClientSecret(null)
+                    }}
+                    onError={setError}
+                  />
+                </StripeElementsProvider>
+              )}
+            </>
           )}
         </div>
       )}
@@ -317,11 +347,16 @@ export default function BillingPanel({
                     type="button"
                     className="text-accent font-semibold"
                     onClick={async () => {
-                      await fetch('/api/billing/payment-methods', {
+                      const res = await fetch('/api/billing/payment-methods', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ paymentMethodId: pm.id }),
                       })
+                      const data = await res.json().catch(() => ({}))
+                      if (!res.ok) {
+                        setError(typeof data.error === 'string' ? data.error : 'Could not update default card')
+                        return
+                      }
                       void refreshPaymentMethods()
                     }}
                   >
@@ -336,22 +371,26 @@ export default function BillingPanel({
 
       {client.stripe_subscription_id?.trim() && (
         <div className="flex flex-wrap gap-2 pt-2 border-t border-brand-border">
-          <button
-            type="button"
-            disabled={busy !== null}
-            onClick={() => void runCancel('cancel_at_period_end')}
-            className="px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 disabled:opacity-50"
-          >
-            Cancel at period end
-          </button>
-          <button
-            type="button"
-            disabled={busy !== null}
-            onClick={() => void runCancel('resume')}
-            className="px-2 py-1.5 rounded-lg bg-green-50 border border-green-200 text-[10px] font-bold text-green-900 disabled:opacity-50"
-          >
-            Resume
-          </button>
+          {!cancelAtPeriodEnd && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void runCancel('cancel_at_period_end')}
+              className="px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 disabled:opacity-50"
+            >
+              Cancel at period end
+            </button>
+          )}
+          {cancelAtPeriodEnd && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void runCancel('resume')}
+              className="px-2 py-1.5 rounded-lg bg-green-50 border border-green-200 text-[10px] font-bold text-green-900 disabled:opacity-50"
+            >
+              Resume subscription
+            </button>
+          )}
           <button
             type="button"
             disabled={busy !== null}

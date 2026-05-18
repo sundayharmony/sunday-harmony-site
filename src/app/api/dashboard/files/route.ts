@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { removeClientFileByPublicUrlIfOurs, uploadClientFileToVault } from '@/lib/client-files-storage'
+import {
+  removeClientFileByPublicUrlIfOurs,
+  storageObjectPathFromPublicUrl,
+  uploadClientFileToVault,
+} from '@/lib/client-files-storage'
 import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById, getClientById } from '@/lib/db'
 import {
   getAdminNotifyEmail,
@@ -153,6 +157,13 @@ export async function POST(request: NextRequest) {
 
     if (!name || !file_url || !file_type) {
       return NextResponse.json({ error: 'Missing required fields: name, file_url, file_type' }, { status: 400 })
+    }
+
+    if (!storageObjectPathFromPublicUrl(file_url)) {
+      return NextResponse.json(
+        { error: 'Files must be uploaded through the secure upload form.' },
+        { status: 400 }
+      )
     }
 
     const fileRecord = await createFileRecord({

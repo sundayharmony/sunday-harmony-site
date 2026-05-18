@@ -23,7 +23,10 @@ export async function GET() {
 
   const clientId = (session.user as { clientId?: string }).clientId
   if (!clientId) {
-    return NextResponse.json([])
+    return NextResponse.json(
+      { error: 'No client account is linked to this login. Contact Sunday Harmony.' },
+      { status: 400 }
+    )
   }
 
   const messages = await getMessages(clientId)

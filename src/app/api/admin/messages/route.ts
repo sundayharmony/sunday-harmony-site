@@ -11,9 +11,12 @@ export async function GET(request: Request) {
   if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)
-  const clientId = searchParams.get('clientId')
+  const clientId = searchParams.get('clientId')?.trim()
+  if (!clientId) {
+    return NextResponse.json([])
+  }
 
-  const messages = clientId ? await getMessages(clientId) : await getMessages()
+  const messages = await getMessages(clientId)
   return NextResponse.json(messages)
 }
 

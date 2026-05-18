@@ -57,6 +57,17 @@ export default function EmbeddedSubscribeForm({
         }),
       })
       const payload = await res.json().catch(() => ({}))
+
+      if (res.status === 402 && payload.requiresAction && payload.clientSecret) {
+        const { error: authError } = await stripe.confirmCardPayment(payload.clientSecret)
+        if (authError) {
+          onError(authError.message || 'Authentication failed')
+          return
+        }
+        onSuccess()
+        return
+      }
+
       if (!res.ok) {
         onError(typeof payload.error === 'string' ? payload.error : 'Subscription failed')
         return

@@ -6,6 +6,7 @@ import {
   setDefaultPaymentMethod,
   logBillingActivity,
 } from '@/lib/billing-service'
+import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,8 +16,9 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeBillingClient(clientId)
   if (auth instanceof NextResponse) return auth
 
-  const result = await listPaymentMethods(auth.clientId)
-  if ('error' in result) {
+  const result = await withStripeHandler(() => listPaymentMethods(auth.clientId))
+  if (result instanceof NextResponse) return result
+  if (isServiceError(result)) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
@@ -33,8 +35,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'paymentMethodId is required' }, { status: 400 })
   }
 
-  const result = await setDefaultPaymentMethod(auth.clientId, paymentMethodId)
-  if ('error' in result) {
+  const result = await withStripeHandler(() =>
+    setDefaultPaymentMethod(auth.clientId, paymentMethodId)
+  )
+  if (result instanceof NextResponse) return result
+  if (isServiceError(result)) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
@@ -52,8 +57,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'paymentMethodId is required' }, { status: 400 })
   }
 
-  const result = await detachPaymentMethod(auth.clientId, paymentMethodId)
-  if ('error' in result) {
+  const result = await withStripeHandler(() =>
+    detachPaymentMethod(auth.clientId, paymentMethodId)
+  )
+  if (result instanceof NextResponse) return result
+  if (isServiceError(result)) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 

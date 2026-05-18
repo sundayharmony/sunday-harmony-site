@@ -14,6 +14,16 @@ export type BillingMetrics = {
   potentialCount: number
 }
 
+/** Active subscribed client with paid or trialing billing (excludes prospects). */
+export function isPayingClient(c: BillingMetricsClient): boolean {
+  return (
+    c.status === 'active' &&
+    !c.is_potential &&
+    Boolean(c.stripe_subscription_id?.trim()) &&
+    (c.billing_status === 'paid' || c.billing_status === 'trial')
+  )
+}
+
 /** Contracted MRR from plan on file (active, billing enabled, not potential). */
 export function computeContractedMrr(clients: BillingMetricsClient[]): number {
   return clients
@@ -39,9 +49,7 @@ export function computeBillingMetrics(clients: BillingMetricsClient[]): BillingM
   return {
     contractedMrr: computeContractedMrr(clients),
     stripeMrr: computeStripeMrr(clients),
-    activePayingCount: active.filter(
-      c => !c.is_potential && c.billing_status === 'paid' && c.stripe_subscription_id?.trim()
-    ).length,
+    activePayingCount: active.filter(isPayingClient).length,
     atRiskCount: clients.filter(c => c.billing_status === 'past_due' || c.billing_status === 'unpaid').length,
     potentialCount: clients.filter(c => c.is_potential).length,
   }

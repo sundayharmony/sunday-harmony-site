@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { createLead, deleteLead, getLeadByGooglePlaceId, getLeadById, getLeads, logActivity, updateLead } from '@/lib/db'
+import {
+  createLead,
+  deleteLead,
+  findLeadDuplicate,
+  getLeadByGooglePlaceId,
+  getLeadById,
+  getLeads,
+  logActivity,
+  updateLead,
+} from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,18 +81,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Secondary duplicate check for near-matches when place id is missing
-  const existingLeads = await getLeads()
-  const businessNorm = normalizeLoose(String(business))
-  const phoneNorm = normalizePhone(phone)
-  const websiteNorm = normalizeLoose(website)
-  const duplicate = existingLeads.find(lead => {
-    const sameBusiness = normalizeLoose(lead.business) === businessNorm
-    if (!sameBusiness) return false
-    const samePhone = phoneNorm && normalizePhone(lead.phone) === phoneNorm
-    const sameWebsite = websiteNorm && normalizeLoose(lead.website) === websiteNorm
-    return Boolean(samePhone || sameWebsite)
-  })
+  const duplicate = await findLeadDuplicate(String(business), phone, website)
   if (duplicate) {
     return NextResponse.json({ duplicate: true, lead: duplicate }, { status: 200 })
   }

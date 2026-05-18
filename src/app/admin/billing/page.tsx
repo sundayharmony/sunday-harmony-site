@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { computeBillingMetrics } from '@/lib/billing-metrics'
+import { computeBillingMetrics, isPayingClient } from '@/lib/billing-metrics'
 import { TIER_LABELS } from '@/lib/stripe-catalog'
 
 interface ClientRow {
@@ -59,12 +59,7 @@ export default function AdminBillingPage() {
     }
     if (filter === 'potential') return clients.filter(c => c.is_potential)
     if (filter === 'paying') {
-      return clients.filter(
-        c =>
-          !c.is_potential &&
-          c.stripe_subscription_id?.trim() &&
-          (c.billing_status === 'paid' || c.billing_status === 'trial')
-      )
+      return clients.filter(c => isPayingClient(c))
     }
     return clients
   }, [clients, filter])
