@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, FormEvent, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -51,9 +52,9 @@ function LoginForm() {
     <div className="w-full max-w-md">
       {/* Logo */}
       <div className="text-center mb-10">
-        <a href="/" className="font-serif text-3xl font-extrabold text-brand-text">
+        <Link href="/" className="font-serif text-3xl font-extrabold text-brand-text">
           Sunday <span className="text-accent">Harmony</span>
-        </a>
+        </Link>
         <p className="text-sm text-brand-muted mt-2">Sign in to your dashboard</p>
       </div>
 
@@ -83,7 +84,7 @@ function LoginForm() {
           <div className="mb-6">
             <div className="flex justify-between items-center mb-1.5">
               <label htmlFor="login-password" className="block text-xs font-semibold text-brand-muted tracking-wide">Password</label>
-              <a href="/forgot-password" className="text-[10px] text-accent hover:underline">Forgot password?</a>
+              <Link href="/forgot-password" className="text-[10px] text-accent hover:underline">Forgot password?</Link>
             </div>
             <input
               id="login-password"
@@ -106,9 +107,9 @@ function LoginForm() {
       </div>
 
       <div className="text-center mt-6">
-        <a href="/" className="text-xs text-brand-dim hover:text-accent transition-colors">
+        <Link href="/" className="text-xs text-brand-dim hover:text-accent transition-colors">
           &larr; Back to website
-        </a>
+        </Link>
       </div>
     </div>
   )

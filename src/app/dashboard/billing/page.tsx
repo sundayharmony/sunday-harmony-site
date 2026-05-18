@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import StatCard from '@/components/ui/StatCard'
 import BillingPanel from '@/components/billing/BillingPanel'
@@ -198,9 +199,9 @@ export default function BillingPage() {
       <div className="bg-accent-soft border border-accent rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
           Questions?{' '}
-          <a href="/dashboard/messages" className="text-accent font-semibold hover:underline">
+          <Link href="/dashboard/messages" className="text-accent font-semibold hover:underline">
             Message us
-          </a>
+          </Link>
         </p>
       </div>
     </div>

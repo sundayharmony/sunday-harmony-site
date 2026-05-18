@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, FormEvent, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
@@ -76,9 +77,9 @@ function ResetPasswordForm() {
           <p className="text-sm text-brand-green font-semibold mb-2">Password Reset Successful</p>
           <p className="text-sm text-brand-muted">Your password has been updated. You can now sign in with your new password.</p>
         </div>
-        <a href="/login" className="inline-block mt-6 px-6 py-3 rounded-xl bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all">
+        <Link href="/login" className="inline-block mt-6 px-6 py-3 rounded-xl bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all">
           Sign In
-        </a>
+        </Link>
       </div>
     )
   }
@@ -86,9 +87,9 @@ function ResetPasswordForm() {
   return (
     <div className="w-full max-w-md">
       <div className="text-center mb-10">
-        <a href="/" className="font-serif text-3xl font-extrabold text-brand-text">
+        <Link href="/" className="font-serif text-3xl font-extrabold text-brand-text">
           Sunday <span className="text-accent">Harmony</span>
-        </a>
+        </Link>
         <p className="text-sm text-brand-muted mt-2">Enter your code and new password</p>
       </div>
 
@@ -166,12 +167,12 @@ function ResetPasswordForm() {
       </div>
 
       <div className="text-center mt-6 space-y-2">
-        <a href="/forgot-password" className="block text-xs text-brand-dim hover:text-accent transition-colors">
+        <Link href="/forgot-password" className="block text-xs text-brand-dim hover:text-accent transition-colors">
           Request a new code
-        </a>
-        <a href="/login" className="block text-xs text-brand-dim hover:text-accent transition-colors">
+        </Link>
+        <Link href="/login" className="block text-xs text-brand-dim hover:text-accent transition-colors">
           &larr; Back to login
-        </a>
+        </Link>
       </div>
     </div>
   )

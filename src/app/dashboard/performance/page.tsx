@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
 interface ActivityEntry {
@@ -125,9 +126,9 @@ export default function PerformancePage() {
         </p>
         <p className="text-xs text-brand-dim">
           In the meantime, check your monthly reports in{' '}
-          <a href="/dashboard/messages" className="text-accent hover:underline font-semibold">
+          <Link href="/dashboard/messages" className="text-accent hover:underline font-semibold">
             Messages
-          </a>{' '}
+          </Link>{' '}
           or ask your team for an update.
         </p>
       </div>
@@ -182,9 +183,9 @@ export default function PerformancePage() {
       <div className="mt-6 bg-accent-soft border border-accent rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
           Want a performance update?{' '}
-          <a href="/dashboard/messages" className="text-accent hover:underline font-semibold">
+          <Link href="/dashboard/messages" className="text-accent hover:underline font-semibold">
             Send us a message
-          </a>{' '}
+          </Link>{' '}
           and we&rsquo;ll send you a detailed report.
         </p>
       </div>

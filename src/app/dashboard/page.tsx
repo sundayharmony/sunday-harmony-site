@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import StatCard from '@/components/ui/StatCard'
@@ -219,9 +220,9 @@ export default function DashboardHome() {
       <div className="mt-6 bg-white border border-brand-border rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-brand-text">Recent Messages</h2>
-          <a href="/dashboard/messages" className="text-xs text-accent hover:underline">
+          <Link href="/dashboard/messages" className="text-xs text-accent hover:underline">
             View all →
-          </a>
+          </Link>
         </div>
         {messages.length > 0 ? (
           <div className="space-y-3">
