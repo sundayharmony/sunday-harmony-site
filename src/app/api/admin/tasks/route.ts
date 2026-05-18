@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getTasksByClient, createTask, updateTask, deleteTask, getClientById, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import {
+  clientDashboardAlertEmailHtml,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('client_id')
@@ -36,16 +33,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { client_id, title, description, status, priority, due_date, category } = body
@@ -81,11 +70,9 @@ export async function POST(request: NextRequest) {
     const clientData = await getClientById(client_id)
     if (clientData) {
       // Find user with this client_id to send notification
-      const { data: clientUser } = await getSupabase()
-        .from('users')
-        .select('id')
-        .eq('client_id', client_id)
-        .single()
+      const { data: clientUser } = await (
+        getSupabase().from('users').select('id').eq('client_id', client_id).single()
+      )
 
       if (clientUser) {
         await createNotification({
@@ -98,6 +85,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (isSmtpConfigured() && clientData?.email) {
+      try {
+        const first = (clientData.name || 'there').split(' ')[0]
+        const html = clientDashboardAlertEmailHtml({
+          heading: 'New Task',
+          firstName: first,
+          bodyParagraphs: [
+            'The Sunday Harmony team added a new task for you:',
+            typeof title === 'string' ? title : String(title),
+          ],
+          dashboardPath: '/dashboard/tasks',
+        })
+        sendHtmlMailNonBlocking({
+          to: clientData.email,
+          subject: sanitizeEmailSubjectPart(`New task: ${title}`),
+          html,
+          logLabel: 'admin-task-to-client',
+        })
+      } catch (mailErr) {
+        console.error('Admin task: client email failed:', mailErr)
+      }
+    }
+
     return NextResponse.json(result, { status: 201 })
   } catch (error: unknown) {
     console.error('POST /api/admin/tasks error:', error)
@@ -107,16 +117,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { id, ...updates } = body
@@ -139,16 +141,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { id } = body

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, FormEvent } from 'react'
 
 export default function ForgotPasswordPage() {
@@ -32,12 +33,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafaf8] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
-          <a href="/" className="font-serif text-3xl font-extrabold text-brand-text">
-            Sunday <span className="text-brand-gold">Harmony</span>
-          </a>
+          <Link href="/" className="font-serif text-3xl font-extrabold text-brand-text">
+            Sunday <span className="text-accent">Harmony</span>
+          </Link>
           <p className="text-sm text-brand-muted mt-2">Reset your password</p>
         </div>
 
@@ -51,12 +52,12 @@ export default function ForgotPasswordPage() {
               <p className="text-xs text-brand-muted mb-4">
                 If an account exists with <span className="text-brand-text">{email}</span>, we sent a <strong className="text-brand-text">6-digit code</strong>. It expires in <strong className="text-brand-text">15 minutes</strong>.
               </p>
-              <a
+              <Link
                 href={`/reset-password?email=${encodeURIComponent(email)}`}
-                className="inline-block w-full py-3 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+                className="inline-block w-full py-3 rounded-xl bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
               >
                 Enter code &amp; new password
-              </a>
+              </Link>
             </div>
           ) : (
             <>
@@ -78,13 +79,13 @@ export default function ForgotPasswordPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@business.com"
                     required
-                    className="w-full py-3 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+                    className="w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 rounded-xl bg-brand-gold text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(184,148,63,0.25)] transition-all disabled:opacity-60"
+                  className="w-full py-3.5 rounded-xl bg-brand-text text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-60"
                 >
                   {loading ? 'Sending...' : 'Send reset code'}
                 </button>
@@ -94,9 +95,9 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div className="text-center mt-6">
-          <a href="/login" className="text-xs text-brand-dim hover:text-brand-gold transition-colors">
+          <Link href="/login" className="text-xs text-brand-dim hover:text-accent transition-colors">
             &larr; Back to login
-          </a>
+          </Link>
         </div>
       </div>
     </div>

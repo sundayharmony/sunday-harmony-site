@@ -30,10 +30,10 @@ export default async function AdminOverview() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Active Clients" value={activeClients.length} color="green" />
-        <StatCard label="Monthly Revenue" value={`$${mrr.toLocaleString()}`} color="gold" />
-        <StatCard label="New Leads" value={newLeads} color="blue" />
-        <StatCard label="Annual Projection" value={`$${(mrr * 12).toLocaleString()}`} color="purple" />
+        <StatCard label="Active Clients" value={activeClients.length} />
+        <StatCard label="Monthly Revenue" value={`$${mrr.toLocaleString()}`} color="accent" />
+        <StatCard label="New Leads" value={newLeads} />
+        <StatCard label="Annual Projection" value={`$${(mrr * 12).toLocaleString()}`} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -41,7 +41,7 @@ export default async function AdminOverview() {
         <div className="bg-white border border-brand-border rounded-xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-5">
             <h2 className="text-sm font-bold text-brand-text">Recent Leads</h2>
-            <Link href="/admin/leads" className="text-xs text-brand-gold hover:underline">View all →</Link>
+            <Link href="/admin/leads" className="text-xs text-accent hover:underline">View all →</Link>
           </div>
           {recentLeads.length === 0 ? (
             <p className="text-sm text-brand-dim">No leads yet. They&apos;ll appear here when someone submits the contact form.</p>
@@ -99,7 +99,7 @@ export default async function AdminOverview() {
                 <div key={pkg.tier} className="p-4 rounded-lg bg-gray-50 border border-gray-200">
                   <div className="text-xs text-brand-dim mb-1">{pkg.tier}</div>
                   <div className="text-lg font-bold text-brand-text">{count} clients</div>
-                  <div className="text-xs text-brand-gold">${(count * pkg.price).toLocaleString()}/mo</div>
+                  <div className="text-xs text-accent">${(count * pkg.price).toLocaleString()}/mo</div>
                 </div>
               )
             })}

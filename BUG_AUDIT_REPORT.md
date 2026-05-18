@@ -1,4 +1,7 @@
 # Sunday Harmony Site — Bug Audit Report
+
+> **Superseded — verify before filing tickets.** This report was generated against an older snapshot of the repo. Several items (for example “truncated” auth or `db.ts` files, missing `seedAdmin`) **do not match the current codebase**: run `npm run lint`, `npm run build`, and `npx tsc --noEmit`, then reproduce any issue in-tree before treating it as authoritative.
+
 ## 265 Bugs Found, Categorized and Prioritized
 
 **Date:** March 29, 2026

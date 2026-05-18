@@ -4,14 +4,14 @@ export default function Footer() {
       <div className="max-w-[1100px] mx-auto px-7">
         <div className="flex justify-between items-center flex-wrap gap-5">
           <div className="font-serif text-lg font-bold text-brand-text">
-            Sunday <span className="text-brand-gold">Harmony</span>
+            Sunday <span className="text-accent">Harmony</span>
           </div>
           <div className="flex gap-7">
             {['Services', 'Packages', 'About', 'Contact'].map((link) => (
               <a
                 key={link}
                 href={`#${link.toLowerCase()}`}
-                className="text-[13px] text-brand-dim hover:text-brand-gold transition-colors"
+                className="text-[13px] text-brand-dim hover:text-brand-text transition-colors"
               >
                 {link}
               </a>

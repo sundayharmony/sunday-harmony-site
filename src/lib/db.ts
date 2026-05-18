@@ -172,6 +172,15 @@ export async function updateLead(id: string, updates: Partial<Omit<Lead, 'id' | 
   return data
 }
 
+export async function deleteLead(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('leads').delete().eq('id', id)
+  if (error) {
+    console.error('deleteLead error:', error)
+    return false
+  }
+  return true
+}
+
 // ââââââââââ CLIENTS ââââââââââ
 export interface Client {
   id: string
@@ -180,7 +189,7 @@ export interface Client {
   email: string
   phone?: string
   industry?: string
-  package_tier: 'social_essentials' | 'spark' | 'growth' | 'scale'
+  package_tier: 'free' | 'social_essentials' | 'spark' | 'growth' | 'scale'
   monthly_price: number
   start_date: string
   status: 'active' | 'paused' | 'churned'
@@ -232,6 +241,27 @@ export async function updateClient(id: string, updates: Partial<Omit<Client, 'id
   const { data, error } = await getSupabase().from('clients').update(updateData).eq('id', id).select().single()
   if (error) { console.error('updateClient error:', error); return null }
   return data
+}
+
+export async function deleteUsersByClientId(clientId: string): Promise<boolean> {
+  const { error } = await getSupabase().from('users').delete().eq('client_id', clientId)
+  if (error) {
+    console.error('deleteUsersByClientId error:', error)
+    return false
+  }
+  return true
+}
+
+export async function deleteClient(id: string): Promise<boolean> {
+  const usersOk = await deleteUsersByClientId(id)
+  if (!usersOk) return false
+
+  const { error } = await getSupabase().from('clients').delete().eq('id', id)
+  if (error) {
+    console.error('deleteClient error:', error)
+    return false
+  }
+  return true
 }
 
 // ââââââââââ MESSAGES ââââââââââ
@@ -536,11 +566,59 @@ export async function updateApproval(id: string, updates: Partial<Omit<Approval,
   return data
 }
 
+export async function deleteApproval(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('approvals').delete().eq('id', id)
+  if (error) {
+    console.error('deleteApproval error:', error)
+    return false
+  }
+  return true
+}
+
+/** Insert event id before processing. Returns duplicate if already handled. */
+export async function claimStripeWebhookEvent(
+  eventId: string
+): Promise<'claimed' | 'duplicate' | 'failed'> {
+  try {
+    const { error } = await getSupabase().from('stripe_webhook_events').insert({ id: eventId })
+    if (error) {
+      if (error.code === '23505') return 'duplicate'
+      console.error('claimStripeWebhookEvent:', error)
+      return 'failed'
+    }
+    return 'claimed'
+  } catch (err) {
+    console.error('claimStripeWebhookEvent:', err)
+    return 'failed'
+  }
+}
+
+/** Release claim so Stripe retries can re-process after a handler failure. */
+export async function releaseStripeWebhookEvent(eventId: string): Promise<void> {
+  try {
+    const { error } = await getSupabase().from('stripe_webhook_events').delete().eq('id', eventId)
+    if (error) console.error('releaseStripeWebhookEvent:', error)
+  } catch (err) {
+    console.error('releaseStripeWebhookEvent:', err)
+  }
+}
+
+let adminSeededThisProcess = false
+
 // ââââââââââ SEED DEFAULT ADMIN ââââââââââ
 export async function seedAdmin(): Promise<void> {
+  if (adminSeededThisProcess) return
+
+  const adminPass = process.env.ADMIN_PASSWORD
+  if (!adminPass) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('seedAdmin: ADMIN_PASSWORD is required in production')
+    }
+    return
+  }
+
   try {
     const adminEmail = process.env.ADMIN_EMAIL || 'sales@sundayharmony.com'
-    const adminPass = process.env.ADMIN_PASSWORD || 'sundayharmony2025'
     const hashedPass = hashPassword(adminPass)
 
     // Use upsert to avoid duplicate key errors when getUserByEmail
@@ -553,8 +631,42 @@ export async function seedAdmin(): Promise<void> {
       )
     if (error && !error.message?.includes('duplicate') && !error.code?.startsWith('23')) {
       console.error('seedAdmin error:', error)
+    } else {
+      adminSeededThisProcess = true
     }
   } catch (err) {
     // Silently ignore seed failures â the admin likely already exists
   }
+}
+
+function normalizeLeadLoose(value?: string): string {
+  return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function normalizeLeadPhone(value?: string): string {
+  return (value || '').replace(/\D+/g, '')
+}
+
+/** Find duplicate lead by business + phone or website without loading all leads. */
+export async function findLeadDuplicate(
+  business: string,
+  phone?: string,
+  website?: string
+): Promise<Lead | undefined> {
+  const trimmed = business.trim()
+  if (!trimmed) return undefined
+
+  const { data, error } = await getSupabase().from('leads').select('*').ilike('business', trimmed)
+  if (error || !data?.length) return undefined
+
+  const businessNorm = normalizeLeadLoose(trimmed)
+  const phoneNorm = normalizeLeadPhone(phone)
+  const websiteNorm = normalizeLeadLoose(website)
+
+  return data.find(lead => {
+    if (normalizeLeadLoose(lead.business) !== businessNorm) return false
+    const samePhone = phoneNorm && normalizeLeadPhone(lead.phone) === phoneNorm
+    const sameWebsite = websiteNorm && normalizeLeadLoose(lead.website) === websiteNorm
+    return Boolean(samePhone || sameWebsite)
+  })
 }

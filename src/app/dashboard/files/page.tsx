@@ -10,14 +10,17 @@ interface FileItem {
   uploaded_by: string;
   created_at: string;
   category: 'report' | 'graphic' | 'content' | 'brand' | 'general';
+  file_url: string;
 }
 
 export default function FilesPage() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFile, setSelectedFile] = useState<globalThis.File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadDisplayName, setUploadDisplayName] = useState('');
+  const [uploadCategory, setUploadCategory] = useState<FileItem['category']>('general');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -29,7 +32,21 @@ export default function FilesPage() {
         const res = await fetch('/api/dashboard/files');
         if (!res.ok) throw new Error('Failed to fetch files');
         const result = await res.json();
-        setFiles(Array.isArray(result) ? result : (result.data || []));
+        const raw = Array.isArray(result) ? result : (result.data || []);
+        setFiles(
+          raw.map((f: Record<string, unknown>) => ({
+            id: String(f.id),
+            name: String(f.name),
+            type: String(f.file_type ?? ''),
+            size: Number(f.file_size) || 0,
+            uploaded_by: String(f.uploaded_by_name ?? f.uploaded_by ?? ''),
+            created_at: String(f.created_at ?? ''),
+            category: (['report', 'graphic', 'content', 'brand', 'general'].includes(String(f.category))
+              ? (f.category as FileItem['category'])
+              : 'general'),
+            file_url: String(f.file_url ?? ''),
+          }))
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
@@ -51,7 +68,10 @@ export default function FilesPage() {
 
   // Format date
   const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return '—';
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -71,12 +91,44 @@ export default function FilesPage() {
     if (!selectedFile) return;
 
     setUploading(true);
+    setError('');
     try {
-      // For now, just show placeholder
-      setError('');
-      // In the future, this will upload to Supabase Storage
-      setError('File upload will be available once storage is configured. Contact your admin.');
+      const fd = new FormData();
+      fd.append('file', selectedFile);
+      if (uploadDisplayName.trim()) fd.append('name', uploadDisplayName.trim());
+      fd.append('category', uploadCategory);
+
+      const res = await fetch('/api/dashboard/files', {
+        method: 'POST',
+        body: fd,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof body.error === 'string' ? body.error : 'Upload failed');
+        return;
+      }
+      const f = body as Record<string, unknown>;
+      setFiles(prev => [
+        ...prev,
+        {
+          id: String(f.id),
+          name: String(f.name),
+          type: String(f.file_type ?? ''),
+          size: Number(f.file_size) || 0,
+          uploaded_by: String(f.uploaded_by_name ?? f.uploaded_by ?? 'You'),
+          created_at: String(f.created_at ?? new Date().toISOString()),
+          category: (['report', 'graphic', 'content', 'brand', 'general'].includes(String(f.category))
+            ? (f.category as FileItem['category'])
+            : 'general'),
+          file_url: String(f.file_url ?? ''),
+        },
+      ]);
       setSelectedFile(null);
+      setUploadDisplayName('');
+      setUploadCategory('general');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -92,7 +144,10 @@ export default function FilesPage() {
         body: JSON.stringify({ id: fileId }),
       });
 
-      if (!res.ok) throw new Error('Failed to delete file');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(typeof errBody.error === 'string' ? errBody.error : 'Failed to delete file');
+      }
       setFiles(files.filter(f => f.id !== fileId));
       setDeleteConfirm(null);
     } catch (err) {
@@ -112,7 +167,7 @@ export default function FilesPage() {
       case 'content':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'brand':
-        return 'bg-[rgba(184,148,63,0.08)] text-brand-gold border border-brand-gold/20';
+        return 'bg-accent-soft text-accent border border-accent/20';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -144,7 +199,7 @@ export default function FilesPage() {
       <div className="mb-8 bg-white border border-brand-border rounded-2xl p-6">
         <h2 className="text-lg font-serif text-brand-text mb-4">Upload a File</h2>
         <div className="space-y-4">
-          <div className="border-2 border-dashed border-brand-border rounded-lg p-8 text-center hover:border-brand-gold/50 transition-colors">
+          <div className="border-2 border-dashed border-brand-border rounded-lg p-8 text-center hover:border-accent/50 transition-colors">
             <input
               ref={fileInputRef}
               type="file"
@@ -153,7 +208,7 @@ export default function FilesPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="text-brand-gold hover:text-brand-gold/80 font-medium transition-colors"
+              className="text-accent hover:text-accent/80 font-medium transition-colors"
             >
               Click to select a file
             </button>
@@ -161,9 +216,36 @@ export default function FilesPage() {
           </div>
 
           {selectedFile && (
-            <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold/20 rounded-lg p-4">
-              <p className="text-brand-text font-medium">{selectedFile.name}</p>
-              <p className="text-brand-muted text-sm mt-1">{formatFileSize(selectedFile.size)}</p>
+            <div className="space-y-3 bg-accent-soft border border-accent/20 rounded-lg p-4">
+              <div>
+                <p className="text-brand-text font-medium">{selectedFile.name}</p>
+                <p className="text-brand-muted text-sm mt-1">{formatFileSize(selectedFile.size)}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-brand-muted mb-1">Display name (optional)</label>
+                <input
+                  type="text"
+                  value={uploadDisplayName}
+                  onChange={(e) => setUploadDisplayName(e.target.value)}
+                  maxLength={300}
+                  placeholder="Defaults to file name"
+                  className="w-full py-2 px-3 rounded-lg border border-brand-border text-sm text-brand-text bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-brand-muted mb-1">Category</label>
+                <select
+                  value={uploadCategory}
+                  onChange={(e) => setUploadCategory(e.target.value as FileItem['category'])}
+                  className="w-full py-2 px-3 rounded-lg border border-brand-border text-sm text-brand-text bg-white"
+                >
+                  <option value="general">General</option>
+                  <option value="report">Report</option>
+                  <option value="graphic">Graphic</option>
+                  <option value="content">Content</option>
+                  <option value="brand">Brand Assets</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -172,13 +254,15 @@ export default function FilesPage() {
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="px-4 py-2 bg-brand-gold text-white font-medium rounded-lg hover:bg-brand-gold/90 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-brand-text text-white font-medium rounded-lg hover:bg-brand-text/90 transition-colors disabled:opacity-50"
               >
                 {uploading ? 'Uploading...' : 'Upload File'}
               </button>
               <button
                 onClick={() => {
                   setSelectedFile(null);
+                  setUploadDisplayName('');
+                  setUploadCategory('general');
                   if (fileInputRef.current) fileInputRef.current.value = '';
                 }}
                 className="px-4 py-2 border border-brand-border text-brand-text font-medium rounded-lg hover:bg-gray-50 transition-colors"
@@ -189,7 +273,7 @@ export default function FilesPage() {
           )}
 
           <p className="text-brand-muted text-sm">
-            File upload will be available once storage is configured. Contact your admin.
+            Max 4 MB per file (PDF, images, Word, Excel, CSV, text, or zip). Files are stored securely for your account.
           </p>
         </div>
       </div>
@@ -214,6 +298,7 @@ export default function FilesPage() {
                   <th className="px-4 py-3 text-brand-text font-serif text-sm">Category</th>
                   <th className="px-4 py-3 text-brand-text font-serif text-sm">Uploaded By</th>
                   <th className="px-4 py-3 text-brand-text font-serif text-sm">Date</th>
+                  <th className="px-4 py-3 text-brand-text font-serif text-sm">Link</th>
                   <th className="px-4 py-3 text-brand-text font-serif text-sm">Actions</th>
                 </tr>
               </thead>
@@ -230,6 +315,20 @@ export default function FilesPage() {
                     </td>
                     <td className="px-4 py-4 text-brand-muted text-sm">{file.uploaded_by}</td>
                     <td className="px-4 py-4 text-brand-muted text-sm">{formatDate(file.created_at)}</td>
+                    <td className="px-4 py-4">
+                      {file.file_url ? (
+                        <a
+                          href={file.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent text-sm font-medium hover:underline"
+                        >
+                          Open
+                        </a>
+                      ) : (
+                        <span className="text-brand-muted text-sm">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-4">
                       {deleteConfirm === file.id ? (
                         <div className="flex gap-2">

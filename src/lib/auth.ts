@@ -14,12 +14,10 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
-        // Rate limit: 10 login attempts per 15 minutes per email
         const emailKey = credentials.email.toLowerCase().trim()
         const rl = rateLimit(`login:${emailKey}`, 10, 15 * 60 * 1000)
         if (!rl.allowed) return null
 
-        // Ensure admin exists on each login attempt
         await seedAdmin()
 
         const user = await getUserByEmail(credentials.email)
@@ -33,7 +31,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          clientId: user.client_id,
+          clientId: user.client_id || undefined,
         }
       },
     }),
@@ -41,16 +39,31 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: string }).role
-        token.clientId = (user as { clientId?: string }).clientId
+        token.role = user.role
+        token.email = user.email
+        if (user.clientId) token.clientId = user.clientId
+        else delete token.clientId
       }
+
+      const email = typeof token.email === 'string' ? token.email : undefined
+      if (email) {
+        const dbUser = await getUserByEmail(email)
+        if (!dbUser) {
+          return { sub: token.sub }
+        }
+        token.role = dbUser.role
+        if (dbUser.client_id) token.clientId = dbUser.client_id
+        else delete token.clientId
+      }
+
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as { id: string }).id = token.sub as string
-        ;(session.user as { role: string }).role = token.role as string
-        ;(session.user as { clientId?: string }).clientId = token.clientId as string | undefined
+        session.user.id = token.sub ?? ''
+        if (token.role) session.user.role = token.role as string
+        if (token.clientId) session.user.clientId = token.clientId as string
+        else delete (session.user as { clientId?: string }).clientId
       }
       return session
     },

@@ -35,6 +35,18 @@ const priorityColors: Record<string, string> = {
   urgent: 'bg-red-100 text-red-700',
 }
 
+function parseTaskPriority(value: string): Task['priority'] {
+  if (value === 'low' || value === 'medium' || value === 'high' || value === 'urgent') return value
+  return 'medium'
+}
+
+function parseTaskStatus(value: string): Task['status'] {
+  if (value === 'not_started' || value === 'in_progress' || value === 'in_review' || value === 'completed') {
+    return value
+  }
+  return 'not_started'
+}
+
 export default function AdminTasksPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
@@ -42,11 +54,18 @@ export default function AdminTasksPage() {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    title: string
+    description: string
+    status: Task['status']
+    priority: Task['priority']
+    due_date: string
+    category: string
+  }>({
     title: '',
     description: '',
-    status: 'not_started' as const,
-    priority: 'medium' as const,
+    status: 'not_started',
+    priority: 'medium',
     due_date: '',
     category: 'deliverable',
   })
@@ -183,7 +202,7 @@ export default function AdminTasksPage() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+          className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
         >
           + Add Task
         </button>
@@ -203,7 +222,7 @@ export default function AdminTasksPage() {
         <select
           value={selectedClientId || ''}
           onChange={e => setSelectedClientId(e.target.value || null)}
-          className="w-full md:w-64 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+          className="w-full md:w-64 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
         >
           <option value="">Choose a client...</option>
           {clients.map(client => (
@@ -238,8 +257,8 @@ export default function AdminTasksPage() {
 
       {/* Add Task Form */}
       {showForm && selectedClientId && (
-        <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-brand-gold mb-4">New Task for {selectedClient?.name}</h3>
+        <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-bold text-accent mb-4">New Task for {selectedClient?.name}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
@@ -250,7 +269,7 @@ export default function AdminTasksPage() {
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="Task title"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
@@ -259,8 +278,8 @@ export default function AdminTasksPage() {
               </label>
               <select
                 value={form.priority}
-                onChange={e => setForm(f => ({ ...f, priority: e.target.value as any }))}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                onChange={e => setForm(f => ({ ...f, priority: parseTaskPriority(e.target.value) }))}
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -274,8 +293,8 @@ export default function AdminTasksPage() {
               </label>
               <select
                 value={form.status}
-                onChange={e => setForm(f => ({ ...f, status: e.target.value as any }))}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                onChange={e => setForm(f => ({ ...f, status: parseTaskStatus(e.target.value) }))}
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               >
                 <option value="not_started">Not Started</option>
                 <option value="in_progress">In Progress</option>
@@ -291,7 +310,7 @@ export default function AdminTasksPage() {
                 type="date"
                 value={form.due_date}
                 onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
           </div>
@@ -304,7 +323,7 @@ export default function AdminTasksPage() {
               value={form.category}
               onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
               placeholder="e.g., deliverable, design, development"
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+              className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
             />
           </div>
           <div className="mb-4">
@@ -316,13 +335,13 @@ export default function AdminTasksPage() {
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               placeholder="Task description..."
               rows={3}
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-none"
+              className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-none"
             />
           </div>
           <div className="flex gap-2">
             <button
               onClick={addTask}
-              className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold hover:bg-opacity-90 transition-all"
+              className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold hover:bg-opacity-90 transition-all"
             >
               Create Task
             </button>
@@ -374,7 +393,7 @@ export default function AdminTasksPage() {
                       <select
                         value={task.status}
                         onChange={e => updateTaskStatus(task.id, e.target.value as Task['status'])}
-                        className="py-1.5 px-2 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                        className="py-1.5 px-2 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                       >
                         <option value="not_started">Not Started</option>
                         <option value="in_progress">In Progress</option>

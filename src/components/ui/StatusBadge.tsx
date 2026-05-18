@@ -1,13 +1,13 @@
-const styles: Record<string, { bg: string; text: string }> = {
-  new: { bg: 'bg-blue-50', text: 'text-brand-blue' },
-  contacted: { bg: 'bg-amber-50', text: 'text-brand-gold' },
-  audit_sent: { bg: 'bg-purple-50', text: 'text-brand-purple' },
-  proposal: { bg: 'bg-amber-50', text: 'text-brand-gold' },
-  won: { bg: 'bg-green-50', text: 'text-brand-green' },
-  lost: { bg: 'bg-red-50', text: 'text-brand-red' },
-  active: { bg: 'bg-green-50', text: 'text-brand-green' },
-  paused: { bg: 'bg-amber-50', text: 'text-brand-gold' },
-  churned: { bg: 'bg-red-50', text: 'text-brand-red' },
+const styles: Record<string, { bg: string; text: string; border: string }> = {
+  new: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-200' },
+  contacted: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-200' },
+  audit_sent: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-200' },
+  proposal: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-200' },
+  won: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-300' },
+  lost: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
+  active: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-300' },
+  paused: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
+  churned: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
 }
 
 const labels: Record<string, string> = {
@@ -25,7 +25,7 @@ const labels: Record<string, string> = {
 export default function StatusBadge({ status }: { status: string }) {
   const s = styles[status] || styles.new
   return (
-    <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-bold tracking-[0.08em] uppercase ${s.bg} ${s.text}`}>
+    <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-bold tracking-[0.08em] uppercase ${s.bg} ${s.text} ${s.border}`}>
       {labels[status] || status}
     </span>
   )

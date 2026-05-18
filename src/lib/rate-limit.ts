@@ -1,5 +1,6 @@
-// Simple in-memory rate limiter for API routes
-// In production with multiple instances, use Redis instead
+// Simple in-memory rate limiter for API routes.
+// Not durable across serverless instances or cold starts: each instance has its own Map.
+// For production at scale (or strict abuse protection), use Upstash Redis, Vercel KV, or similar.
 
 interface RateLimitEntry {
   count: number

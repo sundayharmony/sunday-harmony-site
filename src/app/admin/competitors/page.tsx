@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { competitors, vulnerabilities, positioningCanvas } from '@/lib/toolkit-data'
 
-const threatColor = { high: 'text-brand-red', medium: 'text-brand-gold', low: 'text-brand-green' }
+const threatColor = { high: 'text-brand-red', medium: 'text-accent', low: 'text-brand-muted' }
 const threatBg = { high: 'bg-red-50', medium: 'bg-amber-50', low: 'bg-green-50' }
-const priorityColor = { critical: 'text-brand-red', high: 'text-brand-gold', medium: 'text-brand-blue' }
+const priorityColor = { critical: 'text-brand-red', high: 'text-accent', medium: 'text-brand-muted' }
 
 export default function CompetitorsPage() {
   const [tab, setTab] = useState<'landscape' | 'gaps' | 'positioning'>('landscape')
@@ -61,7 +61,7 @@ export default function CompetitorsPage() {
           {error ? (
             <span className="text-xs text-red-600">Error saving</span>
           ) : saving ? (
-            <span className="text-xs text-brand-gold animate-pulse">Saving...</span>
+            <span className="text-xs text-accent animate-pulse">Saving...</span>
           ) : null}
         </div>
       </div>
@@ -75,7 +75,7 @@ export default function CompetitorsPage() {
       <div className="flex gap-2 mb-6">
         {([['landscape', 'Competitors'], ['gaps', 'Market Gaps'], ['positioning', 'Positioning Canvas']] as const).map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${tab === key ? 'bg-[rgba(184,148,63,0.1)] border border-brand-gold text-brand-gold' : 'bg-gray-50 border border-brand-border text-brand-muted'}`}>
+            className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${tab === key ? 'bg-accent-soft border border-accent text-accent' : 'bg-gray-50 border border-brand-border text-brand-muted'}`}>
             {label}
           </button>
         ))}
@@ -87,7 +87,7 @@ export default function CompetitorsPage() {
             {competitors.map((comp, i) => (
               <button key={i} onClick={() => setSelected(i)}
                 className={`w-full text-left p-3 rounded-lg transition-all ${selected === i
-                  ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                  ? 'bg-accent-soft border border-accent'
                   : 'bg-gray-50 border border-brand-border hover:bg-gray-100'}`}>
                 <div className="text-sm font-semibold text-brand-text">{comp.name}</div>
                 <div className="flex items-center gap-2 mt-1">
@@ -104,7 +104,7 @@ export default function CompetitorsPage() {
                 <h2 className="text-xl font-bold text-brand-text">{c.name}</h2>
                 <span className="text-xs text-brand-dim">{c.type}</span>
               </div>
-              <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${c.threat === 'high' ? 'bg-red-50 text-red-700' : c.threat === 'medium' ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold' : 'bg-green-50 text-green-700'}`}>{c.threat} threat</span>
+              <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase ${c.threat === 'high' ? 'bg-red-50 text-red-700' : c.threat === 'medium' ? 'bg-accent-soft text-accent' : 'bg-green-50 text-green-700'}`}>{c.threat} threat</span>
             </div>
 
             <div className="flex gap-6 mb-4">
@@ -118,7 +118,7 @@ export default function CompetitorsPage() {
 
             <div className="flex flex-wrap gap-1.5 mb-5">
               {c.services.map(s => (
-                <span key={s} className="px-2.5 py-0.5 rounded-full text-[10px] bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold">{s}</span>
+                <span key={s} className="px-2.5 py-0.5 rounded-full text-[10px] bg-accent-soft text-accent border border-accent">{s}</span>
               ))}
             </div>
 
@@ -137,8 +137,8 @@ export default function CompetitorsPage() {
               </div>
             </div>
 
-            <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-lg p-4">
-              <div className="text-[10px] font-bold uppercase text-brand-gold mb-2">Your Angle Against {c.name}</div>
+            <div className="bg-accent-soft border border-accent rounded-lg p-4">
+              <div className="text-[10px] font-bold uppercase text-accent mb-2">Your Angle Against {c.name}</div>
               <p className="text-sm text-brand-muted leading-relaxed">{c.angle}</p>
             </div>
           </div>
@@ -165,8 +165,8 @@ export default function CompetitorsPage() {
 
       {tab === 'positioning' && (
         <div>
-          <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 mb-6">
-            <div className="text-sm font-bold text-brand-gold mb-1">Positioning Canvas</div>
+          <div className="bg-accent-soft border border-accent rounded-xl p-4 mb-6">
+            <div className="text-sm font-bold text-accent mb-1">Positioning Canvas</div>
             <p className="text-xs text-brand-muted">
               Fill this out to crystallize your unique position in the market. Use what you learned from your research, competitor analysis, and customer interviews.
             </p>
@@ -184,7 +184,7 @@ export default function CompetitorsPage() {
                   onChange={(e) => updateCanvas(field.label, e.target.value)}
                   placeholder={field.placeholder}
                   rows={4}
-                  className="w-full bg-[#fafaf8] border border-brand-border rounded-lg p-3 text-sm text-brand-text outline-none focus:border-brand-gold transition-colors resize-none placeholder:text-brand-dim"
+                  className="w-full bg-neutral-50 border border-brand-border rounded-lg p-3 text-sm text-brand-text outline-none focus:border-accent transition-colors resize-none placeholder:text-brand-dim"
                 />
               </div>
             ))}

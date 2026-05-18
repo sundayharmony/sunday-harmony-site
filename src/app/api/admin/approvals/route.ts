@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { getApprovalsByClient, createApproval, updateApproval, createNotification } from '@/lib/db'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { getApprovalsByClient, createApproval, updateApproval, deleteApproval, getApprovalById, createNotification, logActivity, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import {
+  clientDashboardAlertEmailHtml,
+  isSmtpConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('client_id')
@@ -36,16 +33,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { client_id, title, description, content_type, content_url, content_text, admin_notes } = body
@@ -86,20 +75,44 @@ export async function POST(request: NextRequest) {
     }
 
     // Create notification for client
-    const clientUser = await getSupabase()
-      .from('users')
-      .select('id')
-      .eq('client_id', client_id)
-      .single()
+    const { data: clientUser } = await (
+      getSupabase().from('users').select('id').eq('client_id', client_id).single()
+    )
 
-    if (clientUser.data) {
+    if (clientUser) {
       await createNotification({
-        user_id: clientUser.data.id,
+        user_id: clientUser.id,
         title: 'Content Needs Approval',
         message: title,
         type: 'approval',
         link: '/dashboard/approvals',
       })
+    }
+
+    if (isSmtpConfigured()) {
+      try {
+        const c = await getClientById(client_id)
+        if (c?.email) {
+          const first = (c.name || 'there').split(' ')[0]
+          const html = clientDashboardAlertEmailHtml({
+            heading: 'Content Needs Your Approval',
+            firstName: first,
+            bodyParagraphs: [
+              'The Sunday Harmony team shared something that needs your review:',
+              typeof title === 'string' ? title : String(title),
+            ],
+            dashboardPath: '/dashboard/approvals',
+          })
+          sendHtmlMailNonBlocking({
+            to: c.email,
+            subject: sanitizeEmailSubjectPart(`Please review: ${title}`),
+            html,
+            logLabel: 'admin-approval-to-client',
+          })
+        }
+      } catch (mailErr) {
+        console.error('Admin approval: client email failed:', mailErr)
+      }
     }
 
     return NextResponse.json(result, { status: 201 })
@@ -111,16 +124,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
 
     const body = await request.json()
     const { id, ...updates } = body
@@ -137,6 +142,42 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(result, { status: 200 })
   } catch (error: unknown) {
     console.error('PUT /api/admin/approvals error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await requireAdminSession()
+    if (session instanceof NextResponse) return session
+
+    const body = await request.json().catch(() => ({}))
+    const id = typeof body?.id === 'string' ? body.id.trim() : ''
+    if (!id) {
+      return NextResponse.json({ error: 'Missing approval id' }, { status: 400 })
+    }
+
+    const existing = await getApprovalById(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
+    }
+
+    const ok = await deleteApproval(id)
+    if (!ok) {
+      return NextResponse.json({ error: 'Failed to delete approval' }, { status: 500 })
+    }
+
+    logActivity({
+      action: 'deleted',
+      entity_type: 'approval',
+      entity_id: id,
+      actor_email: session.user.email || 'admin',
+      details: `Deleted approval "${existing.title}"`,
+    })
+
+    return NextResponse.json({ ok: true }, { status: 200 })
+  } catch (error: unknown) {
+    console.error('DELETE /api/admin/approvals error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

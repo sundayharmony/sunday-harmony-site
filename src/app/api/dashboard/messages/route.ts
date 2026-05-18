@@ -1,8 +1,8 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { authOptions } from '@/lib/auth'
 import { getMessages, createMessage, getClientById } from '@/lib/db'
+import { createEmailTransporter, getAdminNotifyEmail, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +23,10 @@ export async function GET() {
 
   const clientId = (session.user as { clientId?: string }).clientId
   if (!clientId) {
-    return NextResponse.json([])
+    return NextResponse.json(
+      { error: 'No client account is linked to this login. Contact Sunday Harmony.' },
+      { status: 400 }
+    )
   }
 
   const messages = await getMessages(clientId)
@@ -64,21 +67,22 @@ export async function POST(request: Request) {
   })
 
   // Send email notification to admin (non-blocking)
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  if (isSmtpConfigured()) {
     try {
       const client = await getClientById(clientId)
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      })
+      const transporter = createEmailTransporter()
+      const siteUrl = getPublicSiteUrl()
+      const fromName = (session.user as { name?: string }).name || 'a client'
+      const subject = sanitizeEmailSubjectPart(
+        `New message from ${fromName}${client ? ` (${client.business})` : ''}`,
+        200
+      )
       transporter.sendMail({
         from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
-        to: process.env.NOTIFY_EMAIL || 'sales@sundayharmony.com',
-        subject: `New message from ${(session.user as { name?: string }).name || 'a client'}${client ? ` (${client.business})` : ''}`,
+        to: getAdminNotifyEmail(),
+        subject,
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Client Message
             </h2>
@@ -87,7 +91,7 @@ export async function POST(request: Request) {
               <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
             </div>
             <p style="font-size:13px;color:#666">
-              Reply from your <a href="${process.env.NEXTAUTH_URL || ''}/admin/messages" style="color:#c9a96e">admin dashboard</a>.
+              Reply from your <a href="${escHtml(siteUrl)}/admin/messages" style="color:#c9a96e">admin dashboard</a>.
             </p>
           </div>
         `,

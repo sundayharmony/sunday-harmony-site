@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import StatCard from '@/components/ui/StatCard'
@@ -25,17 +26,11 @@ interface MessageData {
 }
 
 const tierLabels: Record<string, string> = {
+  free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Spark',
   growth: 'Growth',
   scale: 'Scale',
-}
-
-const tierColors: Record<string, string> = {
-  social_essentials: '#4a9e7d',
-  spark: '#3a8bc2',
-  growth: '#c9a96e',
-  scale: '#7b68c9',
 }
 
 function normalizeClientData(data: ClientData): ClientData {
@@ -129,7 +124,7 @@ export default function DashboardHome() {
           </div>
           <a
             href="/dashboard/onboarding"
-            className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold hover:bg-[#b8944f] transition-all whitespace-nowrap"
+            className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold hover:bg-neutral-800 transition-all whitespace-nowrap"
           >
             Get Started
           </a>
@@ -141,22 +136,19 @@ export default function DashboardHome() {
         <StatCard
           label="Your Package"
           value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
-          color={client ? tierColors[client.package_tier] || '#c9a96e' : '#c9a96e'}
         />
         <StatCard
           label="Days Active"
           value={daysSinceStart.toString()}
-          color="#3a8bc2"
         />
         <StatCard
           label="Quick Wins Done"
           value={`${completedWins}/${totalWins}`}
-          color="#4a9e7d"
+          color="accent"
         />
         <StatCard
           label="Monthly Investment"
           value={client ? `$${client.monthly_price.toLocaleString()}` : '—'}
-          color="#7b68c9"
         />
       </div>
 
@@ -186,7 +178,7 @@ export default function DashboardHome() {
                   key={i}
                   className={`flex items-center gap-3 p-3 rounded-lg ${
                     win.done
-                      ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                      ? 'bg-accent-soft border border-accent'
                       : 'bg-gray-50 border border-brand-border'
                   }`}
                 >
@@ -212,9 +204,9 @@ export default function DashboardHome() {
               {client.deliverables.map((item, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-[rgba(184,148,63,0.08)] border border-brand-gold"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-accent-soft border border-accent"
                 >
-                  <span className="text-brand-gold text-sm">◈</span>
+                  <span className="text-accent text-sm">◈</span>
                   <span className="text-sm text-brand-text">{item}</span>
                 </div>
               ))}
@@ -229,9 +221,9 @@ export default function DashboardHome() {
       <div className="mt-6 bg-white border border-brand-border rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-brand-text">Recent Messages</h2>
-          <a href="/dashboard/messages" className="text-xs text-brand-gold hover:underline">
+          <Link href="/dashboard/messages" className="text-xs text-accent hover:underline">
             View all →
-          </a>
+          </Link>
         </div>
         {messages.length > 0 ? (
           <div className="space-y-3">
@@ -240,7 +232,7 @@ export default function DashboardHome() {
                 key={msg.id}
                 className={`p-3 rounded-lg ${
                   msg.from_role === 'admin'
-                    ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                    ? 'bg-accent-soft border border-accent'
                     : 'bg-green-50 border border-green-200'
                 }`}
               >
@@ -260,14 +252,14 @@ export default function DashboardHome() {
       </div>
 
       {/* Help Card */}
-      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold/20 rounded-2xl p-5">
+      <div className="mt-6 bg-accent-soft border border-accent/20 rounded-2xl p-5">
         <h3 className="font-serif text-sm font-bold text-brand-text mb-1">Need Help?</h3>
         <p className="text-xs text-brand-muted mb-3">
           Have a question or need support? We&apos;re here to help.
         </p>
         <a
           href="/dashboard/messages"
-          className="text-xs font-bold text-brand-gold hover:underline"
+          className="text-xs font-bold text-accent hover:underline"
         >
           Send us a message &rarr;
         </a>

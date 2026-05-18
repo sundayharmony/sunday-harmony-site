@@ -1,17 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { logApiRouteError } from '@/lib/api-route-log'
+import {
+  claimStripeWebhookEvent,
+  getClientById,
+  getClientByStripeCustomerId,
+  getClientByStripeSubscriptionId,
+  releaseStripeWebhookEvent,
+  updateClient,
+} from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
-import { getClientByStripeCustomerId, getClientByStripeSubscriptionId, updateClient } from '@/lib/db'
+import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function toBillingStatus(status: Stripe.Subscription.Status): 'trial' | 'paid' | 'past_due' | 'unpaid' | 'not_started' {
-  if (status === 'trialing') return 'trial'
-  if (status === 'active') return 'paid'
-  if (status === 'past_due') return 'past_due'
-  if (status === 'unpaid' || status === 'incomplete' || status === 'incomplete_expired') return 'unpaid'
-  return 'not_started'
+function subscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefined {
+  const legacy = (invoice as Stripe.Invoice & { subscription?: string | { id: string } | null })
+    .subscription
+  if (typeof legacy === 'string') return legacy
+  if (legacy && typeof legacy === 'object' && 'id' in legacy) return legacy.id
+
+  const fromParent = invoice.parent?.subscription_details?.subscription
+  if (typeof fromParent === 'string') return fromParent
+  if (fromParent && typeof fromParent === 'object' && 'id' in fromParent) return fromParent.id
+
+  const lineSub = invoice.lines?.data?.[0]?.subscription
+  if (typeof lineSub === 'string') return lineSub
+  if (lineSub && typeof lineSub === 'object' && 'id' in lineSub) return lineSub.id
+
+  return undefined
+}
+
+async function handleSubscriptionEvent(subscription: Stripe.Subscription): Promise<void> {
+  const stripeSubscriptionId = subscription.id
+  const stripeCustomerId = String(subscription.customer)
+  const client =
+    (await getClientByStripeSubscriptionId(stripeSubscriptionId)) ||
+    (await getClientByStripeCustomerId(stripeCustomerId)) ||
+    (subscription.metadata?.client_id
+      ? await getClientById(subscription.metadata.client_id)
+      : undefined)
+
+  if (client) {
+    await applySubscriptionToClient(client.id, subscription)
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -30,28 +63,64 @@ export async function POST(req: NextRequest) {
     const payload = await req.text()
     event = getStripe().webhooks.constructEvent(payload, signature, webhookSecret)
   } catch (err) {
+    logApiRouteError(req, 'stripe webhook signature', err)
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 400 })
   }
 
-  try {
-    if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
-      const subscription = event.data.object as Stripe.Subscription
-      const stripeSubscriptionId = subscription.id
-      const stripeCustomerId = String(subscription.customer)
-      const subscriptionPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
-      const client =
-        await getClientByStripeSubscriptionId(stripeSubscriptionId) ||
-        await getClientByStripeCustomerId(stripeCustomerId)
+  const claim = await claimStripeWebhookEvent(event.id)
+  if (claim === 'duplicate') {
+    return NextResponse.json({ received: true })
+  }
+  if (claim === 'failed') {
+    return NextResponse.json({ error: 'Webhook idempotency store unavailable' }, { status: 500 })
+  }
 
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session
+      if (checkoutSession.mode === 'subscription') {
+        const clientIdMeta = checkoutSession.metadata?.client_id || checkoutSession.client_reference_id
+        const subRaw = checkoutSession.subscription
+        const subscriptionId = typeof subRaw === 'string' ? subRaw : subRaw?.id
+
+        if (subscriptionId) {
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
+          const client =
+            (clientIdMeta ? await getClientById(clientIdMeta) : undefined) ||
+            (await getClientByStripeCustomerId(String(subscription.customer)))
+
+          if (client) {
+            await applySubscriptionToClient(client.id, subscription)
+          }
+        }
+      }
+    }
+
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription
+      const client = await getClientByStripeSubscriptionId(subscription.id)
       if (client) {
         await updateClient(client.id, {
-          stripe_subscription_id: stripeSubscriptionId,
-          stripe_customer_id: stripeCustomerId,
-          billing_status: toBillingStatus(subscription.status),
-          is_potential: false,
-          next_billing_date: subscriptionPeriodEnd
-            ? new Date(subscriptionPeriodEnd * 1000).toISOString()
-            : undefined,
+          stripe_subscription_id: '',
+          billing_status: 'not_started',
+          next_billing_date: undefined,
+        })
+      }
+    }
+
+    if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated'
+    ) {
+      await handleSubscriptionEvent(event.data.object as Stripe.Subscription)
+    }
+
+    if (event.type === 'setup_intent.succeeded') {
+      const setupIntent = event.data.object as Stripe.SetupIntent
+      const clientId = setupIntent.metadata?.client_id
+      if (clientId && setupIntent.customer) {
+        await updateClient(clientId, {
+          stripe_customer_id: String(setupIntent.customer),
         })
       }
     }
@@ -61,28 +130,48 @@ export async function POST(req: NextRequest) {
       const stripeCustomerId = String(invoice.customer || '')
       const client = stripeCustomerId ? await getClientByStripeCustomerId(stripeCustomerId) : undefined
       if (client) {
+        const subscriptionId = subscriptionIdFromInvoice(invoice)
+        if (subscriptionId) {
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
+          await applySubscriptionToClient(client.id, subscription)
+        }
+        const paidAtRaw = invoice.status_transitions?.paid_at
+        const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null
         await updateClient(client.id, {
-          billing_status: 'paid',
           is_potential: false,
-          last_payment_at: invoice.status_transitions?.paid_at
-            ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
-            : new Date().toISOString(),
+          last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
         })
       }
     }
 
-    if (event.type === 'invoice.payment_failed') {
+    if (event.type === 'invoice.payment_failed' || event.type === 'invoice.payment_action_required') {
       const invoice = event.data.object as Stripe.Invoice
       const stripeCustomerId = String(invoice.customer || '')
       const client = stripeCustomerId ? await getClientByStripeCustomerId(stripeCustomerId) : undefined
       if (client) {
-        await updateClient(client.id, {
-          billing_status: 'past_due',
-        })
+        const subscriptionId = subscriptionIdFromInvoice(invoice)
+        if (subscriptionId) {
+          const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
+          await applySubscriptionToClient(client.id, subscription)
+        } else {
+          await updateClient(client.id, {
+            billing_status:
+              event.type === 'invoice.payment_action_required' ? 'unpaid' : 'past_due',
+          })
+        }
+      }
+    }
+
+    if (event.type === 'customer.subscription.trial_will_end') {
+      const subscription = event.data.object as Stripe.Subscription
+      const client = await getClientByStripeSubscriptionId(subscription.id)
+      if (client && subscription.status === 'trialing') {
+        await updateClient(client.id, { billing_status: 'trial' })
       }
     }
   } catch (err) {
-    console.error('Stripe webhook handling error:', err)
+    logApiRouteError(req, 'stripe webhook handler', err)
+    await releaseStripeWebhookEvent(event.id)
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
   }
 

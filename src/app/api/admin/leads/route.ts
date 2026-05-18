@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { createLead, getLeadByGooglePlaceId, getLeads, logActivity, updateLead } from '@/lib/db'
+import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import {
+  createLead,
+  deleteLead,
+  findLeadDuplicate,
+  getLeadByGooglePlaceId,
+  getLeadById,
+  getLeads,
+  logActivity,
+  updateLead,
+} from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,10 +22,8 @@ function normalizePhone(value?: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const source = req.nextUrl.searchParams.get('source')
   const q = req.nextUrl.searchParams.get('q')
@@ -40,10 +46,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const body = await req.json()
   const {
@@ -77,18 +81,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Secondary duplicate check for near-matches when place id is missing
-  const existingLeads = await getLeads()
-  const businessNorm = normalizeLoose(String(business))
-  const phoneNorm = normalizePhone(phone)
-  const websiteNorm = normalizeLoose(website)
-  const duplicate = existingLeads.find(lead => {
-    const sameBusiness = normalizeLoose(lead.business) === businessNorm
-    if (!sameBusiness) return false
-    const samePhone = phoneNorm && normalizePhone(lead.phone) === phoneNorm
-    const sameWebsite = websiteNorm && normalizeLoose(lead.website) === websiteNorm
-    return Boolean(samePhone || sameWebsite)
-  })
+  const duplicate = await findLeadDuplicate(String(business), phone, website)
   if (duplicate) {
     return NextResponse.json({ duplicate: true, lead: duplicate }, { status: 200 })
   }
@@ -121,7 +114,7 @@ export async function POST(req: NextRequest) {
     action: 'created',
     entity_type: 'lead',
     entity_id: lead.id,
-    actor_email: (session?.user as { email?: string })?.email || 'admin',
+    actor_email: session.user.email || 'admin',
     details: `Created ${lead.source} lead "${lead.first_name} ${lead.last_name}" (${lead.business})`,
   })
 
@@ -129,10 +122,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
 
   const { id, ...allUpdates } = await req.json()
   if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
@@ -140,7 +131,7 @@ export async function PATCH(req: NextRequest) {
   // Whitelist allowed fields
   const allowedFields = [
     'status', 'notes', 'phone', 'email', 'business', 'industry', 'service', 'budget',
-    'first_name', 'last_name', 'source', 'website', 'location_text', 'last_contacted_at',
+    'first_name', 'last_name', 'source', 'website', 'location_text', 'last_contacted_at', 'message',
   ]
   const updates = Object.fromEntries(
     Object.entries(allUpdates).filter(([key]) => allowedFields.includes(key))
@@ -154,9 +145,34 @@ export async function PATCH(req: NextRequest) {
     action: 'updated',
     entity_type: 'lead',
     entity_id: id,
-    actor_email: (session?.user as { email?: string })?.email || 'admin',
+    actor_email: session.user.email || 'admin',
     details: `Updated lead "${lead.first_name} ${lead.last_name}": ${changedFields}`,
   })
 
   return NextResponse.json(lead)
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = await requireAdminSession()
+  if (session instanceof NextResponse) return session
+
+  const body = await req.json().catch(() => ({}))
+  const id = typeof body?.id === 'string' ? body.id.trim() : ''
+  if (!id) return NextResponse.json({ error: 'Lead ID required' }, { status: 400 })
+
+  const existing = await getLeadById(id)
+  if (!existing) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
+
+  const ok = await deleteLead(id)
+  if (!ok) return NextResponse.json({ error: 'Failed to delete lead' }, { status: 500 })
+
+  logActivity({
+    action: 'deleted',
+    entity_type: 'lead',
+    entity_id: id,
+    actor_email: session.user.email || 'admin',
+    details: `Deleted lead "${existing.first_name} ${existing.last_name}" (${existing.business})`,
+  })
+
+  return NextResponse.json({ ok: true })
 }

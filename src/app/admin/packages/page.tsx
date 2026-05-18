@@ -31,7 +31,7 @@ export default function PackagesPage() {
             <div className="flex items-center justify-between mb-1">
               <span className="text-lg" style={{ color: p.color }}>{p.icon}</span>
               {(p as { popular?: boolean }).popular && (
-                <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-[rgba(184,148,63,0.1)] text-brand-gold">Popular</span>
+                <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-accent-soft text-accent">Popular</span>
               )}
             </div>
             <div className="text-sm font-bold text-brand-text">{p.tier}</div>
@@ -74,7 +74,7 @@ export default function PackagesPage() {
                     {s.name}
                   </span>
                   {s.note && (
-                    <span className={`text-[10px] ml-2 ${s.included ? 'text-brand-muted' : 'text-brand-gold'}`}>
+                    <span className={`text-[10px] ml-2 ${s.included ? 'text-brand-muted' : 'text-accent'}`}>
                       {s.note}
                     </span>
                   )}
@@ -108,10 +108,10 @@ export default function PackagesPage() {
       </div>
 
       {/* Foot-in-the-Door Offer */}
-      <div className="bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-2xl p-6">
+      <div className="bg-accent-soft border border-accent rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide text-brand-gold mb-1">Lead Magnet</div>
+            <div className="text-[10px] font-bold uppercase tracking-wide text-accent mb-1">Lead Magnet</div>
             <h3 className="text-lg font-bold text-brand-text">{footInDoorOffer.name}</h3>
             <p className="text-xs text-brand-muted mt-1">{footInDoorOffer.description}</p>
           </div>
@@ -125,7 +125,7 @@ export default function PackagesPage() {
         <div className="grid grid-cols-2 gap-2">
           {footInDoorOffer.steps.map((step, i) => (
             <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-gray-50 border border-gray-200">
-              <span className="text-brand-gold text-xs font-bold mt-0.5">{i + 1}.</span>
+              <span className="text-accent text-xs font-bold mt-0.5">{i + 1}.</span>
               <span className="text-xs text-brand-muted leading-relaxed">{step}</span>
             </div>
           ))}

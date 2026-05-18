@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import BillingPanel from '@/components/billing/BillingPanel'
+import { computeBillingMetrics } from '@/lib/billing-metrics'
 
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
@@ -17,6 +19,7 @@ interface Client {
 }
 
 const tierLabels: Record<string, string> = {
+  free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Spark',
   growth: 'Growth',
@@ -24,7 +27,11 @@ const tierLabels: Record<string, string> = {
 }
 
 const tierPrices: Record<string, number> = {
-  social_essentials: 250, spark: 500, growth: 1800, scale: 3500,
+  free: 0,
+  social_essentials: 250,
+  spark: 500,
+  growth: 1800,
+  scale: 3500,
 }
 
 export default function ClientsPage() {
@@ -41,7 +48,9 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [showBillingAdvanced, setShowBillingAdvanced] = useState(false)
   const PAGE_SIZE = 15
 
   useEffect(() => {
@@ -60,6 +69,22 @@ export default function ClientsPage() {
       }
     })()
   }, [])
+
+  const refreshClientsAndReselect = async (id: string) => {
+    try {
+      const r = await fetch('/api/admin/clients')
+      if (!r.ok) return
+      const d: Client[] = await r.json()
+      setClients(d)
+      const next = d.find(c => c.id === id)
+      if (next) {
+        setSelected(next)
+        setNotes(next.notes ? String(next.notes) : '')
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   const updateClient = async (id: string, updates: Record<string, unknown>) => {
     try {
@@ -84,6 +109,37 @@ export default function ClientsPage() {
     }
   }
 
+  const deleteSelectedClient = async () => {
+    if (!selected) return
+    const label = selected.name.trim() || selected.business
+    if (!window.confirm(
+      `Delete client "${label}" at ${selected.business}? Their dashboard login, messages, tasks, files, and billing records will be removed. This cannot be undone.`
+    )) return
+
+    try {
+      setDeleting(true)
+      const res = await fetch('/api/admin/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body.error === 'string' ? body.error : 'Failed to delete client')
+        return
+      }
+      setClients(prev => prev.filter(c => c.id !== selected.id))
+      setSelected(null)
+      setNotes('')
+      setError('')
+    } catch (err) {
+      console.error(err)
+      setError('Failed to delete client')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const addClient = async () => {
     if (!form.name.trim() || !form.business.trim() || !form.email.trim()) {
       setError('Please fill in name, business, and email before creating a client.')
@@ -97,7 +153,8 @@ export default function ClientsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          monthlyPrice: form.isPotential ? 0 : tierPrices[form.packageTier],
+          monthlyPrice:
+            form.isPotential || form.packageTier === 'free' ? 0 : tierPrices[form.packageTier],
         }),
       })
       if (!res.ok) {
@@ -121,17 +178,13 @@ export default function ClientsPage() {
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
-  const setBillingStatus = async (billingStatus: NonNullable<Client['billing_status']>) => {
-    if (!selected) return
-    await updateClient(selected.id, { billing_status: billingStatus })
-  }
-
   const activatePotentialClient = async () => {
     if (!selected) return
+    const isFree = selected.package_tier === 'free'
     await updateClient(selected.id, {
       is_potential: false,
-      monthly_price: tierPrices[selected.package_tier] || selected.monthly_price || 0,
-      billing_status: 'not_started',
+      monthly_price: isFree ? 0 : tierPrices[selected.package_tier] || selected.monthly_price || 0,
+      billing_status: isFree ? 'paid' : 'not_started',
     })
   }
 
@@ -175,7 +228,7 @@ export default function ClientsPage() {
   }
 
   const active = clients.filter(c => c.status === 'active')
-  const mrr = active.reduce((s, c) => s + c.monthly_price, 0)
+  const billingMetrics = useMemo(() => computeBillingMetrics(clients), [clients])
 
   const filtered = useMemo(() => {
     return search.trim()
@@ -191,6 +244,17 @@ export default function ClientsPage() {
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   useEffect(() => { setPage(1) }, [search])
+
+  useEffect(() => {
+    const clientParam = new URLSearchParams(window.location.search).get('client')
+    if (clientParam && clients.length > 0) {
+      const match = clients.find(c => c.id === clientParam)
+      if (match) {
+        setSelected(match)
+        setNotes(match.notes ? String(match.notes) : '')
+      }
+    }
+  }, [clients])
 
   const exportCSV = () => {
     const headers = ['Name', 'Business', 'Email', 'Phone', 'Industry', 'Package', 'Monthly Price', 'Status', 'Start Date', 'Notes']
@@ -214,7 +278,10 @@ export default function ClientsPage() {
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Clients</h1>
-          <p className="text-sm text-brand-muted">{active.length} active &bull; ${mrr.toLocaleString()}/mo MRR</p>
+          <p className="text-sm text-brand-muted">
+            {active.length} active &bull; ${billingMetrics.contractedMrr.toLocaleString()}/mo contracted
+            &bull; ${billingMetrics.stripeMrr.toLocaleString()}/mo Stripe
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="px-4 py-2.5 rounded-lg bg-gray-50 border border-brand-border text-brand-muted text-xs font-semibold hover:text-brand-text transition-all">
@@ -222,7 +289,7 @@ export default function ClientsPage() {
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+            className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
           >
             + Add Client
           </button>
@@ -242,14 +309,14 @@ export default function ClientsPage() {
           placeholder="Search clients by name, business, or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold placeholder:text-brand-dim"
+          className="w-full py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent placeholder:text-brand-dim"
         />
       </div>
 
       {/* New Client Form */}
       {showForm && (
-        <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-brand-gold mb-4">New Client</h3>
+        <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-bold text-accent mb-4">New Client</h3>
           <div className="grid grid-cols-3 gap-3 mb-3">
             {([
               ['name', 'Full Name *', 'text'],
@@ -265,7 +332,7 @@ export default function ClientsPage() {
                   type={type}
                   value={form[key]}
                   onChange={e => setFormField(key, e.currentTarget?.value ?? '')}
-                  className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                  className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
                 />
               </div>
             ))}
@@ -281,7 +348,7 @@ export default function ClientsPage() {
                   disabled={form.isPotential}
                   className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                     form.packageTier === key
-                      ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                      ? 'bg-accent-soft text-accent border border-accent'
                       : 'bg-gray-50 text-brand-dim border border-brand-border'
                   } disabled:opacity-50`}
                 >
@@ -294,12 +361,15 @@ export default function ClientsPage() {
             <input
               type="checkbox"
               checked={form.isPotential}
-              onChange={e => setForm(prev => ({ ...prev, isPotential: e.currentTarget.checked }))}
+              onChange={e => {
+                const isPotential = (e.target as HTMLInputElement).checked
+                setForm(prev => ({ ...prev, isPotential }))
+              }}
             />
             Potential client (free until plan is activated)
           </label>
           <div className="flex gap-2">
-            <button onClick={addClient} type="button" disabled={saving} className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold disabled:opacity-60">
+            <button onClick={addClient} type="button" disabled={saving} className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-60">
               {saving ? 'Creating...' : 'Create Client'}
             </button>
             <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-brand-dim text-xs hover:text-brand-text">
@@ -327,7 +397,7 @@ export default function ClientsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-brand-border">
-                    {['Client', 'Business', 'Package', 'Monthly', 'Status', 'Since'].map(h => (
+                    {['Client', 'Business', 'Package', 'Monthly', 'Billing', 'Status', 'Since'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
                     ))}
                   </tr>
@@ -338,13 +408,16 @@ export default function ClientsPage() {
                       key={client.id}
                       onClick={() => { setSelected(client); setNotes(client.notes ? String(client.notes) : '') }}
                       className={`border-b border-gray-200 cursor-pointer transition-colors ${
-                        selected?.id === client.id ? 'bg-[rgba(184,148,63,0.04)]' : 'hover:bg-gray-50'
+                        selected?.id === client.id ? 'bg-accent-soft' : 'hover:bg-gray-50'
                       }`}
                     >
                       <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
                       <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                      <td className="px-4 py-3 text-xs text-brand-gold font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
+                      <td className="px-4 py-3 text-xs text-accent font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
                       <td className="px-4 py-3 text-sm text-brand-text">${(client.monthly_price || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[10px] font-semibold uppercase text-brand-muted">
+                        {(client.billing_status || 'not_started').replace('_', ' ')}
+                      </td>
                       <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
                       <td className="px-4 py-3 text-xs text-brand-dim">{client.start_date ? new Date(client.start_date).toLocaleDateString() : '—'}</td>
                     </tr>
@@ -364,7 +437,7 @@ export default function ClientsPage() {
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button key={p} onClick={() => setPage(p)}
                         className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
-                          page === p ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold' : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
+                          page === p ? 'bg-accent-soft text-accent border border-accent' : 'bg-gray-50 border border-brand-border text-brand-dim hover:text-brand-text'
                         }`}>
                         {p}
                       </button>
@@ -391,6 +464,17 @@ export default function ClientsPage() {
               <button onClick={() => setSelected(null)} className="text-brand-dim hover:text-brand-text text-xs">✕</button>
             </div>
 
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => { void deleteSelectedClient() }}
+                disabled={deleting || saving}
+                className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-100 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete client'}
+              </button>
+            </div>
+
             {/* Status */}
             <div className="mb-4">
               <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Status</div>
@@ -401,7 +485,7 @@ export default function ClientsPage() {
                     onClick={() => updateClient(selected.id, { status: s })}
                     className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
                       selected.status === s
-                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
+                        ? 'bg-accent-soft text-accent border border-accent'
                         : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
                     }`}
                   >
@@ -428,64 +512,53 @@ export default function ClientsPage() {
 
             {/* Billing */}
             <div className="mb-4">
-              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
-              <div className="text-xs text-brand-muted mb-2">
-                Mode: {selected.is_potential ? 'Potential (Free)' : 'Active Billing'}
-              </div>
-              <div className="text-xs text-brand-muted mb-2">
-                Payment: {selected.billing_status || 'not_started'}
-              </div>
-              {selected.last_payment_at && (
-                <div className="text-xs text-brand-dim mb-2">
-                  Last payment: {new Date(selected.last_payment_at).toLocaleDateString()}
-                </div>
-              )}
-              {selected.next_billing_date && (
-                <div className="text-xs text-brand-dim mb-2">
-                  Next billing: {new Date(selected.next_billing_date).toLocaleDateString()}
-                </div>
-              )}
-              <div className="grid grid-cols-1 gap-2 mb-2">
-                <input
-                  type="text"
-                  defaultValue={selected.stripe_customer_id || ''}
-                  onBlur={e => updateClient(selected.id, { stripe_customer_id: e.currentTarget.value.trim() })}
-                  placeholder="Stripe customer ID (cus_...)"
-                  className="w-full py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
-                />
-                <input
-                  type="text"
-                  defaultValue={selected.stripe_subscription_id || ''}
-                  onBlur={e => updateClient(selected.id, { stripe_subscription_id: e.currentTarget.value.trim() })}
-                  placeholder="Stripe subscription ID (sub_...)"
-                  className="w-full py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
-                />
-              </div>
-              <div className="flex gap-1.5 flex-wrap">
-                {(['trial', 'paid', 'past_due', 'unpaid'] as const).map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setBillingStatus(s)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
-                      selected.billing_status === s
-                        ? 'bg-[rgba(184,148,63,0.1)] text-brand-gold border border-brand-gold'
-                        : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
-                    }`}
-                  >
-                    {s.replace('_', ' ')}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">Billing</div>
                 {selected.is_potential && (
                   <button
                     type="button"
                     onClick={activatePotentialClient}
-                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-green-50 border border-green-200 text-brand-green hover:bg-green-100 transition-all"
+                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-green-50 border border-green-200 text-brand-green hover:bg-green-100"
                   >
-                    Activate Billing
+                    Activate billing
                   </button>
                 )}
               </div>
+              <p className="text-xs text-brand-muted mb-3">
+                In-app billing only — clients pay on their dashboard. Status syncs from Stripe.
+              </p>
+              <BillingPanel
+                client={selected}
+                adminView
+                onUpdated={() => void refreshClientsAndReselect(selected.id)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowBillingAdvanced(v => !v)}
+                className="text-[10px] font-bold uppercase text-accent mt-3 hover:underline"
+              >
+                {showBillingAdvanced ? 'Hide' : 'Show'} debug (manual Stripe IDs)
+              </button>
+              {showBillingAdvanced && (
+                <div className="grid grid-cols-1 gap-2 mt-2 p-2 rounded-lg border border-dashed border-brand-border bg-white/80">
+                  <input
+                    type="text"
+                    key={`cus-${selected.id}-${selected.stripe_customer_id || ''}`}
+                    defaultValue={selected.stripe_customer_id || ''}
+                    onBlur={e => updateClient(selected.id, { stripe_customer_id: e.currentTarget.value.trim() })}
+                    placeholder="Stripe customer ID"
+                    className="w-full py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
+                  />
+                  <input
+                    type="text"
+                    key={`sub-${selected.id}-${selected.stripe_subscription_id || ''}`}
+                    defaultValue={selected.stripe_subscription_id || ''}
+                    onBlur={e => updateClient(selected.id, { stripe_subscription_id: e.currentTarget.value.trim() })}
+                    placeholder="Stripe subscription ID"
+                    className="w-full py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Quick Links */}
@@ -510,9 +583,9 @@ export default function ClientsPage() {
               {selected.deliverables && selected.deliverables.length > 0 ? (
                 <div className="space-y-1.5 mb-2">
                   {selected.deliverables.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-[rgba(184,148,63,0.04)] border border-[rgba(184,148,63,0.15)]">
+                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-accent-soft border border-brand-border">
                       <span className="text-sm text-brand-text flex items-center gap-2">
-                        <span className="text-brand-gold text-xs">◈</span> {d}
+                        <span className="text-accent text-xs">◈</span> {d}
                       </span>
                       <button onClick={() => removeDeliverable(i)} className="text-brand-dim hover:text-brand-red text-xs">✕</button>
                     </div>
@@ -528,9 +601,9 @@ export default function ClientsPage() {
                   onChange={e => setNewDeliverable(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addDeliverable()}
                   placeholder="Add deliverable..."
-                  className="flex-1 py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                  className="flex-1 py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                 />
-                <button onClick={addDeliverable} className="px-3 py-1.5 rounded-lg bg-[rgba(184,148,63,0.1)] text-brand-gold text-xs font-semibold">+</button>
+                <button onClick={addDeliverable} className="px-3 py-1.5 rounded-lg bg-accent-soft text-accent text-xs font-semibold">+</button>
               </div>
             </div>
 
@@ -568,7 +641,7 @@ export default function ClientsPage() {
                   onChange={e => setNewQuickWin(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addQuickWin()}
                   placeholder="Add quick win..."
-                  className="flex-1 py-1.5 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-brand-gold"
+                  className="flex-1 py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                 />
                 <button onClick={addQuickWin} className="px-3 py-1.5 rounded-lg bg-green-100 text-brand-green text-xs font-semibold">+</button>
               </div>
@@ -582,11 +655,11 @@ export default function ClientsPage() {
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Add notes about this client..."
                 rows={3}
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold resize-y"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent resize-y"
               />
               <button
                 onClick={() => updateClient(selected.id, { notes })}
-                className="mt-2 px-4 py-2 rounded-lg bg-[rgba(184,148,63,0.1)] border border-brand-gold text-brand-gold text-xs font-semibold hover:bg-[rgba(184,148,63,0.15)] transition-all"
+                className="mt-2 px-4 py-2 rounded-lg bg-accent-soft border border-accent text-accent text-xs font-semibold hover:bg-neutral-100 transition-all"
               >
                 Save Notes
               </button>

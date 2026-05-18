@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════ SINGLE ACCENT (sync with tailwind.config.ts accent.*) ══════════ */
+:root {
+  --brand-accent: #b8943f;
+  --brand-accent-soft: #f0ebe3;
+  --brand-text: #0a0a0a;
+}
+
 /* ══════════ BASE ══════════ */
 html {
   scroll-behavior: smooth;
@@ -9,20 +16,30 @@ html {
 }
 
 body {
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
   background: #ffffff;
-  color: #374151;
+  color: var(--brand-text);
   -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #f5f5f3; }
-::-webkit-scrollbar-thumb { background: rgba(184,148,63,0.35); border-radius: 4px; }
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f5f5f5;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 4px;
+}
 
 /* ══════════ CUSTOM UTILITIES ══════════ */
+.accent-text,
 .gold-text {
-  background: linear-gradient(135deg, #1a1a2e 0%, #b8943f 100%);
+  background: linear-gradient(135deg, var(--brand-text) 0%, var(--brand-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .section-label {
@@ -30,7 +47,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #b8943f;
+  color: var(--brand-accent);
   margin-bottom: 14px;
   display: flex;
   align-items: center;
@@ -41,7 +58,7 @@ body {
   content: '';
   flex: 0 0 40px;
   height: 1px;
-  background: linear-gradient(90deg, #b8943f, transparent);
+  background: linear-gradient(90deg, var(--brand-accent), transparent);
 }
 
 /* ══════════ SCROLL ANIMATIONS ══════════ */

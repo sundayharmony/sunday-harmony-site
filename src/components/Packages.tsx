@@ -1,10 +1,10 @@
 import { packages } from '@/lib/data'
 
 const colorMap: Record<string, string> = {
-  blue: 'text-brand-blue',
-  green: 'text-brand-green',
-  gold: 'text-brand-gold',
-  purple: 'text-brand-purple',
+  blue: 'text-brand-muted',
+  green: 'text-brand-muted',
+  gold: 'text-accent',
+  purple: 'text-brand-muted',
 }
 
 export default function Packages() {
@@ -23,14 +23,14 @@ export default function Packages() {
           {packages.map((pkg) => (
             <div
               key={pkg.tier}
-              className={`bg-white rounded-2xl overflow-hidden transition-all hover:-translate-y-1 hover:shadow-md ${
+              className={`bg-white rounded-2xl overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-sm ${
                 pkg.popular
-                  ? 'border-2 border-brand-gold shadow-sm'
+                  ? 'border-2 border-brand-text shadow-sm'
                   : 'border border-brand-border'
               }`}
             >
               {pkg.popular && (
-                <div className="py-1.5 text-center text-[10px] font-bold tracking-[0.14em] uppercase bg-brand-gold text-white">
+                <div className="py-1.5 text-center text-[10px] font-bold tracking-[0.14em] uppercase bg-brand-text text-white">
                   Most Popular
                 </div>
               )}
@@ -53,7 +53,7 @@ export default function Packages() {
                 <div className="border-t border-brand-border pt-4">
                   {pkg.features.map((feat) => (
                     <div key={feat.text} className="flex gap-2 mb-2 text-xs leading-snug">
-                      <span className={`flex-shrink-0 mt-px ${feat.included ? 'text-brand-green' : 'text-gray-300'}`}>
+                      <span className={`flex-shrink-0 mt-px ${feat.included ? 'text-brand-text' : 'text-neutral-300'}`}>
                         {feat.included ? '✓' : '—'}
                       </span>
                       <span className={feat.included ? 'text-brand-muted' : 'text-gray-300'}>
@@ -67,8 +67,8 @@ export default function Packages() {
                   href="#contact"
                   className={`block w-full py-3 mt-5 rounded-lg text-center text-[13px] font-semibold transition-all ${
                     pkg.popular
-                      ? 'bg-brand-gold text-white font-bold hover:bg-[#a6832e]'
-                      : 'border border-brand-gold text-brand-gold hover:bg-[rgba(184,148,63,0.06)]'
+                      ? 'bg-brand-text text-white font-bold hover:bg-neutral-800'
+                      : 'border border-brand-border text-brand-text hover:bg-neutral-50'
                   }`}
                 >
                   Get Started
@@ -80,7 +80,7 @@ export default function Packages() {
 
         <div className="text-center mt-9 text-sm text-brand-dim">
           All packages include a{' '}
-          <strong className="text-brand-gold">free Google Business audit</strong> to start. No long-term
+          <strong className="text-accent">free Google Business audit</strong> to start. No long-term
           contracts &mdash; cancel anytime.
         </div>
       </div>

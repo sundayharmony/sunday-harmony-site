@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 attempts per 15 minutes per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`reset-password:${ip}`, 5, 15 * 60 * 1000)
-    if (!rl.allowed) {
+    const rlIp = rateLimit(`reset-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rlIp.allowed) {
       return NextResponse.json(
         { error: 'Too many attempts. Please try again later.' },
         { status: 429 }
@@ -39,8 +39,25 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Find user with this email and matching code
     const normalizedEmail = email.trim().toLowerCase()
+    const rlEmail = rateLimit(`reset-password:email:${normalizedEmail}`, 10, 15 * 60 * 1000)
+    if (!rlEmail.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    const codeKey = code.trim().replace(/\s/g, '')
+    const rlCode = rateLimit(`reset-password:code:${normalizedEmail}:${codeKey}`, 5, 15 * 60 * 1000)
+    if (!rlCode.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts for this code. Request a new code.' },
+        { status: 429 }
+      )
+    }
+
+    // Find user with this email and matching code
     const { data: user, error } = await getSupabase()
       .from('users')
       .select('*')

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
 interface ActivityEntry {
@@ -21,14 +22,14 @@ interface ClientData {
 }
 
 const categoryColors: Record<string, string> = {
-  'Social Media': '#3a8bc2',
-  'Local SEO': '#4a9e7d',
-  SEO: '#4a9e7d',
-  Reputation: '#c9a96e',
-  Email: '#7b68c9',
-  Website: '#3a8bc2',
-  Strategy: '#c9a96e',
-  General: '#6b7280',
+  'Social Media': '#525252',
+  'Local SEO': '#404040',
+  SEO: '#404040',
+  Reputation: '#737373',
+  Email: '#525252',
+  Website: '#404040',
+  Strategy: '#737373',
+  General: '#a3a3a3',
 }
 
 function guessCategory(action: string): string {
@@ -44,6 +45,7 @@ function guessCategory(action: string): string {
 }
 
 const tierLabels: Record<string, string> = {
+  free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Spark',
   growth: 'Growth',
@@ -102,17 +104,17 @@ export default function PerformancePage() {
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Days Active</div>
-          <div className="text-lg font-extrabold text-brand-blue">{daysSinceStart}</div>
+          <div className="text-lg font-extrabold text-brand-text">{daysSinceStart}</div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Monthly Investment</div>
-          <div className="text-lg font-extrabold text-brand-green">
+          <div className="text-lg font-extrabold text-brand-text">
             {client ? `$${client.monthly_price.toLocaleString()}` : '—'}
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Activities Logged</div>
-          <div className="text-lg font-extrabold text-brand-purple">{activities.length}</div>
+          <div className="text-lg font-extrabold text-accent">{activities.length}</div>
         </div>
       </div>
 
@@ -125,9 +127,9 @@ export default function PerformancePage() {
         </p>
         <p className="text-xs text-brand-dim">
           In the meantime, check your monthly reports in{' '}
-          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
+          <Link href="/dashboard/messages" className="text-accent hover:underline font-semibold">
             Messages
-          </a>{' '}
+          </Link>{' '}
           or ask your team for an update.
         </p>
       </div>
@@ -179,12 +181,12 @@ export default function PerformancePage() {
       </div>
 
       {/* Help Card */}
-      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 text-center">
+      <div className="mt-6 bg-accent-soft border border-accent rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
           Want a performance update?{' '}
-          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
+          <Link href="/dashboard/messages" className="text-accent hover:underline font-semibold">
             Send us a message
-          </a>{' '}
+          </Link>{' '}
           and we&rsquo;ll send you a detailed report.
         </p>
       </div>

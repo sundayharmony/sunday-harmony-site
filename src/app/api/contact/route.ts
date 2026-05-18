@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
+import { logApiRouteError } from '@/lib/api-route-log'
 import { createLead, logActivity } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { createEmailTransporter, getAdminNotifyEmail, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,24 +72,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Send email if SMTP is configured
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      })
+    if (isSmtpConfigured()) {
+      const transporter = createEmailTransporter()
+
+      const subject = sanitizeEmailSubjectPart(
+        `New Lead: ${firstName} ${lastName} from ${business}`,
+        200
+      )
 
       await transporter.sendMail({
         from: `"Sunday Harmony Website" <${process.env.SMTP_USER}>`,
-        to: process.env.NOTIFY_EMAIL || 'sales@sundayharmony.com',
+        to: getAdminNotifyEmail(),
         replyTo: email,
-        subject: `New Lead: ${firstName} ${lastName} from ${business}`,
+        subject,
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Contact Form Submission
             </h2>
@@ -141,7 +139,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })
   } catch (error) {
-    console.error('Contact form error:', error)
+    logApiRouteError(req, 'contact', error)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
 }

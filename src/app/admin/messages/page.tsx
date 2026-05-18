@@ -22,76 +22,59 @@ export default function AdminMessagesPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [allMessages, setAllMessages] = useState<Message[]>([])
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Fetch clients and all messages on mount
   useEffect(() => {
-    async function loadData() {
+    async function loadClients() {
       try {
-        const [clientsRes, msgsRes] = await Promise.all([
-          fetch('/api/admin/clients'),
-          fetch('/api/admin/messages'),
-        ])
+        const clientsRes = await fetch('/api/admin/clients')
         if (clientsRes.ok) setClients(await clientsRes.json())
-        if (msgsRes.ok) setAllMessages(await msgsRes.json())
       } catch (err) {
-        console.error('Failed to load data', err)
+        console.error('Failed to load clients', err)
       } finally {
         setLoading(false)
       }
     }
-    loadData()
+    void loadClients()
   }, [])
 
-  // Poll for new messages every 10 seconds
+  const loadMessagesForClient = async (clientId: string) => {
+    const res = await fetch(`/api/admin/messages?clientId=${encodeURIComponent(clientId)}`)
+    if (res.ok) setMessages(await res.json())
+  }
+
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/admin/messages')
-        if (res.ok) setAllMessages(await res.json())
-      } catch {}
+    if (!selectedClient) {
+      setMessages([])
+      return
+    }
+    void loadMessagesForClient(selectedClient)
+    const interval = setInterval(() => {
+      void loadMessagesForClient(selectedClient)
     }, 10000)
     return () => clearInterval(interval)
-  }, [])
-
-  // Filter messages for selected client
-  useEffect(() => {
-    if (selectedClient) {
-      setMessages(allMessages.filter(m => m.client_id === selectedClient))
-    } else {
-      setMessages([])
-    }
-  }, [selectedClient, allMessages])
+  }, [selectedClient])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Get unread count per client (messages from client that are recent)
   const getClientMsgCount = (clientId: string) => {
-    return allMessages.filter(m => m.client_id === clientId).length
+    if (clientId !== selectedClient) return 0
+    return messages.length
   }
 
   const getLastMessage = (clientId: string) => {
-    const clientMsgs = allMessages.filter(m => m.client_id === clientId)
-    return clientMsgs.length > 0 ? clientMsgs[clientMsgs.length - 1] : null
+    if (clientId !== selectedClient || messages.length === 0) return null
+    return messages[messages.length - 1]
   }
 
-  // Sort clients by most recent message
-  const sortedClients = [...clients].sort((a, b) => {
-    const aLast = getLastMessage(a.id)
-    const bLast = getLastMessage(b.id)
-    if (!aLast && !bLast) return 0
-    if (!aLast) return 1
-    if (!bLast) return -1
-    return new Date(bLast.created_at).getTime() - new Date(aLast.created_at).getTime()
-  })
+  const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name))
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,7 +92,7 @@ export default function AdminMessagesPage() {
       text: msgText,
       created_at: new Date().toISOString(),
     }
-    setAllMessages(prev => [...prev, optimisticMsg])
+    setMessages(prev => [...prev, optimisticMsg])
     setNewMsg('')
 
     try {
@@ -122,13 +105,11 @@ export default function AdminMessagesPage() {
         throw new Error('Failed to send message')
       }
       const msg = await res.json()
-      // Replace optimistic message with real one from server
-      setAllMessages(prev => prev.map(m => m.id === optimisticMsg.id ? msg : m))
+      setMessages(prev => prev.map(m => (m.id === optimisticMsg.id ? msg : m)))
       setError('')
     } catch (err) {
       setError('Failed to send message. Please try again.')
-      // Remove optimistic message on failure
-      setAllMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
       setNewMsg(msgText)
       console.error('Failed to send message', err)
     } finally {
@@ -178,14 +159,14 @@ export default function AdminMessagesPage() {
                     onClick={() => setSelectedClient(client.id)}
                     className={`w-full text-left p-3 rounded-lg mb-1 transition-all ${
                       isSelected
-                        ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                        ? 'bg-accent-soft border border-accent'
                         : 'hover:bg-gray-50 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-semibold text-brand-text">{client.name}</span>
                       {msgCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(184,148,63,0.1)] text-brand-gold">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-accent-soft text-accent">
                           {msgCount}
                         </span>
                       )}
@@ -231,12 +212,12 @@ export default function AdminMessagesPage() {
                         <div
                           className={`max-w-[70%] rounded-2xl p-4 ${
                             isAdmin
-                              ? 'bg-[rgba(184,148,63,0.08)] border border-brand-gold'
+                              ? 'bg-accent-soft border border-accent'
                               : 'bg-green-50 border border-green-200'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-xs font-bold ${isAdmin ? 'text-brand-gold' : 'text-brand-green'}`}>
+                            <span className={`text-xs font-bold ${isAdmin ? 'text-accent' : 'text-brand-muted'}`}>
                               {msg.from_name}
                             </span>
                             <span className="text-[10px] text-brand-dim">
@@ -261,12 +242,12 @@ export default function AdminMessagesPage() {
                   value={newMsg}
                   onChange={e => setNewMsg(e.target.value)}
                   placeholder={`Reply to ${selectedClientData?.name ? selectedClientData.name.split(' ')[0] : 'client'}...`}
-                  className="flex-1 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-brand-gold transition-colors"
+                  className="flex-1 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={!newMsg.trim() || sending}
-                  className="px-5 py-2.5 rounded-xl bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
+                  className="px-5 py-2.5 rounded-xl bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:hover:translate-y-0"
                 >
                   {sending ? 'Sending...' : 'Send'}
                 </button>

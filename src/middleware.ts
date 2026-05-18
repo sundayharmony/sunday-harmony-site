@@ -29,6 +29,9 @@ export async function middleware(req: NextRequest) {
     if (!token || (token.role !== 'client' && token.role !== 'admin')) {
       return redirectUnauthorized(req)
     }
+    if (token.role === 'admin') {
+      return NextResponse.redirect(new URL('/admin', req.url))
+    }
   }
 
   return NextResponse.next()

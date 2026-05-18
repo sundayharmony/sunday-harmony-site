@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import nodemailer from 'nodemailer'
 import { getUserByEmail } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { createEmailTransporter, isSmtpConfigured } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
+
+function escHtml(str: string): string {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
 export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 requests per 15 minutes per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
-    if (!rl.allowed) {
+    const rlIp = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rlIp.allowed) {
       return NextResponse.json(
         { error: 'Too many requests. Please try again later.' },
         { status: 429 }
@@ -25,6 +33,13 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
+    const rlEmail = rateLimit(`forgot-password:email:${normalizedEmail}`, 3, 15 * 60 * 1000)
+    if (!rlEmail.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
     const user = await getUserByEmail(normalizedEmail)
 
     // Always return success to prevent email enumeration
@@ -48,24 +63,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Send verification code email
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      })
+    if (isSmtpConfigured()) {
+      const transporter = createEmailTransporter()
 
       await transporter.sendMail({
         from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
         to: normalizedEmail,
-        subject: 'Your Password Reset Code \u2014 Sunday Harmony',
+        subject: 'Your Password Reset Code — Sunday Harmony',
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+          <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               Password Reset Code
             </h2>
-            <p>Hi ${user.name},</p>
+            <p>Hi ${escHtml(user.name || 'there')},</p>
             <p>We received a request to reset your password. Use the code below on the website to set a new password:</p>
             <div style="text-align:center;margin:30px 0">
               <div style="background:#f5f0e6;border:2px solid #c9a96e;border-radius:12px;padding:20px 40px;display:inline-block">
@@ -80,10 +90,7 @@ export async function POST(req: NextRequest) {
         `,
       })
     } else {
-      return NextResponse.json(
-        { error: 'Email service is not configured. Please contact support.' },
-        { status: 503 }
-      )
+      console.error('Forgot password: SMTP not configured')
     }
 
     return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })

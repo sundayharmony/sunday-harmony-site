@@ -172,7 +172,7 @@ export default function AdminSettingsPage() {
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="Enter your current password"
             />
           </div>
@@ -186,7 +186,7 @@ export default function AdminSettingsPage() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="Enter new password (min 8 characters)"
             />
             <p className="text-brand-muted text-xs mt-1">Min 8 characters with uppercase, lowercase, and a number</p>
@@ -201,7 +201,7 @@ export default function AdminSettingsPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+              className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
               placeholder="Confirm your new password"
             />
           </div>
@@ -209,7 +209,7 @@ export default function AdminSettingsPage() {
           <button
             type="submit"
             disabled={changingPassword}
-            className="w-full px-6 py-3 bg-brand-gold text-white font-medium rounded-lg hover:bg-brand-gold/90 transition-colors disabled:opacity-50"
+            className="w-full px-6 py-3 bg-brand-text text-white font-medium rounded-lg hover:bg-brand-text/90 transition-colors disabled:opacity-50"
           >
             {changingPassword ? 'Changing Password...' : 'Change Password'}
           </button>

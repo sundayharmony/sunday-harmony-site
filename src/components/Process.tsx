@@ -14,11 +14,11 @@ export default function Process() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 relative">
           {/* Connecting line (desktop only) */}
-          <div className="hidden lg:block absolute top-10 left-14 right-14 h-px bg-gradient-to-r from-brand-gold to-[rgba(184,148,63,0.1)]" />
+          <div className="hidden lg:block absolute top-10 left-14 right-14 h-px bg-gradient-to-r from-neutral-300 via-accent-soft to-transparent" />
 
           {processSteps.map((step) => (
             <div key={step.num} className="text-center relative">
-              <div className="w-[52px] h-[52px] rounded-full mx-auto mb-5 bg-[rgba(184,148,63,0.08)] border-2 border-[rgba(184,148,63,0.25)] flex items-center justify-center font-serif text-xl font-extrabold text-brand-gold relative z-10 bg-white">
+              <div className="w-[52px] h-[52px] rounded-full mx-auto mb-5 bg-accent-soft border-2 border-brand-border flex items-center justify-center font-serif text-xl font-extrabold text-accent relative z-10 bg-white">
                 {step.num}
               </div>
               <h4 className="text-base font-bold text-brand-text mb-2">{step.title}</h4>

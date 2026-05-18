@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Client {
   id: string
@@ -8,7 +8,7 @@ interface Client {
   business: string
 }
 
-interface File {
+interface ClientVaultFile {
   id: string
   client_id: string
   name: string
@@ -36,22 +36,32 @@ const formatFileSize = (bytes: number): string => {
   return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
 }
 
+function formatFileDate(iso: string | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString()
+}
+
+function parseFileCategory(value: string): ClientVaultFile['category'] {
+  if (value === 'report' || value === 'graphic' || value === 'content' || value === 'brand' || value === 'general') {
+    return value
+  }
+  return 'general'
+}
+
 export default function AdminFilesPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
-  const [files, setFiles] = useState<File[]>([])
+  const [files, setFiles] = useState<ClientVaultFile[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({
-    name: '',
-    file_url: '',
-    file_type: '',
-    file_size: '',
-    category: 'general' as const,
-  })
+  const [uploading, setUploading] = useState(false)
+  const [uploadDisplayName, setUploadDisplayName] = useState('')
+  const [uploadCategory, setUploadCategory] = useState<ClientVaultFile['category']>('general')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Fetch clients on mount
   useEffect(() => {
     (async () => {
       try {
@@ -74,7 +84,6 @@ export default function AdminFilesPage() {
     if (clientParam) setSelectedClientId(prev => prev || clientParam)
   }, [])
 
-  // Fetch files when client is selected
   useEffect(() => {
     if (!selectedClientId) {
       setFiles([])
@@ -86,7 +95,7 @@ export default function AdminFilesPage() {
         const res = await fetch(`/api/admin/files?client_id=${selectedClientId}`)
         if (!res.ok) throw new Error('Failed to load files')
         const data = await res.json()
-        setFiles(data)
+        setFiles(Array.isArray(data) ? data : [])
         setError('')
       } catch (err) {
         console.error('Failed to load files:', err)
@@ -95,40 +104,49 @@ export default function AdminFilesPage() {
     })()
   }, [selectedClientId])
 
-  const addFile = async () => {
-    if (!selectedClientId || !form.name.trim()) {
-      setError('Client and file name are required')
+  const resetUploadForm = () => {
+    setUploadDisplayName('')
+    setUploadCategory('general')
+    setSelectedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const uploadFile = async () => {
+    if (!selectedClientId) {
+      setError('Select a client first')
+      return
+    }
+    if (!selectedFile) {
+      setError('Choose a file from your computer')
       return
     }
 
+    setUploading(true)
+    setError('')
     try {
-      const res = await fetch('/api/admin/files', {
+      const fd = new FormData()
+      fd.append('client_id', selectedClientId)
+      fd.append('file', selectedFile)
+      if (uploadDisplayName.trim()) fd.append('name', uploadDisplayName.trim())
+      fd.append('category', uploadCategory)
+
+      const res = await fetch('/api/admin/files/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: selectedClientId,
-          name: form.name.trim(),
-          file_url: form.file_url.trim(),
-          file_type: form.file_type.trim() || 'generic',
-          file_size: form.file_size ? parseInt(form.file_size) : 0,
-          category: form.category,
-        }),
+        body: fd,
       })
-      if (!res.ok) throw new Error('Failed to create file')
-      const newFile = await res.json()
-      setFiles(prev => [...prev, newFile])
-      setForm({
-        name: '',
-        file_url: '',
-        file_type: '',
-        file_size: '',
-        category: 'general',
-      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body.error === 'string' ? body.error : 'Upload failed')
+        return
+      }
+      setFiles(prev => [...prev, body])
+      resetUploadForm()
       setShowForm(false)
-      setError('')
     } catch (err) {
-      setError('Failed to create file')
       console.error(err)
+      setError('Upload failed')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -141,7 +159,11 @@ export default function AdminFilesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: fileId }),
       })
-      if (!res.ok) throw new Error('Failed to delete file')
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof body.error === 'string' ? body.error : 'Failed to delete file')
+        return
+      }
       setFiles(prev => prev.filter(f => f.id !== fileId))
       setError('')
     } catch (err) {
@@ -152,16 +174,28 @@ export default function AdminFilesPage() {
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-brand-muted text-sm">Loading files…</div>
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Files</h1>
-          <p className="text-sm text-brand-muted">Manage client file sharing and assets</p>
+          <p className="text-sm text-brand-muted">Upload files to Supabase Storage for the selected client (max 4 MB per file).</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2.5 rounded-lg bg-brand-gold text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
+          type="button"
+          onClick={() => {
+            setShowForm(!showForm)
+            if (showForm) resetUploadForm()
+          }}
+          className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
         >
           + Upload File
         </button>
@@ -173,7 +207,6 @@ export default function AdminFilesPage() {
         </div>
       )}
 
-      {/* Client Selector */}
       <div className="mb-6">
         <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">
           Select Client
@@ -181,7 +214,7 @@ export default function AdminFilesPage() {
         <select
           value={selectedClientId || ''}
           onChange={e => setSelectedClientId(e.target.value || null)}
-          className="w-full md:w-64 py-2.5 px-4 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+          className="w-full md:w-64 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
         >
           <option value="">Choose a client...</option>
           {clients.map(client => (
@@ -192,94 +225,77 @@ export default function AdminFilesPage() {
         </select>
       </div>
 
-      {/* Upload File Form */}
       {showForm && selectedClientId && (
-        <div className="bg-[rgba(184,148,63,0.05)] border border-[rgba(184,148,63,0.2)] rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-brand-gold mb-4">Upload File for {selectedClient?.name}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
+          <h3 className="text-sm font-bold text-accent mb-2">Upload file for {selectedClient?.name}</h3>
+          <p className="text-xs text-brand-dim mb-4">
+            PDF, images, Word, Excel, CSV, text, or zip. Display name is optional (defaults to the file name).
+          </p>
+          <div className="space-y-4 max-w-xl">
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-                File Name *
+                File *
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={e => setSelectedFile(e.target.files?.[0] ?? null)}
+                className="w-full text-sm text-brand-text file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-brand-text file:text-white file:text-xs file:font-bold"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
+                Display name (optional)
               </label>
               <input
                 type="text"
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="e.g., Q1_Report_2024"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
+                value={uploadDisplayName}
+                onChange={e => setUploadDisplayName(e.target.value)}
+                maxLength={300}
+                placeholder="Shown in the vault (defaults to file name)"
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-                File Type
+                Category
               </label>
-              <input
-                type="text"
-                value={form.file_type}
-                onChange={e => setForm(f => ({ ...f, file_type: e.target.value }))}
-                placeholder="e.g., pdf, png, docx"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
-              />
+              <select
+                value={uploadCategory}
+                onChange={e => setUploadCategory(parseFileCategory(e.target.value))}
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
+              >
+                <option value="report">Report</option>
+                <option value="graphic">Graphic</option>
+                <option value="content">Content</option>
+                <option value="brand">Brand Assets</option>
+                <option value="general">General</option>
+              </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-                File URL
-              </label>
-              <input
-                type="text"
-                value={form.file_url}
-                onChange={e => setForm(f => ({ ...f, file_url: e.target.value }))}
-                placeholder="https://example.com/file.pdf"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
-              />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={uploadFile}
+                disabled={uploading || !selectedFile}
+                className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold hover:bg-opacity-90 transition-all disabled:opacity-50"
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false)
+                  resetUploadForm()
+                }}
+                className="px-4 py-2 rounded-lg text-brand-dim text-xs font-semibold hover:text-brand-text transition-all"
+              >
+                Cancel
+              </button>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-                File Size (bytes)
-              </label>
-              <input
-                type="number"
-                value={form.file_size}
-                onChange={e => setForm(f => ({ ...f, file_size: e.target.value }))}
-                placeholder="e.g., 1048576"
-                className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
-              />
-            </div>
-          </div>
-          <div className="mb-4">
-            <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-              Category
-            </label>
-            <select
-              value={form.category}
-              onChange={e => setForm(f => ({ ...f, category: e.target.value as any }))}
-              className="w-full py-2 px-3 bg-[#fafaf8] border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-brand-gold"
-            >
-              <option value="report">Report</option>
-              <option value="graphic">Graphic</option>
-              <option value="content">Content</option>
-              <option value="brand">Brand Assets</option>
-              <option value="general">General</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={addFile}
-              className="px-4 py-2 rounded-lg bg-brand-gold text-white text-xs font-bold hover:bg-opacity-90 transition-all"
-            >
-              Upload File
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="px-4 py-2 rounded-lg text-brand-dim text-xs font-semibold hover:text-brand-text transition-all"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
 
-      {/* Files List */}
       {selectedClientId ? (
         <div className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
           {files.length === 0 ? (
@@ -298,18 +314,18 @@ export default function AdminFilesPage() {
                           <h3 className="font-bold text-brand-text truncate">{file.name}</h3>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${categoryColors[file.category]}`}>
-                            {file.category.replace(/_/g, ' ').toUpperCase()}
+                          <span
+                            className={`text-[10px] font-bold px-2 py-1 rounded-full ${categoryColors[file.category] ?? categoryColors.general}`}
+                          >
+                            {(file.category || 'general').replace(/_/g, ' ').toUpperCase()}
                           </span>
                           <span className="text-[10px] text-brand-dim bg-gray-100 px-2 py-1 rounded-full">
-                            {file.file_type.toUpperCase()}
+                            {String(file.file_type || '').toUpperCase()}
                           </span>
                           <span className="text-[10px] text-brand-dim bg-gray-100 px-2 py-1 rounded-full">
                             {formatFileSize(file.file_size)}
                           </span>
-                          <span className="text-[10px] text-brand-muted">
-                            {new Date(file.created_at).toLocaleDateString()}
-                          </span>
+                          <span className="text-[10px] text-brand-muted">{formatFileDate(file.created_at)}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -318,12 +334,13 @@ export default function AdminFilesPage() {
                             href={file.file_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-[rgba(184,148,63,0.1)] text-brand-gold text-xs font-semibold hover:bg-[rgba(184,148,63,0.2)] transition-all"
+                            className="px-3 py-1.5 rounded-lg bg-accent-soft text-accent text-xs font-semibold hover:bg-neutral-200 transition-all"
                           >
                             Download
                           </a>
                         )}
                         <button
+                          type="button"
                           onClick={() => deleteFile(file.id)}
                           className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-all"
                         >

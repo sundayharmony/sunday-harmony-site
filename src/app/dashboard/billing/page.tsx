@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useState, useEffect, useMemo } from 'react'
 import StatCard from '@/components/ui/StatCard'
+import BillingPanel from '@/components/billing/BillingPanel'
+import { TIER_LABELS } from '@/lib/stripe-catalog'
 
 interface ClientData {
   id: string
@@ -11,83 +14,74 @@ interface ClientData {
   monthly_price: number
   start_date: string
   status: string
+  is_potential?: boolean
+  billing_status?: string
+  next_billing_date?: string | null
+  last_payment_at?: string | null
+  stripe_customer_id?: string
+  stripe_subscription_id?: string
 }
 
-interface Invoice {
+interface StripeInvoiceRow {
   id: string
-  date: string
-  amount: number
-  status: 'paid' | 'current' | 'overdue'
-  desc: string
+  number: string | null
+  status: string | null
+  amount_paid: number
+  amount_due: number
+  currency: string
+  hosted_invoice_url: string | null
+  created: number
 }
 
-const tierLabels: Record<string, string> = {
-  social_essentials: 'Social Essentials',
-  spark: 'Spark',
-  growth: 'Growth',
-  scale: 'Scale',
+const statusStyles: Record<string, { color: string; bg: string }> = {
+  paid: { color: '#2d8a62', bg: '#f0fdf4' },
+  current: { color: '#2e7bb5', bg: '#eff6ff' },
+  overdue: { color: '#c94a42', bg: '#fef2f2' },
 }
 
-const statusStyles: Record<string, { color: string; bg: string; label: string }> = {
-  paid: { color: '#2d8a62', bg: '#f0fdf4', label: 'Paid' },
-  current: { color: '#2e7bb5', bg: '#eff6ff', label: 'Current' },
-  overdue: { color: '#c94a42', bg: '#fef2f2', label: 'Overdue' },
-}
-
-function generateInvoices(startDate: string, monthlyPrice: number): Invoice[] {
-  const startTime = startDate ? new Date(startDate).getTime() : new Date().getTime()
-  const start = new Date(startTime)
-  const now = new Date()
-  const invoices: Invoice[] = []
-
-  // Generate one invoice per month from start_date to now
-  const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  let counter = 1
-
-  while (cursor <= currentMonth) {
-    const isCurrentMonth = cursor.getFullYear() === currentMonth.getFullYear() && cursor.getMonth() === currentMonth.getMonth()
-    const monthName = cursor.toLocaleDateString ? cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'
-
-    invoices.push({
-      id: `INV-${String(counter).padStart(3, '0')}`,
-      date: cursor.toISOString().split('T')[0],
-      amount: monthlyPrice,
-      status: isCurrentMonth ? 'current' : 'paid',
-      desc: monthName,
-    })
-
-    cursor.setMonth(cursor.getMonth() + 1)
-    counter++
+function formatMoneyCents(cents: number, currency: string): string {
+  const cur = (currency || 'usd').toUpperCase()
+  try {
+    return (cents / 100).toLocaleString(undefined, { style: 'currency', currency: cur })
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`
   }
-
-  // Return newest first
-  return invoices.reverse()
-}
-
-function getNextInvoiceDate(invoices: Invoice[]): string {
-  if (invoices.length === 0) return '—'
-  // The most recent invoice is the current month; next invoice is the following month
-  const latest = new Date(invoices[0].date)
-  latest.setMonth(latest.getMonth() + 1)
-  return latest.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 export default function BillingPage() {
   const [client, setClient] = useState<ClientData | null>(null)
+  const [invoices, setInvoices] = useState<StripeInvoiceRow[]>([])
+  const [invoiceNote, setInvoiceNote] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const load = async () => {
+    try {
+      const [profileRes, invRes] = await Promise.all([
+        fetch('/api/dashboard/profile'),
+        fetch('/api/dashboard/billing/invoices'),
+      ])
+      const profile = profileRes.ok ? await profileRes.json() : null
+      setClient(profile)
+      const invPayload = invRes.ok ? await invRes.json().catch(() => ({})) : {}
+      setInvoices(Array.isArray(invPayload.invoices) ? invPayload.invoices : [])
+      setInvoiceNote(typeof invPayload.message === 'string' ? invPayload.message : null)
+    } catch {
+      setClient(null)
+      setInvoices([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    fetch('/api/dashboard/profile')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { setClient(data); setLoading(false) })
-      .catch(() => setLoading(false))
+    void load()
   }, [])
 
   const monthlyPrice = client?.monthly_price || 0
-  const invoices = client ? generateInvoices(client.start_date, monthlyPrice) : []
-  const totalPaid = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0)
-  const nextInvoice = getNextInvoiceDate(invoices)
+  const totalPaid = useMemo(
+    () => invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (i.amount_paid || 0), 0),
+    [invoices]
+  )
 
   if (loading) {
     return (
@@ -97,129 +91,117 @@ export default function BillingPage() {
     )
   }
 
+  if (!client) {
+    return (
+      <div className="p-8 text-center text-brand-muted text-sm">
+        Unable to load billing profile. Please contact support.
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Billing</h1>
-        <p className="text-sm text-brand-muted">View your plan, invoices, and payment history.</p>
+        <p className="text-sm text-brand-muted">
+          Manage your plan and payment method without leaving your dashboard.
+        </p>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Current Plan"
-          value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
-          color="#c9a96e"
+          value={TIER_LABELS[client.package_tier as keyof typeof TIER_LABELS] || client.package_tier}
+          color="accent"
         />
-        <StatCard
-          label="Monthly Rate"
-          value={`$${monthlyPrice.toLocaleString()}`}
-          color="#4a9e7d"
-        />
+        <StatCard label="Monthly Rate" value={`$${monthlyPrice.toLocaleString()}`} />
         <StatCard
           label="Total Paid"
-          value={`$${totalPaid.toLocaleString()}`}
-          color="#3a8bc2"
+          value={formatMoneyCents(totalPaid, invoices[0]?.currency || 'usd')}
         />
         <StatCard
-          label="Account Status"
-          value={client?.status === 'active' ? 'Active' : client?.status || '—'}
-          color={client?.status === 'active' ? '#4a9e7d' : '#d4564e'}
+          label="Payment Status"
+          value={(client.billing_status || 'not_started').replace('_', ' ')}
         />
       </div>
 
-      {/* Plan Details */}
-      <div className="bg-white border border-brand-border rounded-2xl p-6 mb-6">
-        <h2 className="text-base font-bold text-brand-text mb-4">Plan Details</h2>
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Package</div>
-            <div className="text-sm text-brand-text font-semibold">
-              {client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+      <div className="grid lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white border border-brand-border rounded-2xl p-6">
+          <h2 className="text-base font-bold text-brand-text mb-4">Subscription</h2>
+          {client.is_potential ? (
+            <p className="text-sm text-brand-muted">
+              Your account is marked as a potential engagement. Contact Sunday Harmony to activate billing.
+            </p>
+          ) : (
+            <BillingPanel client={client} onUpdated={() => void load()} />
+          )}
+        </div>
+
+        <div className="bg-white border border-brand-border rounded-2xl p-6">
+          <h2 className="text-base font-bold text-brand-text mb-4">Invoice History</h2>
+          {invoices.length > 0 ? (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {invoices.map(inv => {
+                const cents = inv.amount_paid > 0 ? inv.amount_paid : inv.amount_due
+                const when = inv.created
+                  ? new Date(inv.created * 1000).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : '—'
+                const style =
+                  inv.status === 'paid'
+                    ? statusStyles.paid
+                    : statusStyles.current
+                return (
+                  <div
+                    key={inv.id}
+                    className="flex justify-between items-center py-2 px-3 rounded-lg bg-gray-50 border border-brand-border text-sm"
+                  >
+                    <div>
+                      <div className="font-mono text-xs">{inv.number || inv.id}</div>
+                      <div className="text-brand-dim text-xs">{when}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">{formatMoneyCents(cents, inv.currency)}</div>
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+                        style={{ color: style.color, background: style.bg }}
+                      >
+                        {inv.status}
+                      </span>
+                      {inv.hosted_invoice_url && (
+                        <div>
+                          <a
+                            href={inv.hosted_invoice_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-accent font-semibold hover:underline"
+                          >
+                            Receipt
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Billing Cycle</div>
-            <div className="text-sm text-brand-text font-semibold">Monthly</div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Next Invoice</div>
-            <div className="text-sm text-brand-text font-semibold">{nextInvoice}</div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
-            <div className="text-sm text-brand-text font-semibold">
-              {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Payment Method</div>
-            <div className="text-sm text-brand-text font-semibold">Contact us to set up</div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Annual Value</div>
-            <div className="text-sm text-brand-gold font-semibold">${(monthlyPrice * 12).toLocaleString()}/yr</div>
-          </div>
+          ) : (
+            <p className="text-sm text-brand-dim text-center py-6">
+              {invoiceNote || 'No invoices yet.'}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Invoice History */}
-      <div className="bg-white border border-brand-border rounded-2xl p-6">
-        <h2 className="text-base font-bold text-brand-text mb-4">Invoice History</h2>
-
-        {invoices.length > 0 ? (
-          <div className="space-y-2">
-            {/* Header */}
-            <div className="grid grid-cols-5 gap-4 px-3 py-2 text-[10px] font-bold uppercase text-brand-dim">
-              <span>Invoice</span>
-              <span>Period</span>
-              <span>Date</span>
-              <span>Amount</span>
-              <span>Status</span>
-            </div>
-            {invoices.map((inv) => {
-              const style = statusStyles[inv.status] || statusStyles.paid
-              return (
-                <div
-                  key={inv.id}
-                  className="grid grid-cols-5 gap-4 px-3 py-3 rounded-lg bg-gray-50 border border-brand-border items-center"
-                >
-                  <span className="text-sm text-brand-text font-semibold">{inv.id}</span>
-                  <span className="text-sm text-brand-muted">{inv.desc}</span>
-                  <span className="text-sm text-brand-muted">
-                    {new Date(inv.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span className="text-sm text-brand-text font-semibold">${inv.amount.toLocaleString()}</span>
-                  <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit"
-                    style={{ color: style.color, background: style.bg }}
-                  >
-                    {style.label}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <div className="text-3xl mb-2">🧾</div>
-            <p className="text-sm text-brand-muted">No invoices yet.</p>
-            <p className="text-xs text-brand-dim mt-1">Invoices will appear here once your plan is active.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Questions */}
-      <div className="mt-6 bg-[rgba(184,148,63,0.08)] border border-brand-gold rounded-xl p-4 text-center">
+      <div className="bg-accent-soft border border-accent rounded-xl p-4 text-center">
         <p className="text-sm text-brand-muted">
-          Questions about billing?{' '}
-          <a href="/dashboard/messages" className="text-brand-gold hover:underline font-semibold">
-            Send us a message
-          </a>{' '}
-          or email{' '}
-          <a href="mailto:sales@sundayharmony.com" className="text-brand-gold hover:underline font-semibold">
-            sales@sundayharmony.com
-          </a>
+          Questions?{' '}
+          <Link href="/dashboard/messages" className="text-accent font-semibold hover:underline">
+            Message us
+          </Link>
         </p>
       </div>
     </div>

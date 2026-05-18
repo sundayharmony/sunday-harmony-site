@@ -1,0 +1,16 @@
+{
+  "id": "evt_1ExampleCheckoutCompleted",
+  "object": "event",
+  "type": "checkout.session.completed",
+  "data": {
+    "object": {
+      "id": "cs_test_example",
+      "object": "checkout.session",
+      "mode": "subscription",
+      "metadata": { "client_id": "00000000-0000-0000-0000-000000000000" },
+      "client_reference_id": "00000000-0000-0000-0000-000000000000",
+      "customer": "cus_test_example",
+      "subscription": "sub_test_example"
+    }
+  }
+}

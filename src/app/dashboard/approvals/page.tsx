@@ -60,7 +60,7 @@ export default function ApprovalsPage() {
       case 'article':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'ad':
-        return 'bg-[rgba(184,148,63,0.08)] text-brand-gold border-brand-gold/20';
+        return 'bg-accent-soft text-accent border-accent/20';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -164,7 +164,7 @@ export default function ApprovalsPage() {
           onClick={() => setActiveTab('pending')}
           className={`px-4 py-3 font-medium border-b-2 transition-colors ${
             activeTab === 'pending'
-              ? 'border-brand-gold text-brand-gold'
+              ? 'border-accent text-accent'
               : 'border-transparent text-brand-muted hover:text-brand-text'
           }`}
         >
@@ -174,7 +174,7 @@ export default function ApprovalsPage() {
           onClick={() => setActiveTab('all')}
           className={`px-4 py-3 font-medium border-b-2 transition-colors ${
             activeTab === 'all'
-              ? 'border-brand-gold text-brand-gold'
+              ? 'border-accent text-accent'
               : 'border-transparent text-brand-muted hover:text-brand-text'
           }`}
         >
@@ -216,8 +216,8 @@ export default function ApprovalsPage() {
 
               {/* Content Preview */}
               {approval.content_text && (
-                <div className="mb-4 p-4 bg-[rgba(184,148,63,0.08)] border border-brand-gold/20 rounded-lg">
-                  <p className="text-xs text-brand-gold font-medium mb-2">CONTENT PREVIEW</p>
+                <div className="mb-4 p-4 bg-accent-soft border border-accent/20 rounded-lg">
+                  <p className="text-xs text-accent font-medium mb-2">CONTENT PREVIEW</p>
                   <p className="text-brand-text text-sm whitespace-pre-wrap line-clamp-6">{approval.content_text}</p>
                 </div>
               )}
@@ -245,7 +245,7 @@ export default function ApprovalsPage() {
                     href={approval.content_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-brand-gold hover:text-brand-gold/80 font-medium text-sm transition-colors"
+                    className="text-accent hover:text-accent/80 font-medium text-sm transition-colors"
                   >
                     View Content →
                   </a>
@@ -280,7 +280,7 @@ export default function ApprovalsPage() {
                         onChange={(e) => setFeedbackText(e.target.value)}
                         placeholder="What would you like revised? Be specific with your feedback..."
                         rows={4}
-                        className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/20 text-brand-text placeholder-brand-dim"
+                        className="w-full px-4 py-3 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/20 text-brand-text placeholder:text-brand-dim"
                       />
                       <div className="flex gap-2">
                         <button
