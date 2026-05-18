@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
-import { getClientById, logActivity, updateClient } from '@/lib/db'
+import { getClientById, logActivity } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-function toBillingStatus(status: Stripe.Subscription.Status): 'trial' | 'paid' | 'past_due' | 'unpaid' | 'not_started' {
-  if (status === 'trialing') return 'trial'
-  if (status === 'active') return 'paid'
-  if (status === 'past_due') return 'past_due'
-  if (status === 'unpaid' || status === 'incomplete' || status === 'incomplete_expired') return 'unpaid'
-  return 'not_started'
-}
 
 export async function POST(req: NextRequest) {
   const session = await requireAdminSession()
@@ -39,18 +31,8 @@ export async function POST(req: NextRequest) {
 
   const stripe = getStripe()
   const subscription = await stripe.subscriptions.retrieve(subId)
-  const stripeCustomerId = String(subscription.customer)
-  const subscriptionPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
-
-  const updated = await updateClient(clientId, {
-    stripe_subscription_id: subscription.id,
-    stripe_customer_id: stripeCustomerId,
-    billing_status: toBillingStatus(subscription.status),
-    is_potential: false,
-    next_billing_date: subscriptionPeriodEnd
-      ? new Date(subscriptionPeriodEnd * 1000).toISOString()
-      : undefined,
-  })
+  await applySubscriptionToClient(clientId, subscription)
+  const updated = await getClientById(clientId)
 
   const actor = session.user.email || 'admin'
   await logActivity({

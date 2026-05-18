@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import BillingPanel from '@/components/billing/BillingPanel'
+import { computeBillingMetrics } from '@/lib/billing-metrics'
 
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
@@ -14,16 +16,6 @@ interface Client {
   last_payment_at?: string
   next_billing_date?: string
   notes: string; deliverables: string[]; quick_wins: { text: string; done: boolean }[]
-}
-
-interface StripeInvoiceRow {
-  id: string
-  number: string | null
-  status: string | null
-  amount_paid: number
-  currency: string
-  hosted_invoice_url: string | null
-  created: number
 }
 
 const tierLabels: Record<string, string> = {
@@ -53,12 +45,7 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
-  const [billingStripeError, setBillingStripeError] = useState('')
-  const [stripeAction, setStripeAction] = useState<string | null>(null)
-  const [adminInvoices, setAdminInvoices] = useState<StripeInvoiceRow[]>([])
-  const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [showBillingAdvanced, setShowBillingAdvanced] = useState(false)
-  const [checkoutTier, setCheckoutTier] = useState<string>('spark')
   const PAGE_SIZE = 15
 
   useEffect(() => {
@@ -185,11 +172,6 @@ export default function ClientsPage() {
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
-  const setBillingStatus = async (billingStatus: NonNullable<Client['billing_status']>) => {
-    if (!selected) return
-    await updateClient(selected.id, { billing_status: billingStatus })
-  }
-
   const activatePotentialClient = async () => {
     if (!selected) return
     await updateClient(selected.id, {
@@ -239,7 +221,7 @@ export default function ClientsPage() {
   }
 
   const active = clients.filter(c => c.status === 'active')
-  const mrr = active.reduce((s, c) => s + c.monthly_price, 0)
+  const billingMetrics = useMemo(() => computeBillingMetrics(clients), [clients])
 
   const filtered = useMemo(() => {
     return search.trim()
@@ -257,31 +239,15 @@ export default function ClientsPage() {
   useEffect(() => { setPage(1) }, [search])
 
   useEffect(() => {
-    if (selected?.package_tier) setCheckoutTier(selected.package_tier)
-  }, [selected?.id, selected?.package_tier])
-
-  useEffect(() => {
-    if (!selected?.id || !selected.stripe_customer_id?.trim()) {
-      setAdminInvoices([])
-      return
-    }
-    let cancelled = false
-    setInvoicesLoading(true)
-    ;(async () => {
-      try {
-        const r = await fetch(`/api/admin/stripe/invoices?clientId=${encodeURIComponent(selected.id)}`)
-        const d = await r.json().catch(() => ({}))
-        if (cancelled) return
-        if (!r.ok) setAdminInvoices([])
-        else setAdminInvoices(Array.isArray(d.invoices) ? d.invoices : [])
-      } catch {
-        if (!cancelled) setAdminInvoices([])
-      } finally {
-        if (!cancelled) setInvoicesLoading(false)
+    const clientParam = new URLSearchParams(window.location.search).get('client')
+    if (clientParam && clients.length > 0) {
+      const match = clients.find(c => c.id === clientParam)
+      if (match) {
+        setSelected(match)
+        setNotes(match.notes ? String(match.notes) : '')
       }
-    })()
-    return () => { cancelled = true }
-  }, [selected?.id, selected?.stripe_customer_id])
+    }
+  }, [clients])
 
   const exportCSV = () => {
     const headers = ['Name', 'Business', 'Email', 'Phone', 'Industry', 'Package', 'Monthly Price', 'Status', 'Start Date', 'Notes']
@@ -305,7 +271,10 @@ export default function ClientsPage() {
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Clients</h1>
-          <p className="text-sm text-brand-muted">{active.length} active &bull; ${mrr.toLocaleString()}/mo MRR</p>
+          <p className="text-sm text-brand-muted">
+            {active.length} active &bull; ${billingMetrics.contractedMrr.toLocaleString()}/mo contracted
+            &bull; ${billingMetrics.stripeMrr.toLocaleString()}/mo Stripe
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="px-4 py-2.5 rounded-lg bg-gray-50 border border-brand-border text-brand-muted text-xs font-semibold hover:text-brand-text transition-all">
@@ -421,7 +390,7 @@ export default function ClientsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-brand-border">
-                    {['Client', 'Business', 'Package', 'Monthly', 'Status', 'Since'].map(h => (
+                    {['Client', 'Business', 'Package', 'Monthly', 'Billing', 'Status', 'Since'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{h}</th>
                     ))}
                   </tr>
@@ -439,6 +408,9 @@ export default function ClientsPage() {
                       <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
                       <td className="px-4 py-3 text-xs text-accent font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
                       <td className="px-4 py-3 text-sm text-brand-text">${(client.monthly_price || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-[10px] font-semibold uppercase text-brand-muted">
+                        {(client.billing_status || 'not_started').replace('_', ' ')}
+                      </td>
                       <td className="px-4 py-3"><StatusBadge status={client.status} /></td>
                       <td className="px-4 py-3 text-xs text-brand-dim">{client.start_date ? new Date(client.start_date).toLocaleDateString() : '—'}</td>
                     </tr>
@@ -489,7 +461,7 @@ export default function ClientsPage() {
               <button
                 type="button"
                 onClick={() => { void deleteSelectedClient() }}
-                disabled={deleting || saving || stripeAction !== null}
+                disabled={deleting || saving}
                 className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-100 disabled:opacity-50"
               >
                 {deleting ? 'Deleting…' : 'Delete client'}
@@ -533,319 +505,41 @@ export default function ClientsPage() {
 
             {/* Billing */}
             <div className="mb-4">
-              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
-              <div className="text-xs text-brand-muted mb-2">
-                Mode: {selected.is_potential ? 'Potential (Free)' : 'Active Billing'}
-              </div>
-              <div className="text-xs text-brand-muted mb-2">
-                Payment: {selected.billing_status || 'not_started'}
-              </div>
-              {selected.last_payment_at && (
-                <div className="text-xs text-brand-dim mb-2">
-                  Last payment: {new Date(selected.last_payment_at).toLocaleDateString()}
-                </div>
-              )}
-              {selected.next_billing_date && (
-                <div className="text-xs text-brand-dim mb-2">
-                  Next billing: {new Date(selected.next_billing_date).toLocaleDateString()}
-                </div>
-              )}
-
-              {billingStripeError && (
-                <div className="mb-2 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px]">
-                  {billingStripeError}
-                </div>
-              )}
-
-              <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 mb-3">
-                <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Stripe actions</div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    title={selected.stripe_customer_id ? 'Customer already linked' : ''}
-                    disabled={Boolean(selected.stripe_customer_id?.trim()) || stripeAction !== null}
-                    onClick={async () => {
-                      setBillingStripeError('')
-                      setStripeAction('customer')
-                      try {
-                        const res = await fetch('/api/admin/stripe/customer', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ clientId: selected.id }),
-                        })
-                        const payload = await res.json().catch(() => ({}))
-                        if (!res.ok) throw new Error(payload?.error || 'Failed to create customer')
-                        await refreshClientsAndReselect(selected.id)
-                      } catch (err) {
-                        setBillingStripeError(err instanceof Error ? err.message : 'Stripe customer failed')
-                      } finally {
-                        setStripeAction(null)
-                      }
-                    }}
-                    className="w-full py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                  >
-                    {stripeAction === 'customer' ? 'Working…' : selected.stripe_customer_id?.trim() ? 'Stripe customer linked' : 'Create / link Stripe customer'}
-                  </button>
-
-                  <div className="flex gap-2 items-center flex-wrap">
-                    <select
-                      value={checkoutTier}
-                      onChange={e => setCheckoutTier(e.target.value)}
-                      disabled={selected.is_potential || stripeAction !== null}
-                      className="flex-1 min-w-[140px] py-2 px-2 rounded-lg bg-white border border-brand-border text-xs text-brand-text outline-none focus:border-accent disabled:opacity-50"
-                    >
-                      {Object.entries(tierLabels).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      disabled={selected.is_potential || !selected.email?.trim() || stripeAction !== null}
-                      title={selected.is_potential ? 'Activate billing first' : !selected.email?.trim() ? 'Client needs an email' : ''}
-                      onClick={async () => {
-                        setBillingStripeError('')
-                        setStripeAction('checkout')
-                        try {
-                          const res = await fetch('/api/admin/stripe/checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ clientId: selected.id, tier: checkoutTier }),
-                          })
-                          const payload = await res.json().catch(() => ({}))
-                          if (!res.ok) throw new Error(payload?.error || 'Checkout failed')
-                          if (payload.url) window.location.href = payload.url as string
-                        } catch (err) {
-                          setBillingStripeError(err instanceof Error ? err.message : 'Checkout failed')
-                        } finally {
-                          setStripeAction(null)
-                        }
-                      }}
-                      className="py-2 px-3 rounded-lg bg-brand-text text-white text-xs font-bold hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      {stripeAction === 'checkout' ? '…' : 'Start subscription'}
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      disabled={!selected.stripe_customer_id?.trim() || stripeAction !== null}
-                      onClick={async () => {
-                        setBillingStripeError('')
-                        setStripeAction('portal')
-                        try {
-                          const res = await fetch('/api/admin/stripe/portal', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ clientId: selected.id }),
-                          })
-                          const payload = await res.json().catch(() => ({}))
-                          if (!res.ok) throw new Error(payload?.error || 'Portal failed')
-                          if (payload.url) window.open(payload.url as string, '_blank', 'noopener,noreferrer')
-                        } catch (err) {
-                          setBillingStripeError(err instanceof Error ? err.message : 'Portal failed')
-                        } finally {
-                          setStripeAction(null)
-                        }
-                      }}
-                      className="flex-1 py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      {stripeAction === 'portal' ? '…' : 'Billing portal'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!selected.stripe_subscription_id?.trim() || stripeAction !== null}
-                      onClick={async () => {
-                        setBillingStripeError('')
-                        setStripeAction('sync')
-                        try {
-                          const res = await fetch('/api/admin/stripe/sync', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ clientId: selected.id }),
-                          })
-                          const payload = await res.json().catch(() => ({}))
-                          if (!res.ok) throw new Error(payload?.error || 'Sync failed')
-                          await refreshClientsAndReselect(selected.id)
-                        } catch (err) {
-                          setBillingStripeError(err instanceof Error ? err.message : 'Sync failed')
-                        } finally {
-                          setStripeAction(null)
-                        }
-                      }}
-                      className="flex-1 py-2 px-3 rounded-lg bg-white border border-brand-border text-xs font-semibold text-brand-text hover:border-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      {stripeAction === 'sync' ? '…' : 'Refresh from Stripe'}
-                    </button>
-                  </div>
-
-                  {selected.stripe_subscription_id?.trim() && (
-                    <div className="flex gap-2 flex-wrap pt-1 border-t border-brand-border/60">
-                      <button
-                        type="button"
-                        disabled={stripeAction !== null}
-                        onClick={async () => {
-                          if (!window.confirm('Cancel this subscription at the end of the current billing period?')) return
-                          setBillingStripeError('')
-                          setStripeAction('sub_cancel_end')
-                          try {
-                            const res = await fetch('/api/admin/stripe/subscription', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ clientId: selected.id, action: 'cancel_at_period_end' }),
-                            })
-                            const payload = await res.json().catch(() => ({}))
-                            if (!res.ok) throw new Error(payload?.error || 'Update failed')
-                            await refreshClientsAndReselect(selected.id)
-                          } catch (err) {
-                            setBillingStripeError(err instanceof Error ? err.message : 'Update failed')
-                          } finally {
-                            setStripeAction(null)
-                          }
-                        }}
-                        className="flex-1 py-2 px-2 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-                      >
-                        {stripeAction === 'sub_cancel_end' ? '…' : 'Cancel at period end'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={stripeAction !== null}
-                        onClick={async () => {
-                          if (!window.confirm('Resume subscription (undo cancel at period end)?')) return
-                          setBillingStripeError('')
-                          setStripeAction('sub_resume')
-                          try {
-                            const res = await fetch('/api/admin/stripe/subscription', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ clientId: selected.id, action: 'resume' }),
-                            })
-                            const payload = await res.json().catch(() => ({}))
-                            if (!res.ok) throw new Error(payload?.error || 'Update failed')
-                            await refreshClientsAndReselect(selected.id)
-                          } catch (err) {
-                            setBillingStripeError(err instanceof Error ? err.message : 'Update failed')
-                          } finally {
-                            setStripeAction(null)
-                          }
-                        }}
-                        className="flex-1 py-2 px-2 rounded-lg bg-green-50 border border-green-200 text-[10px] font-bold text-green-900 hover:bg-green-100 disabled:opacity-50"
-                      >
-                        {stripeAction === 'sub_resume' ? '…' : 'Resume subscription'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={stripeAction !== null}
-                        onClick={async () => {
-                          if (!window.confirm('Cancel this subscription immediately? This cannot be undone in the app.')) return
-                          setBillingStripeError('')
-                          setStripeAction('sub_cancel_now')
-                          try {
-                            const res = await fetch('/api/admin/stripe/subscription', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ clientId: selected.id, action: 'cancel_immediately' }),
-                            })
-                            const payload = await res.json().catch(() => ({}))
-                            if (!res.ok) throw new Error(payload?.error || 'Cancel failed')
-                            await refreshClientsAndReselect(selected.id)
-                          } catch (err) {
-                            setBillingStripeError(err instanceof Error ? err.message : 'Cancel failed')
-                          } finally {
-                            setStripeAction(null)
-                          }
-                        }}
-                        className="flex-1 py-2 px-2 rounded-lg bg-red-50 border border-red-200 text-[10px] font-bold text-red-800 hover:bg-red-100 disabled:opacity-50"
-                      >
-                        {stripeAction === 'sub_cancel_now' ? '…' : 'Cancel now'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mb-3">
-                <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Recent invoices (Stripe)</div>
-                {!selected.stripe_customer_id?.trim() ? (
-                  <p className="text-[11px] text-brand-dim">Link a Stripe customer to load invoices.</p>
-                ) : invoicesLoading ? (
-                  <p className="text-[11px] text-brand-dim">Loading invoices…</p>
-                ) : adminInvoices.length === 0 ? (
-                  <p className="text-[11px] text-brand-dim">No invoices yet for this customer.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto rounded-lg border border-brand-border bg-white text-[11px]">
-                    <div className="grid grid-cols-[1fr_72px_72px_auto] gap-1 px-2 py-1.5 border-b border-brand-border text-brand-dim font-bold uppercase tracking-wide">
-                      <span>Invoice</span>
-                      <span>Date</span>
-                      <span className="text-right">Paid</span>
-                      <span className="text-right"> </span>
-                    </div>
-                    {adminInvoices.map(inv => {
-                      const cur = (inv.currency || 'usd').toUpperCase()
-                      const amt = (inv.amount_paid / 100).toLocaleString(undefined, { style: 'currency', currency: cur })
-                      const when = inv.created ? new Date(inv.created * 1000).toLocaleDateString() : '—'
-                      return (
-                        <div key={inv.id} className="grid grid-cols-[1fr_72px_72px_auto] gap-1 px-2 py-1.5 border-b border-gray-100 items-center text-brand-text">
-                          <span className="truncate font-mono text-[10px]" title={inv.id}>{inv.number || inv.id}</span>
-                          <span className="text-brand-muted">{when}</span>
-                          <span className="text-right font-semibold">{amt}</span>
-                          <span className="text-right">
-                            {inv.hosted_invoice_url ? (
-                              <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-accent font-semibold hover:underline">
-                                View
-                              </a>
-                            ) : (
-                              <span className="text-brand-dim">—</span>
-                            )}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-1.5 flex-wrap mb-2">
-                {(['trial', 'paid', 'past_due', 'unpaid'] as const).map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setBillingStatus(s)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${
-                      selected.billing_status === s
-                        ? 'bg-accent-soft text-accent border border-accent'
-                        : 'bg-gray-50 text-brand-dim border border-brand-border hover:text-brand-text'
-                    }`}
-                  >
-                    {s.replace('_', ' ')}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">Billing</div>
                 {selected.is_potential && (
                   <button
                     type="button"
                     onClick={activatePotentialClient}
-                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-green-50 border border-green-200 text-brand-green hover:bg-green-100 transition-all"
+                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-green-50 border border-green-200 text-brand-green hover:bg-green-100"
                   >
-                    Activate Billing
+                    Activate billing
                   </button>
                 )}
               </div>
-
+              <p className="text-xs text-brand-muted mb-3">
+                In-app billing only — clients pay on their dashboard. Status syncs from Stripe.
+              </p>
+              <BillingPanel
+                client={selected}
+                adminView
+                onUpdated={() => void refreshClientsAndReselect(selected.id)}
+              />
               <button
                 type="button"
                 onClick={() => setShowBillingAdvanced(v => !v)}
-                className="text-[10px] font-bold uppercase text-accent mb-2 hover:underline"
+                className="text-[10px] font-bold uppercase text-accent mt-3 hover:underline"
               >
-                {showBillingAdvanced ? 'Hide' : 'Show'} advanced (manual Stripe IDs)
+                {showBillingAdvanced ? 'Hide' : 'Show'} debug (manual Stripe IDs)
               </button>
               {showBillingAdvanced && (
-                <div className="grid grid-cols-1 gap-2 mb-2 p-2 rounded-lg border border-dashed border-brand-border bg-white/80">
+                <div className="grid grid-cols-1 gap-2 mt-2 p-2 rounded-lg border border-dashed border-brand-border bg-white/80">
                   <input
                     type="text"
                     key={`cus-${selected.id}-${selected.stripe_customer_id || ''}`}
                     defaultValue={selected.stripe_customer_id || ''}
                     onBlur={e => updateClient(selected.id, { stripe_customer_id: e.currentTarget.value.trim() })}
-                    placeholder="Stripe customer ID (cus_...)"
+                    placeholder="Stripe customer ID"
                     className="w-full py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                   />
                   <input
@@ -853,7 +547,7 @@ export default function ClientsPage() {
                     key={`sub-${selected.id}-${selected.stripe_subscription_id || ''}`}
                     defaultValue={selected.stripe_subscription_id || ''}
                     onBlur={e => updateClient(selected.id, { stripe_subscription_id: e.currentTarget.value.trim() })}
-                    placeholder="Stripe subscription ID (sub_...)"
+                    placeholder="Stripe subscription ID"
                     className="w-full py-1.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-xs outline-none focus:border-accent"
                   />
                 </div>

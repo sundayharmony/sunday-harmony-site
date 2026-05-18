@@ -10,6 +10,7 @@ import {
   logActivity,
 } from '@/lib/db'
 import { removeAllClientFilesFromVault, removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
+import { cleanupStripeForClient } from '@/lib/billing-service'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { createEmailTransporter, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
 
@@ -239,6 +240,7 @@ export async function DELETE(req: NextRequest) {
   const files = await getFilesByClient(id)
   await Promise.all(files.map(f => removeClientFileByPublicUrlIfOurs(f.file_url)))
   await removeAllClientFilesFromVault(id)
+  await cleanupStripeForClient(id)
 
   const ok = await deleteClient(id)
   if (!ok) return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 })

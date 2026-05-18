@@ -1,0 +1,261 @@
+import type Stripe from 'stripe'
+import { getClientById, logActivity, updateClient } from '@/lib/db'
+import { ensureStripeCustomerForClient } from '@/lib/stripe-customer-utils'
+import { getStripePriceIdForTier, type PackageTier } from '@/lib/stripe-catalog'
+import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
+import { getStripe } from '@/lib/stripe'
+
+export async function cleanupStripeForClient(clientId: string): Promise<void> {
+  const client = await getClientById(clientId)
+  if (!client) return
+
+  const stripe = getStripe()
+  const subId = client.stripe_subscription_id?.trim()
+  if (subId) {
+    try {
+      await stripe.subscriptions.cancel(subId)
+    } catch (err) {
+      console.error('cleanupStripeForClient cancel subscription:', err)
+    }
+  }
+}
+
+export async function createSetupIntentForClient(
+  clientId: string
+): Promise<{ clientSecret: string; stripeCustomerId: string } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  if (client.is_potential) {
+    return { error: 'Activate billing for this client before collecting payment.', status: 400 }
+  }
+
+  const ensured = await ensureStripeCustomerForClient(clientId)
+  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
+
+  const intent = await getStripe().setupIntents.create({
+    customer: ensured.stripe_customer_id,
+    payment_method_types: ['card'],
+    metadata: { client_id: clientId },
+  })
+
+  if (!intent.client_secret) {
+    return { error: 'Failed to create setup intent', status: 500 }
+  }
+
+  return { clientSecret: intent.client_secret, stripeCustomerId: ensured.stripe_customer_id }
+}
+
+async function attachDefaultPaymentMethod(
+  customerId: string,
+  paymentMethodId: string
+): Promise<void> {
+  const stripe = getStripe()
+  try {
+    await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId })
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code
+    if (code !== 'resource_already_exists') throw err
+  }
+  await stripe.customers.update(customerId, {
+    invoice_settings: { default_payment_method: paymentMethodId },
+  })
+}
+
+export async function createOrUpdateSubscription(
+  clientId: string,
+  tier: PackageTier,
+  paymentMethodId: string
+): Promise<{ subscription: Stripe.Subscription } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  if (client.is_potential) {
+    return { error: 'Activate billing for this client before starting a subscription.', status: 400 }
+  }
+
+  const priceId = getStripePriceIdForTier(tier)
+  if (!priceId) {
+    return { error: `Missing Stripe price for tier "${tier}"`, status: 500 }
+  }
+
+  const ensured = await ensureStripeCustomerForClient(clientId)
+  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
+
+  await attachDefaultPaymentMethod(ensured.stripe_customer_id, paymentMethodId)
+
+  const stripe = getStripe()
+  let subscription: Stripe.Subscription
+
+  const existingSubId = client.stripe_subscription_id?.trim()
+  if (existingSubId) {
+    const existing = await stripe.subscriptions.retrieve(existingSubId)
+    const itemId = existing.items.data[0]?.id
+    if (!itemId) return { error: 'Subscription has no line items', status: 500 }
+    subscription = await stripe.subscriptions.update(existingSubId, {
+      items: [{ id: itemId, price: priceId }],
+      default_payment_method: paymentMethodId,
+      cancel_at_period_end: false,
+      metadata: { client_id: clientId },
+    })
+  } else {
+    subscription = await stripe.subscriptions.create({
+      customer: ensured.stripe_customer_id,
+      items: [{ price: priceId }],
+      default_payment_method: paymentMethodId,
+      metadata: { client_id: clientId },
+      expand: ['latest_invoice.payment_intent'],
+    })
+  }
+
+  await applySubscriptionToClient(clientId, subscription)
+  return { subscription }
+}
+
+export async function changeSubscriptionTier(
+  clientId: string,
+  tier: PackageTier
+): Promise<{ subscription: Stripe.Subscription } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const subId = client.stripe_subscription_id?.trim()
+  if (!subId) return { error: 'No active subscription', status: 400 }
+
+  const priceId = getStripePriceIdForTier(tier)
+  if (!priceId) return { error: `Missing Stripe price for tier "${tier}"`, status: 500 }
+
+  const stripe = getStripe()
+  const existing = await stripe.subscriptions.retrieve(subId)
+  const itemId = existing.items.data[0]?.id
+  if (!itemId) return { error: 'Subscription has no line items', status: 500 }
+
+  const subscription = await stripe.subscriptions.update(subId, {
+    items: [{ id: itemId, price: priceId }],
+    proration_behavior: 'create_prorations',
+    metadata: { client_id: clientId },
+  })
+
+  await applySubscriptionToClient(clientId, subscription)
+  return { subscription }
+}
+
+export type CancelAction = 'cancel_at_period_end' | 'resume' | 'cancel_immediately'
+
+export async function cancelSubscription(
+  clientId: string,
+  action: CancelAction
+): Promise<{ subscription: Stripe.Subscription | null } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const subId = client.stripe_subscription_id?.trim()
+  if (!subId) return { error: 'No Stripe subscription on file', status: 400 }
+
+  const stripe = getStripe()
+
+  if (action === 'cancel_immediately') {
+    await stripe.subscriptions.cancel(subId)
+    await updateClient(clientId, {
+      stripe_subscription_id: '',
+      billing_status: 'not_started',
+      next_billing_date: undefined,
+    })
+    return { subscription: null }
+  }
+
+  if (action === 'cancel_at_period_end') {
+    const subscription = await stripe.subscriptions.update(subId, { cancel_at_period_end: true })
+    await applySubscriptionToClient(clientId, subscription)
+    return { subscription }
+  }
+
+  const subscription = await stripe.subscriptions.update(subId, { cancel_at_period_end: false })
+  await applySubscriptionToClient(clientId, subscription)
+  return { subscription }
+}
+
+export async function listPaymentMethods(
+  clientId: string
+): Promise<
+  | {
+      paymentMethods: Array<{
+        id: string
+        brand: string
+        last4: string
+        expMonth: number
+        expYear: number
+        isDefault: boolean
+      }>
+    }
+  | { error: string; status: number }
+> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const customerId = client.stripe_customer_id?.trim()
+  if (!customerId) return { paymentMethods: [] }
+
+  const stripe = getStripe()
+  const customer = await stripe.customers.retrieve(customerId)
+  const defaultPm =
+    typeof customer !== 'string' && !customer.deleted
+      ? (typeof customer.invoice_settings?.default_payment_method === 'string'
+          ? customer.invoice_settings.default_payment_method
+          : customer.invoice_settings?.default_payment_method?.id)
+      : undefined
+
+  const list = await stripe.paymentMethods.list({ customer: customerId, type: 'card' })
+
+  return {
+    paymentMethods: list.data.map(pm => ({
+      id: pm.id,
+      brand: pm.card?.brand || 'card',
+      last4: pm.card?.last4 || '????',
+      expMonth: pm.card?.exp_month || 0,
+      expYear: pm.card?.exp_year || 0,
+      isDefault: pm.id === defaultPm,
+    })),
+  }
+}
+
+export async function setDefaultPaymentMethod(
+  clientId: string,
+  paymentMethodId: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const customerId = client.stripe_customer_id?.trim()
+  if (!customerId) return { error: 'No Stripe customer linked', status: 400 }
+
+  await attachDefaultPaymentMethod(customerId, paymentMethodId)
+  return { ok: true }
+}
+
+export async function detachPaymentMethod(
+  clientId: string,
+  paymentMethodId: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const customerId = client.stripe_customer_id?.trim()
+  if (!customerId) return { error: 'No Stripe customer linked', status: 400 }
+
+  const stripe = getStripe()
+  const pm = await stripe.paymentMethods.retrieve(paymentMethodId)
+  if (pm.customer !== customerId) {
+    return { error: 'Payment method does not belong to this client', status: 403 }
+  }
+
+  await stripe.paymentMethods.detach(paymentMethodId)
+  return { ok: true }
+}
+
+export async function logBillingActivity(
+  clientId: string,
+  actorEmail: string,
+  details: string
+): Promise<void> {
+  await logActivity({
+    action: 'updated',
+    entity_type: 'client',
+    entity_id: clientId,
+    actor_email: actorEmail,
+    details,
+  })
+}

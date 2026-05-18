@@ -10,16 +10,25 @@ import {
   updateClient,
 } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
+import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
+import { toBillingStatus } from '@/lib/stripe-billing-status'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function toBillingStatus(status: Stripe.Subscription.Status): 'trial' | 'paid' | 'past_due' | 'unpaid' | 'not_started' {
-  if (status === 'trialing') return 'trial'
-  if (status === 'active') return 'paid'
-  if (status === 'past_due') return 'past_due'
-  if (status === 'unpaid' || status === 'incomplete' || status === 'incomplete_expired') return 'unpaid'
-  return 'not_started'
+async function handleSubscriptionEvent(subscription: Stripe.Subscription): Promise<void> {
+  const stripeSubscriptionId = subscription.id
+  const stripeCustomerId = String(subscription.customer)
+  const client =
+    (await getClientByStripeSubscriptionId(stripeSubscriptionId)) ||
+    (await getClientByStripeCustomerId(stripeCustomerId)) ||
+    (subscription.metadata?.client_id
+      ? await getClientById(subscription.metadata.client_id)
+      : undefined)
+
+  if (client) {
+    await applySubscriptionToClient(client.id, subscription)
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -51,32 +60,17 @@ export async function POST(req: NextRequest) {
       const checkoutSession = event.data.object as Stripe.Checkout.Session
       if (checkoutSession.mode === 'subscription') {
         const clientIdMeta = checkoutSession.metadata?.client_id || checkoutSession.client_reference_id
-        const customerRaw = checkoutSession.customer
-        const customerId = typeof customerRaw === 'string' ? customerRaw : customerRaw?.id
         const subRaw = checkoutSession.subscription
         const subscriptionId = typeof subRaw === 'string' ? subRaw : subRaw?.id
 
-        if (subscriptionId && customerId) {
+        if (subscriptionId) {
           const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
-          const stripeSubscriptionId = subscription.id
-          const stripeCustomerId = String(subscription.customer)
-          const subscriptionPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number })
-            .current_period_end
-
           let client =
             (clientIdMeta ? await getClientById(clientIdMeta) : undefined) ||
-            (await getClientByStripeCustomerId(stripeCustomerId))
+            (await getClientByStripeCustomerId(String(subscription.customer)))
 
           if (client) {
-            await updateClient(client.id, {
-              stripe_subscription_id: stripeSubscriptionId,
-              stripe_customer_id: stripeCustomerId,
-              billing_status: toBillingStatus(subscription.status),
-              is_potential: false,
-              next_billing_date: subscriptionPeriodEnd
-                ? new Date(subscriptionPeriodEnd * 1000).toISOString()
-                : undefined,
-            })
+            await applySubscriptionToClient(client.id, subscription)
           }
         }
       }
@@ -84,8 +78,7 @@ export async function POST(req: NextRequest) {
 
     if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription
-      const stripeSubscriptionId = subscription.id
-      const client = await getClientByStripeSubscriptionId(stripeSubscriptionId)
+      const client = await getClientByStripeSubscriptionId(subscription.id)
       if (client) {
         await updateClient(client.id, {
           stripe_subscription_id: '',
@@ -95,24 +88,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
-      const subscription = event.data.object as Stripe.Subscription
-      const stripeSubscriptionId = subscription.id
-      const stripeCustomerId = String(subscription.customer)
-      const subscriptionPeriodEnd = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
-      const client =
-        await getClientByStripeSubscriptionId(stripeSubscriptionId) ||
-        await getClientByStripeCustomerId(stripeCustomerId)
+    if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated'
+    ) {
+      await handleSubscriptionEvent(event.data.object as Stripe.Subscription)
+    }
 
-      if (client) {
-        await updateClient(client.id, {
-          stripe_subscription_id: stripeSubscriptionId,
-          stripe_customer_id: stripeCustomerId,
-          billing_status: toBillingStatus(subscription.status),
-          is_potential: false,
-          next_billing_date: subscriptionPeriodEnd
-            ? new Date(subscriptionPeriodEnd * 1000).toISOString()
-            : undefined,
+    if (event.type === 'setup_intent.succeeded') {
+      const setupIntent = event.data.object as Stripe.SetupIntent
+      const clientId = setupIntent.metadata?.client_id
+      if (clientId && setupIntent.customer) {
+        await updateClient(clientId, {
+          stripe_customer_id: String(setupIntent.customer),
         })
       }
     }
@@ -132,14 +120,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (event.type === 'invoice.payment_failed') {
+    if (event.type === 'invoice.payment_failed' || event.type === 'invoice.payment_action_required') {
       const invoice = event.data.object as Stripe.Invoice
       const stripeCustomerId = String(invoice.customer || '')
       const client = stripeCustomerId ? await getClientByStripeCustomerId(stripeCustomerId) : undefined
       if (client) {
         await updateClient(client.id, {
-          billing_status: 'past_due',
+          billing_status:
+            event.type === 'invoice.payment_action_required' ? 'unpaid' : 'past_due',
         })
+      }
+    }
+
+    if (event.type === 'customer.subscription.trial_will_end') {
+      const subscription = event.data.object as Stripe.Subscription
+      const client = await getClientByStripeSubscriptionId(subscription.id)
+      if (client && subscription.status === 'trialing') {
+        await updateClient(client.id, { billing_status: 'trial' })
       }
     }
   } catch (err) {

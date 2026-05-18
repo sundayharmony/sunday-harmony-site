@@ -9,6 +9,7 @@ const navItems = [
   { href: '/admin', icon: '\u{1F4CA}', label: 'Overview' },
   { href: '/admin/leads', icon: '\u{1F525}', label: 'Leads' },
   { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
+  { href: '/admin/billing', icon: '\u{1F4B3}', label: 'Billing' },
   { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
   { href: '/admin/files', icon: '\u{1F4C1}', label: 'Files' },
