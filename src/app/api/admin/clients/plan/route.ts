@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { adminUpdateClientPlan, logBillingActivity } from '@/lib/billing-service'
+import { adminSetClientPlan, changeSubscriptionTier, logBillingActivity } from '@/lib/billing-service'
 import { PACKAGE_TIERS, type PackageTier } from '@/lib/stripe-catalog'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
@@ -22,27 +22,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 })
   }
 
-  const activateBilling = body.activateBilling !== false
-  const startStripeIfReady = body.startStripeIfReady !== false
-
-  const result = await withStripeHandler(() =>
-    adminUpdateClientPlan(clientId, tier as PackageTier, {
-      activateBilling,
-      startStripeIfReady,
-    })
+  const hasSubscription = Boolean(
+    typeof body.hasSubscription === 'boolean' ? body.hasSubscription : false
   )
+
+  const result = await withStripeHandler(async () => {
+    if (hasSubscription) {
+      return changeSubscriptionTier(clientId, tier as PackageTier, { skipPotentialCheck: true })
+    }
+    return adminSetClientPlan(clientId, tier as PackageTier)
+  })
   if (result instanceof NextResponse) return result
   if (isServiceError(result)) {
     return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
   const actor = session.user.email || 'admin'
-  await logBillingActivity(clientId, actor, result.message)
+  const message =
+    'subscription' in result
+      ? `Changed active subscription plan to ${tier}`
+      : result.message
+  await logBillingActivity(clientId, actor, message)
 
   return NextResponse.json({
-    client: result.client,
-    message: result.message,
-    subscriptionId: result.subscription?.id ?? null,
-    requiresClientAction: result.requiresClientAction ?? false,
+    client: 'client' in result ? result.client : null,
+    message,
+    subscriptionId: 'subscription' in result ? (result.subscription?.id ?? null) : null,
   })
 }

@@ -11,6 +11,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const auth = await authorizeBillingClient(typeof body.clientId === 'string' ? body.clientId : undefined)
   if (auth instanceof NextResponse) return auth
+  if (!auth.isAdmin) {
+    return NextResponse.json({ error: 'Only admins can change plans.' }, { status: 403 })
+  }
 
   const tier = typeof body.tier === 'string' ? body.tier.trim() : ''
   if (!PACKAGE_TIERS.includes(tier as PackageTier)) {

@@ -148,10 +148,7 @@ export default function ClientsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          monthlyPrice:
-            form.isPotential || form.packageTier === 'free'
-              ? 0
-              : tierPrices[form.packageTier as PackageTier],
+          monthlyPrice: tierPrices[form.packageTier as PackageTier],
         }),
       })
       if (!res.ok) {
@@ -501,7 +498,7 @@ export default function ClientsPage() {
             <div className="mb-4">
               <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
               <p className="text-xs text-brand-muted mb-3">
-                Choose a plan below and click Save plan. Stripe syncs automatically when a subscription or card on file exists.
+                Workflow: Save plan, Activate billing, then Start subscription when a card is on file.
               </p>
               <BillingPanel
                 client={selected}

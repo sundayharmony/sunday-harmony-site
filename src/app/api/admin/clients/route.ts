@@ -124,8 +124,9 @@ export async function POST(req: NextRequest) {
 
   const normalizedIsPotential = Boolean(isPotential)
   const isFree = packageTier === 'free'
-  const normalizedMonthlyPrice =
-    normalizedIsPotential || isFree ? 0 : (monthlyPrice ?? 0)
+  const normalizedMonthlyPrice = isFree
+    ? 0
+    : (monthlyPrice ?? TIER_LIST_PRICES[packageTier as PackageTier] ?? 0)
 
   const client = await createClient({
     name,

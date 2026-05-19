@@ -2,16 +2,13 @@
 
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { useState } from 'react'
-import type { PackageTier } from '@/lib/stripe-catalog'
 
 export default function EmbeddedSubscribeForm({
   clientId,
-  tier,
   onSuccess,
   onError,
 }: {
   clientId?: string
-  tier: PackageTier
   onSuccess: () => void
   onError: (message: string) => void
 }) {
@@ -47,29 +44,18 @@ export default function EmbeddedSubscribeForm({
         return
       }
 
-      const res = await fetch('/api/billing/subscribe', {
+      const res = await fetch('/api/billing/save-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...(clientId ? { clientId } : {}),
-          tier,
           paymentMethodId,
         }),
       })
       const payload = await res.json().catch(() => ({}))
 
-      if (res.status === 402 && payload.requiresAction && payload.clientSecret) {
-        const { error: authError } = await stripe.confirmCardPayment(payload.clientSecret)
-        if (authError) {
-          onError(authError.message || 'Authentication failed')
-          return
-        }
-        onSuccess()
-        return
-      }
-
       if (!res.ok) {
-        onError(typeof payload.error === 'string' ? payload.error : 'Subscription failed')
+        onError(typeof payload.error === 'string' ? payload.error : 'Could not save card')
         return
       }
 
@@ -90,7 +76,7 @@ export default function EmbeddedSubscribeForm({
         disabled={!stripe || !elements || busy}
         className="w-full py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold disabled:opacity-50"
       >
-        {busy ? 'Processing…' : 'Subscribe'}
+        {busy ? 'Saving…' : 'Save card'}
       </button>
     </form>
   )

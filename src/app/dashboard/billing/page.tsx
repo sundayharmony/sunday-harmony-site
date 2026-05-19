@@ -104,7 +104,7 @@ export default function BillingPage() {
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Billing</h1>
         <p className="text-sm text-brand-muted">
-          Manage your plan and payment method without leaving your dashboard.
+          View your billing status and keep your payment method up to date.
         </p>
       </div>
 
@@ -129,9 +129,10 @@ export default function BillingPage() {
         <div className="bg-white border border-brand-border rounded-2xl p-6">
           <h2 className="text-base font-bold text-brand-text mb-4">Subscription</h2>
           {client.is_potential ? (
-            <p className="text-sm text-brand-muted">
-              Your account is marked as a potential engagement. Contact Sunday Harmony to activate billing.
-            </p>
+            <div className="space-y-2 text-sm text-brand-muted">
+              <p>Your account is marked as a potential engagement, so billing is not active yet.</p>
+              <p>Your Sunday Harmony admin will activate billing and start your subscription when ready.</p>
+            </div>
           ) : (
             <BillingPanel client={client} onUpdated={() => void load()} />
           )}
