@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import BillingPanel from '@/components/billing/BillingPanel'
 import { computeBillingMetrics } from '@/lib/billing-metrics'
+import { TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
 
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
@@ -26,13 +27,7 @@ const tierLabels: Record<string, string> = {
   scale: 'Scale',
 }
 
-const tierPrices: Record<string, number> = {
-  free: 0,
-  social_essentials: 250,
-  spark: 500,
-  growth: 1800,
-  scale: 3500,
-}
+const tierPrices = TIER_LIST_PRICES
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
@@ -154,7 +149,9 @@ export default function ClientsPage() {
         body: JSON.stringify({
           ...form,
           monthlyPrice:
-            form.isPotential || form.packageTier === 'free' ? 0 : tierPrices[form.packageTier],
+            form.isPotential || form.packageTier === 'free'
+              ? 0
+              : tierPrices[form.packageTier as PackageTier],
         }),
       })
       if (!res.ok) {
@@ -176,16 +173,6 @@ export default function ClientsPage() {
 
   const setFormField = (key: keyof typeof form, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }))
-  }
-
-  const activatePotentialClient = async () => {
-    if (!selected) return
-    const isFree = selected.package_tier === 'free'
-    await updateClient(selected.id, {
-      is_potential: false,
-      monthly_price: isFree ? 0 : tierPrices[selected.package_tier] || selected.monthly_price || 0,
-      billing_status: isFree ? 'paid' : 'not_started',
-    })
   }
 
   const addDeliverable = async () => {
@@ -352,7 +339,7 @@ export default function ClientsPage() {
                       : 'bg-gray-50 text-brand-dim border border-brand-border'
                   } disabled:opacity-50`}
                 >
-                  {label} (${tierPrices[key]})
+                  {label} (${tierPrices[key as PackageTier]})
                 </button>
               ))}
             </div>
@@ -512,20 +499,9 @@ export default function ClientsPage() {
 
             {/* Billing */}
             <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">Billing</div>
-                {selected.is_potential && (
-                  <button
-                    type="button"
-                    onClick={activatePotentialClient}
-                    className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-green-50 border border-green-200 text-brand-green hover:bg-green-100"
-                  >
-                    Activate billing
-                  </button>
-                )}
-              </div>
+              <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
               <p className="text-xs text-brand-muted mb-3">
-                In-app billing only — clients pay on their dashboard. Status syncs from Stripe.
+                Choose a plan below and click Save plan. Stripe syncs automatically when a subscription or card on file exists.
               </p>
               <BillingPanel
                 client={selected}

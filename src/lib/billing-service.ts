@@ -1,5 +1,5 @@
 import type Stripe from 'stripe'
-import { getClientById, logActivity, updateClient } from '@/lib/db'
+import { getClientById, logActivity, updateClient, type Client } from '@/lib/db'
 import { ensureStripeCustomerForClient } from '@/lib/stripe-customer-utils'
 import {
   getStripePriceIdForTier,
@@ -43,7 +43,13 @@ async function retrieveSubscriptionOrClear(
   }
 }
 
-function rejectPotential(client: { is_potential?: boolean }): { error: string; status: number } | null {
+type BillingClientOpts = { skipPotentialCheck?: boolean }
+
+function rejectPotential(
+  client: { is_potential?: boolean },
+  opts?: BillingClientOpts
+): { error: string; status: number } | null {
+  if (opts?.skipPotentialCheck) return null
   if (client.is_potential) {
     return { error: 'Activate billing for this client before managing subscriptions.', status: 400 }
   }
@@ -116,11 +122,12 @@ async function attachDefaultPaymentMethod(
 
 /** Assign free testing tier — no Stripe subscription; dashboard access without payment. */
 export async function setClientToFreeTier(
-  clientId: string
+  clientId: string,
+  opts?: BillingClientOpts
 ): Promise<{ subscription: null } | { error: string; status: number }> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  const blocked = rejectPotential(client)
+  const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
   const subId = client.stripe_subscription_id?.trim()
@@ -147,11 +154,12 @@ export async function setClientToFreeTier(
 export async function createOrUpdateSubscription(
   clientId: string,
   tier: PackageTier,
-  paymentMethodId: string
+  paymentMethodId: string,
+  opts?: BillingClientOpts
 ): Promise<SubscribeResult> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  const blocked = rejectPotential(client)
+  const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
   if (isFreeTier(tier)) {
@@ -211,15 +219,16 @@ export async function createOrUpdateSubscription(
 
 export async function changeSubscriptionTier(
   clientId: string,
-  tier: PackageTier
+  tier: PackageTier,
+  opts?: BillingClientOpts
 ): Promise<{ subscription: Stripe.Subscription | null } | { error: string; status: number }> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  const blocked = rejectPotential(client)
+  const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
   if (isFreeTier(tier)) {
-    return setClientToFreeTier(clientId)
+    return setClientToFreeTier(clientId, opts)
   }
 
   const subId = client.stripe_subscription_id?.trim()
@@ -374,6 +383,136 @@ export async function detachPaymentMethod(
 
   await stripe.paymentMethods.detach(paymentMethodId)
   return { ok: true }
+}
+
+export type AdminPlanResult =
+  | {
+      ok: true
+      client: Client
+      subscription: Stripe.Subscription | null
+      message: string
+      requiresClientAction?: boolean
+    }
+  | { error: string; status: number }
+
+/** Admin-only: set catalog plan, activate billing, and sync Stripe when possible. */
+export async function adminUpdateClientPlan(
+  clientId: string,
+  tier: PackageTier,
+  options?: {
+    activateBilling?: boolean
+    startStripeIfReady?: boolean
+  }
+): Promise<AdminPlanResult> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+
+  if (!isFreeTier(tier) && !isStripeBillableTier(tier)) {
+    return { error: 'Invalid tier', status: 400 }
+  }
+
+  const adminOpts: BillingClientOpts = { skipPotentialCheck: true }
+  const shouldActivate = options?.activateBilling !== false && Boolean(client.is_potential)
+  const tryStripe = options?.startStripeIfReady !== false
+
+  if (isFreeTier(tier)) {
+    const freeResult = await setClientToFreeTier(clientId, adminOpts)
+    if ('error' in freeResult) return freeResult
+    const updated = await getClientById(clientId)
+    if (!updated) return { error: 'Client not found', status: 404 }
+    return {
+      ok: true,
+      client: updated,
+      subscription: null,
+      message: 'Set to free testing tier — no Stripe subscription required.',
+    }
+  }
+
+  const subId = client.stripe_subscription_id?.trim()
+  if (subId) {
+    if (shouldActivate) {
+      await updateClient(clientId, {
+        is_potential: false,
+        package_tier: tier,
+        monthly_price: TIER_LIST_PRICES[tier],
+      })
+    }
+    const changed = await changeSubscriptionTier(clientId, tier, adminOpts)
+    if ('error' in changed) return changed
+    const updated = await getClientById(clientId)
+    if (!updated) return { error: 'Client not found', status: 404 }
+    return {
+      ok: true,
+      client: updated,
+      subscription: changed.subscription,
+      message: 'Plan updated in Stripe and synced to this client.',
+    }
+  }
+
+  await updateClient(clientId, {
+    package_tier: tier,
+    monthly_price: TIER_LIST_PRICES[tier],
+    ...(shouldActivate
+      ? {
+          is_potential: false,
+          billing_status: client.billing_status === 'paid' ? 'paid' : 'not_started',
+        }
+      : {}),
+  })
+
+  if (tryStripe) {
+    const pms = await listPaymentMethods(clientId)
+    if ('error' in pms) return pms
+    const defaultPm =
+      pms.paymentMethods.find(pm => pm.isDefault) ?? pms.paymentMethods[0]
+    if (defaultPm) {
+      const subResult = await createOrUpdateSubscription(
+        clientId,
+        tier,
+        defaultPm.id,
+        adminOpts
+      )
+      if ('requiresAction' in subResult) {
+        const updated = await getClientById(clientId)
+        if (!updated) return { error: 'Client not found', status: 404 }
+        return {
+          ok: true,
+          client: updated,
+          subscription: null,
+          message:
+            'Plan saved and billing activated. The card on file needs extra verification — ask the client to open Billing on their dashboard to finish.',
+          requiresClientAction: true,
+        }
+      }
+      if ('error' in subResult) return subResult
+      const updated = await getClientById(clientId)
+      if (!updated) return { error: 'Client not found', status: 404 }
+      return {
+        ok: true,
+        client: updated,
+        subscription: subResult.subscription,
+        message: 'Plan saved and Stripe subscription started with the card on file.',
+      }
+    }
+  }
+
+  const updated = await getClientById(clientId)
+  if (!updated) return { error: 'Client not found', status: 404 }
+
+  let message = `Plan set to ${tier.replace(/_/g, ' ')} ($${TIER_LIST_PRICES[tier].toLocaleString()}/mo).`
+  if (shouldActivate) {
+    message += ' Billing is activated.'
+  }
+  if (tryStripe && !updated.stripe_subscription_id?.trim()) {
+    message += ' No card on file yet — send the client your billing dashboard link to subscribe.'
+  }
+
+  return {
+    ok: true,
+    client: updated,
+    subscription: null,
+    message,
+  }
 }
 
 export async function logBillingActivity(

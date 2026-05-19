@@ -12,6 +12,7 @@ import {
 import { removeAllClientFilesFromVault, removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
 import { cleanupStripeForClient } from '@/lib/billing-service'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { isFreeTier, TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
 import { createEmailTransporter, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
@@ -211,6 +212,17 @@ export async function PATCH(req: NextRequest) {
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+  }
+
+  if (typeof updates.package_tier === 'string') {
+    const tier = updates.package_tier as PackageTier
+    const allowedTiers = ['free', 'social_essentials', 'spark', 'growth', 'scale'] as const
+    if (!allowedTiers.includes(tier as (typeof allowedTiers)[number])) {
+      return NextResponse.json({ error: 'Invalid package tier' }, { status: 400 })
+    }
+    if (!('monthly_price' in updates)) {
+      updates.monthly_price = isFreeTier(tier) ? 0 : TIER_LIST_PRICES[tier]
+    }
   }
 
   const client = await updateClient(id, updates)

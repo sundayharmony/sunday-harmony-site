@@ -52,6 +52,7 @@ export default function BillingPanel({
   const [busy, setBusy] = useState<string | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   const clientIdParam = adminView ? client.id : undefined
 
@@ -104,7 +105,9 @@ export default function BillingPanel({
     setCancelAtPeriodEnd(false)
     setShowPaymentForm(false)
     setClientSecret(null)
-  }, [client.id, client.stripe_subscription_id])
+    setSuccessMessage('')
+    setError('')
+  }, [client.id, client.stripe_subscription_id, client.is_potential, client.package_tier])
 
   const billingLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/billing`
 
@@ -146,6 +149,7 @@ export default function BillingPanel({
     if (!client.stripe_subscription_id?.trim() && !selectedIsFree) return
     setBusy('change_plan')
     setError('')
+    setSuccessMessage('')
     try {
       const res = await fetch('/api/billing/change-plan', {
         method: 'POST',
@@ -163,11 +167,78 @@ export default function BillingPanel({
       if (data.free) {
         setCancelAtPeriodEnd(false)
       }
+      setSuccessMessage('Plan updated.')
       onUpdated?.()
     } finally {
       setBusy(null)
     }
   }
+
+  const runAdminSavePlan = async () => {
+    setBusy('admin_plan')
+    setError('')
+    setSuccessMessage('')
+    try {
+      const res = await fetch('/api/admin/clients/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: client.id,
+          tier,
+          activateBilling: true,
+          startStripeIfReady: true,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not save plan')
+        return
+      }
+      setSuccessMessage(typeof data.message === 'string' ? data.message : 'Plan saved.')
+      onUpdated?.()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const runAdminStartStripe = async () => {
+    setBusy('admin_stripe')
+    setError('')
+    setSuccessMessage('')
+    try {
+      const res = await fetch('/api/admin/clients/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: client.id,
+          tier: client.package_tier,
+          activateBilling: false,
+          startStripeIfReady: true,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not start subscription')
+        return
+      }
+      setSuccessMessage(typeof data.message === 'string' ? data.message : 'Subscription updated.')
+      onUpdated?.()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const planDirty = tier !== client.package_tier
+  const showAdminSave =
+    adminView && (planDirty || Boolean(client.is_potential))
+  const showAdminStartStripe =
+    adminView &&
+    !client.is_potential &&
+    !selectedIsFree &&
+    !clientOnFree &&
+    !client.stripe_subscription_id?.trim() &&
+    paymentMethods.length > 0 &&
+    !planDirty
 
   const ensureStripeCustomer = async () => {
     setBusy('customer')
@@ -215,6 +286,10 @@ export default function BillingPanel({
         <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">{error}</div>
       )}
 
+      {successMessage && (
+        <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-green-800 text-xs">{successMessage}</div>
+      )}
+
       {clientOnFree && (
         <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900">
           <strong>Free testing tier</strong> — full dashboard access with no Stripe subscription or card required.
@@ -238,7 +313,9 @@ export default function BillingPanel({
 
       {client.is_potential && (
         <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-          Potential client — activate billing on the client record before subscribing.
+          {adminView
+            ? 'Potential client — pick a plan below, then click Save plan. If they already have a card on file, we will start their Stripe subscription automatically.'
+            : 'Potential client — contact Sunday Harmony to activate billing before subscribing.'}
         </p>
       )}
 
@@ -281,7 +358,7 @@ export default function BillingPanel({
             <button
               key={key}
               type="button"
-              disabled={client.is_potential}
+              disabled={!adminView && Boolean(client.is_potential)}
               onClick={() => setTier(key)}
               className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${
                 tier === key
@@ -293,18 +370,52 @@ export default function BillingPanel({
             </button>
           ))}
         </div>
-        {(client.stripe_subscription_id?.trim() || selectedIsFree) && tier !== client.package_tier && (
+        {showAdminSave && (
           <button
             type="button"
             disabled={busy !== null}
-            onClick={() => void runChangePlan()}
-            className="px-3 py-1.5 rounded-lg bg-white border border-brand-border text-xs font-semibold disabled:opacity-50"
+            onClick={() => void runAdminSavePlan()}
+            className="px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold disabled:opacity-50"
           >
-            {busy === 'change_plan'
-              ? 'Updating…'
-              : selectedIsFree
-                ? 'Switch to free (testing)'
-                : 'Apply plan change (existing subscription)'}
+            {busy === 'admin_plan'
+              ? 'Saving…'
+              : client.is_potential
+                ? planDirty
+                  ? `Set plan & activate — ${TIER_LABELS[tier]}`
+                  : `Activate billing — ${TIER_LABELS[tier]}`
+                : planDirty
+                  ? selectedIsFree
+                    ? 'Switch to free (testing)'
+                    : client.stripe_subscription_id?.trim()
+                      ? 'Save plan (updates Stripe)'
+                      : 'Save plan'
+                  : 'Save plan'}
+          </button>
+        )}
+        {!adminView &&
+          (client.stripe_subscription_id?.trim() || selectedIsFree) &&
+          tier !== client.package_tier && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void runChangePlan()}
+              className="px-3 py-1.5 rounded-lg bg-white border border-brand-border text-xs font-semibold disabled:opacity-50"
+            >
+              {busy === 'change_plan'
+                ? 'Updating…'
+                : selectedIsFree
+                  ? 'Switch to free (testing)'
+                  : 'Apply plan change'}
+            </button>
+          )}
+        {showAdminStartStripe && (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void runAdminStartStripe()}
+            className="mt-2 w-full px-3 py-2 rounded-lg bg-white border border-accent text-accent text-xs font-bold disabled:opacity-50"
+          >
+            {busy === 'admin_stripe' ? 'Starting…' : 'Start subscription with card on file'}
           </button>
         )}
       </div>
