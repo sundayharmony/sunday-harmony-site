@@ -1,4 +1,4 @@
-import AdminSidebar from '@/components/admin/AdminSidebar'
+import AdminShell from '@/components/admin/AdminShell'
 
 export const metadata = {
   title: 'Admin Dashboard | Sunday Harmony',
@@ -7,10 +7,7 @@ export const metadata = {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-brand-bg-soft">
-      <AdminSidebar />
-      <main className="ml-0 md:ml-[240px] p-4 md:p-8">
-        {children}
-      </main>
+      <AdminShell>{children}</AdminShell>
     </div>
   )
 }

@@ -26,20 +26,32 @@ const navItems = [
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  collapsed?: boolean
+  onToggleSidebar?: () => void
+  hydrated?: boolean
+}
+
+export default function AdminSidebar({
+  collapsed = false,
+  onToggleSidebar,
+  hydrated = true,
+}: AdminSidebarProps) {
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  const desktopHidden = hydrated && collapsed
 
   return (
     <>
       {/* Mobile toggle */}
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => setMobileOpen(!mobileOpen)}
         className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-gray-50 border border-brand-border text-brand-text"
         aria-label="Toggle menu"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          {open ? (
+          {mobileOpen ? (
             <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           ) : (
             <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -47,26 +59,58 @@ export default function AdminSidebar() {
         </svg>
       </button>
 
+      {/* Desktop expand when sidebar collapsed */}
+      {desktopHidden && onToggleSidebar && (
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="hidden md:flex fixed left-4 top-4 z-[60] items-center gap-2 px-3 py-2 rounded-lg bg-white border border-brand-border text-brand-text text-xs font-semibold shadow-sm hover:bg-neutral-50 transition-colors"
+          aria-label="Show admin navigation"
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden>
+            <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          Menu
+        </button>
+      )}
+
       {/* Backdrop (mobile) */}
-      {open && (
+      {mobileOpen && (
         <button
           type="button"
           className="md:hidden fixed inset-0 bg-black/50 z-[49] cursor-default border-0 p-0"
           aria-label="Close menu"
-          onClick={() => setOpen(false)}
+          onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
-        open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
-        {/* Logo */}
-        <div className="p-5 pb-4 border-b border-brand-border">
-          <Link href="/admin" className="font-serif text-lg font-extrabold text-brand-text">
-            Sunday <span className="text-accent">Harmony</span>
-          </Link>
-          <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Admin Dashboard</div>
+      <aside
+        className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        } ${desktopHidden ? 'md:-translate-x-full' : 'md:translate-x-0'}`}
+      >
+        {/* Logo + collapse */}
+        <div className="p-5 pb-4 border-b border-brand-border flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <Link href="/admin" className="font-serif text-lg font-extrabold text-brand-text">
+              Sunday <span className="text-accent">Harmony</span>
+            </Link>
+            <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Admin Dashboard</div>
+          </div>
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="hidden md:flex shrink-0 p-1.5 rounded-md text-brand-dim hover:text-brand-text hover:bg-neutral-100 transition-colors"
+              aria-label="Hide admin navigation"
+              title="Hide navigation"
+            >
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
+                <path d="M7 5L3 10L7 15M13 5L17 10L13 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Nav */}
@@ -77,7 +121,7 @@ export default function AdminSidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-[13px] font-medium transition-all ${
                   active
                     ? 'bg-accent-soft border border-brand-border text-brand-text'

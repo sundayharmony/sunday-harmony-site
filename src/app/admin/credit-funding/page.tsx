@@ -108,6 +108,14 @@ function CreditFundingAdminContent() {
   const [fundingScores, setFundingScores] = useState<FundingScores>({})
   const [docReqType, setDocReqType] = useState('')
   const [docReqLabel, setDocReqLabel] = useState('')
+  const [listPanelOpen, setListPanelOpen] = useState(true)
+
+  const selectApplication = (id: string) => {
+    loadDetail(id)
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      setListPanelOpen(false)
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -129,7 +137,12 @@ function CreditFundingAdminContent() {
 
   useEffect(() => {
     const id = searchParams.get('id')
-    if (id) loadDetail(id)
+    if (id) {
+      loadDetail(id)
+      if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+        setListPanelOpen(false)
+      }
+    }
   }, [searchParams])
 
   const loadDetail = async (id: string) => {
@@ -237,7 +250,8 @@ function CreditFundingAdminContent() {
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${listPanelOpen ? 'lg:grid-cols-5' : 'lg:grid-cols-1'}`}>
+        {listPanelOpen && (
         <div className="lg:col-span-2 bg-white border border-brand-border rounded-xl overflow-hidden">
           <div className="p-4 border-b border-brand-border space-y-3">
             <input className={inputClass} placeholder="Search name, email, ID, specialist…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -262,7 +276,7 @@ function CreditFundingAdminContent() {
                 {filtered.map((app) => (
                   <tr
                     key={app.id}
-                    onClick={() => loadDetail(app.id)}
+                    onClick={() => selectApplication(app.id)}
                     className={`border-b border-brand-border cursor-pointer hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}
                   >
                     <td className="p-2 font-mono">{app.application_id}</td>
@@ -283,7 +297,7 @@ function CreditFundingAdminContent() {
               <p className="p-6 text-sm text-brand-dim">No applications found.</p>
             ) : (
               filtered.map((app) => (
-                <button key={app.id} type="button" onClick={() => loadDetail(app.id)}
+                <button key={app.id} type="button" onClick={() => selectApplication(app.id)}
                   className={`w-full text-left p-4 border-b border-brand-border hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}>
                   <div className="flex justify-between gap-2">
                     <p className="font-semibold text-sm">{app.full_name}</p>
@@ -295,8 +309,21 @@ function CreditFundingAdminContent() {
             )}
           </div>
         </div>
+        )}
 
-        <div className="lg:col-span-3 bg-white border border-brand-border rounded-xl p-6">
+        <div className={`${listPanelOpen ? 'lg:col-span-3' : 'lg:col-span-1'} bg-white border border-brand-border rounded-xl p-6`}>
+          {!listPanelOpen && (
+            <button
+              type="button"
+              onClick={() => setListPanelOpen(true)}
+              className="mb-4 inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold border border-brand-border rounded-lg hover:bg-neutral-50 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden>
+                <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Show applications list
+            </button>
+          )}
           {!selected ? (
             <p className="text-sm text-brand-dim">Select an application to view details.</p>
           ) : detailLoading ? (
@@ -304,9 +331,24 @@ function CreditFundingAdminContent() {
           ) : (
             <div>
               <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                <div>
+                <div className="flex items-start gap-3 min-w-0">
+                  {listPanelOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setListPanelOpen(false)}
+                      className="hidden lg:inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-brand-dim border border-brand-border rounded-lg hover:bg-neutral-50 transition-colors"
+                      title="Hide applications list"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden>
+                        <path d="M7 5L3 10L7 15M13 5L17 10L13 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Focus
+                    </button>
+                  )}
+                  <div className="min-w-0">
                   <h2 className="text-xl font-bold text-brand-text">{selected.full_name}</h2>
                   <p className="text-sm text-brand-dim">{selected.application_id} · {selected.service_type?.replace(/_/g, ' ')}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <select
