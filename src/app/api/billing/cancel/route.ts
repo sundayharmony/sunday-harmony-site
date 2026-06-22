@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const auth = await authorizeBillingClient(typeof body.clientId === 'string' ? body.clientId : undefined)
   if (auth instanceof NextResponse) return auth
+  if (!auth.isAdmin) {
+    return NextResponse.json({ error: 'Only admins can cancel subscriptions.' }, { status: 403 })
+  }
 
   const action = body.action as CancelAction
   if (!ACTIONS.includes(action)) {

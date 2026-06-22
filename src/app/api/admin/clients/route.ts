@@ -8,11 +8,15 @@ import {
   getFilesByClient,
   createUser,
   logActivity,
+  getUserByEmail,
+  createNotification,
 } from '@/lib/db'
 import { removeAllClientFilesFromVault, removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
 import { cleanupStripeForClient } from '@/lib/billing-service'
+import { syncClientFromLead } from '@/lib/crm-db'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { createEmailTransporter, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
+import { isFreeTier, TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
+import { getPublicSiteUrl, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,14 +52,10 @@ function sendNewClientWelcomeEmail(params: {
       </div>`
     : `<p style="font-size:14px;color:#444;margin:16px 0">You can log in to your client dashboard with the email address above once your account has been activated. If you need access or have questions, reply to this email and we'll help right away.</p>`
 
-  const transporter = createEmailTransporter()
-
-  transporter
-    .sendMail({
-      from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `Welcome to Sunday Harmony, ${sanitizeEmailSubjectPart(first || 'there', 60)}!`,
-      html: `
+  sendHtmlMailNonBlocking({
+    to,
+    subject: `Welcome to Sunday Harmony, ${sanitizeEmailSubjectPart(first || 'there', 60)}!`,
+    html: `
             <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 Welcome to Sunday Harmony
@@ -74,8 +74,8 @@ function sendNewClientWelcomeEmail(params: {
               </p>
             </div>
           `,
-    })
-    .catch(err => console.error('Failed to send client welcome email:', err))
+    logLabel: 'client-welcome',
+  })
 }
 
 const tierLabels: Record<string, string> = {
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   if (session instanceof NextResponse) return session
 
   const body = await req.json()
-  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins, isPotential } = body
+  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins, isPotential, leadId } = body
 
   if (!name || !business || !email || !packageTier) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -123,8 +123,9 @@ export async function POST(req: NextRequest) {
 
   const normalizedIsPotential = Boolean(isPotential)
   const isFree = packageTier === 'free'
-  const normalizedMonthlyPrice =
-    normalizedIsPotential || isFree ? 0 : (monthlyPrice ?? 0)
+  const normalizedMonthlyPrice = isFree
+    ? 0
+    : (monthlyPrice ?? TIER_LIST_PRICES[packageTier as PackageTier] ?? 0)
 
   const client = await createClient({
     name,
@@ -144,6 +145,10 @@ export async function POST(req: NextRequest) {
   })
 
   if (!client) return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
+
+  if (typeof leadId === 'string' && leadId.trim()) {
+    await syncClientFromLead(leadId.trim(), client.id)
+  }
 
   logActivity({
     action: 'created',
@@ -171,7 +176,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (isSmtpConfigured()) {
+  if (isEmailConfigured()) {
     try {
       sendNewClientWelcomeEmail({
         to: email,
@@ -203,6 +208,7 @@ export async function PATCH(req: NextRequest) {
     'status', 'notes', 'deliverables', 'quick_wins', 'start_date',
     'is_potential', 'billing_status', 'stripe_customer_id', 'stripe_subscription_id',
     'last_payment_at', 'next_billing_date',
+    'lead_type', 'marketing_lead_status', 'credit_funding_client_status', 'assigned_team_member', 'lead_id',
   ]
   const updates: Record<string, unknown> = {}
   for (const key of allowedFields) {
@@ -213,17 +219,54 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
   }
 
+  if (typeof updates.package_tier === 'string') {
+    const tier = updates.package_tier as PackageTier
+    const allowedTiers = ['free', 'social_essentials', 'spark', 'growth', 'scale'] as const
+    if (!allowedTiers.includes(tier as (typeof allowedTiers)[number])) {
+      return NextResponse.json({ error: 'Invalid package tier' }, { status: 400 })
+    }
+    if (!('monthly_price' in updates)) {
+      updates.monthly_price = isFreeTier(tier) ? 0 : TIER_LIST_PRICES[tier]
+    }
+  }
+
   const client = await updateClient(id, updates)
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
   const changedFields = Object.keys(updates).join(', ')
+  const statusFields = ['status', 'marketing_lead_status', 'credit_funding_client_status']
+  const statusChanged = statusFields.some((f) => f in updates)
+
   logActivity({
-    action: 'updated',
+    action: statusChanged ? 'status_changed' : 'updated',
     entity_type: 'client',
     entity_id: id,
     actor_email: session.user.email || 'admin',
     details: `Updated client "${client.name}": ${changedFields}`,
   })
+
+  if (statusChanged && client.email) {
+    sendHtmlMailNonBlocking({
+      to: client.email,
+      subject: sanitizeEmailSubjectPart(`Account Status Update — ${client.business}`, 200),
+      html: `
+        <p>Hi ${escHtml(client.name.split(/\s+/)[0] || 'there')},</p>
+        <p>Your account status with Sunday Harmony has been updated. Log in to your portal for details.</p>
+        <p><a href="${escHtml(getPublicSiteUrl())}/dashboard">Open dashboard</a></p>
+      `,
+      logLabel: 'client-status-update',
+    })
+    const user = await getUserByEmail(client.email)
+    if (user) {
+      await createNotification({
+        user_id: user.id,
+        title: 'Status Updated',
+        message: 'Your account status has been updated.',
+        type: 'info',
+        link: '/dashboard',
+      })
+    }
+  }
 
   return NextResponse.json(client)
 }

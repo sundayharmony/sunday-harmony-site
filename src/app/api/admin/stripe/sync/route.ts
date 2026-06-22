@@ -3,6 +3,7 @@ import { getClientById, logActivity } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
+import { getBillingStatusSnapshot } from '@/lib/billing-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,11 @@ export async function POST(req: NextRequest) {
   const stripe = getStripe()
   const subscription = await stripe.subscriptions.retrieve(subId)
   await applySubscriptionToClient(clientId, subscription)
-  const updated = await getClientById(clientId)
+  const snapshot = await getBillingStatusSnapshot(clientId)
+  if ('error' in snapshot) {
+    return NextResponse.json({ error: snapshot.error }, { status: snapshot.status })
+  }
+  const updated = snapshot.client
 
   const actor = session.user.email || 'admin'
   await logActivity({
@@ -43,5 +48,5 @@ export async function POST(req: NextRequest) {
     details: `Synced Stripe subscription ${subId} for "${client.name}"`,
   })
 
-  return NextResponse.json({ client: updated })
+  return NextResponse.json({ client: updated, drift: snapshot.drift })
 }

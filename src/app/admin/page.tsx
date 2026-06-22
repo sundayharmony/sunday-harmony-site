@@ -65,6 +65,7 @@ export default async function AdminOverview() {
           <h2 className="text-sm font-bold text-brand-text mb-5">Quick Actions</h2>
           <div className="space-y-2">
             {[
+              { href: '/admin/crm', icon: '📋', label: 'CRM Overview', desc: 'Contacts, meetings & pipeline' },
               { href: '/admin/leads', icon: '📥', label: 'Manage Leads', desc: `${leads.length} total leads` },
               { href: '/admin/clients', icon: '👥', label: 'Manage Clients', desc: `${activeClients.length} active clients` },
               { href: '/admin/revenue', icon: '💰', label: 'Revenue Calculator', desc: 'Project your growth' },

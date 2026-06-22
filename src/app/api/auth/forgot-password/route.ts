@@ -3,17 +3,9 @@ import crypto from 'crypto'
 import { getUserByEmail } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { createEmailTransporter, isSmtpConfigured } from '@/lib/smtp-mail'
+import { escHtml, isEmailConfigured, sendEmail } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
-
-function escHtml(str: string): string {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,11 +55,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Send verification code email
-    if (isSmtpConfigured()) {
-      const transporter = createEmailTransporter()
-
-      await transporter.sendMail({
-        from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
+    if (isEmailConfigured()) {
+      await sendEmail({
         to: normalizedEmail,
         subject: 'Your Password Reset Code — Sunday Harmony',
         html: `
@@ -90,7 +79,7 @@ export async function POST(req: NextRequest) {
         `,
       })
     } else {
-      console.error('Forgot password: SMTP not configured')
+      console.error('Forgot password: email not configured')
     }
 
     return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })

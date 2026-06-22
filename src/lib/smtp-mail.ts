@@ -1,12 +1,55 @@
 import nodemailer from 'nodemailer'
 
-/** True when outbound email can be sent (shared by admin and client flows). */
-export function isSmtpConfigured(): boolean {
+/** True when Google Workspace / SMTP outbound email is configured. */
+export function isEmailConfigured(): boolean {
   return Boolean(
     process.env.SMTP_HOST?.trim() &&
       process.env.SMTP_USER?.trim() &&
       process.env.SMTP_PASS?.trim()
   )
+}
+
+/** @deprecated Use isEmailConfigured() */
+export function isSmtpConfigured(): boolean {
+  return isEmailConfigured()
+}
+
+export function getDefaultFromAddress(displayName = 'Sunday Harmony'): string {
+  const from =
+    process.env.SMTP_FROM_EMAIL?.trim() || process.env.SMTP_USER?.trim() || getAdminNotifyEmail()
+  if (from.includes('<')) return from
+  return `"${displayName}" <${from}>`
+}
+
+async function sendViaSmtp(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  replyTo?: string
+}): Promise<void> {
+  const transporter = createEmailTransporter()
+  await transporter.sendMail({
+    from: opts.from || getDefaultFromAddress(),
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+  })
+}
+
+/** Send HTML email via Google Workspace SMTP (or any configured SMTP). */
+export async function sendEmail(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  replyTo?: string
+}): Promise<void> {
+  if (!isEmailConfigured()) {
+    throw new Error('SMTP is not configured')
+  }
+  await sendViaSmtp(opts)
 }
 
 export function getSmtpPort(): number {
@@ -15,7 +58,7 @@ export function getSmtpPort(): number {
 }
 
 export function createEmailTransporter() {
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     throw new Error('SMTP is not configured')
   }
   return nodemailer.createTransport({
@@ -59,24 +102,18 @@ export function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-/** Fire-and-forget HTML mail; logs on failure. No-op if SMTP is not configured. */
+/** Fire-and-forget HTML mail; logs on failure. No-op if email is not configured. */
 export function sendHtmlMailNonBlocking(opts: {
   to: string
   subject: string
   html: string
+  from?: string
+  replyTo?: string
   logLabel?: string
 }): void {
-  if (!isSmtpConfigured()) return
-  const label = opts.logLabel ?? 'smtp'
-  try {
-    const transporter = createEmailTransporter()
-    const from = `"Sunday Harmony" <${process.env.SMTP_USER}>`
-    transporter
-      .sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html })
-      .catch((err: unknown) => console.error(`Failed to send mail (${label}):`, err))
-  } catch (err: unknown) {
-    console.error(`SMTP setup failed (${label}):`, err)
-  }
+  if (!isEmailConfigured()) return
+  const label = opts.logLabel ?? 'mail'
+  sendEmail(opts).catch((err: unknown) => console.error(`Failed to send mail (${label}):`, err))
 }
 
 /** Shared layout for client alerts that deep-link into the client dashboard. */

@@ -1,10 +1,12 @@
 import type Stripe from 'stripe'
-import { getClientById, logActivity, updateClient } from '@/lib/db'
+import { getClientById, logActivity, updateClient, type Client } from '@/lib/db'
 import { ensureStripeCustomerForClient } from '@/lib/stripe-customer-utils'
 import {
   getStripePriceIdForTier,
+  getTierFromPriceId,
   isFreeTier,
   isStripeBillableTier,
+  monthlyPriceFromStripeUnitAmount,
   TIER_LIST_PRICES,
   type PackageTier,
 } from '@/lib/stripe-catalog'
@@ -43,7 +45,25 @@ async function retrieveSubscriptionOrClear(
   }
 }
 
-function rejectPotential(client: { is_potential?: boolean }): { error: string; status: number } | null {
+type BillingClientOpts = { skipPotentialCheck?: boolean }
+
+export function contractedMonthlyPriceForTier(tier: PackageTier): number {
+  return isFreeTier(tier) ? 0 : TIER_LIST_PRICES[tier]
+}
+
+export function activateBillingStatusForTier(
+  tier: PackageTier,
+  currentStatus?: string
+): 'paid' | 'not_started' {
+  if (isFreeTier(tier)) return 'paid'
+  return currentStatus === 'paid' ? 'paid' : 'not_started'
+}
+
+function rejectPotential(
+  client: { is_potential?: boolean },
+  opts?: BillingClientOpts
+): { error: string; status: number } | null {
+  if (opts?.skipPotentialCheck) return null
   if (client.is_potential) {
     return { error: 'Activate billing for this client before managing subscriptions.', status: 400 }
   }
@@ -116,11 +136,12 @@ async function attachDefaultPaymentMethod(
 
 /** Assign free testing tier — no Stripe subscription; dashboard access without payment. */
 export async function setClientToFreeTier(
-  clientId: string
+  clientId: string,
+  opts?: BillingClientOpts
 ): Promise<{ subscription: null } | { error: string; status: number }> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  const blocked = rejectPotential(client)
+  const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
   const subId = client.stripe_subscription_id?.trim()
@@ -147,11 +168,12 @@ export async function setClientToFreeTier(
 export async function createOrUpdateSubscription(
   clientId: string,
   tier: PackageTier,
-  paymentMethodId: string
+  paymentMethodId: string,
+  opts?: BillingClientOpts
 ): Promise<SubscribeResult> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  const blocked = rejectPotential(client)
+  const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
   if (isFreeTier(tier)) {
@@ -211,15 +233,16 @@ export async function createOrUpdateSubscription(
 
 export async function changeSubscriptionTier(
   clientId: string,
-  tier: PackageTier
+  tier: PackageTier,
+  opts?: BillingClientOpts
 ): Promise<{ subscription: Stripe.Subscription | null } | { error: string; status: number }> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  const blocked = rejectPotential(client)
+  const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
   if (isFreeTier(tier)) {
-    return setClientToFreeTier(clientId)
+    return setClientToFreeTier(clientId, opts)
   }
 
   const subId = client.stripe_subscription_id?.trim()
@@ -374,6 +397,227 @@ export async function detachPaymentMethod(
 
   await stripe.paymentMethods.detach(paymentMethodId)
   return { ok: true }
+}
+
+export type AdminClientResult =
+  | {
+      ok: true
+      client: Client
+      message: string
+      requiresClientAction?: boolean
+    }
+  | { error: string; status: number }
+
+async function readClientOr404(clientId: string): Promise<Client | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  return client
+}
+
+export async function adminSetClientPlan(
+  clientId: string,
+  tier: PackageTier
+): Promise<AdminClientResult> {
+  const existing = await readClientOr404(clientId)
+  if ('error' in existing) return existing
+
+  if (!isFreeTier(tier) && !isStripeBillableTier(tier)) {
+    return { error: 'Invalid tier', status: 400 }
+  }
+
+  if (isFreeTier(tier)) {
+    const freeResult = await setClientToFreeTier(clientId, { skipPotentialCheck: true })
+    if ('error' in freeResult) return freeResult
+    const updated = await readClientOr404(clientId)
+    if ('error' in updated) return updated
+    return {
+      ok: true,
+      client: updated,
+      message: 'Plan saved as Free (testing).',
+    }
+  }
+
+  await updateClient(clientId, {
+    package_tier: tier,
+    monthly_price: contractedMonthlyPriceForTier(tier),
+  })
+
+  const updated = await readClientOr404(clientId)
+  if ('error' in updated) return updated
+
+  return {
+    ok: true,
+    client: updated,
+    message: `Plan set to ${tier.replace(/_/g, ' ')} ($${contractedMonthlyPriceForTier(tier).toLocaleString()}/mo).`,
+  }
+}
+
+export async function adminActivateBilling(clientId: string): Promise<AdminClientResult> {
+  const client = await readClientOr404(clientId)
+  if ('error' in client) return client
+  const tier = (client.package_tier as PackageTier) || 'spark'
+  await updateClient(clientId, {
+    is_potential: false,
+    billing_status: activateBillingStatusForTier(tier, client.billing_status),
+  })
+  const updated = await readClientOr404(clientId)
+  if ('error' in updated) return updated
+  return {
+    ok: true,
+    client: updated,
+    message: 'Billing activated. Use Start subscription when card details are on file.',
+  }
+}
+
+export async function adminStartSubscription(
+  clientId: string,
+  tierOverride?: PackageTier
+): Promise<AdminClientResult> {
+  const client = await readClientOr404(clientId)
+  if ('error' in client) return client
+  if (client.is_potential) {
+    return { error: 'Activate billing before starting a subscription.', status: 400 }
+  }
+
+  const tier = tierOverride ?? ((client.package_tier as PackageTier) || 'spark')
+  if (!isStripeBillableTier(tier)) {
+    return { error: 'Choose a paid plan before starting Stripe billing.', status: 400 }
+  }
+
+  if (!client.stripe_customer_id?.trim()) {
+    return { error: 'No Stripe customer linked. Create/link customer first.', status: 400 }
+  }
+
+  const pms = await listPaymentMethods(clientId)
+  if ('error' in pms) return pms
+  const defaultPm = pms.paymentMethods.find(pm => pm.isDefault) ?? pms.paymentMethods[0]
+  if (!defaultPm) {
+    return { error: 'No card on file. Ask the client to add a payment method first.', status: 400 }
+  }
+
+  const result = await createOrUpdateSubscription(clientId, tier, defaultPm.id, {
+    skipPotentialCheck: true,
+  })
+  if ('error' in result) return result
+  if ('requiresAction' in result) {
+    const updated = await readClientOr404(clientId)
+    if ('error' in updated) return updated
+    return {
+      ok: true,
+      client: updated,
+      requiresClientAction: true,
+      message:
+        'Card verification is required. Ask the client to open Billing and complete authentication.',
+    }
+  }
+
+  const updated = await readClientOr404(clientId)
+  if ('error' in updated) return updated
+  return {
+    ok: true,
+    client: updated,
+    message: 'Stripe subscription started and synced.',
+  }
+}
+
+export async function savePaymentMethodForClient(
+  clientId: string,
+  paymentMethodId: string
+): Promise<{ ok: true } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  const blocked = rejectPotential(client)
+  if (blocked) return blocked
+
+  const ensured = await ensureStripeCustomerForClient(clientId)
+  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
+  await attachDefaultPaymentMethod(ensured.stripe_customer_id, paymentMethodId)
+  return { ok: true }
+}
+
+export type BillingStatusSnapshot =
+  | {
+      client: Client
+      stripe: {
+        hasSubscription: boolean
+        subscriptionStatus?: Stripe.Subscription.Status
+        tier?: PackageTier
+        monthlyPrice?: number
+      }
+      paymentMethods: { count: number; hasDefault: boolean }
+      drift: string[]
+    }
+  | { error: string; status: number }
+
+type StripeStatusSnapshot = {
+  hasSubscription: boolean
+  subscriptionStatus?: Stripe.Subscription.Status
+  tier?: PackageTier
+  monthlyPrice?: number
+}
+
+export async function getBillingStatusSnapshot(clientId: string): Promise<BillingStatusSnapshot> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+
+  const paymentMethodsResult = await listPaymentMethods(clientId)
+  if ('error' in paymentMethodsResult) return paymentMethodsResult
+
+  const stripeSnapshot: StripeStatusSnapshot = {
+    hasSubscription: false,
+  }
+  const drift: string[] = []
+  const subId = client.stripe_subscription_id?.trim()
+
+  if (subId) {
+    try {
+      const subscription = await getStripe().subscriptions.retrieve(subId, {
+        expand: [...SUBSCRIPTION_EXPAND],
+      })
+      stripeSnapshot.hasSubscription = true
+      stripeSnapshot.subscriptionStatus = subscription.status
+      const item = subscription.items.data[0]
+      const stripeTier = item?.price?.id ? getTierFromPriceId(item.price.id) : undefined
+      stripeSnapshot.tier = stripeTier
+      stripeSnapshot.monthlyPrice = monthlyPriceFromStripeUnitAmount(item?.price?.unit_amount)
+      if (stripeTier && stripeTier !== client.package_tier) {
+        drift.push(`DB plan (${client.package_tier}) differs from Stripe plan (${stripeTier}).`)
+      }
+      if (
+        stripeSnapshot.monthlyPrice != null &&
+        Math.abs((client.monthly_price || 0) - stripeSnapshot.monthlyPrice) > 0.001
+      ) {
+        drift.push(
+          `DB monthly price ($${client.monthly_price}) differs from Stripe ($${stripeSnapshot.monthlyPrice}).`
+        )
+      }
+    } catch (err) {
+      if (isStripeMissingResource(err)) {
+        drift.push('Stored subscription id no longer exists in Stripe.')
+      } else {
+        throw err
+      }
+    }
+  } else if (client.billing_status === 'trial' || client.billing_status === 'paid') {
+    drift.push('Client is marked paid/trial but has no Stripe subscription id.')
+  }
+
+  if (client.is_potential && subId) {
+    drift.push('Client is still marked potential while a Stripe subscription is attached.')
+  }
+  if (!client.is_potential && !isFreeTier(client.package_tier) && !subId && client.billing_status !== 'not_started') {
+    drift.push('Billing status should be not_started until a subscription exists.')
+  }
+
+  return {
+    client,
+    stripe: stripeSnapshot,
+    paymentMethods: {
+      count: paymentMethodsResult.paymentMethods.length,
+      hasDefault: paymentMethodsResult.paymentMethods.some(pm => pm.isDefault),
+    },
+    drift,
+  }
 }
 
 export async function logBillingActivity(

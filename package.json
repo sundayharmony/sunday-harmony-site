@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:unit": "npx tsx --test src/lib/__tests__/*.test.ts",
+    "diagnostic:prod": "node scripts/diagnostic-production.mjs",
     "auto-sync": "powershell -ExecutionPolicy Bypass -File ./auto-sync.ps1 -Branch auto-sync -RunChecks"
   },
   "dependencies": {

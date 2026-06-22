@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
 import { getMessages, createMessage, getClientById } from '@/lib/db'
-import { createEmailTransporter, getAdminNotifyEmail, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
+import { getAdminNotifyEmail, getPublicSiteUrl, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,18 +67,16 @@ export async function POST(request: Request) {
   })
 
   // Send email notification to admin (non-blocking)
-  if (isSmtpConfigured()) {
+  if (isEmailConfigured()) {
     try {
       const client = await getClientById(clientId)
-      const transporter = createEmailTransporter()
       const siteUrl = getPublicSiteUrl()
       const fromName = (session.user as { name?: string }).name || 'a client'
       const subject = sanitizeEmailSubjectPart(
         `New message from ${fromName}${client ? ` (${client.business})` : ''}`,
         200
       )
-      transporter.sendMail({
-        from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
+      sendHtmlMailNonBlocking({
         to: getAdminNotifyEmail(),
         subject,
         html: `
@@ -95,7 +93,8 @@ export async function POST(request: Request) {
             </p>
           </div>
         `,
-      }).catch(err => console.error('Failed to send message notification:', err))
+        logLabel: 'client-message',
+      })
     } catch (err) {
       console.error('Failed to send message notification:', err)
     }

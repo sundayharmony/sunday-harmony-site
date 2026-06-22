@@ -4,7 +4,7 @@ import { getApprovalsByClient, createApproval, updateApproval, deleteApproval, g
 import { getSupabase } from '@/lib/supabase'
 import {
   clientDashboardAlertEmailHtml,
-  isSmtpConfigured,
+  isEmailConfigured,
   sanitizeEmailSubjectPart,
   sendHtmlMailNonBlocking,
 } from '@/lib/smtp-mail'
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (isSmtpConfigured()) {
+    if (isEmailConfigured()) {
       try {
         const c = await getClientById(client_id)
         if (c?.email) {

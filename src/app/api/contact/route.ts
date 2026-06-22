@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { createLead, logActivity } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { createEmailTransporter, getAdminNotifyEmail, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
+import { getAdminNotifyEmail, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,16 +72,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Send email if SMTP is configured
-    if (isSmtpConfigured()) {
-      const transporter = createEmailTransporter()
-
+    if (isEmailConfigured()) {
       const subject = sanitizeEmailSubjectPart(
         `New Lead: ${firstName} ${lastName} from ${business}`,
         200
       )
 
-      await transporter.sendMail({
-        from: `"Sunday Harmony Website" <${process.env.SMTP_USER}>`,
+      await sendEmail({
+        from: '"Sunday Harmony Website" <sales@sundayharmony.com>',
         to: getAdminNotifyEmail(),
         replyTo: email,
         subject,
@@ -105,8 +103,6 @@ export async function POST(req: NextRequest) {
           </div>
         `,
       })
-
-      // Email sent successfully
     } else {
       // SMTP not configured Ã¢ÂÂ email notification skipped
     }
@@ -123,14 +119,16 @@ export async function POST(req: NextRequest) {
         service,
         budget: body.budget,
         message,
+        lead_type: 'marketing_lead',
+        marketing_lead_status: 'new_lead',
       })
       if (lead) {
         logActivity({
-          action: 'created',
+          action: 'lead_created',
           entity_type: 'lead',
           entity_id: lead.id,
           actor_email: email,
-          details: `New lead from contact form: ${firstName} ${lastName} (${business})`,
+          details: `New marketing lead from contact form: ${firstName} ${lastName} (${business})`,
         })
       }
     } catch (dbErr) {
