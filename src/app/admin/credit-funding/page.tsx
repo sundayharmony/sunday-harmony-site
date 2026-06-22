@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useState, useEffect, useMemo, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import StatusBadge from '@/components/ui/StatusBadge'
 import CreditFundingStatusTracker from '@/components/credit-funding/CreditFundingStatusTracker'
@@ -36,9 +36,24 @@ interface ApplicationDetail {
   city: string
   state: string
   zip_code: string
+  date_of_birth?: string
   credit_goals: string[]
   funding_goals: string
   selected_credit_provider: string
+  provider_username?: string
+  provider_password?: string
+  credit_profile?: Record<string, unknown>
+  primary_credit_goals_text?: string
+  funding_amount?: string
+  funding_use?: string
+  funding_timeframe?: string
+  goals_notes?: string
+  owns_business?: boolean
+  business_name?: string
+  business_profile?: Record<string, unknown>
+  consent_data?: Record<string, boolean>
+  typed_signature?: string
+  signature_date?: string
   status: ApplicationStatus
   service_type?: string
   assigned_specialist?: string
@@ -46,11 +61,6 @@ interface ApplicationDetail {
   client_notes?: string
   next_steps?: string
   funding_scores?: FundingScores
-  business_profile?: Record<string, unknown>
-  primary_credit_goals_text?: string
-  funding_amount?: string
-  funding_use?: string
-  goals_notes?: string
   created_at: string
   updated_at: string
 }
@@ -82,6 +92,31 @@ interface DocRequest {
 
 const DOC_LABELS_MAP: Record<string, string> = { ...DOCUMENT_LABELS }
 
+function yesNo(value?: boolean | null) {
+  if (value === true) return 'Yes'
+  if (value === false) return 'No'
+  return '—'
+}
+
+function DetailField({ label, value }: { label: string; value?: string | null }) {
+  if (value == null || value === '') return null
+  return (
+    <div>
+      <p className="text-xs font-semibold text-brand-dim uppercase mb-0.5">{label}</p>
+      <p className="text-brand-text whitespace-pre-wrap break-words">{value}</p>
+    </div>
+  )
+}
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mb-6 p-4 bg-neutral-50 rounded-xl border border-brand-border">
+      <h3 className="text-sm font-bold text-brand-text mb-3">{title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">{children}</div>
+    </div>
+  )
+}
+
 function CreditFundingAdminContent() {
   const searchParams = useSearchParams()
   const [applications, setApplications] = useState<ApplicationListItem[]>([])
@@ -96,7 +131,7 @@ function CreditFundingAdminContent() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'funding' | 'messages'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'funding' | 'messages'>('overview')
   const [newMsg, setNewMsg] = useState('')
   const [editFields, setEditFields] = useState({
     assigned_specialist: '',
@@ -364,8 +399,8 @@ function CreditFundingAdminContent() {
                 </div>
               </div>
 
-              <div className="flex gap-2 mb-5 border-b border-brand-border">
-                {(['overview', 'funding', 'messages'] as const).map((tab) => (
+              <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
+                {(['overview', 'intake', 'funding', 'messages'] as const).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -385,9 +420,10 @@ function CreditFundingAdminContent() {
                     {[
                       ['Email', selected.email],
                       ['Phone', selected.phone],
+                      ['Date of Birth', selected.date_of_birth],
                       ['Address', `${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`],
-                      ['Provider', selected.selected_credit_provider],
-                      ['Funding', selected.funding_goals],
+                      ['Service Type', selected.service_type?.replace(/_/g, ' ')],
+                      ['Funding Summary', selected.funding_goals],
                       ['Submitted', new Date(selected.created_at).toLocaleString()],
                     ].map(([label, value]) => (
                       <div key={label}>
@@ -429,6 +465,15 @@ function CreditFundingAdminContent() {
                         onChange={(e) => setEditFields((f) => ({ ...f, next_steps: e.target.value }))} />
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => patchApplication({ resend_portal_setup: true })}
+                    className="mb-5 mr-3 px-4 py-2 border border-brand-border text-sm font-semibold rounded-lg hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    Email Portal Setup Link
+                  </button>
 
                   <button
                     type="button"
@@ -498,6 +543,76 @@ function CreditFundingAdminContent() {
                     </div>
                   )}
                 </>
+              )}
+
+              {activeTab === 'intake' && (
+                <div>
+                  <DetailSection title="Personal Information">
+                    <DetailField label="Full Name" value={selected.full_name} />
+                    <DetailField label="Date of Birth" value={selected.date_of_birth} />
+                    <DetailField label="Email" value={selected.email} />
+                    <DetailField label="Phone" value={selected.phone} />
+                    <DetailField label="Address" value={`${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`} />
+                  </DetailSection>
+
+                  <DetailSection title="Credit Profile">
+                    <DetailField label="Credit Score" value={String(selected.credit_profile?.creditScore || '')} />
+                    <DetailField label="Open Credit Cards" value={String(selected.credit_profile?.openCreditCards || '')} />
+                    <DetailField label="Inquiries" value={String(selected.credit_profile?.inquiries || '')} />
+                    <DetailField label="Monthly Gross Income" value={String(selected.credit_profile?.monthlyGrossIncome || '')} />
+                    <DetailField label="Annual Income" value={String(selected.credit_profile?.annualIncome || '')} />
+                    <DetailField label="Bankruptcy" value={yesNo(selected.credit_profile?.bankruptcy as boolean | undefined)} />
+                    <DetailField label="Collections" value={yesNo(selected.credit_profile?.collections as boolean | undefined)} />
+                    <DetailField label="Charge-offs" value={yesNo(selected.credit_profile?.chargeOffs as boolean | undefined)} />
+                    <DetailField label="Late Payments (24 mo)" value={yesNo(selected.credit_profile?.latePayments24Months as boolean | undefined)} />
+                    <DetailField label="Employed" value={yesNo(selected.credit_profile?.employed as boolean | undefined)} />
+                    <DetailField label="Business Owner" value={yesNo(selected.credit_profile?.businessOwner as boolean | undefined)} />
+                  </DetailSection>
+
+                  <DetailSection title="Credit Monitoring Provider">
+                    <DetailField label="Provider" value={selected.selected_credit_provider} />
+                    <DetailField label="Username / Login" value={selected.provider_username} />
+                    <DetailField label="Password" value={selected.provider_password} />
+                  </DetailSection>
+
+                  <DetailSection title="Goals & Funding">
+                    <DetailField label="Primary Goals" value={selected.primary_credit_goals_text} />
+                    <DetailField label="Selected Goals" value={(selected.credit_goals || []).join(', ')} />
+                    <DetailField label="Funding Amount" value={selected.funding_amount} />
+                    <DetailField label="Funding Use" value={selected.funding_use} />
+                    <DetailField label="Timeframe" value={selected.funding_timeframe} />
+                    <DetailField label="Owns Business" value={yesNo(selected.owns_business)} />
+                    <DetailField label="Business Name" value={selected.business_name} />
+                    <DetailField label="Additional Notes" value={selected.goals_notes} />
+                  </DetailSection>
+
+                  {(selected.business_profile && Object.keys(selected.business_profile).length > 0) && (
+                    <DetailSection title="Business Information">
+                      <DetailField label="Legal Name" value={String(selected.business_profile.legalName || '')} />
+                      <DetailField label="DBA" value={String(selected.business_profile.dba || '')} />
+                      <DetailField label="EIN" value={String(selected.business_profile.ein || '')} />
+                      <DetailField label="Entity Type" value={String(selected.business_profile.entityType || '')} />
+                      <DetailField label="Industry" value={String(selected.business_profile.industry || '')} />
+                      <DetailField label="Year Established" value={String(selected.business_profile.yearEstablished || '')} />
+                      <DetailField label="Employees" value={String(selected.business_profile.numberOfEmployees || '')} />
+                      <DetailField label="Annual Revenue" value={String(selected.business_profile.annualRevenue || '')} />
+                      <DetailField label="Business Address" value={[selected.business_profile.address, selected.business_profile.city, selected.business_profile.state, selected.business_profile.zipCode].filter(Boolean).join(', ')} />
+                      <DetailField label="Business Phone" value={String(selected.business_profile.phone || '')} />
+                      <DetailField label="Business Email" value={String(selected.business_profile.email || '')} />
+                      <DetailField label="Website" value={String(selected.business_profile.website || '')} />
+                      <DetailField label="Description" value={String(selected.business_profile.businessDescription || '')} />
+                      <DetailField label="Funding Purposes" value={Array.isArray(selected.business_profile.fundingPurposes) ? (selected.business_profile.fundingPurposes as string[]).join(', ') : ''} />
+                    </DetailSection>
+                  )}
+
+                  <DetailSection title="Consent & Signature">
+                    <DetailField label="Accurate Information" value={yesNo(selected.consent_data?.accurateInfo)} />
+                    <DetailField label="Authorize Review" value={yesNo(selected.consent_data?.authorizeReview)} />
+                    <DetailField label="Agree to Terms" value={yesNo(selected.consent_data?.agreeTerms)} />
+                    <DetailField label="Typed Signature" value={selected.typed_signature} />
+                    <DetailField label="Signature Date" value={selected.signature_date} />
+                  </DetailSection>
+                </div>
               )}
 
               {activeTab === 'funding' && (

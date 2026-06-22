@@ -4,12 +4,9 @@ import { logActivity, getUserByEmail, createNotification } from '@/lib/db'
 import { upsertLeadFromCreditIntake, ensureClientFromCreditApplication } from '@/lib/crm-db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import {
-  sendHtmlMailNonBlocking,
-  escHtml,
-  sanitizeEmailSubjectPart,
-  getAdminNotifyEmail,
-  staffPortalEmailHtml,
-} from '@/lib/smtp-mail'
+  ensurePortalUserForCreditApplication,
+  sendCreditFundingSubmissionEmail,
+} from '@/lib/credit-funding-applicant-onboarding'
 import {
   parseIntakePayload,
   validateIntakePayload,
@@ -29,6 +26,12 @@ import {
   uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
+import {
+  getAdminNotifyEmail,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+  staffPortalEmailHtml,
+} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -193,11 +196,17 @@ export async function POST(req: NextRequest) {
       clientId: existingUser?.client_id || undefined,
     })
 
-    await ensureClientFromCreditApplication(application)
+    const client = await ensureClientFromCreditApplication(application)
+    const appWithClient = client
+      ? { ...application, client_id: client.id }
+      : application
 
-    if (existingUser) {
+    const portal = await ensurePortalUserForCreditApplication(appWithClient)
+    const linkedUser = portal ? await getUserByEmail(payload.email) : existingUser
+
+    if (linkedUser) {
       await createNotification({
-        user_id: existingUser.id,
+        user_id: linkedUser.id,
         title: 'Application Received',
         message: `Your Credit & Funding application ${application.application_id} has been submitted.`,
         type: 'info',
@@ -205,32 +214,16 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    sendHtmlMailNonBlocking({
-      to: payload.email,
-      subject: sanitizeEmailSubjectPart(`Application Received — ${application.application_id}`, 200),
-      html: `
-        <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
-          <h2 style="color:#b8943f;border-bottom:2px solid #b8943f;padding-bottom:10px">
-            Thank You, ${escHtml(payload.fullName.split(' ')[0] || 'Applicant')}
-          </h2>
-          <p style="color:#525252;line-height:1.6">
-            We have received your Credit &amp; Funding application. Our team will review your submission and contact you within 1–2 business days.
-          </p>
-          <p style="padding:12px;background:#fafafa;border-radius:8px;font-size:14px;color:#0a0a0a">
-            <strong>Application ID:</strong> ${escHtml(application.application_id)}
-          </p>
-          <p style="color:#525252;line-height:1.6;font-size:14px">
-            Track your status anytime by logging into your
-            <a href="${escHtml(process.env.NEXT_PUBLIC_SITE_URL || 'https://sundayharmony.com')}/dashboard/credit-funding" style="color:#b8943f">client portal</a>
-            with this email address.
-          </p>
-          <p style="font-size:13px;color:#a3a3a3">
-            If you did not submit this application, please contact us immediately at sales@sundayharmony.com.
-          </p>
-        </div>
-      `,
-      logLabel: 'credit-funding-confirmation',
-    })
+    try {
+      await sendCreditFundingSubmissionEmail({
+        to: payload.email,
+        fullName: payload.fullName,
+        applicationId: application.application_id,
+        setupCode: portal?.setupCode,
+      })
+    } catch (err) {
+      console.error('Failed to send credit funding confirmation email:', err)
+    }
 
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),

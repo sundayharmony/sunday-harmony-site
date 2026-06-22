@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, createNotification, getUserByEmail } from '@/lib/db'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { maskEmail, maskPhone, maskSecret } from '@/lib/field-encryption'
+import {
+  formatApplicationForAdmin,
+  formatApplicationListItemForAdmin,
+} from '@/lib/credit-funding-admin'
+import {
+  sendCreditFundingAdminMessageEmail,
+  sendCreditFundingDocumentRequestEmail,
+  sendCreditFundingStatusUpdateEmail,
+  ensurePortalUserForCreditApplication,
+  sendCreditFundingSubmissionEmail,
+} from '@/lib/credit-funding-applicant-onboarding'
 import {
   getCreditFundingApplications,
   getCreditFundingApplicationById,
@@ -22,30 +32,8 @@ import {
   type ApplicationStatus,
   type FundingScores,
 } from '@/lib/credit-funding-types'
-import {
-  escHtml,
-  getPublicSiteUrl,
-  sanitizeEmailSubjectPart,
-  sendHtmlMailNonBlocking,
-} from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
-
-function maskApplication(app: Awaited<ReturnType<typeof getCreditFundingApplicationById>>) {
-  if (!app) return null
-  const bp = app.business_profile as Record<string, unknown> | undefined
-  return {
-    ...app,
-    email: maskEmail(app.email),
-    phone: maskPhone(app.phone),
-    date_of_birth_encrypted: undefined,
-    provider_username_encrypted: maskSecret(app.provider_username_encrypted || ''),
-    provider_password_encrypted: maskSecret(app.provider_password_encrypted || ''),
-    business_profile: bp
-      ? { ...bp, einEncrypted: bp.einEncrypted ? maskSecret('encrypted') : undefined }
-      : {},
-  }
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -90,7 +78,7 @@ export async function GET(req: NextRequest) {
       }
 
       return NextResponse.json({
-        application: maskApplication(app),
+        application: formatApplicationForAdmin(app),
         documents: docsWithUrls,
         history,
         messages,
@@ -99,23 +87,7 @@ export async function GET(req: NextRequest) {
     }
 
     const applications = await getCreditFundingApplications({ status, search })
-    const masked = applications.map((a) => ({
-      id: a.id,
-      application_id: a.application_id,
-      full_name: a.full_name,
-      email: maskEmail(a.email),
-      phone: maskPhone(a.phone),
-      service_type: a.service_type,
-      credit_goals: a.credit_goals,
-      funding_goals: a.funding_goals,
-      selected_credit_provider: a.selected_credit_provider,
-      status: a.status,
-      assigned_specialist: a.assigned_specialist,
-      created_at: a.created_at,
-      updated_at: a.updated_at,
-    }))
-
-    return NextResponse.json(masked)
+    return NextResponse.json(applications.map(formatApplicationListItemForAdmin))
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding', error)
     return NextResponse.json({ error: 'Failed to load applications' }, { status: 500 })
@@ -139,6 +111,7 @@ export async function PATCH(req: NextRequest) {
       service_type,
       status_notes,
       document_request,
+      resend_portal_setup,
     } = body as {
       id?: string
       status?: string
@@ -150,6 +123,7 @@ export async function PATCH(req: NextRequest) {
       service_type?: string
       status_notes?: string
       document_request?: { document_type: string; label: string; notes?: string }
+      resend_portal_setup?: boolean
     }
 
     if (!id) {
@@ -185,20 +159,16 @@ export async function PATCH(req: NextRequest) {
         details: `Status changed to ${STATUS_LABELS[status as ApplicationStatus] || status} for ${existing.application_id}`,
       })
 
-      sendHtmlMailNonBlocking({
-        to: existing.email,
-        subject: sanitizeEmailSubjectPart(`Application Update — ${existing.application_id}`, 200),
-        html: `
-          <div style="font-family:'Montserrat',Arial,sans-serif;max-width:600px">
-            <h2 style="color:#b8943f">Application Status Update</h2>
-            <p>Your Credit &amp; Funding application <strong>${escHtml(existing.application_id)}</strong> status is now:</p>
-            <p style="padding:12px;background:#fafafa;border-radius:8px;font-weight:bold">${escHtml(STATUS_LABELS[status as ApplicationStatus] || status)}</p>
-            ${status_notes ? `<p>${escHtml(status_notes)}</p>` : ''}
-            <p><a href="${escHtml(getPublicSiteUrl())}/dashboard/credit-funding" style="color:#b8943f">View your portal</a></p>
-          </div>
-        `,
-        logLabel: 'cf-status-update',
-      })
+      try {
+        await sendCreditFundingStatusUpdateEmail({
+          to: existing.email,
+          applicationId: existing.application_id,
+          statusLabel: STATUS_LABELS[status as ApplicationStatus] || status,
+          statusNotes: status_notes || undefined,
+        })
+      } catch (err) {
+        console.error('Failed to send status update email:', err)
+      }
 
       if (existing.user_id) {
         await createNotification({
@@ -261,17 +231,16 @@ export async function PATCH(req: NextRequest) {
         })
       }
 
-      sendHtmlMailNonBlocking({
-        to: existing.email,
-        subject: sanitizeEmailSubjectPart(`Document Requested — ${existing.application_id}`, 200),
-        html: `
-          <p>We need an additional document for your application <strong>${escHtml(existing.application_id)}</strong>:</p>
-          <p style="padding:12px;background:#fafafa;border-radius:8px"><strong>${escHtml(document_request.label)}</strong></p>
-          ${document_request.notes ? `<p>${escHtml(document_request.notes)}</p>` : ''}
-          <p>Please upload via your <a href="${escHtml(getPublicSiteUrl())}/dashboard/credit-funding">client portal</a>.</p>
-        `,
-        logLabel: 'cf-doc-request',
-      })
+      try {
+        await sendCreditFundingDocumentRequestEmail({
+          to: existing.email,
+          applicationId: existing.application_id,
+          label: document_request.label,
+          notes: document_request.notes,
+        })
+      } catch (err) {
+        console.error('Failed to send document request email:', err)
+      }
 
       if (existing.user_id) {
         await createNotification({
@@ -295,6 +264,23 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    if (resend_portal_setup) {
+      const portal = await ensurePortalUserForCreditApplication(existing, { issueSetupCode: true })
+      if (portal) {
+        try {
+          await sendCreditFundingSubmissionEmail({
+            to: existing.email,
+            fullName: existing.full_name,
+            applicationId: existing.application_id,
+            setupCode: portal.setupCode,
+          })
+        } catch (err) {
+          console.error('Failed to resend portal setup email:', err)
+          return NextResponse.json({ error: 'Failed to send portal setup email' }, { status: 500 })
+        }
+      }
+    }
+
     logActivity({
       action: 'updated',
       entity_type: 'credit_funding_application',
@@ -303,7 +289,7 @@ export async function PATCH(req: NextRequest) {
       details: `Updated credit funding application ${updated.application_id}`,
     })
 
-    return NextResponse.json(maskApplication(updated))
+    return NextResponse.json(formatApplicationForAdmin(updated))
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding PATCH', error)
     return NextResponse.json({ error: 'Failed to update application' }, { status: 500 })
@@ -339,16 +325,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
     }
 
-    sendHtmlMailNonBlocking({
-      to: app.email,
-      subject: sanitizeEmailSubjectPart(`Message from Sunday Harmony — ${app.application_id}`, 200),
-      html: `
-        <p>You have a new message regarding application <strong>${escHtml(app.application_id)}</strong>:</p>
-        <div style="padding:12px;background:#f8f6f0;border-radius:8px;margin:12px 0;white-space:pre-wrap">${escHtml(text.trim())}</div>
-        <p><a href="${escHtml(getPublicSiteUrl())}/dashboard/credit-funding">Reply in your portal</a></p>
-      `,
-      logLabel: 'cf-admin-message',
-    })
+    try {
+      await sendCreditFundingAdminMessageEmail({
+        to: app.email,
+        applicationId: app.application_id,
+        text: text.trim(),
+      })
+    } catch (err) {
+      console.error('Failed to send admin message email:', err)
+    }
 
     if (app.user_id) {
       await createNotification({
