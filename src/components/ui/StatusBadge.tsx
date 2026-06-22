@@ -9,9 +9,15 @@ const styles: Record<string, { bg: string; text: string; border: string }> = {
   paused: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
   churned: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
   submitted: { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border border-yellow-200' },
+  documents_pending: { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border border-orange-200' },
   under_review: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border border-blue-200' },
+  credit_analysis_complete: { bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border border-indigo-200' },
+  funding_review: { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border border-purple-200' },
+  additional_information_requested: { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border border-amber-200' },
   approved: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },
+  declined: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
   denied: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
+  completed: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border border-emerald-200' },
   archived: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
 }
 
@@ -26,9 +32,15 @@ const labels: Record<string, string> = {
   paused: 'Paused',
   churned: 'Churned',
   submitted: 'Submitted',
+  documents_pending: 'Documents Pending',
   under_review: 'Under Review',
+  credit_analysis_complete: 'Credit Analysis Complete',
+  funding_review: 'Funding Review',
+  additional_information_requested: 'Additional Info Requested',
   approved: 'Approved',
-  denied: 'Denied',
+  declined: 'Declined',
+  denied: 'Declined',
+  completed: 'Completed',
   archived: 'Archived',
 }
 

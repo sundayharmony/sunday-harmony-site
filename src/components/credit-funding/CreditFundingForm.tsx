@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import FileUploadField from '@/components/credit-funding/FileUploadField'
+import BusinessInfoSection, { type BusinessDocFiles } from '@/components/credit-funding/BusinessInfoSection'
+import Link from 'next/link'
 import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
   FUNDING_TIMEFRAMES,
+  requiresBusinessSection,
   type CreditProfile,
   type ConsentData,
+  type BusinessProfile,
 } from '@/lib/credit-funding-types'
 
 const STEPS = [
@@ -50,6 +54,8 @@ interface FormState {
   businessName: string
   fundingTimeframe: string
   goalsNotes: string
+  businessProfile: BusinessProfile
+  businessDocs: BusinessDocFiles
   consent: ConsentData
   typedSignature: string
   signatureDate: string
@@ -81,6 +87,8 @@ const initialState: FormState = {
   businessName: '',
   fundingTimeframe: '',
   goalsNotes: '',
+  businessProfile: {},
+  businessDocs: {},
   consent: { accurateInfo: false, authorizeReview: false, agreeTerms: false },
   typedSignature: '',
   signatureDate: new Date().toISOString().slice(0, 10),
@@ -147,6 +155,17 @@ export default function CreditFundingForm() {
       if (!form.fundingUse) e.fundingUse = 'Required'
       if (form.ownsBusiness && !form.businessName.trim()) e.businessName = 'Required'
       if (!form.fundingTimeframe) e.fundingTimeframe = 'Required'
+      if (requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)) {
+        const bp = form.businessProfile
+        if (!bp.legalName?.trim()) e.legalName = 'Required'
+        if (!bp.ein?.trim()) e.ein = 'Required'
+        if (!bp.address?.trim()) e.businessAddress = 'Required'
+        if (!bp.city?.trim()) e.businessCity = 'Required'
+        if (!bp.state?.trim() || bp.state.length !== 2) e.businessState = '2-letter state'
+        if (!bp.industry?.trim()) e.industry = 'Required'
+        if (!bp.entityType) e.entityType = 'Required'
+        if (!bp.fundingPurposes?.length) e.fundingPurposes = 'Select at least one purpose'
+      }
     }
     if (s === 5) {
       if (!form.consent.accurateInfo) e.consent = 'All consent items are required'
@@ -192,6 +211,7 @@ export default function CreditFundingForm() {
     fd.append('businessName', form.businessName)
     fd.append('fundingTimeframe', form.fundingTimeframe)
     fd.append('goalsNotes', form.goalsNotes)
+    fd.append('businessProfile', JSON.stringify(form.businessProfile))
     fd.append('consent', JSON.stringify(form.consent))
     fd.append('typedSignature', form.typedSignature)
     fd.append('signatureDate', form.signatureDate)
@@ -200,6 +220,10 @@ export default function CreditFundingForm() {
     if (form.proofOfAddress) fd.append('proofOfAddress', form.proofOfAddress)
     if (form.selfieWithId) fd.append('selfieWithId', form.selfieWithId)
     if (form.mailProof) fd.append('mailProof', form.mailProof)
+
+    for (const [docType, file] of Object.entries(form.businessDocs)) {
+      if (file) fd.append(docType, file)
+    }
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -245,6 +269,13 @@ export default function CreditFundingForm() {
             Application ID: {applicationId}
           </p>
         )}
+        <p className="text-sm text-brand-muted mt-6">
+          Track your application status anytime from your{' '}
+          <Link href="/dashboard/credit-funding" className="text-accent font-semibold hover:underline">
+            client portal
+          </Link>{' '}
+          (log in with the email you used to apply).
+        </p>
       </div>
     )
   }
@@ -492,6 +523,21 @@ export default function CreditFundingForm() {
               <label className={labelClass}>Tell us about your situation and goals</label>
               <textarea className={`${inputClass} min-h-[120px]`} value={form.goalsNotes} onChange={(e) => update('goalsNotes', e.target.value)} />
             </div>
+
+            {requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile) && (
+              <BusinessInfoSection
+                profile={form.businessProfile}
+                onChange={(businessProfile) => update('businessProfile', businessProfile)}
+                docs={form.businessDocs}
+                onDocChange={(type, file) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    businessDocs: { ...prev.businessDocs, [type]: file },
+                  }))
+                }
+                errors={errors}
+              />
+            )}
           </div>
         )}
 
@@ -502,7 +548,6 @@ export default function CreditFundingForm() {
               {[
                 { key: 'accurateInfo' as const, text: 'I certify all information provided is accurate.' },
                 { key: 'authorizeReview' as const, text: 'I authorize Sunday Harmony to review my credit information.' },
-                { key: 'agreeTerms' as const, text: 'I agree to the Privacy Policy and Terms of Service.' },
               ].map(({ key, text }) => (
                 <label key={key} className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -519,6 +564,26 @@ export default function CreditFundingForm() {
                   <span className="text-sm text-brand-muted">{text}</span>
                 </label>
               ))}
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={form.consent.agreeTerms}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      consent: { ...prev.consent, agreeTerms: e.target.checked },
+                    }))
+                  }
+                />
+                <span className="text-sm text-brand-muted">
+                  I have read and agree to the{' '}
+                  <Link href="/credit-funding/privacy" target="_blank" className="text-accent hover:underline">
+                    Privacy Policy
+                  </Link>{' '}
+                  and authorize Sunday Harmony to process my information for credit repair and funding evaluation purposes.
+                </span>
+              </label>
               {errors.consent && <p className="text-xs text-brand-red">{errors.consent}</p>}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

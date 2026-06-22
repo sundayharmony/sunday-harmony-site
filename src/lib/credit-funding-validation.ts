@@ -2,6 +2,10 @@ import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
   FUNDING_TIMEFRAMES,
+  ENTITY_TYPES,
+  FUNDING_PURPOSE_OPTIONS,
+  requiresBusinessSection,
+  type BusinessProfile,
   type CreditProfile,
   type ConsentData,
 } from '@/lib/credit-funding-types'
@@ -31,6 +35,7 @@ export interface IntakeFormPayload {
   businessName: string
   fundingTimeframe: string
   goalsNotes: string
+  businessProfile: BusinessProfile
   consent: ConsentData
   typedSignature: string
   signatureDate: string
@@ -47,25 +52,58 @@ function bool(val: unknown): boolean {
   return false
 }
 
+function parseJsonField<T>(raw: unknown, fallback: T): T {
+  try {
+    if (typeof raw === 'string') return JSON.parse(raw) as T
+    if (typeof raw === 'object' && raw) return raw as T
+  } catch { /* keep fallback */ }
+  return fallback
+}
+
+export function parseBusinessProfile(raw: unknown): BusinessProfile {
+  const bp = parseJsonField<BusinessProfile>(raw, {})
+  return {
+    legalName: str(bp.legalName, 200),
+    dba: str(bp.dba, 200),
+    ein: str(bp.ein, 20),
+    address: str(bp.address, 300),
+    city: str(bp.city, 100),
+    state: str(bp.state, 2).toUpperCase(),
+    zipCode: str(bp.zipCode, 12),
+    phone: str(bp.phone, 30),
+    email: str(bp.email, 254).toLowerCase(),
+    website: str(bp.website, 300),
+    industry: str(bp.industry, 200),
+    entityType: str(bp.entityType, 100),
+    yearEstablished: str(bp.yearEstablished, 10),
+    numberOfEmployees: str(bp.numberOfEmployees, 20),
+    annualRevenue: str(bp.annualRevenue, 50),
+    businessDescription: str(bp.businessDescription, 5000),
+    businessCreditScore: str(bp.businessCreditScore, 20),
+    businessCreditCards: str(bp.businessCreditCards, 20),
+    businessLoans: typeof bp.businessLoans === 'boolean' ? bp.businessLoans : undefined,
+    businessCollections: typeof bp.businessCollections === 'boolean' ? bp.businessCollections : undefined,
+    paydexScore: str(bp.paydexScore, 20),
+    fundingPurposes: Array.isArray(bp.fundingPurposes)
+      ? bp.fundingPurposes.filter((p) => FUNDING_PURPOSE_OPTIONS.includes(p as typeof FUNDING_PURPOSE_OPTIONS[number]))
+      : [],
+    existingBusinessDebt: typeof bp.existingBusinessDebt === 'boolean' ? bp.existingBusinessDebt : undefined,
+    collateralAvailable: typeof bp.collateralAvailable === 'boolean' ? bp.collateralAvailable : undefined,
+    priorBusinessFunding: typeof bp.priorBusinessFunding === 'boolean' ? bp.priorBusinessFunding : undefined,
+    taxLiensOrJudgments: typeof bp.taxLiensOrJudgments === 'boolean' ? bp.taxLiensOrJudgments : undefined,
+  }
+}
+
 export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayload {
-  let creditProfile: CreditProfile = {}
-  let creditGoals: string[] = []
-  let consent: ConsentData = { accurateInfo: false, authorizeReview: false, agreeTerms: false }
-
-  try {
-    if (typeof raw.creditProfile === 'string') creditProfile = JSON.parse(raw.creditProfile)
-    else if (typeof raw.creditProfile === 'object' && raw.creditProfile) creditProfile = raw.creditProfile as CreditProfile
-  } catch { /* keep defaults */ }
-
-  try {
-    if (typeof raw.creditGoals === 'string') creditGoals = JSON.parse(raw.creditGoals)
-    else if (Array.isArray(raw.creditGoals)) creditGoals = raw.creditGoals as string[]
-  } catch { /* keep defaults */ }
-
-  try {
-    if (typeof raw.consent === 'string') consent = JSON.parse(raw.consent)
-    else if (typeof raw.consent === 'object' && raw.consent) consent = raw.consent as ConsentData
-  } catch { /* keep defaults */ }
+  const creditProfile = parseJsonField<CreditProfile>(raw.creditProfile, {})
+  const creditGoals = parseJsonField<string[]>(raw.creditGoals, []).filter((g) =>
+    CREDIT_GOAL_OPTIONS.includes(g as typeof CREDIT_GOAL_OPTIONS[number])
+  )
+  const consent = parseJsonField<ConsentData>(raw.consent, {
+    accurateInfo: false,
+    authorizeReview: false,
+    agreeTerms: false,
+  })
 
   return {
     fullName: str(raw.fullName, 200),
@@ -81,13 +119,14 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
     providerUsername: str(raw.providerUsername, 254),
     providerPassword: str(raw.providerPassword, 200),
     primaryCreditGoalsText: str(raw.primaryCreditGoalsText, 5000),
-    creditGoals: creditGoals.filter((g) => CREDIT_GOAL_OPTIONS.includes(g as typeof CREDIT_GOAL_OPTIONS[number])),
+    creditGoals,
     fundingAmount: str(raw.fundingAmount, 100),
     fundingUse: str(raw.fundingUse, 50),
     ownsBusiness: bool(raw.ownsBusiness),
     businessName: str(raw.businessName, 200),
     fundingTimeframe: str(raw.fundingTimeframe, 50),
     goalsNotes: str(raw.goalsNotes, 10000),
+    businessProfile: parseBusinessProfile(raw.businessProfile),
     consent,
     typedSignature: str(raw.typedSignature, 200),
     signatureDate: str(raw.signatureDate, 20),
@@ -120,9 +159,25 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
     return 'Please select a funding timeframe'
   }
 
+  if (requiresBusinessSection(payload.ownsBusiness, payload.fundingUse, payload.creditProfile)) {
+    const bp = payload.businessProfile
+    if (!bp.legalName) return 'Legal business name is required for business funding'
+    if (!bp.ein || !/^\d{2}-?\d{7}$/.test(bp.ein.replace(/\s/g, ''))) {
+      return 'Valid EIN is required for business funding (format: XX-XXXXXXX)'
+    }
+    if (!bp.address) return 'Business address is required'
+    if (!bp.city) return 'Business city is required'
+    if (!bp.state || !US_STATE_RE.test(bp.state)) return 'Valid business state is required'
+    if (!bp.industry) return 'Business industry is required'
+    if (!bp.entityType || !ENTITY_TYPES.includes(bp.entityType as typeof ENTITY_TYPES[number])) {
+      return 'Please select a business entity type'
+    }
+    if (!bp.fundingPurposes?.length) return 'Select at least one funding purpose'
+  }
+
   if (!payload.consent.accurateInfo) return 'You must certify that all information is accurate'
   if (!payload.consent.authorizeReview) return 'You must authorize Sunday Harmony to review your credit information'
-  if (!payload.consent.agreeTerms) return 'You must agree to the Privacy Policy and Terms of Service'
+  if (!payload.consent.agreeTerms) return 'You must agree to the Privacy Policy and authorize processing'
   if (!payload.typedSignature) return 'Typed signature is required'
   if (!payload.signatureDate) return 'Signature date is required'
 
@@ -136,6 +191,7 @@ export function buildFundingGoalsSummary(payload: IntakeFormPayload): string {
     payload.fundingTimeframe && `Timeframe: ${payload.fundingTimeframe}`,
     payload.ownsBusiness !== undefined && `Business owner: ${payload.ownsBusiness ? 'Yes' : 'No'}`,
     payload.businessName && `Business: ${payload.businessName}`,
+    payload.businessProfile?.legalName && `Legal entity: ${payload.businessProfile.legalName}`,
   ].filter(Boolean)
   return parts.join(' | ')
 }
@@ -144,4 +200,12 @@ export function assertHttpsSubmission(request: Request): boolean {
   if (process.env.NODE_ENV !== 'production') return true
   const proto = request.headers.get('x-forwarded-proto')
   return proto === 'https'
+}
+
+export function serializeBusinessProfileForDb(bp: BusinessProfile, encryptEin: (v: string) => string): Record<string, unknown> {
+  const { ein, ...rest } = bp
+  return {
+    ...rest,
+    einEncrypted: ein ? encryptEin(ein.replace(/\s/g, '')) : undefined,
+  }
 }

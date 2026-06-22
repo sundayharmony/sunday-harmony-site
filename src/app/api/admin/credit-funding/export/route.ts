@@ -35,15 +35,14 @@ export async function GET(req: NextRequest) {
       'Full Name',
       'Email',
       'Phone',
-      'Address',
-      'City',
-      'State',
-      'ZIP',
+      'Service Type',
+      'Assigned Specialist',
       'Credit Goals',
       'Funding Goals',
       'Provider',
       'Status',
       'Created At',
+      'Last Updated',
     ]
 
     const rows = applications.map((a) => [
@@ -51,15 +50,14 @@ export async function GET(req: NextRequest) {
       a.full_name,
       maskEmail(a.email),
       maskPhone(a.phone),
-      a.address,
-      a.city,
-      a.state,
-      a.zip_code,
+      a.service_type || '',
+      a.assigned_specialist || '',
       (a.credit_goals || []).join('; '),
       a.funding_goals,
       a.selected_credit_provider,
       a.status,
       a.created_at,
+      a.updated_at,
     ])
 
     const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n')

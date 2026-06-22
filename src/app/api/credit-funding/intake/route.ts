@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
-import { logActivity } from '@/lib/db'
+import { logActivity, getUserByEmail, createNotification } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   sendHtmlMailNonBlocking,
@@ -17,18 +17,19 @@ import {
 import {
   createCreditFundingApplication,
   createUploadedDocument,
+  linkApplicationToUser,
 } from '@/lib/credit-funding-db'
 import { uploadCreditFundingDocument } from '@/lib/credit-funding-storage'
-import type { DocumentType } from '@/lib/credit-funding-types'
+import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const REQUIRED_DOCS: DocumentType[] = ['photo_id', 'proof_of_address', 'mail_proof']
 const OPTIONAL_DOCS: DocumentType[] = ['selfie_with_id']
-const ALL_DOC_TYPES = [...REQUIRED_DOCS, ...OPTIONAL_DOCS]
+const ALL_DOC_TYPES = [...REQUIRED_DOCS, ...OPTIONAL_DOCS, ...BUSINESS_DOCUMENT_TYPES]
 
-const DOC_FIELD_MAP: Record<DocumentType, string> = {
+const DOC_FIELD_MAP: Partial<Record<DocumentType, string>> = {
   photo_id: 'photoId',
   proof_of_address: 'proofOfAddress',
   selfie_with_id: 'selfieWithId',
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     for (const docType of REQUIRED_DOCS) {
-      const fieldName = DOC_FIELD_MAP[docType]
+      const fieldName = DOC_FIELD_MAP[docType] || docType
       const file = formData.get(fieldName)
       if (!(file instanceof File) || file.size === 0) {
         const label = docType.replace(/_/g, ' ')
@@ -72,13 +73,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const application = await createCreditFundingApplication(payload)
+    const existingUser = await getUserByEmail(payload.email)
+    const application = await createCreditFundingApplication(payload, {
+      userId: existingUser?.id,
+      clientId: existingUser?.client_id || undefined,
+    })
     if (!application) {
       return NextResponse.json({ error: 'Failed to save application. Please try again.' }, { status: 500 })
     }
 
+    if (existingUser && !application.user_id) {
+      await linkApplicationToUser(application.id, existingUser.id, existingUser.client_id || undefined)
+    }
+
     for (const docType of ALL_DOC_TYPES) {
-      const fieldName = DOC_FIELD_MAP[docType]
+      const fieldName = DOC_FIELD_MAP[docType] || docType
       const file = formData.get(fieldName)
       if (!(file instanceof File) || file.size === 0) continue
 
@@ -115,6 +124,16 @@ export async function POST(req: NextRequest) {
       details: `Credit & Funding intake submitted: ${application.application_id} (${payload.fullName})`,
     })
 
+    if (existingUser) {
+      await createNotification({
+        user_id: existingUser.id,
+        title: 'Application Received',
+        message: `Your Credit & Funding application ${application.application_id} has been submitted.`,
+        type: 'info',
+        link: '/dashboard/credit-funding',
+      })
+    }
+
     sendHtmlMailNonBlocking({
       to: payload.email,
       subject: sanitizeEmailSubjectPart(`Application Received — ${application.application_id}`, 200),
@@ -128,6 +147,11 @@ export async function POST(req: NextRequest) {
           </p>
           <p style="padding:12px;background:#fafafa;border-radius:8px;font-size:14px;color:#0a0a0a">
             <strong>Application ID:</strong> ${escHtml(application.application_id)}
+          </p>
+          <p style="color:#525252;line-height:1.6;font-size:14px">
+            Track your status anytime by logging into your
+            <a href="${escHtml(process.env.NEXT_PUBLIC_SITE_URL || 'https://sundayharmony.com')}/dashboard/credit-funding" style="color:#b8943f">client portal</a>
+            with this email address.
           </p>
           <p style="font-size:13px;color:#a3a3a3">
             If you did not submit this application, please contact us immediately at sales@sundayharmony.com.
