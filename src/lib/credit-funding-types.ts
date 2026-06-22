@@ -90,6 +90,22 @@ export const FUNDING_TIMEFRAMES = ['Immediately', '30 Days', '60 Days', '90+ Day
 
 /** Max per-file size for uploads via Vercel serverless (request body limit ~4.5 MB). */
 export const CREDIT_FUNDING_MAX_BYTES = 4 * 1024 * 1024
+export const CREDIT_FUNDING_MAX_MB = CREDIT_FUNDING_MAX_BYTES / (1024 * 1024)
+
+const ALLOWED_UPLOAD_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'] as const
+
+/** Client/server-safe validation message for a single upload. */
+export function getCreditFundingFileValidationError(file: File): string | null {
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (!ext || !ALLOWED_UPLOAD_EXTENSIONS.includes(ext as (typeof ALLOWED_UPLOAD_EXTENSIONS)[number])) {
+    return 'Allowed types: PDF, JPG, JPEG, PNG'
+  }
+  if (file.size > CREDIT_FUNDING_MAX_BYTES) {
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1)
+    return `This file is ${sizeMb} MB — maximum is ${CREDIT_FUNDING_MAX_MB} MB. Compress it or use a smaller photo before continuing.`
+  }
+  return null
+}
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   photo_id: 'Government Photo ID',

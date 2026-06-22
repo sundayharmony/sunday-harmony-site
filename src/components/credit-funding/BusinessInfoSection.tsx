@@ -1,6 +1,7 @@
 'use client'
 
 import FileUploadField from '@/components/credit-funding/FileUploadField'
+import DocumentUploadNotice from '@/components/credit-funding/DocumentUploadNotice'
 import {
   ENTITY_TYPES,
   FUNDING_PURPOSE_OPTIONS,
@@ -183,7 +184,7 @@ export default function BusinessInfoSection({ profile, onChange, docs, onDocChan
       </div>
 
       <h4 className="text-sm font-bold text-brand-text mb-3">Business Documents</h4>
-      <p className="text-xs text-brand-dim mb-4">Upload PDF, JPG, or PNG (max 4 MB each).</p>
+      <DocumentUploadNotice />
       {(
         [
           ['articles_of_organization', 'Articles of Organization / Incorporation'],
@@ -203,6 +204,7 @@ export default function BusinessInfoSection({ profile, onChange, docs, onDocChan
           optional
           value={docs[type] || null}
           onChange={(f) => onDocChange(type, f)}
+          error={errors[type]}
         />
       ))}
     </div>

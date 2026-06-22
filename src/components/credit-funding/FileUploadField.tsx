@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { CREDIT_FUNDING_MAX_BYTES } from '@/lib/credit-funding-types'
+import { CREDIT_FUNDING_MAX_MB, getCreditFundingFileValidationError } from '@/lib/credit-funding-types'
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/png,image/jpeg'
 
@@ -28,16 +28,7 @@ export default function FileUploadField({
   const [dragOver, setDragOver] = useState(false)
   const [localError, setLocalError] = useState('')
 
-  const validateFile = (file: File): string | null => {
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    if (!ext || !['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) {
-      return 'Allowed types: PDF, JPG, JPEG, PNG'
-    }
-    if (file.size > CREDIT_FUNDING_MAX_BYTES) {
-      return `File too large (max ${CREDIT_FUNDING_MAX_BYTES / (1024 * 1024)} MB)`
-    }
-    return null
-  }
+  const validateFile = (file: File): string | null => getCreditFundingFileValidationError(file)
 
   const handleFile = (file: File | null) => {
     setLocalError('')
@@ -94,7 +85,7 @@ export default function FileUploadField({
           <div className="text-center">
             <div className="text-2xl mb-2">📎</div>
             <p className="text-sm text-brand-muted">Drag & drop or click to upload</p>
-            <p className="text-xs text-brand-dim mt-1">PDF, JPG, JPEG, PNG — max 4 MB each</p>
+            <p className="text-xs text-brand-dim mt-1">PDF, JPG, JPEG, PNG — max {CREDIT_FUNDING_MAX_MB} MB each</p>
           </div>
         ) : (
           <div className="flex items-center gap-4">

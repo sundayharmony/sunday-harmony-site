@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import FileUploadField from '@/components/credit-funding/FileUploadField'
+import DocumentUploadNotice from '@/components/credit-funding/DocumentUploadNotice'
 import BusinessInfoSection, { type BusinessDocFiles } from '@/components/credit-funding/BusinessInfoSection'
 import Link from 'next/link'
 import {
@@ -9,6 +10,8 @@ import {
   CREDIT_GOAL_OPTIONS,
   FUNDING_TIMEFRAMES,
   requiresBusinessSection,
+  getCreditFundingFileValidationError,
+  CREDIT_FUNDING_MAX_MB,
   type CreditProfile,
   type ConsentData,
   type BusinessProfile,
@@ -59,6 +62,32 @@ interface FormState {
   consent: ConsentData
   typedSignature: string
   signatureDate: string
+}
+
+function fileFieldError(file: File | null, required?: boolean, missingLabel?: string): string | undefined {
+  if (!file) return required ? missingLabel || 'Required' : undefined
+  return getCreditFundingFileValidationError(file) || undefined
+}
+
+function validateAllDocumentFiles(form: FormState): Record<string, string> {
+  const e: Record<string, string> = {}
+  const setIf = (key: string, msg: string | undefined) => {
+    if (msg) e[key] = msg
+  }
+
+  setIf('photoId', fileFieldError(form.photoId, true, 'Government ID is required'))
+  setIf('proofOfAddress', fileFieldError(form.proofOfAddress, true, 'Proof of address is required'))
+  setIf('mailProof', fileFieldError(form.mailProof, true, 'Mail proof is required'))
+  setIf('selfieWithId', fileFieldError(form.selfieWithId))
+
+  for (const [docType, file] of Object.entries(form.businessDocs)) {
+    if (file) {
+      const err = getCreditFundingFileValidationError(file)
+      if (err) e[docType] = err
+    }
+  }
+
+  return e
 }
 
 const initialState: FormState = {
@@ -138,9 +167,7 @@ export default function CreditFundingForm() {
       if (!form.zipCode.trim() || !/^\d{5}(-\d{4})?$/.test(form.zipCode)) e.zipCode = 'Valid ZIP required'
     }
     if (s === 1) {
-      if (!form.photoId) e.photoId = 'Government ID is required'
-      if (!form.proofOfAddress) e.proofOfAddress = 'Proof of address is required'
-      if (!form.mailProof) e.mailProof = 'Mail proof is required'
+      Object.assign(e, validateAllDocumentFiles(form))
     }
     if (s === 3) {
       if (!form.selectedCreditProvider) e.selectedCreditProvider = 'Select a provider'
@@ -166,6 +193,7 @@ export default function CreditFundingForm() {
         if (!bp.entityType) e.entityType = 'Required'
         if (!bp.fundingPurposes?.length) e.fundingPurposes = 'Select at least one purpose'
       }
+      Object.assign(e, validateAllDocumentFiles(form))
     }
     if (s === 5) {
       if (!form.consent.accurateInfo) e.consent = 'All consent items are required'
@@ -179,7 +207,19 @@ export default function CreditFundingForm() {
   }
 
   const next = () => {
-    if (validateStep(step)) setStep((s) => Math.min(s + 1, STEPS.length - 1))
+    if (!validateStep(step)) return
+    if (step === 4) {
+      const fileErrors = validateAllDocumentFiles(form)
+      if (Object.keys(fileErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...fileErrors }))
+        setSubmitError(
+          `One or more documents exceed the ${CREDIT_FUNDING_MAX_MB} MB limit. Go back to Identity Verification or Business Documents and upload smaller files.`
+        )
+        return
+      }
+    }
+    setSubmitError('')
+    setStep((s) => Math.min(s + 1, STEPS.length - 1))
   }
 
   const back = () => setStep((s) => Math.max(s - 1, 0))
@@ -375,6 +415,7 @@ export default function CreditFundingForm() {
         {/* Step 2 */}
         {step === 1 && (
           <div>
+            <DocumentUploadNotice />
             <p className="text-sm text-brand-muted mb-6">
               Upload secure identity documents. All files are encrypted and stored in a private vault.
             </p>
@@ -631,8 +672,11 @@ export default function CreditFundingForm() {
                 </div>
               </div>
             )}
-            {submitError && <p className="text-sm text-brand-red mt-4">{submitError}</p>}
           </div>
+        )}
+
+        {submitError && (
+          <p className="text-sm text-brand-red mt-4 px-1" role="alert">{submitError}</p>
         )}
 
         {/* Navigation */}
