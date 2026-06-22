@@ -190,65 +190,86 @@ export default function CreditFundingForm() {
     setSubmitError('')
     setUploadProgress(0)
 
-    const fd = new FormData()
-    fd.append('fullName', form.fullName)
-    fd.append('dateOfBirth', form.dateOfBirth)
-    fd.append('email', form.email)
-    fd.append('phone', form.phone)
-    fd.append('address', form.address)
-    fd.append('city', form.city)
-    fd.append('state', form.state.toUpperCase())
-    fd.append('zipCode', form.zipCode)
-    fd.append('creditProfile', JSON.stringify(form.creditProfile))
-    fd.append('selectedCreditProvider', form.selectedCreditProvider)
-    fd.append('providerUsername', form.providerUsername)
-    fd.append('providerPassword', form.providerPassword)
-    fd.append('primaryCreditGoalsText', form.primaryCreditGoalsText)
-    fd.append('creditGoals', JSON.stringify(form.creditGoals))
-    fd.append('fundingAmount', form.fundingAmount)
-    fd.append('fundingUse', form.fundingUse)
-    fd.append('ownsBusiness', String(form.ownsBusiness))
-    fd.append('businessName', form.businessName)
-    fd.append('fundingTimeframe', form.fundingTimeframe)
-    fd.append('goalsNotes', form.goalsNotes)
-    fd.append('businessProfile', JSON.stringify(form.businessProfile))
-    fd.append('consent', JSON.stringify(form.consent))
-    fd.append('typedSignature', form.typedSignature)
-    fd.append('signatureDate', form.signatureDate)
+    const uploadSessionId = crypto.randomUUID()
+    const stagedFiles: Array<{
+      documentType: string
+      storagePath: string
+      file_name: string
+      file_size: number
+      file_type: string
+      mime_type: string
+      scan_status: string
+    }> = []
 
-    if (form.photoId) fd.append('photoId', form.photoId)
-    if (form.proofOfAddress) fd.append('proofOfAddress', form.proofOfAddress)
-    if (form.selfieWithId) fd.append('selfieWithId', form.selfieWithId)
-    if (form.mailProof) fd.append('mailProof', form.mailProof)
-
+    const filesToStage: Array<{ file: File; documentType: string; label: string }> = []
+    if (form.photoId) filesToStage.push({ file: form.photoId, documentType: 'photo_id', label: 'Photo ID' })
+    if (form.proofOfAddress) filesToStage.push({ file: form.proofOfAddress, documentType: 'proof_of_address', label: 'Proof of address' })
+    if (form.selfieWithId) filesToStage.push({ file: form.selfieWithId, documentType: 'selfie_with_id', label: 'Selfie with ID' })
+    if (form.mailProof) filesToStage.push({ file: form.mailProof, documentType: 'mail_proof', label: 'Mail proof' })
     for (const [docType, file] of Object.entries(form.businessDocs)) {
-      if (file) fd.append(docType, file)
+      if (file) filesToStage.push({ file, documentType: docType, label: docType.replace(/_/g, ' ') })
     }
 
+    const totalSteps = filesToStage.length + 1
+    let completedSteps = 0
+
     try {
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-        xhr.open('POST', '/api/credit-funding/intake')
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) setUploadProgress(Math.round((ev.loaded / ev.total) * 100))
+      for (const item of filesToStage) {
+        const stageFd = new FormData()
+        stageFd.append('sessionId', uploadSessionId)
+        stageFd.append('documentType', item.documentType)
+        stageFd.append('file', item.file)
+
+        const stageRes = await fetch('/api/credit-funding/stage', { method: 'POST', body: stageFd })
+        const stageData = await stageRes.json().catch(() => ({}))
+        if (!stageRes.ok) {
+          throw new Error(stageData.error || `Failed to upload ${item.label}`)
         }
-        xhr.onload = () => {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            if (xhr.status >= 200 && xhr.status < 300) {
-              setApplicationId(data.applicationId || '')
-              setSubmitted(true)
-              resolve()
-            } else {
-              reject(new Error(data.error || 'Submission failed'))
-            }
-          } catch {
-            reject(new Error('Submission failed'))
-          }
+        stagedFiles.push(stageData.file)
+        completedSteps += 1
+        setUploadProgress(Math.round((completedSteps / totalSteps) * 100))
+      }
+
+      const fd = new FormData()
+      fd.append('fullName', form.fullName)
+      fd.append('dateOfBirth', form.dateOfBirth)
+      fd.append('email', form.email)
+      fd.append('phone', form.phone)
+      fd.append('address', form.address)
+      fd.append('city', form.city)
+      fd.append('state', form.state.toUpperCase())
+      fd.append('zipCode', form.zipCode)
+      fd.append('creditProfile', JSON.stringify(form.creditProfile))
+      fd.append('selectedCreditProvider', form.selectedCreditProvider)
+      fd.append('providerUsername', form.providerUsername)
+      fd.append('providerPassword', form.providerPassword)
+      fd.append('primaryCreditGoalsText', form.primaryCreditGoalsText)
+      fd.append('creditGoals', JSON.stringify(form.creditGoals))
+      fd.append('fundingAmount', form.fundingAmount)
+      fd.append('fundingUse', form.fundingUse)
+      fd.append('ownsBusiness', String(form.ownsBusiness))
+      fd.append('businessName', form.businessName)
+      fd.append('fundingTimeframe', form.fundingTimeframe)
+      fd.append('goalsNotes', form.goalsNotes)
+      fd.append('businessProfile', JSON.stringify(form.businessProfile))
+      fd.append('consent', JSON.stringify(form.consent))
+      fd.append('typedSignature', form.typedSignature)
+      fd.append('signatureDate', form.signatureDate)
+      fd.append('uploadSessionId', uploadSessionId)
+      fd.append('stagedFiles', JSON.stringify(stagedFiles))
+
+      const intakeRes = await fetch('/api/credit-funding/intake', { method: 'POST', body: fd })
+      const intakeData = await intakeRes.json().catch(() => ({}))
+      if (!intakeRes.ok) {
+        if (intakeRes.status === 413) {
+          throw new Error('Upload too large. Use files under 4 MB each (PDF, JPG, or PNG).')
         }
-        xhr.onerror = () => reject(new Error('Network error. Please try again.'))
-        xhr.send(fd)
-      })
+        throw new Error(intakeData.error || 'Submission failed')
+      }
+
+      setUploadProgress(100)
+      setApplicationId(intakeData.applicationId || '')
+      setSubmitted(true)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Submission failed')
     } finally {

@@ -99,6 +99,126 @@ export function validateCreditFundingFile(
   return { ok: true, mime: normalized }
 }
 
+export interface StagedCreditFundingFile {
+  documentType: DocumentType
+  storagePath: string
+  file_name: string
+  file_size: number
+  file_type: string
+  mime_type: string
+  scan_status: 'clean' | 'rejected'
+}
+
+const STAGING_PREFIX = 'staging'
+
+export function isValidUploadSessionId(sessionId: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)
+}
+
+export function isStagedPathForSession(storagePath: string, sessionId: string): boolean {
+  return storagePath.startsWith(`${STAGING_PREFIX}/${sessionId}/`)
+}
+
+export async function stageCreditFundingDocument(params: {
+  sessionId: string
+  documentType: DocumentType
+  buffer: Buffer
+  contentType: string
+  originalFileName: string
+}): Promise<{ ok: true; data: StagedCreditFundingFile } | { ok: false; error: string }> {
+  const { sessionId, documentType, buffer, contentType, originalFileName } = params
+  if (!isValidUploadSessionId(sessionId)) {
+    return { ok: false, error: 'Invalid upload session' }
+  }
+
+  const v = validateCreditFundingFile(contentType, buffer.length, originalFileName)
+  if (!v.ok) return { ok: false, error: v.error }
+
+  const scan = scanFileBuffer(buffer, v.mime)
+  if (!scan.ok) return { ok: false, error: scan.reason }
+
+  const safe = sanitizeStorageFileName(originalFileName)
+  const objectPath = `${STAGING_PREFIX}/${sessionId}/${documentType}/${randomUUID()}_${safe}`
+
+  const supabase = getSupabase()
+  const { error: upErr } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).upload(objectPath, buffer, {
+    contentType: v.mime,
+    upsert: false,
+  })
+
+  if (upErr) {
+    console.error('Credit funding staging upload error:', upErr)
+    return { ok: false, error: upErr.message || 'Upload failed' }
+  }
+
+  const displayName = sanitizeStorageFileName(originalFileName).replace(/_/g, ' ')
+  return {
+    ok: true,
+    data: {
+      documentType,
+      storagePath: objectPath,
+      file_size: buffer.length,
+      file_type: extensionFromName(originalFileName),
+      mime_type: v.mime,
+      file_name: displayName.slice(0, 300),
+      scan_status: 'clean',
+    },
+  }
+}
+
+export async function finalizeStagedCreditFundingDocument(params: {
+  applicationUuid: string
+  staged: StagedCreditFundingFile
+  sessionId: string
+}): Promise<{ ok: true; data: UploadCreditFundingDocResult } | { ok: false; error: string }> {
+  const { applicationUuid, staged, sessionId } = params
+  if (!isStagedPathForSession(staged.storagePath, sessionId)) {
+    return { ok: false, error: 'Invalid staged file path' }
+  }
+
+  const fileName = staged.storagePath.split('/').pop() || 'file'
+  const destPath = `${applicationUuid}/${staged.documentType}/${fileName}`
+
+  const supabase = getSupabase()
+  const { error: moveErr } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).move(staged.storagePath, destPath)
+  if (moveErr) {
+    console.error('Credit funding staging move error:', moveErr)
+    return { ok: false, error: moveErr.message || 'Failed to finalize upload' }
+  }
+
+  return {
+    ok: true,
+    data: {
+      storagePath: destPath,
+      file_size: staged.file_size,
+      file_type: staged.file_type,
+      mime_type: staged.mime_type,
+      displayName: staged.file_name,
+      scan_status: staged.scan_status,
+    },
+  }
+}
+
+export async function removeStagedCreditFundingSession(sessionId: string): Promise<void> {
+  if (!isValidUploadSessionId(sessionId)) return
+  const supabase = getSupabase()
+  const base = `${STAGING_PREFIX}/${sessionId}`
+  const { data: docTypes } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(base)
+  if (!docTypes?.length) return
+
+  const paths: string[] = []
+  for (const docFolder of docTypes) {
+    const { data: files } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(`${base}/${docFolder.name}`)
+    for (const f of files || []) {
+      paths.push(`${base}/${docFolder.name}/${f.name}`)
+    }
+  }
+
+  if (paths.length) {
+    await supabase.storage.from(CREDIT_FUNDING_BUCKET).remove(paths)
+  }
+}
+
 export interface UploadCreditFundingDocResult {
   storagePath: string
   file_size: number

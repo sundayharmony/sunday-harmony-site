@@ -94,7 +94,7 @@ export default function FileUploadField({
           <div className="text-center">
             <div className="text-2xl mb-2">📎</div>
             <p className="text-sm text-brand-muted">Drag & drop or click to upload</p>
-            <p className="text-xs text-brand-dim mt-1">PDF, JPG, JPEG, PNG — max 20 MB</p>
+            <p className="text-xs text-brand-dim mt-1">PDF, JPG, JPEG, PNG — max 4 MB each</p>
           </div>
         ) : (
           <div className="flex items-center gap-4">

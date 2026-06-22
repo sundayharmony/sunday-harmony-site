@@ -20,7 +20,14 @@ import {
   createUploadedDocument,
   linkApplicationToUser,
 } from '@/lib/credit-funding-db'
-import { uploadCreditFundingDocument } from '@/lib/credit-funding-storage'
+import {
+  finalizeStagedCreditFundingDocument,
+  isStagedPathForSession,
+  isValidUploadSessionId,
+  removeStagedCreditFundingSession,
+  type StagedCreditFundingFile,
+  uploadCreditFundingDocument,
+} from '@/lib/credit-funding-storage'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
@@ -65,12 +72,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
-    for (const docType of REQUIRED_DOCS) {
-      const fieldName = DOC_FIELD_MAP[docType] || docType
-      const file = formData.get(fieldName)
-      if (!(file instanceof File) || file.size === 0) {
-        const label = docType.replace(/_/g, ' ')
-        return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
+    const uploadSessionId = String(formData.get('uploadSessionId') || '').trim()
+    let stagedFiles: StagedCreditFundingFile[] = []
+    if (uploadSessionId) {
+      if (!isValidUploadSessionId(uploadSessionId)) {
+        return NextResponse.json({ error: 'Invalid upload session' }, { status: 400 })
+      }
+      try {
+        stagedFiles = JSON.parse(String(formData.get('stagedFiles') || '[]')) as StagedCreditFundingFile[]
+      } catch {
+        return NextResponse.json({ error: 'Invalid staged file payload' }, { status: 400 })
+      }
+      if (!Array.isArray(stagedFiles)) {
+        return NextResponse.json({ error: 'Invalid staged file payload' }, { status: 400 })
+      }
+      for (const docType of REQUIRED_DOCS) {
+        if (!stagedFiles.some((f) => f.documentType === docType)) {
+          const label = docType.replace(/_/g, ' ')
+          return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
+        }
+      }
+      for (const staged of stagedFiles) {
+        if (!isStagedPathForSession(staged.storagePath, uploadSessionId)) {
+          return NextResponse.json({ error: 'Invalid staged file reference' }, { status: 400 })
+        }
+      }
+    } else {
+      for (const docType of REQUIRED_DOCS) {
+        const fieldName = DOC_FIELD_MAP[docType] || docType
+        const file = formData.get(fieldName)
+        if (!(file instanceof File) || file.size === 0) {
+          const label = docType.replace(/_/g, ' ')
+          return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
+        }
       }
     }
 
@@ -87,34 +121,57 @@ export async function POST(req: NextRequest) {
       await linkApplicationToUser(application.id, existingUser.id, existingUser.client_id || undefined)
     }
 
-    for (const docType of ALL_DOC_TYPES) {
-      const fieldName = DOC_FIELD_MAP[docType] || docType
-      const file = formData.get(fieldName)
-      if (!(file instanceof File) || file.size === 0) continue
-
-      const buffer = Buffer.from(await file.arrayBuffer())
-      const upload = await uploadCreditFundingDocument({
-        applicationUuid: application.id,
-        documentType: docType,
-        buffer,
-        contentType: file.type,
-        originalFileName: file.name,
-      })
-
-      if (!upload.ok) {
-        return NextResponse.json({ error: `${docType}: ${upload.error}` }, { status: 400 })
+    if (uploadSessionId && stagedFiles.length > 0) {
+      for (const staged of stagedFiles) {
+        const finalized = await finalizeStagedCreditFundingDocument({
+          applicationUuid: application.id,
+          staged,
+          sessionId: uploadSessionId,
+        })
+        if (!finalized.ok) {
+          return NextResponse.json({ error: `${staged.documentType}: ${finalized.error}` }, { status: 400 })
+        }
+        await createUploadedDocument({
+          application_uuid: application.id,
+          document_type: staged.documentType,
+          file_name: finalized.data.displayName,
+          file_type: finalized.data.file_type,
+          file_size: finalized.data.file_size,
+          storage_path: finalized.data.storagePath,
+          mime_type: finalized.data.mime_type,
+          scan_status: finalized.data.scan_status,
+        })
       }
+    } else {
+      for (const docType of ALL_DOC_TYPES) {
+        const fieldName = DOC_FIELD_MAP[docType] || docType
+        const file = formData.get(fieldName)
+        if (!(file instanceof File) || file.size === 0) continue
 
-      await createUploadedDocument({
-        application_uuid: application.id,
-        document_type: docType,
-        file_name: upload.data.displayName,
-        file_type: upload.data.file_type,
-        file_size: upload.data.file_size,
-        storage_path: upload.data.storagePath,
-        mime_type: upload.data.mime_type,
-        scan_status: upload.data.scan_status,
-      })
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const upload = await uploadCreditFundingDocument({
+          applicationUuid: application.id,
+          documentType: docType,
+          buffer,
+          contentType: file.type,
+          originalFileName: file.name,
+        })
+
+        if (!upload.ok) {
+          return NextResponse.json({ error: `${docType}: ${upload.error}` }, { status: 400 })
+        }
+
+        await createUploadedDocument({
+          application_uuid: application.id,
+          document_type: docType,
+          file_name: upload.data.displayName,
+          file_type: upload.data.file_type,
+          file_size: upload.data.file_size,
+          storage_path: upload.data.storagePath,
+          mime_type: upload.data.mime_type,
+          scan_status: upload.data.scan_status,
+        })
+      }
     }
 
     logActivity({

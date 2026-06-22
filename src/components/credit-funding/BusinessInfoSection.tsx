@@ -183,7 +183,7 @@ export default function BusinessInfoSection({ profile, onChange, docs, onDocChan
       </div>
 
       <h4 className="text-sm font-bold text-brand-text mb-3">Business Documents</h4>
-      <p className="text-xs text-brand-dim mb-4">Upload PDF, JPG, or PNG (max 20 MB each).</p>
+      <p className="text-xs text-brand-dim mb-4">Upload PDF, JPG, or PNG (max 4 MB each).</p>
       {(
         [
           ['articles_of_organization', 'Articles of Organization / Incorporation'],

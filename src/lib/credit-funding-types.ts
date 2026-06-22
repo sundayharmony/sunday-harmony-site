@@ -88,7 +88,8 @@ export const CREDIT_GOAL_OPTIONS = [
 
 export const FUNDING_TIMEFRAMES = ['Immediately', '30 Days', '60 Days', '90+ Days'] as const
 
-export const CREDIT_FUNDING_MAX_BYTES = 20 * 1024 * 1024
+/** Max per-file size for uploads via Vercel serverless (request body limit ~4.5 MB). */
+export const CREDIT_FUNDING_MAX_BYTES = 4 * 1024 * 1024
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   photo_id: 'Government Photo ID',
