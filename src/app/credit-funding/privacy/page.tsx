@@ -33,9 +33,11 @@ const sections = [
   {
     title: '3. Data Security',
     content: [
-      'Encryption at rest and in transit for sensitive fields including date of birth, EIN, and credit monitoring credentials.',
+      'Encryption at rest (AES-256-GCM) for date of birth, home address, phone, income, typed signature, EIN, business contact details, and credit monitoring credentials.',
+      'Encryption in transit via HTTPS for all form submissions and file uploads.',
       'Role-based access controls (RBAC) limiting staff access to applicant data on a need-to-know basis.',
       'Secure private cloud storage for uploaded documents with signed URL access only.',
+      'Server-signed upload sessions and file validation (type, size, and content checks) before documents are stored.',
       'Audit logging of administrative access and status changes to your application.',
     ],
   },

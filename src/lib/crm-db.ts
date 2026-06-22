@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase'
+import { decryptFieldOrLegacy } from './field-encryption'
 import {
   getLeadById,
   getClientById,
@@ -641,7 +642,7 @@ export async function ensureClientFromCreditApplication(app: CreditFundingApplic
       name: app.full_name,
       business: app.business_name || app.full_name,
       email: app.email,
-      phone: app.phone,
+      phone: decryptFieldOrLegacy(app.phone),
       package_tier: 'free',
       monthly_price: 0,
       start_date: new Date().toISOString(),

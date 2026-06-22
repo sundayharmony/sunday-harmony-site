@@ -230,7 +230,6 @@ export default function CreditFundingForm() {
     setSubmitError('')
     setUploadProgress(0)
 
-    const uploadSessionId = crypto.randomUUID()
     const stagedFiles: Array<{
       documentType: string
       storagePath: string
@@ -254,9 +253,18 @@ export default function CreditFundingForm() {
     let completedSteps = 0
 
     try {
+      const sessionRes = await fetch('/api/credit-funding/session', { method: 'POST' })
+      const sessionData = await sessionRes.json().catch(() => ({}))
+      if (!sessionRes.ok || !sessionData.sessionId || !sessionData.uploadToken) {
+        throw new Error(sessionData.error || 'Could not start secure upload session')
+      }
+      const uploadSessionId = sessionData.sessionId as string
+      const uploadSessionToken = sessionData.uploadToken as string
+
       for (const item of filesToStage) {
         const stageFd = new FormData()
         stageFd.append('sessionId', uploadSessionId)
+        stageFd.append('uploadToken', uploadSessionToken)
         stageFd.append('documentType', item.documentType)
         stageFd.append('file', item.file)
 
@@ -296,6 +304,7 @@ export default function CreditFundingForm() {
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
       fd.append('uploadSessionId', uploadSessionId)
+      fd.append('uploadSessionToken', uploadSessionToken)
       fd.append('stagedFiles', JSON.stringify(stagedFiles))
 
       const intakeRes = await fetch('/api/credit-funding/intake', { method: 'POST', body: fd })

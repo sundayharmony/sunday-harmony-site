@@ -25,6 +25,7 @@ import {
   type StagedCreditFundingFile,
   uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
+import { verifyUploadSession } from '@/lib/credit-funding-upload-session'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 import {
   getAdminNotifyEmail,
@@ -76,10 +77,14 @@ export async function POST(req: NextRequest) {
     }
 
     const uploadSessionId = String(formData.get('uploadSessionId') || '').trim()
+    const uploadSessionToken = String(formData.get('uploadSessionToken') || '').trim()
     let stagedFiles: StagedCreditFundingFile[] = []
     if (uploadSessionId) {
       if (!isValidUploadSessionId(uploadSessionId)) {
         return NextResponse.json({ error: 'Invalid upload session' }, { status: 400 })
+      }
+      if (!verifyUploadSession(uploadSessionId, uploadSessionToken)) {
+        return NextResponse.json({ error: 'Invalid upload session' }, { status: 403 })
       }
       try {
         stagedFiles = JSON.parse(String(formData.get('stagedFiles') || '[]')) as StagedCreditFundingFile[]
@@ -177,12 +182,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (uploadSessionId) {
+      await removeStagedCreditFundingSession(uploadSessionId)
+    }
+
     logActivity({
       action: 'application_submitted',
       entity_type: 'credit_funding_application',
       entity_id: application.id,
       actor_email: payload.email,
-      details: `Credit & Funding intake submitted: ${application.application_id} (${payload.fullName})`,
+      details: `Credit & Funding intake submitted: ${application.application_id}`,
     })
 
     await upsertLeadFromCreditIntake({

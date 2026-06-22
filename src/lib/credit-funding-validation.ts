@@ -201,11 +201,3 @@ export function assertHttpsSubmission(request: Request): boolean {
   const proto = request.headers.get('x-forwarded-proto')
   return proto === 'https'
 }
-
-export function serializeBusinessProfileForDb(bp: BusinessProfile, encryptEin: (v: string) => string): Record<string, unknown> {
-  const { ein, ...rest } = bp
-  return {
-    ...rest,
-    einEncrypted: ein ? encryptEin(ein.replace(/\s/g, '')) : undefined,
-  }
-}
