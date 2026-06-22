@@ -1,17 +1,10 @@
 'use client'
 
-import FileUploadField from '@/components/credit-funding/FileUploadField'
-import DocumentUploadNotice from '@/components/credit-funding/DocumentUploadNotice'
 import {
   ENTITY_TYPES,
   FUNDING_PURPOSE_OPTIONS,
-  BUSINESS_DOCUMENT_TYPES,
   type BusinessProfile,
 } from '@/lib/credit-funding-types'
-
-type BusinessDocType = (typeof BUSINESS_DOCUMENT_TYPES)[number]
-
-export type BusinessDocFiles = Partial<Record<BusinessDocType, File | null>>
 
 const inputClass =
   'w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors'
@@ -21,8 +14,6 @@ const labelClass = 'block text-xs font-semibold text-brand-muted mb-1.5 tracking
 interface Props {
   profile: BusinessProfile
   onChange: (profile: BusinessProfile) => void
-  docs: BusinessDocFiles
-  onDocChange: (type: BusinessDocType, file: File | null) => void
   errors: Record<string, string>
 }
 
@@ -50,7 +41,7 @@ function YesNoField({
   )
 }
 
-export default function BusinessInfoSection({ profile, onChange, docs, onDocChange, errors }: Props) {
+export default function BusinessInfoSection({ profile, onChange, errors }: Props) {
   const set = <K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) => {
     onChange({ ...profile, [key]: value })
   }
@@ -182,31 +173,6 @@ export default function BusinessInfoSection({ profile, onChange, docs, onDocChan
         <YesNoField label="Prior business funding?" value={profile.priorBusinessFunding} onChange={(v) => set('priorBusinessFunding', v)} />
         <YesNoField label="Tax liens or judgments?" value={profile.taxLiensOrJudgments} onChange={(v) => set('taxLiensOrJudgments', v)} />
       </div>
-
-      <h4 className="text-sm font-bold text-brand-text mb-3">Business Documents</h4>
-      <DocumentUploadNotice />
-      {(
-        [
-          ['articles_of_organization', 'Articles of Organization / Incorporation'],
-          ['ein_letter', 'EIN Letter (IRS SS-4)'],
-          ['business_license', 'Business License'],
-          ['bank_statements', 'Business Bank Statements (3 months)'],
-          ['tax_returns', 'Business Tax Returns'],
-          ['profit_and_loss', 'Profit & Loss Statement'],
-          ['balance_sheet', 'Balance Sheet'],
-          ['other_business', 'Other Business Document'],
-        ] as [BusinessDocType, string][]
-      ).map(([type, label]) => (
-        <FileUploadField
-          key={type}
-          label={label}
-          name={type}
-          optional
-          value={docs[type] || null}
-          onChange={(f) => onDocChange(type, f)}
-          error={errors[type]}
-        />
-      ))}
     </div>
   )
 }

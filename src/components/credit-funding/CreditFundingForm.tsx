@@ -1,30 +1,56 @@
 'use client'
 
-import { useState } from 'react'
-import FileUploadField from '@/components/credit-funding/FileUploadField'
-import DocumentUploadNotice from '@/components/credit-funding/DocumentUploadNotice'
-import BusinessInfoSection, { type BusinessDocFiles } from '@/components/credit-funding/BusinessInfoSection'
+import { useMemo, useState, useEffect } from 'react'
+import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
+import { useStagedDocumentUploads } from '@/components/credit-funding/useStagedDocumentUploads'
+import BusinessInfoSection from '@/components/credit-funding/BusinessInfoSection'
 import Link from 'next/link'
 import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
   FUNDING_TIMEFRAMES,
   requiresBusinessSection,
-  getCreditFundingFileValidationError,
-  CREDIT_FUNDING_MAX_MB,
   type CreditProfile,
   type ConsentData,
   type BusinessProfile,
+  type DocumentType,
 } from '@/lib/credit-funding-types'
+import {
+  IDENTITY_DOCUMENTS,
+  BUSINESS_DOCUMENTS,
+} from '@/lib/credit-funding-document-steps'
 
-const STEPS = [
-  'Personal Information',
-  'Identity Verification',
-  'Credit Profile',
-  'Credit Monitoring',
-  'Credit Goals',
-  'Consent & Submit',
-]
+type StepId =
+  | 'personal'
+  | 'identity'
+  | 'credit'
+  | 'monitoring'
+  | 'goals'
+  | 'business-info'
+  | 'business-docs'
+  | 'consent'
+
+const STEP_LABELS: Record<StepId, string> = {
+  personal: 'Personal Information',
+  identity: 'Identity Documents',
+  credit: 'Credit Profile',
+  monitoring: 'Credit Monitoring',
+  goals: 'Credit Goals',
+  'business-info': 'Business Information',
+  'business-docs': 'Business Documents',
+  consent: 'Consent & Submit',
+}
+
+function getStepFlow(form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'creditProfile'>): StepId[] {
+  const flow: StepId[] = ['personal', 'identity', 'credit', 'monitoring', 'goals']
+  if (requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)) {
+    flow.push('business-info', 'business-docs')
+  }
+  flow.push('consent')
+  return flow
+}
+
+const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'proof_of_address', 'mail_proof']
 
 const inputClass =
   'w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors'
@@ -40,10 +66,6 @@ interface FormState {
   city: string
   state: string
   zipCode: string
-  photoId: File | null
-  proofOfAddress: File | null
-  selfieWithId: File | null
-  mailProof: File | null
   creditProfile: CreditProfile
   selectedCreditProvider: string
   providerUsername: string
@@ -58,36 +80,20 @@ interface FormState {
   fundingTimeframe: string
   goalsNotes: string
   businessProfile: BusinessProfile
-  businessDocs: BusinessDocFiles
   consent: ConsentData
   typedSignature: string
   signatureDate: string
 }
 
-function fileFieldError(file: File | null, required?: boolean, missingLabel?: string): string | undefined {
-  if (!file) return required ? missingLabel || 'Required' : undefined
-  return getCreditFundingFileValidationError(file) || undefined
-}
-
-function validateAllDocumentFiles(form: FormState): Record<string, string> {
-  const e: Record<string, string> = {}
-  const setIf = (key: string, msg: string | undefined) => {
-    if (msg) e[key] = msg
-  }
-
-  setIf('photoId', fileFieldError(form.photoId, true, 'Government ID is required'))
-  setIf('proofOfAddress', fileFieldError(form.proofOfAddress, true, 'Proof of address is required'))
-  setIf('mailProof', fileFieldError(form.mailProof, true, 'Mail proof is required'))
-  setIf('selfieWithId', fileFieldError(form.selfieWithId))
-
-  for (const [docType, file] of Object.entries(form.businessDocs)) {
-    if (file) {
-      const err = getCreditFundingFileValidationError(file)
-      if (err) e[docType] = err
-    }
-  }
-
-  return e
+function validateBusinessFields(bp: BusinessProfile, errors: Record<string, string>) {
+  if (!bp.legalName?.trim()) errors.legalName = 'Required'
+  if (!bp.ein?.trim()) errors.ein = 'Required'
+  if (!bp.address?.trim()) errors.businessAddress = 'Required'
+  if (!bp.city?.trim()) errors.businessCity = 'Required'
+  if (!bp.state?.trim() || bp.state.length !== 2) errors.businessState = '2-letter state'
+  if (!bp.industry?.trim()) errors.industry = 'Required'
+  if (!bp.entityType) errors.entityType = 'Required'
+  if (!bp.fundingPurposes?.length) errors.fundingPurposes = 'Select at least one purpose'
 }
 
 const initialState: FormState = {
@@ -99,10 +105,6 @@ const initialState: FormState = {
   city: '',
   state: '',
   zipCode: '',
-  photoId: null,
-  proofOfAddress: null,
-  selfieWithId: null,
-  mailProof: null,
   creditProfile: {},
   selectedCreditProvider: '',
   providerUsername: '',
@@ -117,7 +119,6 @@ const initialState: FormState = {
   fundingTimeframe: '',
   goalsNotes: '',
   businessProfile: {},
-  businessDocs: {},
   consent: { accurateInfo: false, authorizeReview: false, agreeTerms: false },
   typedSignature: '',
   signatureDate: new Date().toISOString().slice(0, 10),
@@ -132,6 +133,15 @@ export default function CreditFundingForm() {
   const [submitted, setSubmitted] = useState(false)
   const [applicationId, setApplicationId] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const stagedUploads = useStagedDocumentUploads()
+
+  const stepFlow = useMemo(() => getStepFlow(form), [form.ownsBusiness, form.fundingUse, form.creditProfile])
+  const currentStepId = stepFlow[Math.min(step, stepFlow.length - 1)] ?? 'personal'
+  const stepLabels = stepFlow.map((id) => STEP_LABELS[id])
+
+  useEffect(() => {
+    setStep((s) => Math.min(s, stepFlow.length - 1))
+  }, [stepFlow.length])
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -154,9 +164,9 @@ export default function CreditFundingForm() {
     }))
   }
 
-  const validateStep = (s: number): boolean => {
+  const validateStep = (stepId: StepId): boolean => {
     const e: Record<string, string> = {}
-    if (s === 0) {
+    if (stepId === 'personal') {
       if (!form.fullName.trim()) e.fullName = 'Required'
       if (!form.dateOfBirth) e.dateOfBirth = 'Required'
       if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required'
@@ -166,15 +176,19 @@ export default function CreditFundingForm() {
       if (!form.state.trim() || form.state.length !== 2) e.state = '2-letter state code'
       if (!form.zipCode.trim() || !/^\d{5}(-\d{4})?$/.test(form.zipCode)) e.zipCode = 'Valid ZIP required'
     }
-    if (s === 1) {
-      Object.assign(e, validateAllDocumentFiles(form))
+    if (stepId === 'identity') {
+      if (stagedUploads.hasUploadInProgress()) {
+        e.documents = 'Please wait for uploads to finish'
+      } else if (!stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES)) {
+        e.documents = 'Upload all required identity documents before continuing'
+      }
     }
-    if (s === 3) {
+    if (stepId === 'monitoring') {
       if (!form.selectedCreditProvider) e.selectedCreditProvider = 'Select a provider'
       if (!form.providerUsername.trim()) e.providerUsername = 'Required'
       if (!form.providerPassword || form.providerPassword.length < 4) e.providerPassword = 'Required'
     }
-    if (s === 4) {
+    if (stepId === 'goals') {
       if (!form.primaryCreditGoalsText.trim() && form.creditGoals.length === 0) {
         e.primaryCreditGoalsText = 'Describe your goals or select options below'
       }
@@ -182,101 +196,58 @@ export default function CreditFundingForm() {
       if (!form.fundingUse) e.fundingUse = 'Required'
       if (form.ownsBusiness && !form.businessName.trim()) e.businessName = 'Required'
       if (!form.fundingTimeframe) e.fundingTimeframe = 'Required'
-      if (requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)) {
-        const bp = form.businessProfile
-        if (!bp.legalName?.trim()) e.legalName = 'Required'
-        if (!bp.ein?.trim()) e.ein = 'Required'
-        if (!bp.address?.trim()) e.businessAddress = 'Required'
-        if (!bp.city?.trim()) e.businessCity = 'Required'
-        if (!bp.state?.trim() || bp.state.length !== 2) e.businessState = '2-letter state'
-        if (!bp.industry?.trim()) e.industry = 'Required'
-        if (!bp.entityType) e.entityType = 'Required'
-        if (!bp.fundingPurposes?.length) e.fundingPurposes = 'Select at least one purpose'
-      }
-      Object.assign(e, validateAllDocumentFiles(form))
     }
-    if (s === 5) {
+    if (stepId === 'business-info') {
+      validateBusinessFields(form.businessProfile, e)
+    }
+    if (stepId === 'business-docs') {
+      if (stagedUploads.hasUploadInProgress()) {
+        e.documents = 'Please wait for uploads to finish'
+      }
+    }
+    if (stepId === 'consent') {
       if (!form.consent.accurateInfo) e.consent = 'All consent items are required'
       if (!form.consent.authorizeReview) e.consent = 'All consent items are required'
       if (!form.consent.agreeTerms) e.consent = 'All consent items are required'
       if (!form.typedSignature.trim()) e.typedSignature = 'Signature required'
       if (!form.signatureDate) e.signatureDate = 'Date required'
+      if (!stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES)) {
+        e.documents = 'Required identity documents are missing — return to Identity Documents'
+      }
     }
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   const next = () => {
-    if (!validateStep(step)) return
-    if (step === 4) {
-      const fileErrors = validateAllDocumentFiles(form)
-      if (Object.keys(fileErrors).length > 0) {
-        setErrors((prev) => ({ ...prev, ...fileErrors }))
-        setSubmitError(
-          `One or more documents exceed the ${CREDIT_FUNDING_MAX_MB} MB limit. Go back to Identity Verification or Business Documents and upload smaller files.`
-        )
-        return
-      }
-    }
+    if (!validateStep(currentStepId)) return
     setSubmitError('')
-    setStep((s) => Math.min(s + 1, STEPS.length - 1))
+    setStep((s) => Math.min(s + 1, stepFlow.length - 1))
   }
 
   const back = () => setStep((s) => Math.max(s - 1, 0))
 
   const handleSubmit = async () => {
-    if (!validateStep(5)) return
+    if (!validateStep('consent')) return
     setSubmitting(true)
     setSubmitError('')
-    setUploadProgress(0)
+    setUploadProgress(10)
 
-    const stagedFiles: Array<{
-      documentType: string
-      storagePath: string
-      file_name: string
-      file_size: number
-      file_type: string
-      mime_type: string
-      scan_status: string
-    }> = []
-
-    const filesToStage: Array<{ file: File; documentType: string; label: string }> = []
-    if (form.photoId) filesToStage.push({ file: form.photoId, documentType: 'photo_id', label: 'Photo ID' })
-    if (form.proofOfAddress) filesToStage.push({ file: form.proofOfAddress, documentType: 'proof_of_address', label: 'Proof of address' })
-    if (form.selfieWithId) filesToStage.push({ file: form.selfieWithId, documentType: 'selfie_with_id', label: 'Selfie with ID' })
-    if (form.mailProof) filesToStage.push({ file: form.mailProof, documentType: 'mail_proof', label: 'Mail proof' })
-    for (const [docType, file] of Object.entries(form.businessDocs)) {
-      if (file) filesToStage.push({ file, documentType: docType, label: docType.replace(/_/g, ' ') })
+    const session = stagedUploads.getSession()
+    const stagedFiles = stagedUploads.getStagedFiles()
+    if (!session) {
+      setSubmitError('Secure upload session expired. Return to Identity Documents and re-upload your files.')
+      setSubmitting(false)
+      return
+    }
+    if (!stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES)) {
+      setSubmitError('Required identity documents are missing.')
+      setSubmitting(false)
+      return
     }
 
-    const totalSteps = filesToStage.length + 1
-    let completedSteps = 0
-
     try {
-      const sessionRes = await fetch('/api/credit-funding/session', { method: 'POST' })
-      const sessionData = await sessionRes.json().catch(() => ({}))
-      if (!sessionRes.ok || !sessionData.sessionId || !sessionData.uploadToken) {
-        throw new Error(sessionData.error || 'Could not start secure upload session')
-      }
-      const uploadSessionId = sessionData.sessionId as string
-      const uploadSessionToken = sessionData.uploadToken as string
-
-      for (const item of filesToStage) {
-        const stageFd = new FormData()
-        stageFd.append('sessionId', uploadSessionId)
-        stageFd.append('uploadToken', uploadSessionToken)
-        stageFd.append('documentType', item.documentType)
-        stageFd.append('file', item.file)
-
-        const stageRes = await fetch('/api/credit-funding/stage', { method: 'POST', body: stageFd })
-        const stageData = await stageRes.json().catch(() => ({}))
-        if (!stageRes.ok) {
-          throw new Error(stageData.error || `Failed to upload ${item.label}`)
-        }
-        stagedFiles.push(stageData.file)
-        completedSteps += 1
-        setUploadProgress(Math.round((completedSteps / totalSteps) * 100))
-      }
+      setUploadProgress(40)
 
       const fd = new FormData()
       fd.append('fullName', form.fullName)
@@ -303,9 +274,11 @@ export default function CreditFundingForm() {
       fd.append('consent', JSON.stringify(form.consent))
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
-      fd.append('uploadSessionId', uploadSessionId)
-      fd.append('uploadSessionToken', uploadSessionToken)
+      fd.append('uploadSessionId', session.sessionId)
+      fd.append('uploadSessionToken', session.uploadToken)
       fd.append('stagedFiles', JSON.stringify(stagedFiles))
+
+      setUploadProgress(70)
 
       const intakeRes = await fetch('/api/credit-funding/intake', { method: 'POST', body: fd })
       const intakeData = await intakeRes.json().catch(() => ({}))
@@ -355,7 +328,7 @@ export default function CreditFundingForm() {
       {/* Progress */}
       <div className="px-6 pt-6 pb-4 border-b border-brand-border bg-brand-bg-soft">
         <div className="flex items-center justify-between mb-3 overflow-x-auto gap-2">
-          {STEPS.map((label, i) => (
+          {stepLabels.map((label, i) => (
             <div key={label} className="flex items-center flex-shrink-0">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
@@ -364,19 +337,19 @@ export default function CreditFundingForm() {
               >
                 {i < step ? '✓' : i + 1}
               </div>
-              {i < STEPS.length - 1 && (
+              {i < stepLabels.length - 1 && (
                 <div className={`w-6 sm:w-10 h-0.5 mx-1 ${i < step ? 'bg-accent' : 'bg-neutral-200'}`} />
               )}
             </div>
           ))}
         </div>
-        <p className="text-sm font-semibold text-brand-text">{STEPS[step]}</p>
-        <p className="text-xs text-brand-dim">Step {step + 1} of {STEPS.length}</p>
+        <p className="text-sm font-semibold text-brand-text">{stepLabels[step]}</p>
+        <p className="text-xs text-brand-dim">Step {step + 1} of {stepLabels.length}</p>
       </div>
 
       <div className="p-6 sm:p-8">
         {/* Step 1 */}
-        {step === 0 && (
+        {currentStepId === 'personal' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className={labelClass}>Full Legal Name *</label>
@@ -421,22 +394,21 @@ export default function CreditFundingForm() {
           </div>
         )}
 
-        {/* Step 2 */}
-        {step === 1 && (
+        {currentStepId === 'identity' && (
           <div>
-            <DocumentUploadNotice />
-            <p className="text-sm text-brand-muted mb-6">
-              Upload secure identity documents. All files are encrypted and stored in a private vault.
-            </p>
-            <FileUploadField label="Government Issued Photo ID" name="photoId" required value={form.photoId} onChange={(f) => update('photoId', f)} error={errors.photoId} />
-            <FileUploadField label="Proof of Address" name="proofOfAddress" required value={form.proofOfAddress} onChange={(f) => update('proofOfAddress', f)} error={errors.proofOfAddress} />
-            <FileUploadField label="Selfie Holding ID" name="selfieWithId" optional value={form.selfieWithId} onChange={(f) => update('selfieWithId', f)} />
-            <FileUploadField label="Mail at Home Address (showing name & address)" name="mailProof" required value={form.mailProof} onChange={(f) => update('mailProof', f)} error={errors.mailProof} />
+            <DocumentUploadStep
+              title="Identity Documents"
+              subtitle="Upload each document on this step. Files are encrypted and stored securely as soon as you add them."
+              documents={IDENTITY_DOCUMENTS}
+              uploads={stagedUploads.uploads}
+              onUpload={stagedUploads.uploadDocument}
+              onRemove={stagedUploads.removeDocument}
+            />
+            {errors.documents && <p className="text-sm text-brand-red mt-4">{errors.documents}</p>}
           </div>
         )}
 
-        {/* Step 3 */}
-        {step === 2 && (
+        {currentStepId === 'credit' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Current Credit Score (if known)</label>
@@ -487,7 +459,7 @@ export default function CreditFundingForm() {
         )}
 
         {/* Step 4 */}
-        {step === 3 && (
+        {currentStepId === 'monitoring' && (
           <div>
             <div className="mb-5 p-4 bg-accent-soft/40 border border-brand-border rounded-xl text-sm text-brand-muted leading-relaxed">
               These services typically offer low-cost trial memberships. If you sign up, you may wish to cancel before any recurring subscription charges occur. Please review each provider&apos;s terms directly.
@@ -534,7 +506,7 @@ export default function CreditFundingForm() {
         )}
 
         {/* Step 5 */}
-        {step === 4 && (
+        {currentStepId === 'goals' && (
           <div>
             <div className="mb-4">
               <label className={labelClass}>What are your primary credit goals?</label>
@@ -594,26 +566,32 @@ export default function CreditFundingForm() {
               <label className={labelClass}>Tell us about your situation and goals</label>
               <textarea className={`${inputClass} min-h-[120px]`} value={form.goalsNotes} onChange={(e) => update('goalsNotes', e.target.value)} />
             </div>
-
-            {requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile) && (
-              <BusinessInfoSection
-                profile={form.businessProfile}
-                onChange={(businessProfile) => update('businessProfile', businessProfile)}
-                docs={form.businessDocs}
-                onDocChange={(type, file) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    businessDocs: { ...prev.businessDocs, [type]: file },
-                  }))
-                }
-                errors={errors}
-              />
-            )}
           </div>
         )}
 
-        {/* Step 6 */}
-        {step === 5 && (
+        {currentStepId === 'business-info' && (
+          <BusinessInfoSection
+            profile={form.businessProfile}
+            onChange={(businessProfile) => update('businessProfile', businessProfile)}
+            errors={errors}
+          />
+        )}
+
+        {currentStepId === 'business-docs' && (
+          <div>
+            <DocumentUploadStep
+              title="Business Documents"
+              subtitle="Upload any documents you have available. You can add more later from your client portal if needed."
+              documents={BUSINESS_DOCUMENTS}
+              uploads={stagedUploads.uploads}
+              onUpload={stagedUploads.uploadDocument}
+              onRemove={stagedUploads.removeDocument}
+            />
+            {errors.documents && <p className="text-sm text-brand-red mt-4">{errors.documents}</p>}
+          </div>
+        )}
+
+        {currentStepId === 'consent' && (
           <div>
             <div className="space-y-4 mb-6">
               {[
@@ -673,7 +651,7 @@ export default function CreditFundingForm() {
             {submitting && (
               <div className="mt-6">
                 <div className="flex justify-between text-xs text-brand-dim mb-1">
-                  <span>Uploading securely…</span>
+                  <span>Submitting application…</span>
                   <span>{uploadProgress}%</span>
                 </div>
                 <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
@@ -698,7 +676,7 @@ export default function CreditFundingForm() {
           >
             ← Back
           </button>
-          {step < STEPS.length - 1 ? (
+          {step < stepFlow.length - 1 ? (
             <button
               type="button"
               onClick={next}

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useState, useEffect, useRef } from 'react'
+import FileUploadField from '@/components/credit-funding/FileUploadField'
 import CreditFundingStatusTracker from '@/components/credit-funding/CreditFundingStatusTracker'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { type ApplicationStatus } from '@/lib/credit-funding-types'
@@ -231,24 +232,26 @@ export default function ClientCreditFundingPage() {
       {pendingDocs.length > 0 && (
         <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">
           <h3 className="text-sm font-bold text-brand-text mb-3">Requested Documents</h3>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {pendingDocs.map((req) => (
-              <div key={req.id} className="p-3 bg-neutral-50 rounded-lg border border-brand-border">
+              <div key={req.id} className="p-4 bg-neutral-50 rounded-xl border border-brand-border">
                 <p className="text-sm font-medium text-brand-text">{req.label}</p>
                 {req.notes && <p className="text-xs text-brand-dim mt-1">{req.notes}</p>}
-                <label className="mt-2 inline-flex items-center gap-2 text-xs font-semibold text-accent cursor-pointer hover:underline">
-                  {uploading === req.id ? 'Uploading…' : 'Upload file'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.png,.jpg,.jpeg"
-                    disabled={uploading === req.id}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) uploadDoc(req, f)
+                <div className="mt-3">
+                  <FileUploadField
+                    label="Upload requested document"
+                    name={`doc-${req.id}`}
+                    required
+                    value={null}
+                    onChange={(file) => {
+                      if (file) void uploadDoc(req, file)
                     }}
+                    error={uploading === req.id ? undefined : undefined}
                   />
-                </label>
+                  {uploading === req.id && (
+                    <p className="text-xs text-brand-dim mt-2">Uploading securely…</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
