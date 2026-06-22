@@ -50,6 +50,29 @@ export function decryptField(ciphertext: string): string {
   }
 }
 
+function looksLikeEncryptedBlob(value: string): boolean {
+  if (value.length < 28) return false
+  try {
+    const data = Buffer.from(value, 'base64')
+    return data.length >= IV_LENGTH + TAG_LENGTH + 1
+  } catch {
+    return false
+  }
+}
+
+/** Decrypt values encrypted at rest; return legacy plaintext rows unchanged. */
+export function decryptFieldOrLegacy(value: string): string {
+  if (!value) return ''
+  const decrypted = decryptField(value)
+  if (decrypted) return decrypted
+  return looksLikeEncryptedBlob(value) ? '' : value
+}
+
+export function encryptFieldIfPresent(value: string | undefined | null): string | undefined {
+  if (!value?.trim()) return undefined
+  return encryptField(value.trim())
+}
+
 /** Mask sensitive values for admin list views. */
 export function maskEmail(email: string): string {
   const [local, domain] = email.split('@')

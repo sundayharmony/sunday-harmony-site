@@ -3,6 +3,7 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { assertHttpsSubmission } from '@/lib/credit-funding-validation'
 import { stageCreditFundingDocument } from '@/lib/credit-funding-storage'
+import { verifyUploadSession } from '@/lib/credit-funding-upload-session'
 import { DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
@@ -22,11 +23,16 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData()
     const sessionId = String(formData.get('sessionId') || '').trim()
+    const uploadToken = String(formData.get('uploadToken') || '').trim()
     const documentType = String(formData.get('documentType') || '').trim()
     const file = formData.get('file')
 
-    if (!sessionId || !documentType || !(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: 'Session ID, document type, and file are required' }, { status: 400 })
+    if (!sessionId || !uploadToken || !documentType || !(file instanceof File) || file.size === 0) {
+      return NextResponse.json({ error: 'Session ID, upload token, document type, and file are required' }, { status: 400 })
+    }
+
+    if (!verifyUploadSession(sessionId, uploadToken)) {
+      return NextResponse.json({ error: 'Invalid upload session' }, { status: 403 })
     }
 
     if (!DOCUMENT_TYPES.includes(documentType as DocumentType)) {

@@ -1,6 +1,5 @@
 import { randomBytes } from 'crypto'
 import { getSupabase } from '@/lib/supabase'
-import { encryptField } from '@/lib/field-encryption'
 import type {
   ApplicationStatus,
   CreditFundingApplication,
@@ -13,7 +12,9 @@ import type {
 } from '@/lib/credit-funding-types'
 import { deriveServiceType, deriveLeadTypeFromIntake } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
-import { buildFundingGoalsSummary, serializeBusinessProfileForDb } from '@/lib/credit-funding-validation'
+import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
+import { buildEncryptedApplicationRow } from '@/lib/credit-funding-sensitive-fields'
+import { decryptFieldOrLegacy } from '@/lib/field-encryption'
 
 export function generateApplicationId(): string {
   const date = new Date()
@@ -28,41 +29,16 @@ export async function createCreditFundingApplication(
 ): Promise<CreditFundingApplication | null> {
   const applicationId = generateApplicationId()
   const fundingGoals = buildFundingGoalsSummary(payload)
-  const businessProfile = serializeBusinessProfileForDb(payload.businessProfile, encryptField)
+  const encrypted = buildEncryptedApplicationRow(payload, link)
 
   const row = {
     application_id: applicationId,
-    full_name: payload.fullName,
-    date_of_birth_encrypted: encryptField(payload.dateOfBirth),
-    email: payload.email,
-    phone: payload.phone,
-    address: payload.address,
-    city: payload.city,
-    state: payload.state,
-    zip_code: payload.zipCode,
-    credit_profile: payload.creditProfile,
-    selected_credit_provider: payload.selectedCreditProvider,
-    provider_username_encrypted: encryptField(payload.providerUsername),
-    provider_password_encrypted: encryptField(payload.providerPassword),
-    credit_goals: payload.creditGoals,
+    ...encrypted,
     funding_goals: fundingGoals,
-    primary_credit_goals_text: payload.primaryCreditGoalsText,
-    funding_amount: payload.fundingAmount,
-    funding_use: payload.fundingUse,
-    owns_business: payload.ownsBusiness,
-    business_name: payload.businessProfile.legalName || payload.businessName || null,
-    funding_timeframe: payload.fundingTimeframe,
-    goals_notes: payload.goalsNotes,
-    consent_data: payload.consent,
-    typed_signature: payload.typedSignature,
-    signature_date: payload.signatureDate,
     status: 'submitted' as ApplicationStatus,
     service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
     lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
     credit_funding_client_status: 'intake_completed',
-    business_profile: businessProfile,
-    user_id: link?.userId || null,
-    client_id: link?.clientId || null,
   }
 
   const { data, error } = await getSupabase()
@@ -137,7 +113,7 @@ export async function getCreditFundingApplications(filters?: {
         a.full_name.toLowerCase().includes(search) ||
         a.email.toLowerCase().includes(search) ||
         a.application_id.toLowerCase().includes(search) ||
-        a.phone.includes(search) ||
+        decryptFieldOrLegacy(a.phone).includes(search) ||
         (a.assigned_specialist || '').toLowerCase().includes(search)
     )
   }
