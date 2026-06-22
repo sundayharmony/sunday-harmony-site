@@ -5,7 +5,7 @@ import { createFileRecord, createNotification, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import {
   clientDashboardAlertEmailHtml,
-  isSmtpConfigured,
+  isEmailConfigured,
   sanitizeEmailSubjectPart,
   sendHtmlMailNonBlocking,
 } from '@/lib/smtp-mail'
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       console.error('Admin file upload: notification error:', notifErr)
     }
 
-    if (isSmtpConfigured() && client.email) {
+    if (isEmailConfigured() && client.email) {
       try {
         const first = (client.name || 'there').split(' ')[0]
         const html = clientDashboardAlertEmailHtml({

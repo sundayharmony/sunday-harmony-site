@@ -4,7 +4,7 @@ import { getTasksByClient, createTask, updateTask, deleteTask, getClientById, cr
 import { getSupabase } from '@/lib/supabase'
 import {
   clientDashboardAlertEmailHtml,
-  isSmtpConfigured,
+  isEmailConfigured,
   sanitizeEmailSubjectPart,
   sendHtmlMailNonBlocking,
 } from '@/lib/smtp-mail'
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (isSmtpConfigured() && clientData?.email) {
+    if (isEmailConfigured() && clientData?.email) {
       try {
         const first = (clientData.name || 'there').split(' ')[0]
         const html = clientDashboardAlertEmailHtml({

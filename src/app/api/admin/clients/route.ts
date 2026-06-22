@@ -13,7 +13,7 @@ import { removeAllClientFilesFromVault, removeClientFileByPublicUrlIfOurs } from
 import { cleanupStripeForClient } from '@/lib/billing-service'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { isFreeTier, TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
-import { createEmailTransporter, getPublicSiteUrl, isSmtpConfigured, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
+import { getPublicSiteUrl, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,14 +49,10 @@ function sendNewClientWelcomeEmail(params: {
       </div>`
     : `<p style="font-size:14px;color:#444;margin:16px 0">You can log in to your client dashboard with the email address above once your account has been activated. If you need access or have questions, reply to this email and we'll help right away.</p>`
 
-  const transporter = createEmailTransporter()
-
-  transporter
-    .sendMail({
-      from: `"Sunday Harmony" <${process.env.SMTP_USER}>`,
-      to,
-      subject: `Welcome to Sunday Harmony, ${sanitizeEmailSubjectPart(first || 'there', 60)}!`,
-      html: `
+  sendHtmlMailNonBlocking({
+    to,
+    subject: `Welcome to Sunday Harmony, ${sanitizeEmailSubjectPart(first || 'there', 60)}!`,
+    html: `
             <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 Welcome to Sunday Harmony
@@ -75,8 +71,8 @@ function sendNewClientWelcomeEmail(params: {
               </p>
             </div>
           `,
-    })
-    .catch(err => console.error('Failed to send client welcome email:', err))
+    logLabel: 'client-welcome',
+  })
 }
 
 const tierLabels: Record<string, string> = {
@@ -173,7 +169,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (isSmtpConfigured()) {
+  if (isEmailConfigured()) {
     try {
       sendNewClientWelcomeEmail({
         to: email,

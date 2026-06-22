@@ -1,12 +1,93 @@
 import nodemailer from 'nodemailer'
 
-/** True when outbound email can be sent (shared by admin and client flows). */
+/** True when Resend API key is configured. */
+export function isResendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY?.trim())
+}
+
+/** True when outbound email can be sent via Resend or SMTP. */
+export function isEmailConfigured(): boolean {
+  return isResendConfigured() || isSmtpConfigured()
+}
+
+/** @deprecated Use isEmailConfigured() — kept for backward compatibility. */
 export function isSmtpConfigured(): boolean {
   return Boolean(
     process.env.SMTP_HOST?.trim() &&
       process.env.SMTP_USER?.trim() &&
       process.env.SMTP_PASS?.trim()
   )
+}
+
+export function getDefaultFromAddress(displayName = 'Sunday Harmony'): string {
+  const from = process.env.RESEND_FROM_EMAIL?.trim() || process.env.SMTP_USER?.trim() || getAdminNotifyEmail()
+  if (from.includes('<')) return from
+  return `"${displayName}" <${from}>`
+}
+
+async function sendViaResend(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  replyTo?: string
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY!.trim()
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: opts.from || getDefaultFromAddress(),
+      to: [opts.to],
+      subject: opts.subject,
+      html: opts.html,
+      ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(body || `Resend error ${res.status}`)
+  }
+}
+
+async function sendViaSmtp(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  replyTo?: string
+}): Promise<void> {
+  const transporter = createEmailTransporter()
+  await transporter.sendMail({
+    from: opts.from || getDefaultFromAddress(),
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+  })
+}
+
+/** Send HTML email — prefers Resend, falls back to SMTP. */
+export async function sendEmail(opts: {
+  to: string
+  subject: string
+  html: string
+  from?: string
+  replyTo?: string
+}): Promise<void> {
+  if (isResendConfigured()) {
+    await sendViaResend(opts)
+    return
+  }
+  if (isSmtpConfigured()) {
+    await sendViaSmtp(opts)
+    return
+  }
+  throw new Error('Email is not configured')
 }
 
 export function getSmtpPort(): number {
@@ -59,24 +140,18 @@ export function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-/** Fire-and-forget HTML mail; logs on failure. No-op if SMTP is not configured. */
+/** Fire-and-forget HTML mail; logs on failure. No-op if email is not configured. */
 export function sendHtmlMailNonBlocking(opts: {
   to: string
   subject: string
   html: string
+  from?: string
+  replyTo?: string
   logLabel?: string
 }): void {
-  if (!isSmtpConfigured()) return
-  const label = opts.logLabel ?? 'smtp'
-  try {
-    const transporter = createEmailTransporter()
-    const from = `"Sunday Harmony" <${process.env.SMTP_USER}>`
-    transporter
-      .sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html })
-      .catch((err: unknown) => console.error(`Failed to send mail (${label}):`, err))
-  } catch (err: unknown) {
-    console.error(`SMTP setup failed (${label}):`, err)
-  }
+  if (!isEmailConfigured()) return
+  const label = opts.logLabel ?? 'mail'
+  sendEmail(opts).catch((err: unknown) => console.error(`Failed to send mail (${label}):`, err))
 }
 
 /** Shared layout for client alerts that deep-link into the client dashboard. */

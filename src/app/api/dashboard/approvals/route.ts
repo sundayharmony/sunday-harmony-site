@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { getApprovalsByClient, updateApproval, getApprovalById, getClientById } from '@/lib/db'
 import {
   getAdminNotifyEmail,
-  isSmtpConfigured,
+  isEmailConfigured,
   sanitizeEmailSubjectPart,
   sendHtmlMailNonBlocking,
   staffPortalEmailHtml,
@@ -84,7 +84,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to update approval' }, { status: 500 })
     }
 
-    if (isSmtpConfigured()) {
+    if (isEmailConfigured()) {
       try {
         const c = await getClientById(clientId)
         const who =

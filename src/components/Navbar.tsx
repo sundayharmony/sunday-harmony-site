@@ -6,6 +6,7 @@ import Link from 'next/link'
 const navLinks = [
   { href: '#services', label: 'Services' },
   { href: '#packages', label: 'Packages' },
+  { href: '/credit-funding', label: 'Credit & Funding', isPage: true },
   { href: '#about', label: 'About' },
   { href: '#contact', label: 'Contact' },
 ]
@@ -46,15 +47,25 @@ export default function Navbar() {
 
           {/* Desktop Links */}
           <div className="hidden md:flex gap-9 items-center">
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
-              >
-                {link.label}
-              </a>
-            ))}
+            {navLinks.map((link) =>
+              'isPage' in link && link.isPage ? (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ) : (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
+                >
+                  {link.label}
+                </a>
+              )
+            )}
             <Link
               href="/login"
               className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
@@ -85,16 +96,27 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {mobileOpen && (
         <div className="fixed top-[72px] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] p-7 flex flex-col gap-4 md:hidden">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              onClick={closeMobile}
-              className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
-            >
-              {link.label}
-            </a>
-          ))}
+          {navLinks.map((link) =>
+            'isPage' in link && link.isPage ? (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMobile}
+                className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={closeMobile}
+                className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
+              >
+                {link.label}
+              </a>
+            )
+          )}
           <Link
             href="/login"
             onClick={closeMobile}

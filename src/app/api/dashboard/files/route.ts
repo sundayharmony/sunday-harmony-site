@@ -9,7 +9,7 @@ import {
 import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById, getClientById } from '@/lib/db'
 import {
   getAdminNotifyEmail,
-  isSmtpConfigured,
+  isEmailConfigured,
   sanitizeEmailSubjectPart,
   sendHtmlMailNonBlocking,
   staffPortalEmailHtml,
@@ -21,7 +21,7 @@ export const runtime = 'nodejs'
 const CATEGORY_OK = new Set(['report', 'graphic', 'content', 'brand', 'general'])
 
 async function notifyStaffClientFileUploaded(clientId: string, fileName: string) {
-  if (!isSmtpConfigured()) return
+  if (!isEmailConfigured()) return
   try {
     const c = await getClientById(clientId)
     const who =

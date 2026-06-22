@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getMessages, createMessage, getClientById, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
-import { escHtml, getPublicSiteUrl, isSmtpConfigured, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
+import { escHtml, getPublicSiteUrl, isEmailConfigured, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     })
   }
 
-  if (isSmtpConfigured()) {
+  if (isEmailConfigured()) {
     try {
       const client = await getClientById(clientId)
       if (client?.email) {
