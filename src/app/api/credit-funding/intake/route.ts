@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, getUserByEmail, createNotification } from '@/lib/db'
+import { upsertLeadFromCreditIntake, ensureClientFromCreditApplication } from '@/lib/crm-db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import {
   sendHtmlMailNonBlocking,
@@ -117,12 +118,25 @@ export async function POST(req: NextRequest) {
     }
 
     logActivity({
-      action: 'submitted',
+      action: 'application_submitted',
       entity_type: 'credit_funding_application',
       entity_id: application.id,
       actor_email: payload.email,
       details: `Credit & Funding intake submitted: ${application.application_id} (${payload.fullName})`,
     })
+
+    await upsertLeadFromCreditIntake({
+      email: payload.email,
+      fullName: payload.fullName,
+      phone: payload.phone,
+      businessName: payload.businessProfile.legalName || payload.businessName,
+      creditGoals: payload.creditGoals,
+      fundingUse: payload.fundingUse,
+      applicationUuid: application.id,
+      clientId: existingUser?.client_id || undefined,
+    })
+
+    await ensureClientFromCreditApplication(application)
 
     if (existingUser) {
       await createNotification({

@@ -119,14 +119,16 @@ export async function POST(req: NextRequest) {
         service,
         budget: body.budget,
         message,
+        lead_type: 'marketing_lead',
+        marketing_lead_status: 'new_lead',
       })
       if (lead) {
         logActivity({
-          action: 'created',
+          action: 'lead_created',
           entity_type: 'lead',
           entity_id: lead.id,
           actor_email: email,
-          details: `New lead from contact form: ${firstName} ${lastName} (${business})`,
+          details: `New marketing lead from contact form: ${firstName} ${lastName} (${business})`,
         })
       }
     } catch (dbErr) {

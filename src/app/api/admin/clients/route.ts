@@ -8,9 +8,12 @@ import {
   getFilesByClient,
   createUser,
   logActivity,
+  getUserByEmail,
+  createNotification,
 } from '@/lib/db'
 import { removeAllClientFilesFromVault, removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
 import { cleanupStripeForClient } from '@/lib/billing-service'
+import { syncClientFromLead } from '@/lib/crm-db'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { isFreeTier, TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
 import { getPublicSiteUrl, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
   if (session instanceof NextResponse) return session
 
   const body = await req.json()
-  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins, isPotential } = body
+  const { name, business, email, phone, industry, packageTier, monthlyPrice, loginPassword, deliverables, quickWins, isPotential, leadId } = body
 
   if (!name || !business || !email || !packageTier) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -142,6 +145,10 @@ export async function POST(req: NextRequest) {
   })
 
   if (!client) return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
+
+  if (typeof leadId === 'string' && leadId.trim()) {
+    await syncClientFromLead(leadId.trim(), client.id)
+  }
 
   logActivity({
     action: 'created',
@@ -201,6 +208,7 @@ export async function PATCH(req: NextRequest) {
     'status', 'notes', 'deliverables', 'quick_wins', 'start_date',
     'is_potential', 'billing_status', 'stripe_customer_id', 'stripe_subscription_id',
     'last_payment_at', 'next_billing_date',
+    'lead_type', 'marketing_lead_status', 'credit_funding_client_status', 'assigned_team_member', 'lead_id',
   ]
   const updates: Record<string, unknown> = {}
   for (const key of allowedFields) {
@@ -226,13 +234,39 @@ export async function PATCH(req: NextRequest) {
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
 
   const changedFields = Object.keys(updates).join(', ')
+  const statusFields = ['status', 'marketing_lead_status', 'credit_funding_client_status']
+  const statusChanged = statusFields.some((f) => f in updates)
+
   logActivity({
-    action: 'updated',
+    action: statusChanged ? 'status_changed' : 'updated',
     entity_type: 'client',
     entity_id: id,
     actor_email: session.user.email || 'admin',
     details: `Updated client "${client.name}": ${changedFields}`,
   })
+
+  if (statusChanged && client.email) {
+    sendHtmlMailNonBlocking({
+      to: client.email,
+      subject: sanitizeEmailSubjectPart(`Account Status Update — ${client.business}`, 200),
+      html: `
+        <p>Hi ${escHtml(client.name.split(/\s+/)[0] || 'there')},</p>
+        <p>Your account status with Sunday Harmony has been updated. Log in to your portal for details.</p>
+        <p><a href="${escHtml(getPublicSiteUrl())}/dashboard">Open dashboard</a></p>
+      `,
+      logLabel: 'client-status-update',
+    })
+    const user = await getUserByEmail(client.email)
+    if (user) {
+      await createNotification({
+        user_id: user.id,
+        title: 'Status Updated',
+        message: 'Your account status has been updated.',
+        type: 'info',
+        link: '/dashboard',
+      })
+    }
+  }
 
   return NextResponse.json(client)
 }

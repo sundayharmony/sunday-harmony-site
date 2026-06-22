@@ -199,6 +199,9 @@ export interface CreditFundingApplication {
   client_notes?: string
   next_steps?: string
   service_type?: string
+  lead_type?: string | null
+  credit_funding_client_status?: string | null
+  lead_id?: string | null
   business_profile?: BusinessProfile
   funding_scores?: FundingScores
   created_at: string
@@ -261,3 +264,5 @@ export function deriveServiceType(creditGoals: string[], fundingUse: string): st
 export function requiresBusinessSection(ownsBusiness: boolean, fundingUse: string, creditProfile?: CreditProfile): boolean {
   return ownsBusiness || fundingUse === 'Business' || fundingUse === 'Both' || creditProfile?.businessOwner === true
 }
+
+export { deriveLeadTypeFromIntake } from '@/lib/crm-types'

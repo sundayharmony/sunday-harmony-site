@@ -132,6 +132,7 @@ export async function PATCH(req: NextRequest) {
   const allowedFields = [
     'status', 'notes', 'phone', 'email', 'business', 'industry', 'service', 'budget',
     'first_name', 'last_name', 'source', 'website', 'location_text', 'last_contacted_at', 'message',
+    'lead_type', 'marketing_lead_status', 'credit_funding_client_status', 'assigned_team_member', 'client_id',
   ]
   const updates = Object.fromEntries(
     Object.entries(allUpdates).filter(([key]) => allowedFields.includes(key))
@@ -141,8 +142,11 @@ export async function PATCH(req: NextRequest) {
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
   const changedFields = Object.keys(updates).join(', ')
+  const isNotesOnly = Object.keys(updates).length === 1 && 'notes' in updates
+  const statusChanged = 'status' in updates || 'marketing_lead_status' in updates || 'credit_funding_client_status' in updates
+
   logActivity({
-    action: 'updated',
+    action: isNotesOnly ? 'notes_added' : statusChanged ? 'status_changed' : 'updated',
     entity_type: 'lead',
     entity_id: id,
     actor_email: session.user.email || 'admin',

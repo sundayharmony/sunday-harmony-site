@@ -11,7 +11,7 @@ import type {
   FundingScores,
   UploadedDocument,
 } from '@/lib/credit-funding-types'
-import { deriveServiceType } from '@/lib/credit-funding-types'
+import { deriveServiceType, deriveLeadTypeFromIntake } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import { buildFundingGoalsSummary, serializeBusinessProfileForDb } from '@/lib/credit-funding-validation'
 
@@ -58,6 +58,8 @@ export async function createCreditFundingApplication(
     signature_date: payload.signatureDate,
     status: 'submitted' as ApplicationStatus,
     service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
+    lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
+    credit_funding_client_status: 'intake_completed',
     business_profile: businessProfile,
     user_id: link?.userId || null,
     client_id: link?.clientId || null,

@@ -177,6 +177,14 @@ export async function PATCH(req: NextRequest) {
       }
       updated = result
 
+      logActivity({
+        action: 'status_changed',
+        entity_type: 'credit_funding_application',
+        entity_id: id,
+        actor_email: staffEmail,
+        details: `Status changed to ${STATUS_LABELS[status as ApplicationStatus] || status} for ${existing.application_id}`,
+      })
+
       sendHtmlMailNonBlocking({
         to: existing.email,
         subject: sanitizeEmailSubjectPart(`Application Update — ${existing.application_id}`, 200),
@@ -227,6 +235,16 @@ export async function PATCH(req: NextRequest) {
       if (result) updated = result
     }
 
+    if (funding_scores !== undefined) {
+      logActivity({
+        action: 'funding_recommendations_added',
+        entity_type: 'credit_funding_application',
+        entity_id: id,
+        actor_email: staffEmail,
+        details: `Funding recommendations updated for ${updated.application_id}`,
+      })
+    }
+
     if (document_request?.document_type && document_request?.label) {
       await createDocumentRequest({
         application_uuid: id,
@@ -254,6 +272,27 @@ export async function PATCH(req: NextRequest) {
         `,
         logLabel: 'cf-doc-request',
       })
+
+      if (existing.user_id) {
+        await createNotification({
+          user_id: existing.user_id,
+          title: 'Document Requested',
+          message: `Please upload: ${document_request.label}`,
+          type: 'file',
+          link: '/dashboard/credit-funding',
+        })
+      } else {
+        const user = await getUserByEmail(existing.email)
+        if (user) {
+          await createNotification({
+            user_id: user.id,
+            title: 'Document Requested',
+            message: `Please upload: ${document_request.label}`,
+            type: 'file',
+            link: '/dashboard/credit-funding',
+          })
+        }
+      }
     }
 
     logActivity({

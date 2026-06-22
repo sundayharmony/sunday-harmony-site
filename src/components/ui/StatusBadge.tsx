@@ -19,6 +19,19 @@ const styles: Record<string, { bg: string; text: string; border: string }> = {
   denied: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
   completed: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border border-emerald-200' },
   archived: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
+  scheduled: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border border-blue-200' },
+  cancelled: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
+  new_lead: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-200' },
+  consultation_scheduled: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border border-blue-200' },
+  qualified: { bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border border-indigo-200' },
+  converted: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },
+  not_interested: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
+  intake_started: { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border border-yellow-200' },
+  intake_completed: { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border border-yellow-200' },
+  credit_analysis: { bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border border-indigo-200' },
+  funding_analysis: { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border border-purple-200' },
+  recommendations_delivered: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },
+  active_client: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border border-emerald-200' },
 }
 
 const labels: Record<string, string> = {
@@ -42,6 +55,19 @@ const labels: Record<string, string> = {
   denied: 'Declined',
   completed: 'Completed',
   archived: 'Archived',
+  scheduled: 'Scheduled',
+  cancelled: 'Cancelled',
+  new_lead: 'New Lead',
+  consultation_scheduled: 'Consultation Scheduled',
+  qualified: 'Qualified',
+  converted: 'Converted',
+  not_interested: 'Not Interested',
+  intake_started: 'Intake Started',
+  intake_completed: 'Intake Completed',
+  credit_analysis: 'Credit Analysis',
+  funding_analysis: 'Funding Analysis',
+  recommendations_delivered: 'Recommendations Delivered',
+  active_client: 'Active Client',
 }
 
 export default function StatusBadge({ status }: { status: string }) {

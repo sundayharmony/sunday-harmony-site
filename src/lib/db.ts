@@ -100,6 +100,11 @@ export interface Lead {
   discovered_at?: string
   last_contacted_at?: string
   status: 'new' | 'contacted' | 'audit_sent' | 'proposal' | 'won' | 'lost'
+  lead_type?: string
+  marketing_lead_status?: string | null
+  credit_funding_client_status?: string | null
+  assigned_team_member?: string | null
+  client_id?: string | null
   notes: string
   created_at: string
   updated_at: string
@@ -139,6 +144,11 @@ export async function createLead(leadData: {
   location_text?: string
   discovered_at?: string
   last_contacted_at?: string
+  lead_type?: string
+  marketing_lead_status?: string | null
+  credit_funding_client_status?: string | null
+  assigned_team_member?: string | null
+  client_id?: string | null
 }): Promise<Lead | null> {
   const { data, error } = await getSupabase()
     .from('leads')
@@ -158,6 +168,11 @@ export async function createLead(leadData: {
       location_text: leadData.location_text,
       discovered_at: leadData.discovered_at,
       last_contacted_at: leadData.last_contacted_at,
+      lead_type: leadData.lead_type || 'marketing_lead',
+      marketing_lead_status: leadData.marketing_lead_status ?? 'new_lead',
+      credit_funding_client_status: leadData.credit_funding_client_status,
+      assigned_team_member: leadData.assigned_team_member,
+      client_id: leadData.client_id,
     })
     .select()
     .single()
@@ -199,6 +214,11 @@ export interface Client {
   stripe_subscription_id?: string
   last_payment_at?: string
   next_billing_date?: string
+  lead_type?: string | null
+  marketing_lead_status?: string | null
+  credit_funding_client_status?: string | null
+  assigned_team_member?: string | null
+  lead_id?: string | null
   notes: string
   deliverables: string[]
   quick_wins: { text: string; done: boolean }[]
