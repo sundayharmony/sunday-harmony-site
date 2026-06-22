@@ -1,17 +1,7 @@
 import nodemailer from 'nodemailer'
 
-/** True when Resend API key is configured. */
-export function isResendConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY?.trim())
-}
-
-/** True when outbound email can be sent via Resend or SMTP. */
+/** True when Google Workspace / SMTP outbound email is configured. */
 export function isEmailConfigured(): boolean {
-  return isResendConfigured() || isSmtpConfigured()
-}
-
-/** @deprecated Use isEmailConfigured() — kept for backward compatibility. */
-export function isSmtpConfigured(): boolean {
   return Boolean(
     process.env.SMTP_HOST?.trim() &&
       process.env.SMTP_USER?.trim() &&
@@ -19,39 +9,16 @@ export function isSmtpConfigured(): boolean {
   )
 }
 
-export function getDefaultFromAddress(displayName = 'Sunday Harmony'): string {
-  const from = process.env.RESEND_FROM_EMAIL?.trim() || process.env.SMTP_USER?.trim() || getAdminNotifyEmail()
-  if (from.includes('<')) return from
-  return `"${displayName}" <${from}>`
+/** @deprecated Use isEmailConfigured() */
+export function isSmtpConfigured(): boolean {
+  return isEmailConfigured()
 }
 
-async function sendViaResend(opts: {
-  to: string
-  subject: string
-  html: string
-  from?: string
-  replyTo?: string
-}): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY!.trim()
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: opts.from || getDefaultFromAddress(),
-      to: [opts.to],
-      subject: opts.subject,
-      html: opts.html,
-      ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
-    }),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(body || `Resend error ${res.status}`)
-  }
+export function getDefaultFromAddress(displayName = 'Sunday Harmony'): string {
+  const from =
+    process.env.SMTP_FROM_EMAIL?.trim() || process.env.SMTP_USER?.trim() || getAdminNotifyEmail()
+  if (from.includes('<')) return from
+  return `"${displayName}" <${from}>`
 }
 
 async function sendViaSmtp(opts: {
@@ -71,7 +38,7 @@ async function sendViaSmtp(opts: {
   })
 }
 
-/** Send HTML email — prefers Resend, falls back to SMTP. */
+/** Send HTML email via Google Workspace SMTP (or any configured SMTP). */
 export async function sendEmail(opts: {
   to: string
   subject: string
@@ -79,15 +46,10 @@ export async function sendEmail(opts: {
   from?: string
   replyTo?: string
 }): Promise<void> {
-  if (isResendConfigured()) {
-    await sendViaResend(opts)
-    return
+  if (!isEmailConfigured()) {
+    throw new Error('SMTP is not configured')
   }
-  if (isSmtpConfigured()) {
-    await sendViaSmtp(opts)
-    return
-  }
-  throw new Error('Email is not configured')
+  await sendViaSmtp(opts)
 }
 
 export function getSmtpPort(): number {
@@ -96,7 +58,7 @@ export function getSmtpPort(): number {
 }
 
 export function createEmailTransporter() {
-  if (!isSmtpConfigured()) {
+  if (!isEmailConfigured()) {
     throw new Error('SMTP is not configured')
   }
   return nodemailer.createTransport({
