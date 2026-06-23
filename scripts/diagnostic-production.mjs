@@ -9,7 +9,13 @@ import { execSync } from 'child_process'
 import { createClient } from '@supabase/supabase-js'
 
 const BASE_URL = (process.env.BASE_URL || 'https://www.sundayharmony.com').replace(/\/$/, '')
-const EXPECTED_COMMIT_PREFIX = process.env.EXPECTED_COMMIT || '8fe85b1'
+const EXPECTED_COMMIT_PREFIX = process.env.EXPECTED_COMMIT || (() => {
+  try {
+    return execSync('git log -1 --format=%h', { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+})()
 
 const REQUIRED_VERCEL_ENV = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -176,13 +182,50 @@ async function phase3() {
   const bucketOk = buckets?.some((b) => b.id === 'credit-funding-docs')
   results.push(`storage credit-funding-docs: ${bucketOk ? 'ready' : 'MISSING'}`)
 
-  const failed = results.filter((r) => r.includes('MISSING'))
+  const clientFilesBucket = buckets?.find((b) => b.id === 'client-files')
+  if (clientFilesBucket) {
+    results.push(`storage client-files public: ${clientFilesBucket.public ? 'YES (security risk)' : 'no (private ok)'}`)
+  } else {
+    results.push('storage client-files: MISSING')
+  }
+
+  // Migration 011: credit_funding_messages table (009) + RLS on applications
+  const { error: msgErr } = await sb.from('credit_funding_messages').select('id').limit(1)
+  results.push(`009 credit_funding_messages: ${msgErr ? 'MISSING' : 'ready'}`)
+
+  const { error: docReqErr } = await sb.from('credit_funding_document_requests').select('id').limit(1)
+  results.push(`009 credit_funding_document_requests: ${docReqErr ? 'MISSING' : 'ready'}`)
+
+  // Migration 012: staff_shared via uploaded_documents columns
+  const { data: staffDocSample, error: staffDocErr } = await sb
+    .from('uploaded_documents')
+    .select('shared_by, status_history_id, message_id, document_type')
+    .limit(1)
+  if (staffDocErr && (staffDocErr.message?.includes('column') || staffDocErr.code === '42703')) {
+    results.push('012 uploaded_documents.shared_by: MISSING (run migration 012)')
+  } else {
+    results.push('012 uploaded_documents columns: ready')
+  }
+
+  // Try insert probe for staff_shared constraint (rollback via not committing — use RPC or check constraint)
+  const { error: staffTypeErr } = await sb
+    .from('uploaded_documents')
+    .select('document_type')
+    .eq('document_type', 'staff_shared')
+    .limit(1)
+  if (staffTypeErr?.message?.includes('invalid input value') || staffTypeErr?.code === '22P02') {
+    results.push('012 staff_shared document_type: MISSING constraint')
+  } else if (!staffTypeErr) {
+    results.push('012 staff_shared document_type: query ok')
+  }
+
+  const failed = results.filter((r) => r.includes('MISSING') || r.includes('security risk'))
   status(
     3,
     'Database schema',
-    failed.length ? 'FAIL' : 'PASS',
+    failed.some((r) => r.includes('MISSING') && !r.includes('staff_shared')) ? 'FAIL' : failed.length ? 'WARN' : 'PASS',
     results.join('; '),
-    failed.length ? 'Run pending supabase-migration-*.sql files in Supabase SQL Editor' : null
+    failed.length ? 'Run pending supabase-migration-*.sql files in Supabase SQL Editor (especially 011 and 012)' : null
   )
 }
 
@@ -484,6 +527,30 @@ async function phase10() {
   )
 }
 
+// ─── Phase 11: Feature deployment probes ───
+async function phase11() {
+  const results = []
+
+  // Credit funding workflow API exists (401 without auth)
+  const workflow = await fetchCheck(`${BASE_URL}/api/admin/credit-funding/workflow`, { method: 'POST' })
+  results.push(`admin workflow POST → ${workflow.status}${workflow.status === 401 ? ' (exists, auth required)' : workflow.status === 404 ? ' (NOT DEPLOYED)' : ''}`)
+
+  const exportRoute = await fetchCheck(`${BASE_URL}/api/admin/credit-funding/export`)
+  results.push(`admin export → ${exportRoute.status}${exportRoute.status === 401 ? ' (exists)' : ''}`)
+
+  const sessionRoute = await fetchCheck(`${BASE_URL}/api/credit-funding/session`, { method: 'POST' })
+  results.push(`upload session POST → ${sessionRoute.status}${sessionRoute.status === 429 || sessionRoute.status === 200 || sessionRoute.status === 403 ? ' (exists)' : sessionRoute.status === 404 ? ' (missing)' : ''}`)
+
+  const notDeployed = results.some((r) => r.includes('NOT DEPLOYED') || r.includes('(missing)'))
+  status(
+    11,
+    'Feature deployment probes',
+    notDeployed ? 'FAIL' : 'PASS',
+    results.join('; '),
+    notDeployed ? 'Merge cursor/admin-billing-plan-save to main and promote Vercel production' : null
+  )
+}
+
 // ─── Summary ───
 function printSummary() {
   const pass = report.phases.filter((p) => p.status === 'PASS').length
@@ -506,11 +573,10 @@ function printSummary() {
     report.warnings.slice(0, 8).forEach((w, i) => console.log(`  ${i + 1}. [Phase ${w.phase}] ${w.name}`))
   }
 
-  const outPath = 'diagnostic-report.json'
-  fs.writeFileSync(outPath, JSON.stringify(report, null, 2))
+  fs.writeFileSync('diagnostic-report.json', JSON.stringify(report, null, 2))
 
   const md = [
-    '# Sunday Harmony — Production Diagnostic Report',
+    '# Sunday Harmony — Production Diagnostic Report (v2)',
     '',
     `**Generated:** ${report.generatedAt}`,
     `**Target:** ${BASE_URL}`,
@@ -541,11 +607,14 @@ function printSummary() {
   ].filter(Boolean).join('\n')
 
   fs.writeFileSync('diagnostic-report.md', md)
-  console.log(`\nFull report written to ${outPath} and diagnostic-report.md`)
+  fs.mkdirSync('diagnostics', { recursive: true })
+  fs.writeFileSync('diagnostics/diagnostic-report-v2.md', md)
+  fs.writeFileSync('diagnostics/diagnostic-report-v2.json', JSON.stringify(report, null, 2))
+  console.log(`\nFull report written to diagnostic-report.json, diagnostic-report.md, and diagnostics/diagnostic-report-v2.md`)
 }
 
 // ─── Run all phases ───
-console.log(`Sunday Harmony — 10-Phase Production Diagnostic`)
+console.log(`Sunday Harmony — 11-Phase Production Diagnostic`)
 console.log(`Target: ${BASE_URL}`)
 
 await phase1()
@@ -558,6 +627,7 @@ await phase7()
 await phase8()
 await phase9()
 await phase10()
+await phase11()
 printSummary()
 
 process.exit(report.blockers.length > 0 ? 1 : 0)

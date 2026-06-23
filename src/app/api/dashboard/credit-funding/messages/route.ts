@@ -30,6 +30,13 @@ export async function GET() {
       return NextResponse.json({ error: 'No application found' }, { status: 404 })
     }
 
+    if (
+      application.email.toLowerCase() !== session.user.email.toLowerCase() &&
+      application.user_id !== session.user.id
+    ) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const messages = await getCreditFundingMessages(application.id)
     return NextResponse.json(messages)
   } catch (error) {
@@ -56,6 +63,13 @@ export async function POST(req: NextRequest) {
     const application = await resolveApplication(session.user.email, session.user.id)
     if (!application) {
       return NextResponse.json({ error: 'No application found' }, { status: 404 })
+    }
+
+    if (
+      application.email.toLowerCase() !== session.user.email.toLowerCase() &&
+      application.user_id !== session.user.id
+    ) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     const message = await createCreditFundingMessage({

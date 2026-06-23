@@ -62,8 +62,8 @@ export default function CrmOverviewPage() {
     const q = search.toLowerCase()
     return contacts.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.business.toLowerCase().includes(q) ||
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.business || '').toLowerCase().includes(q) ||
         (c.email || '').toLowerCase().includes(q)
     )
   }, [contacts, search])
