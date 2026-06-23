@@ -36,12 +36,19 @@ interface DocRequest {
   status: string
 }
 
+interface MessageAttachment {
+  id: string
+  file_name: string
+  signedUrl?: string
+}
+
 interface Message {
   id: string
   from_role: 'admin' | 'applicant'
   from_name: string
   text: string
   created_at: string
+  attachments?: MessageAttachment[]
 }
 
 export default function ClientCreditFundingPage() {
@@ -322,6 +329,27 @@ export default function ClientCreditFundingPage() {
                   {m.from_name} · {new Date(m.created_at).toLocaleString()}
                 </p>
                 <p className="text-brand-muted whitespace-pre-wrap">{m.text}</p>
+                {m.attachments && m.attachments.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {m.attachments.map((attachment) => (
+                      <div key={attachment.id} className="flex items-center justify-between gap-2 p-2 bg-white/70 rounded-lg border border-brand-border/60">
+                        <span className="text-xs font-medium text-brand-text truncate">{attachment.file_name}</span>
+                        {attachment.signedUrl ? (
+                          <a
+                            href={attachment.signedUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-accent hover:underline shrink-0"
+                          >
+                            Download
+                          </a>
+                        ) : (
+                          <span className="text-xs text-brand-dim shrink-0">Unavailable</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}

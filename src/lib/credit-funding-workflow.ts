@@ -35,6 +35,7 @@ export interface ApplyWorkflowStatusResult {
   app: CreditFundingApplication
   attachmentNames: string[]
   messageCreated: boolean
+  savedAttachmentCount: number
 }
 
 function buildPortalMessageText(params: {
@@ -142,8 +143,10 @@ export async function applyWorkflowStatusUpdate(
     messageId = message?.id
   }
 
+  let savedAttachmentCount = 0
+
   for (const uploaded of uploadedRecords) {
-    await createUploadedDocument({
+    const saved = await createUploadedDocument({
       application_uuid: application.id,
       document_type: 'staff_shared',
       file_name: uploaded.displayName,
@@ -156,6 +159,16 @@ export async function applyWorkflowStatusUpdate(
       status_history_id: result.history.id,
       message_id: messageId,
     })
+    if (saved) savedAttachmentCount++
+    else {
+      console.error('Failed to persist staff attachment to database:', uploaded.displayName, uploaded.storagePath)
+    }
+  }
+
+  if (uploadedRecords.length > 0 && savedAttachmentCount === 0) {
+    console.error(
+      'Staff attachments uploaded to storage but not saved to database. Run supabase-migration-012-credit-funding-workflow-attachments.sql'
+    )
   }
 
   if (notifyClient) {
@@ -196,5 +209,6 @@ export async function applyWorkflowStatusUpdate(
     app: result.app,
     attachmentNames,
     messageCreated,
+    savedAttachmentCount,
   }
 }

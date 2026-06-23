@@ -198,6 +198,16 @@ export function documentDisplayLabel(documentType: string): string {
   return documentType.replace(/_/g, ' ')
 }
 
+export function isStaffSharedDocument(doc: {
+  document_type?: string
+  shared_by?: string | null
+  storage_path?: string
+}): boolean {
+  if (doc.shared_by === 'admin') return true
+  if (doc.document_type === 'staff_shared') return true
+  return Boolean(doc.storage_path?.includes('/staff_shared/'))
+}
+
 export interface CreditProfile {
   creditScore?: string
   bankruptcy?: boolean

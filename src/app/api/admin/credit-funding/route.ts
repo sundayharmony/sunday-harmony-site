@@ -24,6 +24,7 @@ import {
   getDocumentRequests,
   createDocumentRequest,
   createCreditFundingMessage,
+  syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
 import {
@@ -59,6 +60,10 @@ export async function GET(req: NextRequest) {
         actor_email: session.user.email || 'admin',
         details: `Viewed credit funding application ${app.application_id}`,
       })
+
+      if (includeDocs) {
+        await syncStaffSharedDocumentsFromStorage(id)
+      }
 
       const [documents, history, messages, docRequests] = await Promise.all([
         includeDocs ? getDocumentsByApplicationUuid(id) : Promise.resolve([]),

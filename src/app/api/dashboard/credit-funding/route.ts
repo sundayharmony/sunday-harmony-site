@@ -9,9 +9,10 @@ import {
   getDocumentRequests,
   getStatusHistory,
   getCreditFundingMessages,
+  syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
-import { documentDisplayLabel } from '@/lib/credit-funding-types'
+import { documentDisplayLabel, isStaffSharedDocument } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,12 +44,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const [history, documents, docRequests, messages] = await Promise.all([
+    const [history, docRequests, messages] = await Promise.all([
       getStatusHistory(application.id),
-      getDocumentsByApplicationUuid(application.id),
       getDocumentRequests(application.id),
       getCreditFundingMessages(application.id),
     ])
+
+    await syncStaffSharedDocumentsFromStorage(application.id)
+    const documents = await getDocumentsByApplicationUuid(application.id)
 
     const docsWithUrls = await Promise.all(
       documents.map(async (doc) => ({
@@ -57,15 +60,28 @@ export async function GET() {
         file_name: doc.file_name,
         file_size: doc.file_size,
         scan_status: doc.scan_status,
-        shared_by: doc.shared_by || 'applicant',
+        shared_by: doc.shared_by || (isStaffSharedDocument(doc) ? 'admin' : 'applicant'),
+        message_id: doc.message_id || null,
+        storage_path: doc.storage_path,
         label: documentDisplayLabel(doc.document_type),
         created_at: doc.created_at,
         signedUrl: (await getCreditFundingDocumentSignedUrl(doc.storage_path)) || undefined,
       }))
     )
 
-    const applicantDocuments = docsWithUrls.filter((d) => d.shared_by !== 'admin')
-    const teamDocuments = docsWithUrls.filter((d) => d.shared_by === 'admin')
+    const applicantDocuments = docsWithUrls.filter((d) => !isStaffSharedDocument(d))
+    const teamDocuments = docsWithUrls.filter((d) => isStaffSharedDocument(d))
+
+    const messagesWithAttachments = messages.map((message) => ({
+      ...message,
+      attachments: teamDocuments.filter(
+        (doc) =>
+          doc.message_id === message.id ||
+          (message.from_role === 'admin' &&
+            message.text.includes('Attached:') &&
+            message.text.includes(doc.file_name))
+      ),
+    }))
 
     return NextResponse.json({
       application: {
@@ -86,7 +102,7 @@ export async function GET() {
       documents: applicantDocuments,
       teamDocuments,
       docRequests,
-      messages,
+      messages: messagesWithAttachments,
     })
   } catch (error) {
     logApiRouteError({ url: '/api/dashboard/credit-funding' } as NextRequest, 'dashboard/credit-funding GET', error)
