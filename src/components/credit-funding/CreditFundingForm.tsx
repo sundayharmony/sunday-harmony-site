@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
 import { useStagedDocumentUploads } from '@/components/credit-funding/useStagedDocumentUploads'
 import BusinessInfoSection from '@/components/credit-funding/BusinessInfoSection'
@@ -126,6 +127,12 @@ const initialState: FormState = {
 
 export default function CreditFundingForm() {
   const [step, setStep] = useState(0)
+  const searchParams = useSearchParams()
+  const inviteTokenFromUrl = searchParams.get('invite')?.trim() || ''
+  const [inviteToken, setInviteToken] = useState('')
+  const [inviteEmailLocked, setInviteEmailLocked] = useState(false)
+  const [inviteBanner, setInviteBanner] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(Boolean(inviteTokenFromUrl))
   const [form, setForm] = useState<FormState>(initialState)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -142,6 +149,47 @@ export default function CreditFundingForm() {
   useEffect(() => {
     setStep((s) => Math.min(s, stepFlow.length - 1))
   }, [stepFlow.length])
+
+  useEffect(() => {
+    if (!inviteTokenFromUrl) {
+      setInviteLoading(false)
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/credit-funding/invite?token=${encodeURIComponent(inviteTokenFromUrl)}`)
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          if (!cancelled) {
+            setSubmitError(data.error || 'This invitation link is invalid or has expired.')
+          }
+          return
+        }
+
+        if (cancelled) return
+
+        setInviteToken(inviteTokenFromUrl)
+        setInviteEmailLocked(true)
+        setInviteBanner(`You're completing an application invited by the Sunday Harmony team.`)
+        setForm((prev) => ({
+          ...prev,
+          fullName: data.fullName || prev.fullName,
+          email: data.email || prev.email,
+          phone: data.phone || prev.phone,
+        }))
+      } catch {
+        if (!cancelled) setSubmitError('Could not load your invitation. Please contact Sunday Harmony.')
+      } finally {
+        if (!cancelled) setInviteLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [inviteTokenFromUrl])
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -277,6 +325,9 @@ export default function CreditFundingForm() {
       fd.append('uploadSessionId', session.sessionId)
       fd.append('uploadSessionToken', session.uploadToken)
       fd.append('stagedFiles', JSON.stringify(stagedFiles))
+      if (inviteToken) {
+        fd.append('inviteToken', inviteToken)
+      }
 
       setUploadProgress(70)
 
@@ -323,8 +374,21 @@ export default function CreditFundingForm() {
     )
   }
 
+  if (inviteLoading) {
+    return (
+      <div className="bg-white border border-brand-border rounded-2xl p-10 text-center shadow-sm">
+        <p className="text-sm text-brand-muted">Loading your application invitation…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white border border-brand-border rounded-2xl shadow-sm overflow-hidden">
+      {inviteBanner && (
+        <div className="px-6 py-4 bg-sky-50 border-b border-sky-200 text-sm text-sky-900">
+          {inviteBanner}
+        </div>
+      )}
       {/* Progress */}
       <div className="px-6 pt-6 pb-4 border-b border-brand-border bg-brand-bg-soft">
         <div className="flex items-center justify-between mb-3 overflow-x-auto gap-2">
@@ -363,7 +427,16 @@ export default function CreditFundingForm() {
             </div>
             <div>
               <label className={labelClass}>Email Address *</label>
-              <input type="email" className={inputClass} value={form.email} onChange={(e) => update('email', e.target.value)} />
+              <input
+                type="email"
+                className={`${inputClass}${inviteEmailLocked ? ' bg-neutral-100 cursor-not-allowed' : ''}`}
+                value={form.email}
+                readOnly={inviteEmailLocked}
+                onChange={(e) => update('email', e.target.value)}
+              />
+              {inviteEmailLocked && (
+                <p className="text-xs text-brand-dim mt-1">This email is tied to your invitation and cannot be changed.</p>
+              )}
               {errors.email && <p className="text-xs text-brand-red mt-1">{errors.email}</p>}
             </div>
             <div>

@@ -16,6 +16,7 @@ import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
 import { buildEncryptedApplicationRow } from '@/lib/credit-funding-sensitive-fields'
 import { decryptFieldOrLegacy } from '@/lib/field-encryption'
+import { APPLICATION_INVITE_TTL_MS } from '@/lib/credit-funding-invite'
 import { CREDIT_FUNDING_BUCKET } from '@/lib/credit-funding-storage'
 
 export function generateApplicationId(): string {
@@ -60,6 +61,159 @@ export async function createCreditFundingApplication(
     status: 'submitted',
     staff_email: null,
     notes: 'Application submitted via intake form',
+  })
+
+  return app
+}
+
+const INVITE_PLACEHOLDER = 'Pending'
+
+export async function getPendingInvitationByEmail(email: string): Promise<CreditFundingApplication | undefined> {
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .select('*')
+    .ilike('email', email.trim())
+    .eq('status', 'invitation_pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return undefined
+  return data as CreditFundingApplication | undefined
+}
+
+export async function createInvitedCreditFundingApplication(params: {
+  fullName: string
+  email: string
+  phone?: string
+  clientId?: string
+  invitedBy: string
+  personalMessage?: string
+  inviteExpiresAt?: Date
+}): Promise<CreditFundingApplication | null> {
+  const existingPending = await getPendingInvitationByEmail(params.email)
+  if (existingPending) {
+    return null
+  }
+
+  const applicationId = generateApplicationId()
+  const inviteExpiresAt = params.inviteExpiresAt || new Date(Date.now() + APPLICATION_INVITE_TTL_MS)
+  const normalizedEmail = params.email.trim().toLowerCase()
+  const phone = params.phone?.trim() || INVITE_PLACEHOLDER
+
+  const row: Record<string, unknown> = {
+    application_id: applicationId,
+    full_name: params.fullName.trim(),
+    email: normalizedEmail,
+    phone,
+    address: INVITE_PLACEHOLDER,
+    city: INVITE_PLACEHOLDER,
+    state: 'XX',
+    zip_code: '00000',
+    credit_profile: {},
+    selected_credit_provider: INVITE_PLACEHOLDER,
+    credit_goals: [],
+    funding_goals: '',
+    consent_data: {},
+    typed_signature: INVITE_PLACEHOLDER,
+    signature_date: new Date().toISOString().slice(0, 10),
+    status: 'invitation_pending',
+    service_type: 'credit_and_funding',
+    credit_funding_client_status: 'intake_started',
+    client_id: params.clientId || null,
+    invite_expires_at: inviteExpiresAt.toISOString(),
+    invite_personal_message: params.personalMessage?.trim() || null,
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .insert(row)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('createInvitedCreditFundingApplication error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'invitation_pending',
+    staff_email: params.invitedBy,
+    notes: 'Application invitation sent to client',
+  })
+
+  return app
+}
+
+export async function extendApplicationInvitation(
+  id: string,
+  inviteExpiresAt: Date,
+  personalMessage?: string
+): Promise<CreditFundingApplication | null> {
+  const updates: Record<string, unknown> = {
+    invite_expires_at: inviteExpiresAt.toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  if (personalMessage !== undefined) {
+    updates.invite_personal_message = personalMessage.trim() || null
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update(updates)
+    .eq('id', id)
+    .eq('status', 'invitation_pending')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('extendApplicationInvitation error:', error)
+    return null
+  }
+  return data as CreditFundingApplication
+}
+
+export async function completeInvitedCreditFundingApplication(
+  applicationId: string,
+  payload: IntakeFormPayload,
+  link?: { userId?: string; clientId?: string }
+): Promise<CreditFundingApplication | null> {
+  const fundingGoals = buildFundingGoalsSummary(payload)
+  const encrypted = buildEncryptedApplicationRow(payload, link)
+
+  const row = {
+    ...encrypted,
+    funding_goals: fundingGoals,
+    status: 'submitted' as ApplicationStatus,
+    service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
+    lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
+    credit_funding_client_status: 'intake_completed',
+    invite_expires_at: null,
+    invite_personal_message: null,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update(row)
+    .eq('id', applicationId)
+    .eq('status', 'invitation_pending')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('completeInvitedCreditFundingApplication error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'submitted',
+    staff_email: null,
+    notes: 'Application completed via staff invitation link',
   })
 
   return app

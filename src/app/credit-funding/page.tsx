@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
@@ -23,7 +24,9 @@ export default function CreditFundingPage() {
             <p className="text-[15px] text-brand-muted mb-10 leading-relaxed max-w-[600px]">
               Complete this secure intake form so our team can review your credit profile, verify your identity, and help you pursue your funding goals. All submissions are encrypted and handled confidentially.
             </p>
-            <CreditFundingForm />
+            <Suspense fallback={<p className="text-sm text-brand-muted">Loading application form…</p>}>
+              <CreditFundingForm />
+            </Suspense>
           </div>
         </section>
       </main>

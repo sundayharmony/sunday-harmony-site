@@ -52,6 +52,8 @@ interface ApplicationDetail {
   goals_notes?: string
   owns_business?: boolean
   business_name?: string
+  invite_expires_at?: string
+  invite_personal_message?: string
   business_profile?: Record<string, unknown>
   consent_data?: Record<string, boolean>
   typed_signature?: string
@@ -146,6 +148,15 @@ function CreditFundingAdminContent() {
   const [docReqType, setDocReqType] = useState('')
   const [docReqLabel, setDocReqLabel] = useState('')
   const [listPanelOpen, setListPanelOpen] = useState(true)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteForm, setInviteForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    personal_message: '',
+  })
+  const [inviteSending, setInviteSending] = useState(false)
+  const [inviteNotice, setInviteNotice] = useState('')
 
   const selectApplication = (id: string) => {
     loadDetail(id)
@@ -257,6 +268,54 @@ function CreditFundingAdminContent() {
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (search.trim()) params.set('search', search.trim())
     window.open(`/api/admin/credit-funding/export?${params}`, '_blank')
+  }
+
+  const sendApplicationInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setInviteSending(true)
+    setError('')
+    setInviteNotice('')
+    try {
+      const r = await fetch('/api/admin/credit-funding/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inviteForm),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Failed to send invitation')
+
+      setApplications((prev) => [data, ...prev])
+      setShowInviteModal(false)
+      setInviteForm({ full_name: '', email: '', phone: '', personal_message: '' })
+      setInviteNotice(`Application invitation sent to ${data.email}.`)
+      selectApplication(data.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send invitation')
+    } finally {
+      setInviteSending(false)
+    }
+  }
+
+  const resendApplicationInvite = async () => {
+    if (!selected) return
+    setSaving(true)
+    setError('')
+    setInviteNotice('')
+    try {
+      const r = await fetch('/api/admin/credit-funding/invite', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Failed to resend invitation')
+      setInviteNotice(`Invitation resent to ${selected.email}.`)
+      await loadDetail(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to resend invitation')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -389,10 +448,93 @@ function CreditFundingAdminContent() {
           <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding Applications</h1>
           <p className="text-sm text-brand-muted mt-1">Manage intake submissions, funding scores, and applicant messaging</p>
         </div>
-        <button onClick={exportCsv} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50">
-          Export CSV
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setShowInviteModal(true)
+              setInviteNotice('')
+              setError('')
+            }}
+            className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg hover:bg-neutral-800"
+          >
+            Send Application to Client
+          </button>
+          <button onClick={exportCsv} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50">
+            Export CSV
+          </button>
+        </div>
       </div>
+
+      {inviteNotice && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">{inviteNotice}</div>
+      )}
+
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="w-full max-w-lg bg-white border border-brand-border rounded-xl shadow-xl p-6">
+            <h2 className="text-lg font-bold text-brand-text mb-1">Send Application to Client</h2>
+            <p className="text-sm text-brand-muted mb-4">
+              We&apos;ll email a secure link so the client can complete the Credit &amp; Funding intake form.
+            </p>
+            <form onSubmit={sendApplicationInvite} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-brand-dim">Client name *</label>
+                <input
+                  className={inputClass}
+                  required
+                  value={inviteForm.full_name}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, full_name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-brand-dim">Email *</label>
+                <input
+                  type="email"
+                  className={inputClass}
+                  required
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-brand-dim">Phone (optional — pre-fills form)</label>
+                <input
+                  type="tel"
+                  className={inputClass}
+                  value={inviteForm.phone}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-brand-dim">Personal message (optional)</label>
+                <textarea
+                  className={`${inputClass} min-h-[90px]`}
+                  value={inviteForm.personal_message}
+                  onChange={(e) => setInviteForm((f) => ({ ...f, personal_message: e.target.value }))}
+                  placeholder="Add a short note that appears in the invitation email."
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowInviteModal(false)}
+                  className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviteSending}
+                  className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-50"
+                >
+                  {inviteSending ? 'Sending…' : 'Send Invitation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
@@ -498,15 +640,40 @@ function CreditFundingAdminContent() {
                 </div>
               </div>
 
-              <AdminApplicationWorkflow
-                currentStatus={selected.status}
-                history={history}
-                statusNotes={editFields.status_notes}
-                onStatusNotesChange={(notes) => setEditFields((f) => ({ ...f, status_notes: notes }))}
-                onStatusChange={handleStatusChange}
-                saving={saving}
-                pendingDocCount={pendingDocCount}
-              />
+              {selected.status === 'invitation_pending' ? (
+                <div className="mb-5 p-4 bg-sky-50 border border-sky-200 rounded-xl">
+                  <p className="text-sm font-semibold text-sky-900 mb-1">Waiting for client to complete the application</p>
+                  <p className="text-sm text-sky-800 mb-3">
+                    An invitation email was sent to {selected.email}.
+                    {selected.invite_expires_at && (
+                      <> Link expires {new Date(selected.invite_expires_at).toLocaleString()}.</>
+                    )}
+                  </p>
+                  {selected.invite_personal_message && (
+                    <p className="text-sm text-sky-900 mb-3 whitespace-pre-wrap">
+                      <span className="font-semibold">Your message:</span> {selected.invite_personal_message}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={resendApplicationInvite}
+                    className="px-4 py-2 text-sm font-semibold border border-sky-300 rounded-lg bg-white hover:bg-sky-100 disabled:opacity-50"
+                  >
+                    Resend invitation email
+                  </button>
+                </div>
+              ) : (
+                <AdminApplicationWorkflow
+                  currentStatus={selected.status}
+                  history={history}
+                  statusNotes={editFields.status_notes}
+                  onStatusNotesChange={(notes) => setEditFields((f) => ({ ...f, status_notes: notes }))}
+                  onStatusChange={handleStatusChange}
+                  saving={saving}
+                  pendingDocCount={pendingDocCount}
+                />
+              )}
 
               <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
                 {(['overview', 'intake', 'funding', 'messages'] as const).map((tab) => (

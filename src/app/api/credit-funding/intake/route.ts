@@ -16,6 +16,8 @@ import {
   createCreditFundingApplication,
   createUploadedDocument,
   linkApplicationToUser,
+  completeInvitedCreditFundingApplication,
+  getCreditFundingApplicationById,
 } from '@/lib/credit-funding-db'
 import {
   finalizeStagedCreditFundingDocument,
@@ -26,6 +28,7 @@ import {
   uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
 import { verifyUploadSession } from '@/lib/credit-funding-upload-session'
+import { verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 import {
   getAdminNotifyEmail,
@@ -117,10 +120,38 @@ export async function POST(req: NextRequest) {
     }
 
     const existingUser = await getUserByEmail(payload.email)
-    const application = await createCreditFundingApplication(payload, {
-      userId: existingUser?.id,
-      clientId: existingUser?.client_id || undefined,
-    })
+    const inviteToken = String(formData.get('inviteToken') || '').trim()
+
+    let application: Awaited<ReturnType<typeof createCreditFundingApplication>> | null = null
+
+    if (inviteToken) {
+      const verified = verifyApplicationInviteToken(inviteToken)
+      if (!verified || Date.now() > verified.expiresAtMs) {
+        return NextResponse.json({ error: 'This application link has expired or is invalid.' }, { status: 403 })
+      }
+
+      const invitedApp = await getCreditFundingApplicationById(verified.applicationId)
+      if (!invitedApp || invitedApp.status !== 'invitation_pending') {
+        return NextResponse.json({ error: 'This application link is no longer valid.' }, { status: 403 })
+      }
+      if (invitedApp.email.toLowerCase() !== payload.email.trim().toLowerCase()) {
+        return NextResponse.json(
+          { error: 'Email must match the address this invitation was sent to.' },
+          { status: 400 }
+        )
+      }
+
+      application = await completeInvitedCreditFundingApplication(verified.applicationId, payload, {
+        userId: existingUser?.id,
+        clientId: invitedApp.client_id || existingUser?.client_id || undefined,
+      })
+    } else {
+      application = await createCreditFundingApplication(payload, {
+        userId: existingUser?.id,
+        clientId: existingUser?.client_id || undefined,
+      })
+    }
+
     if (!application) {
       return NextResponse.json({ error: 'Failed to save application. Please try again.' }, { status: 500 })
     }

@@ -58,6 +58,52 @@ export async function ensurePortalUserForCreditApplication(
   return { userId: user.id, setupCode, isNewUser }
 }
 
+export async function sendCreditFundingApplicationInviteEmail(params: {
+  to: string
+  fullName: string
+  inviteUrl: string
+  personalMessage?: string
+  staffName?: string
+}): Promise<void> {
+  if (!isEmailConfigured()) {
+    console.error('Credit funding invite email: SMTP not configured')
+    return
+  }
+
+  const first = escHtml(params.fullName.split(' ')[0] || 'there')
+  const messageBlock = params.personalMessage?.trim()
+    ? `<div style="padding:12px;background:#f8f6f0;border-radius:8px;margin:16px 0;white-space:pre-wrap;color:#525252;font-size:14px;line-height:1.6">${escHtml(params.personalMessage.trim())}</div>`
+    : ''
+
+  await sendEmail({
+    to: params.to,
+    subject: sanitizeEmailSubjectPart('Complete Your Credit & Funding Application', 200),
+    html: `
+      <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
+        <h2 style="color:#b8943f;border-bottom:2px solid #b8943f;padding-bottom:10px">
+          Hi ${first},
+        </h2>
+        <p style="color:#525252;line-height:1.6">
+          ${escHtml(params.staffName || 'The Sunday Harmony team')} invited you to complete your secure Credit &amp; Funding application online.
+        </p>
+        ${messageBlock}
+        <p style="color:#525252;line-height:1.6;font-size:14px">
+          Use the button below to open your personalized application form. The link expires in 30 days.
+        </p>
+        <p style="margin:24px 0">
+          <a href="${escHtml(params.inviteUrl)}" style="display:inline-block;padding:12px 24px;background:#0a0a0a;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">
+            Start Application
+          </a>
+        </p>
+        <p style="font-size:12px;color:#888;line-height:1.5">
+          If the button does not work, copy and paste this link into your browser:<br />
+          <a href="${escHtml(params.inviteUrl)}" style="color:#b8943f;word-break:break-all">${escHtml(params.inviteUrl)}</a>
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendCreditFundingSubmissionEmail(params: {
   to: string
   fullName: string

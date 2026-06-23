@@ -19,6 +19,7 @@ export type StaffDocumentType = (typeof STAFF_DOCUMENT_TYPES)[number]
 export type StorageDocumentType = DocumentType | StaffDocumentType
 
 export const APPLICATION_STATUSES = [
+  'invitation_pending',
   'submitted',
   'documents_pending',
   'under_review',
@@ -33,6 +34,7 @@ export const APPLICATION_STATUSES = [
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  invitation_pending: 'Invitation Sent',
   submitted: 'Submitted',
   documents_pending: 'Documents Pending',
   under_review: 'Under Review',
@@ -59,6 +61,7 @@ export const STATUS_WORKFLOW_ORDER: ApplicationStatus[] = [
 export const TERMINAL_STATUSES: ApplicationStatus[] = ['declined', 'archived', 'completed']
 
 export const STATUS_DESCRIPTIONS: Record<ApplicationStatus, string> = {
+  invitation_pending: 'Application link sent — waiting for the client to complete the intake form.',
   submitted: 'Application received — review intake and confirm all required documents are on file.',
   documents_pending: 'Waiting on documents from the applicant — request missing files below.',
   under_review: 'Team is reviewing the application, credit profile, and uploaded documents.',
@@ -305,6 +308,8 @@ export interface CreditFundingApplication {
   lead_type?: string | null
   credit_funding_client_status?: string | null
   lead_id?: string | null
+  invite_expires_at?: string | null
+  invite_personal_message?: string | null
   business_profile?: BusinessProfile
   funding_scores?: FundingScores
   created_at: string

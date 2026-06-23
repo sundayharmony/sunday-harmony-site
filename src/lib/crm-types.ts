@@ -111,6 +111,7 @@ export function deriveLeadTypeFromIntake(creditGoals: string[], fundingUse: stri
 export function mapApplicationStatusToCfClientStatus(appStatus: string): CreditFundingClientStatus {
   const map: Record<string, CreditFundingClientStatus> = {
     submitted: 'intake_completed',
+    invitation_pending: 'intake_started',
     documents_pending: 'documents_pending',
     under_review: 'under_review',
     credit_analysis_complete: 'credit_analysis',
