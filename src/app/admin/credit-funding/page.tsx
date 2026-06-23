@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import StatusBadge from '@/components/ui/StatusBadge'
-import CreditFundingStatusTracker from '@/components/credit-funding/CreditFundingStatusTracker'
+import AdminApplicationWorkflow from '@/components/credit-funding/AdminApplicationWorkflow'
 import {
   APPLICATION_STATUSES,
   DOCUMENT_LABELS,
@@ -269,6 +269,91 @@ function CreditFundingAdminContent() {
     )
   }, [applications, search])
 
+  const pendingDocCount = docRequests.filter((d) => d.status === 'pending').length
+
+  const handleStatusChange = (status: ApplicationStatus, notes?: string) => {
+    patchApplication({ status, status_notes: notes || editFields.status_notes })
+    setEditFields((f) => ({ ...f, status_notes: '' }))
+  }
+
+  const showDocRequestPanel =
+    selected?.status === 'documents_pending' ||
+    selected?.status === 'additional_information_requested' ||
+    selected?.status === 'submitted'
+
+  const showDocumentsProminent =
+    selected?.status === 'under_review' ||
+    selected?.status === 'credit_analysis_complete' ||
+    selected?.status === 'funding_review' ||
+    showDocRequestPanel
+
+  const showFundingSummary =
+    selected?.status === 'approved' ||
+    selected?.status === 'completed'
+
+  const renderDocumentList = () => (
+    <>
+      <h3 className="text-sm font-bold mb-2">Uploaded Documents</h3>
+      {documents.length === 0 ? (
+        <p className="text-sm text-brand-dim">No documents.</p>
+      ) : (
+        <div className="space-y-2">
+          {documents.map((doc) => (
+            <div key={doc.id} className="flex justify-between p-3 bg-neutral-50 rounded-lg text-sm">
+              <div>
+                <p className="font-medium">{DOC_LABELS_MAP[doc.document_type] || doc.document_type}</p>
+                <p className="text-xs text-brand-dim">{doc.file_name}</p>
+              </div>
+              {doc.signedUrl && (
+                <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent">View</a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+
+  const renderDocRequestPanel = () => (
+    <div className="mb-5 p-4 bg-amber-50/50 rounded-xl border border-amber-200/80">
+      <h4 className="text-sm font-bold mb-1 text-brand-text">Request Document</h4>
+      <p className="text-xs text-brand-muted mb-3">Send a document request to the applicant — they will receive an email and can upload in their portal.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+        <select className={inputClass} value={docReqType} onChange={(e) => {
+          setDocReqType(e.target.value)
+          setDocReqLabel(DOC_LABELS_MAP[e.target.value] || e.target.value)
+        }}>
+          <option value="">Select document type</option>
+          {DOCUMENT_TYPES.map((t) => (
+            <option key={t} value={t}>{DOC_LABELS_MAP[t]}</option>
+          ))}
+        </select>
+        <input className={inputClass} placeholder="Label" value={docReqLabel} onChange={(e) => setDocReqLabel(e.target.value)} />
+      </div>
+      <button
+        type="button"
+        disabled={!docReqType || !docReqLabel || saving}
+        onClick={() => {
+          patchApplication({ document_request: { document_type: docReqType, label: docReqLabel } })
+          setDocReqType('')
+          setDocReqLabel('')
+        }}
+        className="text-xs font-semibold text-accent hover:underline disabled:opacity-50"
+      >
+        Send document request
+      </button>
+      {docRequests.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs text-brand-muted">
+          {docRequests.map((d) => (
+            <li key={d.id} className={d.status === 'pending' ? 'text-orange-800 font-medium' : ''}>
+              {d.label} — {d.status}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
   const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
 
   return (
@@ -385,19 +470,17 @@ function CreditFundingAdminContent() {
                   <p className="text-sm text-brand-dim">{selected.application_id} · {selected.service_type?.replace(/_/g, ' ')}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <select
-                    className={inputClass}
-                    value={selected.status}
-                    disabled={saving}
-                    onChange={(e) => patchApplication({ status: e.target.value, status_notes: editFields.status_notes })}
-                  >
-                    {APPLICATION_STATUSES.map((s) => (
-                      <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
+
+              <AdminApplicationWorkflow
+                currentStatus={selected.status}
+                history={history}
+                statusNotes={editFields.status_notes}
+                onStatusNotesChange={(notes) => setEditFields((f) => ({ ...f, status_notes: notes }))}
+                onStatusChange={handleStatusChange}
+                saving={saving}
+                pendingDocCount={pendingDocCount}
+              />
 
               <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
                 {(['overview', 'intake', 'funding', 'messages'] as const).map((tab) => (
@@ -416,6 +499,42 @@ function CreditFundingAdminContent() {
 
               {activeTab === 'overview' && (
                 <>
+                  {showDocRequestPanel && renderDocRequestPanel()}
+
+                  {showDocumentsProminent && !showDocRequestPanel && (
+                    <div className="mb-5 p-4 bg-neutral-50 rounded-xl border border-brand-border">
+                      {renderDocumentList()}
+                    </div>
+                  )}
+
+                  {showFundingSummary && selected.funding_scores && (
+                    <div className="mb-5 p-4 bg-green-50/50 rounded-xl border border-green-200/80">
+                      <h4 className="text-sm font-bold mb-2">Funding Recommendations</h4>
+                      <div className="grid grid-cols-3 gap-3 text-center mb-3">
+                        {[
+                          ['Revenue', selected.funding_scores.revenue_score],
+                          ['Funding Ready', selected.funding_scores.funding_readiness],
+                          ['Credit Ready', selected.funding_scores.credit_readiness],
+                        ].map(([label, val]) => (
+                          <div key={label as string} className="p-2 bg-white rounded-lg border border-brand-border">
+                            <p className="text-lg font-bold text-accent">{val ?? '—'}</p>
+                            <p className="text-[10px] text-brand-dim uppercase">{label}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {selected.funding_scores.estimated_range && (
+                        <p className="text-sm text-brand-muted">
+                          <span className="font-semibold">Est. Range:</span> {selected.funding_scores.estimated_range}
+                        </p>
+                      )}
+                      {selected.next_steps && (
+                        <p className="text-sm text-brand-muted mt-2 whitespace-pre-wrap">
+                          <span className="font-semibold">Next Steps:</span> {selected.next_steps}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5 text-sm">
                     {[
                       ['Email', selected.email],
@@ -433,21 +552,11 @@ function CreditFundingAdminContent() {
                     ))}
                   </div>
 
-                  <div className="mb-5">
-                    <CreditFundingStatusTracker currentStatus={selected.status} history={history} />
-                  </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                     <div>
                       <label className="text-xs font-semibold text-brand-dim">Assigned Specialist</label>
                       <input className={inputClass} value={editFields.assigned_specialist}
                         onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))} />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-brand-dim">Status Change Notes</label>
-                      <input className={inputClass} placeholder="Optional note for applicant email"
-                        value={editFields.status_notes}
-                        onChange={(e) => setEditFields((f) => ({ ...f, status_notes: e.target.value }))} />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold text-brand-dim">Internal Notes (staff only)</label>
@@ -489,57 +598,29 @@ function CreditFundingAdminContent() {
                     Save Notes &amp; Assignment
                   </button>
 
-                  <div className="mb-5 p-4 bg-neutral-50 rounded-lg border border-brand-border">
-                    <h4 className="text-sm font-bold mb-2">Request Document</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
-                      <select className={inputClass} value={docReqType} onChange={(e) => {
-                        setDocReqType(e.target.value)
-                        setDocReqLabel(DOC_LABELS_MAP[e.target.value] || e.target.value)
-                      }}>
-                        <option value="">Select document type</option>
-                        {DOCUMENT_TYPES.map((t) => (
-                          <option key={t} value={t}>{DOC_LABELS_MAP[t]}</option>
-                        ))}
-                      </select>
-                      <input className={inputClass} placeholder="Label" value={docReqLabel} onChange={(e) => setDocReqLabel(e.target.value)} />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={!docReqType || !docReqLabel || saving}
-                      onClick={() => {
-                        patchApplication({ document_request: { document_type: docReqType, label: docReqLabel } })
-                        setDocReqType('')
-                        setDocReqLabel('')
-                      }}
-                      className="text-xs font-semibold text-accent hover:underline disabled:opacity-50"
-                    >
-                      Send document request
-                    </button>
-                    {docRequests.length > 0 && (
-                      <ul className="mt-3 space-y-1 text-xs text-brand-muted">
-                        {docRequests.map((d) => (
-                          <li key={d.id}>{d.label} — {d.status}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  {!showDocRequestPanel && (
+                    <details className="mb-5 group">
+                      <summary className="text-sm font-bold cursor-pointer hover:text-accent list-none flex items-center gap-1">
+                        <span className="group-open:rotate-90 transition-transform inline-block text-brand-dim">›</span>
+                        Request document from client
+                      </summary>
+                      <div className="mt-3">{renderDocRequestPanel()}</div>
+                    </details>
+                  )}
 
-                  <h3 className="text-sm font-bold mb-2">Uploaded Documents</h3>
-                  {documents.length === 0 ? (
-                    <p className="text-sm text-brand-dim">No documents.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {documents.map((doc) => (
-                        <div key={doc.id} className="flex justify-between p-3 bg-neutral-50 rounded-lg text-sm">
-                          <div>
-                            <p className="font-medium">{DOC_LABELS_MAP[doc.document_type] || doc.document_type}</p>
-                            <p className="text-xs text-brand-dim">{doc.file_name}</p>
-                          </div>
-                          {doc.signedUrl && (
-                            <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent">View</a>
-                          )}
-                        </div>
-                      ))}
+                  {!showDocumentsProminent && (
+                    <details className="mb-5 group" open={documents.length > 0}>
+                      <summary className="text-sm font-bold cursor-pointer hover:text-accent list-none flex items-center gap-1">
+                        <span className="group-open:rotate-90 transition-transform inline-block text-brand-dim">›</span>
+                        Uploaded documents ({documents.length})
+                      </summary>
+                      <div className="mt-3">{renderDocumentList()}</div>
+                    </details>
+                  )}
+
+                  {showDocumentsProminent && showDocRequestPanel && (
+                    <div className="mb-5 p-4 bg-neutral-50 rounded-xl border border-brand-border">
+                      {renderDocumentList()}
                     </div>
                   )}
                 </>
