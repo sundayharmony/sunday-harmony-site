@@ -4,8 +4,23 @@ import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import FileUploadField from '@/components/credit-funding/FileUploadField'
 import CreditFundingStatusTracker from '@/components/credit-funding/CreditFundingStatusTracker'
+import DocumentPreviewModal, {
+  isPreviewableDocument,
+  type PreviewDocument,
+} from '@/components/credit-funding/DocumentPreviewModal'
+import DocumentPreviewActions from '@/components/credit-funding/DocumentPreviewActions'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { type ApplicationStatus } from '@/lib/credit-funding-types'
+
+interface PortalDocument {
+  id: string
+  label?: string
+  file_name: string
+  signedUrl?: string
+  mime_type?: string
+  file_type?: string
+  created_at?: string
+}
 
 interface ApplicationData {
   id: string
@@ -40,6 +55,8 @@ interface MessageAttachment {
   id: string
   file_name: string
   signedUrl?: string
+  mime_type?: string
+  file_type?: string
 }
 
 interface Message {
@@ -55,8 +72,8 @@ export default function ClientCreditFundingPage() {
   const [data, setData] = useState<{
     application: ApplicationData
     history: { status: ApplicationStatus; created_at: string; notes?: string }[]
-    documents: { id: string; label: string; file_name: string; signedUrl?: string }[]
-    teamDocuments: { id: string; label: string; file_name: string; signedUrl?: string; created_at: string }[]
+    documents: PortalDocument[]
+    teamDocuments: PortalDocument[]
     docRequests: DocRequest[]
     messages: Message[]
   } | null>(null)
@@ -65,6 +82,7 @@ export default function ClientCreditFundingPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<PreviewDocument | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
@@ -158,6 +176,7 @@ export default function ClientCreditFundingPage() {
 
   return (
     <div className="max-w-4xl">
+      <DocumentPreviewModal document={previewDoc} onClose={() => setPreviewDoc(null)} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding</h1>
         <p className="text-sm text-brand-muted mt-1">Track your application status and communicate with our team</p>
@@ -271,17 +290,41 @@ export default function ClientCreditFundingPage() {
           <h3 className="text-sm font-bold text-brand-text mb-3">Documents from Your Specialist</h3>
           <div className="space-y-2">
             {teamDocuments.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 bg-accent-soft/20 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium">{doc.file_name}</p>
-                  <p className="text-xs text-brand-dim">
-                    Shared {new Date(doc.created_at).toLocaleString()}
-                  </p>
+              <div key={doc.id} className="p-3 bg-accent-soft/20 rounded-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{doc.file_name}</p>
+                    <p className="text-xs text-brand-dim">
+                      Shared {doc.created_at ? new Date(doc.created_at).toLocaleString() : ''}
+                    </p>
+                  </div>
+                  <DocumentPreviewActions
+                    fileName={doc.file_name}
+                    signedUrl={doc.signedUrl}
+                    mimeType={doc.mime_type}
+                    fileType={doc.file_type}
+                    onPreview={setPreviewDoc}
+                  />
                 </div>
-                {doc.signedUrl && (
-                  <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">
-                    Download
-                  </a>
+                {doc.signedUrl && isPreviewableDocument(doc) && doc.mime_type?.startsWith('image/') && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewDoc({
+                        title: doc.file_name,
+                        url: doc.signedUrl!,
+                        mimeType: doc.mime_type,
+                        fileType: doc.file_type,
+                      })
+                    }
+                    className="mt-3 block w-full max-w-xs"
+                  >
+                    <img
+                      src={doc.signedUrl}
+                      alt={doc.file_name}
+                      className="rounded-lg border border-brand-border max-h-40 object-cover w-full hover:opacity-90 transition-opacity"
+                    />
+                  </button>
                 )}
               </div>
             ))}
@@ -296,16 +339,20 @@ export default function ClientCreditFundingPage() {
         ) : (
           <div className="space-y-2">
             {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg">
-                <div>
+              <div key={doc.id} className="flex items-center justify-between p-3 bg-neutral-50 rounded-lg gap-3">
+                <div className="min-w-0">
                   <p className="text-sm font-medium">{doc.label}</p>
-                  <p className="text-xs text-brand-dim">{doc.file_name}</p>
+                  <p className="text-xs text-brand-dim truncate">{doc.file_name}</p>
                 </div>
-                {doc.signedUrl && (
-                  <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">
-                    View
-                  </a>
-                )}
+                <DocumentPreviewActions
+                  fileName={doc.file_name}
+                  signedUrl={doc.signedUrl}
+                  mimeType={doc.mime_type}
+                  fileType={doc.file_type}
+                  onPreview={setPreviewDoc}
+                  previewLabel="View"
+                  downloadLabel="Download"
+                />
               </div>
             ))}
           </div>
@@ -330,22 +377,42 @@ export default function ClientCreditFundingPage() {
                 </p>
                 <p className="text-brand-muted whitespace-pre-wrap">{m.text}</p>
                 {m.attachments && m.attachments.length > 0 && (
-                  <div className="mt-2 space-y-1">
+                  <div className="mt-2 space-y-2">
                     {m.attachments.map((attachment) => (
-                      <div key={attachment.id} className="flex items-center justify-between gap-2 p-2 bg-white/70 rounded-lg border border-brand-border/60">
-                        <span className="text-xs font-medium text-brand-text truncate">{attachment.file_name}</span>
-                        {attachment.signedUrl ? (
-                          <a
-                            href={attachment.signedUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-semibold text-accent hover:underline shrink-0"
-                          >
-                            Download
-                          </a>
-                        ) : (
-                          <span className="text-xs text-brand-dim shrink-0">Unavailable</span>
-                        )}
+                      <div key={attachment.id} className="p-2 bg-white/70 rounded-lg border border-brand-border/60">
+                        {attachment.signedUrl &&
+                          isPreviewableDocument(attachment) &&
+                          (attachment.mime_type?.startsWith('image/') ||
+                            ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(attachment.file_type || '')) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewDoc({
+                                  title: attachment.file_name,
+                                  url: attachment.signedUrl!,
+                                  mimeType: attachment.mime_type,
+                                  fileType: attachment.file_type,
+                                })
+                              }
+                              className="mb-2 block w-full max-w-xs"
+                            >
+                              <img
+                                src={attachment.signedUrl}
+                                alt={attachment.file_name}
+                                className="rounded-lg border border-brand-border max-h-36 object-cover w-full hover:opacity-90 transition-opacity"
+                              />
+                            </button>
+                          )}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-medium text-brand-text truncate">{attachment.file_name}</span>
+                          <DocumentPreviewActions
+                            fileName={attachment.file_name}
+                            signedUrl={attachment.signedUrl}
+                            mimeType={attachment.mime_type}
+                            fileType={attachment.file_type}
+                            onPreview={setPreviewDoc}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -63,6 +63,8 @@ export async function GET() {
         shared_by: doc.shared_by || (isStaffSharedDocument(doc) ? 'admin' : 'applicant'),
         message_id: doc.message_id || null,
         storage_path: doc.storage_path,
+        mime_type: doc.mime_type,
+        file_type: doc.file_type,
         label: documentDisplayLabel(doc.document_type),
         created_at: doc.created_at,
         signedUrl: (await getCreditFundingDocumentSignedUrl(doc.storage_path)) || undefined,
@@ -74,13 +76,21 @@ export async function GET() {
 
     const messagesWithAttachments = messages.map((message) => ({
       ...message,
-      attachments: teamDocuments.filter(
-        (doc) =>
-          doc.message_id === message.id ||
-          (message.from_role === 'admin' &&
-            message.text.includes('Attached:') &&
-            message.text.includes(doc.file_name))
-      ),
+      attachments: teamDocuments
+        .filter(
+          (doc) =>
+            doc.message_id === message.id ||
+            (message.from_role === 'admin' &&
+              message.text.includes('Attached:') &&
+              message.text.includes(doc.file_name))
+        )
+        .map((doc) => ({
+          id: doc.id,
+          file_name: doc.file_name,
+          signedUrl: doc.signedUrl,
+          mime_type: doc.mime_type,
+          file_type: doc.file_type,
+        })),
     }))
 
     return NextResponse.json({

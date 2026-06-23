@@ -105,6 +105,7 @@ export async function applyWorkflowStatusUpdate(
   if (!result) return null
 
   const attachmentNames: string[] = []
+  const emailAttachments: Array<{ fileName: string; mimeType: string; buffer: Buffer }> = []
   const uploadedRecords: Array<{
     displayName: string
     file_type: string
@@ -125,6 +126,11 @@ export async function applyWorkflowStatusUpdate(
     if (!uploaded.ok) continue
     attachmentNames.push(uploaded.data.displayName)
     uploadedRecords.push(uploaded.data)
+    emailAttachments.push({
+      fileName: uploaded.data.displayName,
+      mimeType: uploaded.data.mime_type,
+      buffer: file.buffer,
+    })
   }
 
   const hasClientContent = Boolean(statusNotes?.trim()) || attachmentNames.length > 0
@@ -178,6 +184,7 @@ export async function applyWorkflowStatusUpdate(
       statusLabel,
       statusNotes: statusNotes?.trim() || undefined,
       attachmentNames,
+      attachments: emailAttachments,
     }
 
     try {
