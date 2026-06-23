@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import BrandLogo from '@/components/BrandLogo'
 
 const navItems = [
   { href: '/admin', icon: '\u{1F4CA}', label: 'Overview' },
@@ -94,9 +95,7 @@ export default function AdminSidebar({
         {/* Logo + collapse */}
         <div className="p-5 pb-4 border-b border-brand-border flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <Link href="/admin" className="font-serif text-lg font-extrabold text-brand-text">
-              Sunday <span className="text-accent">Harmony</span>
-            </Link>
+            <BrandLogo href="/admin" height={32} />
             <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Admin Dashboard</div>
           </div>
           {onToggleSidebar && (

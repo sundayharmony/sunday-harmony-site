@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import BrandLogo from '@/components/BrandLogo'
 import { useState, FormEvent, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -52,9 +53,9 @@ function LoginForm() {
     <div className="w-full max-w-md">
       {/* Logo */}
       <div className="text-center mb-10">
-        <Link href="/" className="font-serif text-3xl font-extrabold text-brand-text">
-          Sunday <span className="text-accent">Harmony</span>
-        </Link>
+        <div className="flex justify-center">
+          <BrandLogo height={48} />
+        </div>
         <p className="text-sm text-brand-muted mt-2">Sign in to your dashboard</p>
       </div>
 
@@ -120,8 +121,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
       <Suspense fallback={
         <div className="w-full max-w-md text-center">
-          <div className="font-serif text-3xl font-extrabold text-brand-text">
-            Sunday <span className="text-accent">Harmony</span>
+          <div className="flex justify-center">
+            <BrandLogo height={48} href={null} />
           </div>
           <p className="text-sm text-brand-muted mt-2">Loading...</p>
         </div>

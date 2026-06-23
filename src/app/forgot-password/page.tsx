@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import BrandLogo from '@/components/BrandLogo'
 import { useState, FormEvent } from 'react'
 
 export default function ForgotPasswordPage() {
@@ -36,9 +37,9 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
-          <Link href="/" className="font-serif text-3xl font-extrabold text-brand-text">
-            Sunday <span className="text-accent">Harmony</span>
-          </Link>
+          <div className="flex justify-center">
+            <BrandLogo height={48} />
+          </div>
           <p className="text-sm text-brand-muted mt-2">Reset your password</p>
         </div>
 

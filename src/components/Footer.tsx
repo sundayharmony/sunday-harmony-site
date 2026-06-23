@@ -1,11 +1,12 @@
+import Link from 'next/link'
+import BrandLogo from '@/components/BrandLogo'
+
 export default function Footer() {
   return (
     <footer className="py-12 pb-8 border-t border-brand-border bg-brand-bg-soft">
       <div className="max-w-[1100px] mx-auto px-7">
         <div className="flex justify-between items-center flex-wrap gap-5">
-          <div className="font-serif text-lg font-bold text-brand-text">
-            Sunday <span className="text-accent">Harmony</span>
-          </div>
+          <BrandLogo height={34} href="/" />
           <div className="flex gap-7 flex-wrap">
             {[
               { label: 'Services', href: '/#services' },
@@ -22,12 +23,12 @@ export default function Footer() {
                 {link.label}
               </a>
             ))}
-            <a href="/credit-funding/privacy" className="text-[13px] text-brand-dim hover:text-brand-text transition-colors">
+            <Link href="/credit-funding/privacy" className="text-[13px] text-brand-dim hover:text-brand-text transition-colors">
               Privacy Policy
-            </a>
-            <a href="/credit-funding" className="text-[13px] text-brand-dim hover:text-brand-text transition-colors">
+            </Link>
+            <Link href="/credit-funding" className="text-[13px] text-brand-dim hover:text-brand-text transition-colors">
               Credit &amp; Funding
-            </a>
+            </Link>
           </div>
         </div>
         <div className="text-center mt-8 pt-6 border-t border-brand-border text-xs text-brand-dim">

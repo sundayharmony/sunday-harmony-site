@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import NotificationBell from '@/components/ui/NotificationBell'
+import BrandLogo from '@/components/BrandLogo'
 
 const navItems = [
   { href: '/dashboard', icon: '◈', label: 'Home' },
@@ -59,9 +60,7 @@ export default function ClientSidebar() {
       }`}>
         <div className="p-5 pb-4 border-b border-brand-border overflow-visible">
           <div className="flex items-center justify-between">
-            <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
-              Sunday <span className="text-accent">Harmony</span>
-            </Link>
+            <BrandLogo href="/dashboard" height={32} />
             <div className="hidden md:block">
               <NotificationBell align="start" />
             </div>

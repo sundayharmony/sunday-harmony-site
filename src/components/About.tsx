@@ -1,4 +1,5 @@
 import { aboutValues, team } from '@/lib/data'
+import BrandLogo from '@/components/BrandLogo'
 
 export default function About() {
   return (
@@ -36,13 +37,8 @@ export default function About() {
 
             <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
               <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-10">
-                <div className="font-serif text-[80px] font-extrabold accent-text mb-4 leading-none">
-                  SH
-                </div>
-                <div className="text-[13px] font-bold tracking-[0.2em] uppercase text-brand-dim">
-                  Sunday Harmony
-                </div>
-                <div className="text-xs text-brand-dim mt-2 tracking-[0.1em]">
+                <BrandLogo height={120} href={null} />
+                <div className="text-xs text-brand-dim mt-6 tracking-[0.1em]">
                   EST. 2023 &bull; New Jersey
                 </div>
               </div>

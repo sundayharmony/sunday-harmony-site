@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import BrandLogo from '@/components/BrandLogo'
 import { useState, useEffect, FormEvent, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
@@ -70,8 +71,8 @@ function ResetPasswordForm() {
   if (success) {
     return (
       <div className="w-full max-w-md text-center">
-        <div className="font-serif text-3xl font-extrabold text-brand-text mb-4">
-          Sunday <span className="text-accent">Harmony</span>
+        <div className="flex justify-center mb-4">
+          <BrandLogo height={48} href={null} />
         </div>
         <div className="bg-green-50 border border-green-200 rounded-xl p-6">
           <p className="text-sm text-brand-green font-semibold mb-2">Password Reset Successful</p>
@@ -87,9 +88,9 @@ function ResetPasswordForm() {
   return (
     <div className="w-full max-w-md">
       <div className="text-center mb-10">
-        <Link href="/" className="font-serif text-3xl font-extrabold text-brand-text">
-          Sunday <span className="text-accent">Harmony</span>
-        </Link>
+        <div className="flex justify-center">
+          <BrandLogo height={48} />
+        </div>
         <p className="text-sm text-brand-muted mt-2">Enter your code and new password</p>
       </div>
 
