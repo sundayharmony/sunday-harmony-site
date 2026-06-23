@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
 
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),
-      subject: sanitizeEmailSubjectPart(`New Credit & Funding Application: ${application.application_id}`, 200),
+      subject: sanitizeEmailSubjectPart(`New Credit & Funding Application — ${payload.fullName}`, 200),
       html: staffPortalEmailHtml({
         heading: 'New Credit & Funding Application',
         bodyParagraphs: [

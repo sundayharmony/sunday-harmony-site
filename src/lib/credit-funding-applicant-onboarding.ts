@@ -95,7 +95,7 @@ export async function sendCreditFundingSubmissionEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Application Received — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart('Application Received — Credit & Funding', 200),
     html: `
       <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
         <h2 style="color:#b8943f;border-bottom:2px solid #b8943f;padding-bottom:10px">
@@ -130,7 +130,7 @@ export async function sendCreditFundingStatusUpdateEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Application Update — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart(`Application Update — ${params.statusLabel}`, 200),
     html: clientDashboardAlertEmailHtml({
       heading: 'Application Status Update',
       firstName: 'there',
@@ -167,7 +167,7 @@ export async function sendCreditFundingDocumentRequestEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Document Requested — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart(`Document Requested — ${params.label}`, 200),
     html: clientDashboardAlertEmailHtml({
       heading: 'Document Requested',
       firstName: 'there',
@@ -191,7 +191,7 @@ export async function sendCreditFundingAdminMessageEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Message from Sunday Harmony — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart('Message from Sunday Harmony', 200),
     html: `
       <div style="font-family:'Montserrat',Arial,sans-serif;max-width:600px">
         <h2 style="color:#b8943f">New Message</h2>

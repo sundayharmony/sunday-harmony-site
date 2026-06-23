@@ -72,7 +72,10 @@ export async function POST(req: NextRequest) {
 
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),
-      subject: sanitizeEmailSubjectPart(`Credit Funding message: ${application.application_id}`, 200),
+      subject: sanitizeEmailSubjectPart(
+        `Credit Funding message — ${session.user.name || application.full_name}`,
+        200
+      ),
       html: `
         <p><strong>From:</strong> ${escHtml(session.user.name || application.full_name)} (${escHtml(application.application_id)})</p>
         <div style="padding:12px;background:#f8f6f0;border-radius:8px;margin:12px 0">
