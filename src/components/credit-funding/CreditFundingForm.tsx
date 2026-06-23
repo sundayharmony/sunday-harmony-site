@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
+import SsnInputField from '@/components/credit-funding/SsnInputField'
 import { useStagedDocumentUploads } from '@/components/credit-funding/useStagedDocumentUploads'
 import BusinessInfoSection from '@/components/credit-funding/BusinessInfoSection'
 import Link from 'next/link'
@@ -20,6 +21,7 @@ import {
   IDENTITY_DOCUMENTS,
   BUSINESS_DOCUMENTS,
 } from '@/lib/credit-funding-document-steps'
+import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
   | 'personal'
@@ -61,6 +63,7 @@ const labelClass = 'block text-xs font-semibold text-brand-muted mb-1.5 tracking
 interface FormState {
   fullName: string
   dateOfBirth: string
+  ssn: string
   email: string
   phone: string
   address: string
@@ -100,6 +103,7 @@ function validateBusinessFields(bp: BusinessProfile, errors: Record<string, stri
 const initialState: FormState = {
   fullName: '',
   dateOfBirth: '',
+  ssn: '',
   email: '',
   phone: '',
   address: '',
@@ -217,6 +221,7 @@ export default function CreditFundingForm() {
     if (stepId === 'personal') {
       if (!form.fullName.trim()) e.fullName = 'Required'
       if (!form.dateOfBirth) e.dateOfBirth = 'Required'
+      if (!isValidSsn(form.ssn)) e.ssn = 'Enter a valid 9-digit Social Security Number'
       if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required'
       if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 10) e.phone = 'Valid phone required'
       if (!form.address.trim()) e.address = 'Required'
@@ -300,6 +305,7 @@ export default function CreditFundingForm() {
       const fd = new FormData()
       fd.append('fullName', form.fullName)
       fd.append('dateOfBirth', form.dateOfBirth)
+      fd.append('ssn', form.ssn)
       fd.append('email', form.email)
       fd.append('phone', form.phone)
       fd.append('address', form.address)
@@ -421,9 +427,19 @@ export default function CreditFundingForm() {
               {errors.fullName && <p className="text-xs text-brand-red mt-1">{errors.fullName}</p>}
             </div>
             <div>
-              <label className={labelClass}>Date of Birth *</label>
-              <input type="date" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
+              <label className={labelClass} htmlFor="dateOfBirth">Date of Birth *</label>
+              <input id="dateOfBirth" type="date" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
               {errors.dateOfBirth && <p className="text-xs text-brand-red mt-1">{errors.dateOfBirth}</p>}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="ssn">Social Security Number *</label>
+              <SsnInputField
+                id="ssn"
+                className={inputClass}
+                value={form.ssn}
+                onChange={(digits) => update('ssn', digits)}
+                error={errors.ssn}
+              />
             </div>
             <div>
               <label className={labelClass}>Email Address *</label>

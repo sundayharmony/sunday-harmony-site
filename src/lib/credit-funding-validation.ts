@@ -9,6 +9,7 @@ import {
   type CreditProfile,
   type ConsentData,
 } from '@/lib/credit-funding-types'
+import { isValidSsn, normalizeSsnDigits } from '@/lib/ssn-utils'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const US_STATE_RE = /^[A-Z]{2}$/i
@@ -17,6 +18,7 @@ const ZIP_RE = /^\d{5}(-\d{4})?$/
 export interface IntakeFormPayload {
   fullName: string
   dateOfBirth: string
+  ssn: string
   email: string
   phone: string
   address: string
@@ -108,6 +110,7 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
   return {
     fullName: str(raw.fullName, 200),
     dateOfBirth: str(raw.dateOfBirth, 20),
+    ssn: normalizeSsnDigits(str(raw.ssn, 11)),
     email: str(raw.email, 254).toLowerCase(),
     phone: str(raw.phone, 30),
     address: str(raw.address, 300),
@@ -136,6 +139,7 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
 export function validateIntakePayload(payload: IntakeFormPayload): string | null {
   if (!payload.fullName) return 'Full legal name is required'
   if (!payload.dateOfBirth) return 'Date of birth is required'
+  if (!isValidSsn(payload.ssn)) return 'Valid 9-digit Social Security Number is required'
   if (!payload.email || !EMAIL_RE.test(payload.email)) return 'Valid email address is required'
   if (!payload.phone || payload.phone.replace(/\D/g, '').length < 10) return 'Valid phone number is required'
   if (!payload.address) return 'Home address is required'

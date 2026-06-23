@@ -95,6 +95,7 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
   return {
     full_name: payload.fullName,
     date_of_birth_encrypted: encryptField(payload.dateOfBirth),
+    ssn_encrypted: encryptField(payload.ssn),
     email: payload.email,
     phone: encryptField(payload.phone),
     address: encryptField(payload.address),
@@ -131,6 +132,7 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     state: decryptFieldOrLegacy(app.state),
     zip_code: decryptFieldOrLegacy(app.zip_code),
     date_of_birth: decryptField(app.date_of_birth_encrypted || ''),
+    ssn: decryptField(app.ssn_encrypted || ''),
     provider_username: decryptField(app.provider_username_encrypted || ''),
     provider_password: decryptField(app.provider_password_encrypted || ''),
     primary_credit_goals_text: app.primary_credit_goals_text
@@ -143,6 +145,7 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
       ? deserializeBusinessProfileForAdmin(app.business_profile as Record<string, unknown>)
       : app.business_profile,
     date_of_birth_encrypted: undefined,
+    ssn_encrypted: undefined,
     provider_username_encrypted: undefined,
     provider_password_encrypted: undefined,
   }

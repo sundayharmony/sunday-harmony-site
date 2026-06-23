@@ -275,6 +275,7 @@ export interface CreditFundingApplication {
   application_id: string
   full_name: string
   date_of_birth_encrypted?: string
+  ssn_encrypted?: string
   email: string
   phone: string
   address: string

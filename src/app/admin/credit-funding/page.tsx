@@ -14,6 +14,7 @@ import {
   type ApplicationStatus,
   type FundingScores,
 } from '@/lib/credit-funding-types'
+import { formatSsnFull } from '@/lib/ssn-utils'
 
 interface ApplicationListItem {
   id: string
@@ -39,6 +40,7 @@ interface ApplicationDetail {
   state: string
   zip_code: string
   date_of_birth?: string
+  ssn?: string
   credit_goals: string[]
   funding_goals: string
   selected_credit_provider: string
@@ -733,6 +735,7 @@ function CreditFundingAdminContent() {
                       ['Email', selected.email],
                       ['Phone', selected.phone],
                       ['Date of Birth', selected.date_of_birth],
+                      ['Social Security Number', selected.ssn ? formatSsnFull(selected.ssn.replace(/\D/g, '')) : undefined],
                       ['Address', `${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`],
                       ['Service Type', selected.service_type?.replace(/_/g, ' ')],
                       ['Funding Summary', selected.funding_goals],
@@ -824,6 +827,10 @@ function CreditFundingAdminContent() {
                   <DetailSection title="Personal Information">
                     <DetailField label="Full Name" value={selected.full_name} />
                     <DetailField label="Date of Birth" value={selected.date_of_birth} />
+                    <DetailField
+                      label="Social Security Number"
+                      value={selected.ssn ? formatSsnFull(selected.ssn.replace(/\D/g, '')) : undefined}
+                    />
                     <DetailField label="Email" value={selected.email} />
                     <DetailField label="Phone" value={selected.phone} />
                     <DetailField label="Address" value={`${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`} />
