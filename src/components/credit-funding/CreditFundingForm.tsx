@@ -438,12 +438,12 @@ export default function CreditFundingForm() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
               <label className={labelClass} htmlFor={fid('fullName')}>Full Legal Name *</label>
-              <input id={fid('fullName')} name="fullName" className={inputClass} value={form.fullName} onChange={(e) => update('fullName', e.target.value)} />
+              <input id={fid('fullName')} name="fullName" autoComplete="name" className={inputClass} value={form.fullName} onChange={(e) => update('fullName', e.target.value)} />
               {errors.fullName && <p className="text-xs text-brand-red mt-1">{errors.fullName}</p>}
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('dateOfBirth')}>Date of Birth *</label>
-              <input id={fid('dateOfBirth')} name="dateOfBirth" type="date" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
+              <input id={fid('dateOfBirth')} name="dateOfBirth" type="date" autoComplete="bday" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
               {errors.dateOfBirth && <p className="text-xs text-brand-red mt-1">{errors.dateOfBirth}</p>}
             </div>
             <div>
@@ -463,6 +463,7 @@ export default function CreditFundingForm() {
                 id={fid('email')}
                 name="email"
                 type="email"
+                autoComplete="email"
                 className={`${inputClass}${inviteEmailLocked ? ' bg-neutral-100 cursor-not-allowed' : ''}`}
                 value={form.email}
                 readOnly={inviteEmailLocked}
@@ -475,27 +476,27 @@ export default function CreditFundingForm() {
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('phone')}>Phone Number *</label>
-              <input id={fid('phone')} name="phone" type="tel" className={inputClass} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+              <input id={fid('phone')} name="phone" type="tel" autoComplete="tel" className={inputClass} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
               {errors.phone && <p className="text-xs text-brand-red mt-1">{errors.phone}</p>}
             </div>
             <div className="sm:col-span-2">
               <label className={labelClass} htmlFor={fid('address')}>Home Address *</label>
-              <input id={fid('address')} name="address" className={inputClass} value={form.address} onChange={(e) => update('address', e.target.value)} />
+              <input id={fid('address')} name="address" autoComplete="street-address" className={inputClass} value={form.address} onChange={(e) => update('address', e.target.value)} />
               {errors.address && <p className="text-xs text-brand-red mt-1">{errors.address}</p>}
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('city')}>City *</label>
-              <input id={fid('city')} name="city" className={inputClass} value={form.city} onChange={(e) => update('city', e.target.value)} />
+              <input id={fid('city')} name="city" autoComplete="address-level2" className={inputClass} value={form.city} onChange={(e) => update('city', e.target.value)} />
               {errors.city && <p className="text-xs text-brand-red mt-1">{errors.city}</p>}
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('state')}>State *</label>
-              <input id={fid('state')} name="state" className={inputClass} maxLength={2} placeholder="NJ" value={form.state} onChange={(e) => update('state', e.target.value.toUpperCase())} />
+              <input id={fid('state')} name="state" autoComplete="address-level1" className={inputClass} maxLength={2} placeholder="NJ" value={form.state} onChange={(e) => update('state', e.target.value.toUpperCase())} />
               {errors.state && <p className="text-xs text-brand-red mt-1">{errors.state}</p>}
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('zipCode')}>ZIP Code *</label>
-              <input id={fid('zipCode')} name="zipCode" className={inputClass} value={form.zipCode} onChange={(e) => update('zipCode', e.target.value)} />
+              <input id={fid('zipCode')} name="zipCode" autoComplete="postal-code" className={inputClass} value={form.zipCode} onChange={(e) => update('zipCode', e.target.value)} />
               {errors.zipCode && <p className="text-xs text-brand-red mt-1">{errors.zipCode}</p>}
             </div>
           </div>
