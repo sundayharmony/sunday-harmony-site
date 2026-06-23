@@ -87,7 +87,7 @@ Includes: CRM, credit-funding (+ workflow, export), clients, leads, files, tasks
 |----|---------|----------|
 | S-L1 | No CSRF tokens (mitigated by SameSite cookies) | All cookie-auth POSTs |
 | S-L2 | Admin can call `/api/dashboard/activity` without `requireAdminSession` | `dashboard/activity/route.ts` |
-| S-L3 | CSP allows `unsafe-inline` / `unsafe-eval` | `next.config.js` | **Partial fix:** removed `unsafe-eval` from enforced CSP; report-only header added |
+| S-L3 | CSP allows `unsafe-inline` / `unsafe-eval` | `next.config.js` | **Accepted:** `'unsafe-eval'` required for Next.js webpack; `report-uri /api/csp-report` added for monitoring |
 | S-L4 | No 2FA for admin | `auth.ts` |
 | S-L5 | PBKDF2 10k iterations (not Argon2) | `db.ts` |
 | S-L6 | Dev encryption key fallback when env unset | `field-encryption.ts` |
@@ -113,13 +113,28 @@ Production CSP **matches repo config** — no header drift detected.
 
 ### CSP eval Chrome issue
 
-Chrome DevTools “CSP blocks eval” on this page indicates a script attempted `eval()` / `new Function()` while a stricter effective policy blocked it, **or** Chrome is flagging eval usage under monitoring. Likely sources on public pages:
+**Re-assessed:** 2026-06-23 (homepage + production headers)
 
-- Next.js client hydration chunks (framework)
-- `@vercel/analytics` (`va.vercel-scripts.com`) — loaded from [`layout.tsx`](../src/app/layout.tsx)
-- `@vercel/speed-insights` (connect-only; unlikely eval)
+Production CSP on `sundayharmony.com` **includes `'unsafe-eval'`** in `script-src` (commit `ef55e57`). Live header matches [`next.config.js`](../next.config.js). The site renders and functions normally; the DevTools Issues warning is **non-breaking**.
 
-**Remediation:** Remove `'unsafe-eval'` from enforced CSP; add `Content-Security-Policy-Report-Only` without `'unsafe-eval'` to catch violations before enforcement. Stripe (`js.stripe.com`) only loads on billing routes.
+| Check | Result |
+|-------|--------|
+| Live `Content-Security-Policy` | Contains `'unsafe-eval'` |
+| `webpack-*.js` chunk | Uses `Function("return this")()` — requires `'unsafe-eval'` |
+| `@vercel/analytics` | Loaded from `va.vercel-scripts.com` (allowlisted) |
+| Site functionality | OK — user confirmed only DevTools Issues shows the warning |
+
+**Why DevTools still shows “CSP blocks eval” when the site works:**
+
+1. **Browser extensions** (React/Redux DevTools, ad blockers, password managers) inject scripts outside `script-src`; their `eval()` / `new Function()` calls are blocked even when the page policy allows `'unsafe-eval'` for first-party scripts. Expand Issues → Affected Resources; if `blocked-uri` starts with `chrome-extension://`, no site fix is needed.
+2. **Stale Issues panel** — violations from before the `ef55e57` deploy can persist until DevTools Issues is cleared and the page is hard-refreshed (Ctrl+Shift+R).
+3. **Verify in Incognito** with extensions disabled; if the issue disappears, it is extension noise.
+
+**Accepted tradeoff:** `'unsafe-eval'` is required for Next.js 15 webpack client chunks. Removing it (as in `b33ab1c`) re-breaks the client bundle and restores real eval blocks.
+
+**Monitoring:** Enforced CSP includes `report-uri /api/csp-report` ([`src/app/api/csp-report/route.ts`](../src/app/api/csp-report/route.ts)) so future real violations appear in Vercel function logs.
+
+**Do not re-add** a duplicate `Content-Security-Policy-Report-Only` header with `upgrade-insecure-requests` — that caused console noise (fixed in `ef55e57`).
 
 ### Form accessibility (Step 4)
 

@@ -10,7 +10,10 @@ import Link from 'next/link'
 import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
+  EXPERIAN_SIGNUP_URL,
   FUNDING_TIMEFRAMES,
+  creditProviderShowsTrialWarning,
+  getCreditProviderLinkAction,
   getCreditProviderSignupLink,
   requiresBusinessSection,
   type CreditProfile,
@@ -584,39 +587,46 @@ export default function CreditFundingForm() {
               {errors.selectedCreditProvider && <p className="text-xs text-brand-red mt-1">{errors.selectedCreditProvider}</p>}
             </div>
             {form.selectedCreditProvider && (() => {
-              const signupUrl = getCreditProviderSignupLink(form.selectedCreditProvider)
-              if (!signupUrl) return null
+              const providerUrl = getCreditProviderSignupLink(form.selectedCreditProvider)
+              if (!providerUrl) return null
+              const linkAction = getCreditProviderLinkAction(form.selectedCreditProvider)
+              const isLogin = linkAction === 'login'
+              const providerName = form.selectedCreditProvider
               return (
                 <div
                   className="mb-5 p-4 bg-sky-50 border border-sky-200 rounded-xl"
                   role="region"
-                  aria-label={`Sign up with ${form.selectedCreditProvider}`}
+                  aria-label={isLogin ? `Log in to ${providerName}` : `Sign up with ${providerName}`}
                 >
                   <p className="text-sm font-semibold text-brand-text mb-1">
-                    Sign up with {form.selectedCreditProvider} first
+                    {isLogin ? `Log in to ${providerName} first` : `Sign up with ${providerName} first`}
                   </p>
                   <p className="text-sm text-brand-muted mb-3">
-                    Create your account with this provider before entering your login credentials below.
+                    {isLogin
+                      ? 'Access the CFPB consumer portal and sign in before entering your login credentials below.'
+                      : 'Create your account with this provider before entering your login credentials below.'}
                   </p>
                   <a
-                    href={signupUrl}
+                    href={providerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`Sign up at ${form.selectedCreditProvider} (opens in a new tab)`}
+                    aria-label={`${isLogin ? 'Log in' : 'Sign up'} at ${providerName} (opens in a new tab)`}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
                   >
-                    Sign up at {form.selectedCreditProvider}
+                    {isLogin ? `Log in at ${providerName}` : `Sign up at ${providerName}`}
                     <span aria-hidden="true">↗</span>
                   </a>
-                  <div
-                    className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200/90 text-sm text-amber-950"
-                    role="note"
-                  >
-                    <p className="font-semibold text-amber-950">Cancel your trial after signing up</p>
-                    <p className="mt-1 text-amber-900/90 leading-relaxed">
-                      Trial memberships convert to paid plans — often $25.99+ per month. Cancel right after you create your account to avoid recurring charges.
-                    </p>
-                  </div>
+                  {creditProviderShowsTrialWarning(form.selectedCreditProvider) && (
+                    <div
+                      className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200/90 text-sm text-amber-950"
+                      role="note"
+                    >
+                      <p className="font-semibold text-amber-950">Cancel your trial after signing up</p>
+                      <p className="mt-1 text-amber-900/90 leading-relaxed">
+                        Trial memberships convert to paid plans — often $25.99+ per month. Cancel right after you create your account to avoid recurring charges.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -651,6 +661,26 @@ export default function CreditFundingForm() {
                   {errors.providerPassword && <p className="text-xs text-brand-red mt-1">{errors.providerPassword}</p>}
                 </div>
                 <div className="mb-5 pt-4 border-t border-brand-border">
+                  <div
+                    className="mb-4 p-4 bg-sky-50 border border-sky-200 rounded-xl"
+                    role="region"
+                    aria-label="Sign up with Experian.com"
+                  >
+                    <p className="text-sm font-semibold text-brand-text mb-1">Sign up with Experian.com first</p>
+                    <p className="text-sm text-brand-muted mb-3">
+                      Create your free Experian.com account before entering your credentials below.
+                    </p>
+                    <a
+                      href={EXPERIAN_SIGNUP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Sign up at Experian.com (opens in a new tab)"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+                    >
+                      Sign up at Experian.com
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
                   <p className="text-sm font-semibold text-brand-text mb-3">Experian.com credentials</p>
                   <div className="mb-4">
                     <label className={labelClass} htmlFor={fid('experianEmail')}>Experian.com Email *</label>

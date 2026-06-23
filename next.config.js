@@ -20,6 +20,7 @@ function buildContentSecurityPolicy() {
     "base-uri 'self'",
     "form-action 'self'",
     'upgrade-insecure-requests',
+    'report-uri /api/csp-report',
   ].join('; ')
 }
 
