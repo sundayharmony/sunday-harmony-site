@@ -8,6 +8,7 @@ import type {
   CreditFundingStatusHistory,
   DocumentType,
   FundingScores,
+  StorageDocumentType,
   UploadedDocument,
 } from '@/lib/credit-funding-types'
 import { deriveServiceType, deriveLeadTypeFromIntake } from '@/lib/credit-funding-types'
@@ -65,13 +66,16 @@ export async function createCreditFundingApplication(
 
 export async function createUploadedDocument(doc: {
   application_uuid: string
-  document_type: DocumentType
+  document_type: StorageDocumentType
   file_name: string
   file_type: string
   file_size: number
   storage_path: string
   mime_type: string
   scan_status: 'clean' | 'rejected'
+  shared_by?: 'applicant' | 'admin'
+  status_history_id?: string
+  message_id?: string
 }): Promise<UploadedDocument | null> {
   const { data, error } = await getSupabase()
     .from('uploaded_documents')
@@ -203,17 +207,19 @@ export async function updateCreditFundingApplicationStatus(
   id: string,
   status: ApplicationStatus,
   meta?: { staffEmail?: string; notes?: string }
-): Promise<CreditFundingApplication | null> {
+): Promise<{ app: CreditFundingApplication; history: CreditFundingStatusHistory } | null> {
   const updated = await updateCreditFundingApplication(id, { status })
-  if (updated) {
-    await createStatusHistory({
-      application_uuid: id,
-      status,
-      staff_email: meta?.staffEmail || null,
-      notes: meta?.notes || `Status changed to ${status}`,
-    })
-  }
-  return updated
+  if (!updated) return null
+
+  const history = await createStatusHistory({
+    application_uuid: id,
+    status,
+    staff_email: meta?.staffEmail || null,
+    notes: meta?.notes || `Status changed to ${status}`,
+  })
+  if (!history) return null
+
+  return { app: updated, history }
 }
 
 export async function deleteCreditFundingApplication(id: string): Promise<boolean> {

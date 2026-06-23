@@ -121,6 +121,7 @@ export async function sendCreditFundingStatusUpdateEmail(params: {
   applicationId: string
   statusLabel: string
   statusNotes?: string
+  attachmentNames?: string[]
 }): Promise<void> {
   if (!isEmailConfigured()) {
     console.error('Credit funding status email: SMTP not configured')
@@ -136,11 +137,24 @@ export async function sendCreditFundingStatusUpdateEmail(params: {
       bodyParagraphs: [
         `Your Credit & Funding application ${params.applicationId} status is now: ${params.statusLabel}.`,
         ...(params.statusNotes ? [params.statusNotes] : []),
+        ...(params.attachmentNames?.length
+          ? [`Your specialist shared ${params.attachmentNames.length} document${params.attachmentNames.length !== 1 ? 's' : ''}: ${params.attachmentNames.join(', ')}. View and download them in your client portal.`]
+          : []),
       ],
       dashboardPath: '/dashboard/credit-funding',
       buttonLabel: 'View Application Status',
     }),
   })
+}
+
+export async function sendCreditFundingWorkflowUpdateEmail(params: {
+  to: string
+  applicationId: string
+  statusLabel: string
+  statusNotes?: string
+  attachmentNames?: string[]
+}): Promise<void> {
+  await sendCreditFundingStatusUpdateEmail(params)
 }
 
 export async function sendCreditFundingDocumentRequestEmail(params: {

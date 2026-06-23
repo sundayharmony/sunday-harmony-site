@@ -49,6 +49,7 @@ export default function ClientCreditFundingPage() {
     application: ApplicationData
     history: { status: ApplicationStatus; created_at: string; notes?: string }[]
     documents: { id: string; label: string; file_name: string; signedUrl?: string }[]
+    teamDocuments: { id: string; label: string; file_name: string; signedUrl?: string; created_at: string }[]
     docRequests: DocRequest[]
     messages: Message[]
   } | null>(null)
@@ -144,7 +145,7 @@ export default function ClientCreditFundingPage() {
     )
   }
 
-  const { application, history, documents, docRequests, messages } = data
+  const { application, history, documents, teamDocuments, docRequests, messages } = data
   const pendingDocs = docRequests.filter((d) => d.status === 'pending')
   const scores = application.funding_scores
 
@@ -252,6 +253,29 @@ export default function ClientCreditFundingPage() {
                     <p className="text-xs text-brand-dim mt-2">Uploading securely…</p>
                   )}
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {teamDocuments.length > 0 && (
+        <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">
+          <h3 className="text-sm font-bold text-brand-text mb-3">Documents from Your Specialist</h3>
+          <div className="space-y-2">
+            {teamDocuments.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between p-3 bg-accent-soft/20 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">{doc.file_name}</p>
+                  <p className="text-xs text-brand-dim">
+                    Shared {new Date(doc.created_at).toLocaleString()}
+                  </p>
+                </div>
+                {doc.signedUrl && (
+                  <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:underline">
+                    Download
+                  </a>
+                )}
               </div>
             ))}
           </div>

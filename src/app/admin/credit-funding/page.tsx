@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import StatusBadge from '@/components/ui/StatusBadge'
-import AdminApplicationWorkflow from '@/components/credit-funding/AdminApplicationWorkflow'
+import AdminApplicationWorkflow, {
+  type WorkflowStepPayload,
+} from '@/components/credit-funding/AdminApplicationWorkflow'
 import {
   APPLICATION_STATUSES,
   DOCUMENT_LABELS,
@@ -271,9 +273,33 @@ function CreditFundingAdminContent() {
 
   const pendingDocCount = docRequests.filter((d) => d.status === 'pending').length
 
-  const handleStatusChange = (status: ApplicationStatus, notes?: string) => {
-    patchApplication({ status, status_notes: notes || editFields.status_notes })
-    setEditFields((f) => ({ ...f, status_notes: '' }))
+  const handleStatusChange = async (payload: WorkflowStepPayload) => {
+    if (!selected) return
+    setSaving(true)
+    try {
+      const fd = new FormData()
+      fd.append('id', selected.id)
+      fd.append('status', payload.status)
+      fd.append('notify_client', payload.notifyClient ? 'true' : 'false')
+      if (payload.notes) fd.append('status_notes', payload.notes)
+      for (const file of payload.attachments || []) {
+        fd.append('attachments', file)
+      }
+
+      const r = await fetch('/api/admin/credit-funding/workflow', { method: 'POST', body: fd })
+      if (!r.ok) throw new Error('Update failed')
+      const updated = await r.json()
+      setSelected((prev) => (prev ? { ...prev, ...updated } : prev))
+      setApplications((prev) =>
+        prev.map((a) => (a.id === selected.id ? { ...a, ...updated, status: updated.status } : a))
+      )
+      setEditFields((f) => ({ ...f, status_notes: '' }))
+      await loadDetail(selected.id)
+    } catch {
+      setError('Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const showDocRequestPanel =

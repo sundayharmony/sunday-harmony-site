@@ -11,7 +11,7 @@ import {
   getCreditFundingMessages,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
-import { DOCUMENT_LABELS } from '@/lib/credit-funding-types'
+import { documentDisplayLabel } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,11 +57,15 @@ export async function GET() {
         file_name: doc.file_name,
         file_size: doc.file_size,
         scan_status: doc.scan_status,
-        label: DOCUMENT_LABELS[doc.document_type] || doc.document_type,
+        shared_by: doc.shared_by || 'applicant',
+        label: documentDisplayLabel(doc.document_type),
         created_at: doc.created_at,
         signedUrl: (await getCreditFundingDocumentSignedUrl(doc.storage_path)) || undefined,
       }))
     )
+
+    const applicantDocuments = docsWithUrls.filter((d) => d.shared_by !== 'admin')
+    const teamDocuments = docsWithUrls.filter((d) => d.shared_by === 'admin')
 
     return NextResponse.json({
       application: {
@@ -79,7 +83,8 @@ export async function GET() {
         updated_at: application.updated_at,
       },
       history,
-      documents: docsWithUrls,
+      documents: applicantDocuments,
+      teamDocuments,
       docRequests,
       messages,
     })
