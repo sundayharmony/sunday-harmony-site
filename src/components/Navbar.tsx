@@ -64,11 +64,13 @@ export default function Navbar() {
           scrolled ? 'bg-[rgba(255,255,255,0.97)] shadow-sm' : 'bg-[rgba(255,255,255,0.9)]'
         }`}
       >
-        <div className="max-w-[1280px] mx-auto px-5 md:px-6 flex items-center justify-between gap-3 h-[68px] md:h-[72px]">
-          <BrandLogo height={38} priority />
+        <div className="max-w-[1280px] mx-auto px-5 md:px-6 relative flex items-center justify-center h-[68px] md:h-[72px]">
+          <div className="absolute left-5 md:left-6 top-1/2 -translate-y-1/2 z-10">
+            <BrandLogo height={38} priority />
+          </div>
 
-          {/* Desktop Links */}
-          <div className="hidden md:flex flex-nowrap items-center justify-end gap-2 lg:gap-3 xl:gap-4 min-w-0">
+          {/* Desktop Links — centered */}
+          <div className="hidden md:flex flex-nowrap items-center justify-center gap-2 lg:gap-3 xl:gap-4 px-[140px] lg:px-[160px] xl:px-[180px]">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -88,6 +90,9 @@ export default function Navbar() {
             <Link href="/login" className={`${linkClass} hidden lg:inline`}>
               Login
             </Link>
+          </div>
+
+          <div className="absolute right-5 md:right-6 top-1/2 -translate-y-1/2 hidden md:block">
             <Link
               href="/#contact"
               className="shrink-0 px-4 lg:px-5 xl:px-6 py-2 lg:py-2.5 rounded-md bg-brand-text text-white font-semibold text-[11px] lg:text-[12px] xl:text-[13px] hover:bg-neutral-800 transition-all whitespace-nowrap"
@@ -100,7 +105,7 @@ export default function Navbar() {
           <button
             ref={toggleRef}
             type="button"
-            className="md:hidden flex items-center justify-center min-h-[44px] min-w-[44px] p-2 shrink-0"
+            className="md:hidden absolute right-5 top-1/2 -translate-y-1/2 flex items-center justify-center min-h-[44px] min-w-[44px] p-2 shrink-0"
             onClick={toggleMobile}
             aria-label="Menu"
             aria-expanded={mobileOpen}
