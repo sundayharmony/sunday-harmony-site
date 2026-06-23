@@ -53,6 +53,65 @@ export const STATUS_WORKFLOW_ORDER: ApplicationStatus[] = [
   'completed',
 ]
 
+export const TERMINAL_STATUSES: ApplicationStatus[] = ['declined', 'archived', 'completed']
+
+export const STATUS_DESCRIPTIONS: Record<ApplicationStatus, string> = {
+  submitted: 'Application received — review intake and confirm all required documents are on file.',
+  documents_pending: 'Waiting on documents from the applicant — request missing files below.',
+  under_review: 'Team is reviewing the application, credit profile, and uploaded documents.',
+  credit_analysis_complete: 'Credit analysis finished — proceed to funding evaluation when ready.',
+  funding_review: 'Evaluating funding options and preparing recommendations.',
+  additional_information_requested: 'More information or documents needed from the applicant.',
+  approved: 'Application approved — notify client of next steps and funding recommendations.',
+  declined: 'Application was declined — no further action required unless reopening.',
+  completed: 'Application process is complete.',
+  archived: 'Application archived for record-keeping.',
+}
+
+export const STATUS_ACTION_HINTS: Partial<Record<ApplicationStatus, string>> = {
+  submitted: 'Request documents',
+  documents_pending: 'Begin review',
+  under_review: 'Mark credit analysis complete',
+  credit_analysis_complete: 'Start funding review',
+  funding_review: 'Request additional info',
+  additional_information_requested: 'Return to review',
+  approved: 'Mark completed',
+}
+
+export function isTerminalStatus(status: ApplicationStatus): boolean {
+  return TERMINAL_STATUSES.includes(status)
+}
+
+export function isInWorkflow(status: ApplicationStatus): boolean {
+  return STATUS_WORKFLOW_ORDER.includes(status)
+}
+
+export function getWorkflowIndex(status: ApplicationStatus): number {
+  return STATUS_WORKFLOW_ORDER.indexOf(status)
+}
+
+export function getNextWorkflowStatus(status: ApplicationStatus): ApplicationStatus | null {
+  if (isTerminalStatus(status)) return null
+  const idx = getWorkflowIndex(status)
+  if (idx < 0) return STATUS_WORKFLOW_ORDER[0] ?? null
+  if (idx >= STATUS_WORKFLOW_ORDER.length - 1) return null
+  return STATUS_WORKFLOW_ORDER[idx + 1]
+}
+
+export function getPreviousWorkflowStatus(status: ApplicationStatus): ApplicationStatus | null {
+  if (isTerminalStatus(status)) return null
+  const idx = getWorkflowIndex(status)
+  if (idx <= 0) return null
+  return STATUS_WORKFLOW_ORDER[idx - 1]
+}
+
+export function getWorkflowStepDistance(from: ApplicationStatus, to: ApplicationStatus): number {
+  const fromIdx = getWorkflowIndex(from)
+  const toIdx = getWorkflowIndex(to)
+  if (fromIdx < 0 || toIdx < 0) return Math.abs(fromIdx - toIdx) || 99
+  return Math.abs(toIdx - fromIdx)
+}
+
 export const ENTITY_TYPES = [
   'Sole Proprietorship',
   'LLC',
