@@ -26,6 +26,7 @@ export default function AdminMessagesPage() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [mobileThreadOpen, setMobileThreadOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -140,9 +141,11 @@ export default function AdminMessagesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-[280px_1fr] gap-4 h-[calc(100vh-12rem)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 min-h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)]">
         {/* Client List */}
-        <div className="bg-white border border-brand-border rounded-xl overflow-y-auto shadow-sm">
+        <div className={`bg-white border border-brand-border rounded-xl overflow-y-auto shadow-sm max-h-[50vh] lg:max-h-none ${
+          mobileThreadOpen ? 'hidden lg:block' : ''
+        }`}>
           {sortedClients.length === 0 ? (
             <div className="p-6 text-center text-sm text-brand-dim">
               No clients yet.
@@ -156,7 +159,10 @@ export default function AdminMessagesPage() {
                 return (
                   <button
                     key={client.id}
-                    onClick={() => setSelectedClient(client.id)}
+                    onClick={() => {
+                      setSelectedClient(client.id)
+                      setMobileThreadOpen(true)
+                    }}
                     className={`w-full text-left p-3 rounded-lg mb-1 transition-all ${
                       isSelected
                         ? 'bg-accent-soft border border-accent'
@@ -185,11 +191,20 @@ export default function AdminMessagesPage() {
         </div>
 
         {/* Chat Area */}
-        <div className="flex flex-col bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
+        <div className={`flex flex-col bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm min-h-[50vh] lg:min-h-0 ${
+          mobileThreadOpen ? 'flex' : 'hidden lg:flex'
+        }`}>
           {selectedClient ? (
             <>
               {/* Chat Header */}
               <div className="px-5 py-3 border-b border-brand-border flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileThreadOpen(false)}
+                  className="lg:hidden text-xs font-semibold text-accent hover:underline shrink-0"
+                >
+                  ← Clients
+                </button>
                 <div>
                   <div className="text-sm font-bold text-brand-text">{selectedClientData?.name}</div>
                   <div className="text-xs text-brand-dim">{selectedClientData?.business}</div>

@@ -7,13 +7,18 @@ export default function Footer() {
             Sunday <span className="text-accent">Harmony</span>
           </div>
           <div className="flex gap-7 flex-wrap">
-            {['Services', 'Packages', 'About', 'Contact'].map((link) => (
+            {[
+              { label: 'Services', href: '/#services' },
+              { label: 'Packages', href: '/#packages' },
+              { label: 'About', href: '/#about' },
+              { label: 'Contact', href: '/#contact' },
+            ].map((link) => (
               <a
-                key={link}
-                href={`#${link.toLowerCase()}`}
+                key={link.href}
+                href={link.href}
                 className="text-[13px] text-brand-dim hover:text-brand-text transition-colors"
               >
-                {link}
+                {link.label}
               </a>
             ))}
             <a href="/credit-funding/privacy" className="text-[13px] text-brand-dim hover:text-brand-text transition-colors">

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import StatCard from '@/components/ui/StatCard'
+import { getDisplayFirstName } from '@/lib/display-name'
 
 interface ClientData {
   id: string
@@ -83,7 +84,10 @@ export default function DashboardHome() {
     return () => controller.abort()
   }, [])
 
-  const userName = session?.user?.name || 'there'
+  const userName = getDisplayFirstName({
+    name: client?.name || session?.user?.name,
+    email: session?.user?.email,
+  })
   const daysSinceStart = client && client.start_date
     ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
     : 0
@@ -105,7 +109,7 @@ export default function DashboardHome() {
       {/* Welcome Header */}
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">
-          Welcome back, {userName.split(' ')[0]}
+          Welcome back, {userName}
         </h1>
         <p className="text-sm text-brand-muted">
           Here&apos;s what&apos;s happening with your marketing.
@@ -161,13 +165,10 @@ export default function DashboardHome() {
           </div>
 
           {/* Progress bar */}
-          <div className="w-full h-2 bg-gray-200 rounded-full mb-4">
+          <div className="w-full h-2.5 bg-neutral-200 rounded-full mb-4">
             <div
-              className="h-2 rounded-full transition-all"
-              style={{
-                width: `${winsPercent}%`,
-                background: '#4a9e7d',
-              }}
+              className="h-2.5 rounded-full bg-brand-green transition-all"
+              style={{ width: `${winsPercent}%` }}
             />
           </div>
 
@@ -252,7 +253,7 @@ export default function DashboardHome() {
       </div>
 
       {/* Help Card */}
-      <div className="mt-6 bg-accent-soft border border-accent/20 rounded-2xl p-5">
+      <div className="mt-6 bg-accent-soft border border-accent/20 rounded-2xl p-4 sm:p-5">
         <h3 className="font-serif text-sm font-bold text-brand-text mb-1">Need Help?</h3>
         <p className="text-xs text-brand-muted mb-3">
           Have a question or need support? We&apos;re here to help.

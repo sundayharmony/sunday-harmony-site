@@ -22,17 +22,19 @@ export default function Home() {
   return (
     <>
       <Navbar />
-      <Hero />
-      <ProofBar />
-      <Services />
-      <Divider />
-      <Packages />
-      <Divider />
-      <Process />
-      <Divider />
-      <About />
-      <CtaBanner />
-      <ContactForm />
+      <main id="main">
+        <Hero />
+        <ProofBar />
+        <Services />
+        <Divider />
+        <Packages />
+        <Divider />
+        <Process />
+        <Divider />
+        <About />
+        <CtaBanner />
+        <ContactForm />
+      </main>
       <Footer />
     </>
   )

@@ -82,7 +82,7 @@ export default function CompetitorsPage() {
       </div>
 
       {tab === 'landscape' && (
-        <div className="grid grid-cols-[200px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-6">
           <div className="space-y-2">
             {competitors.map((comp, i) => (
               <button key={i} onClick={() => setSelected(i)}

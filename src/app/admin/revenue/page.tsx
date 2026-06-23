@@ -39,7 +39,7 @@ export default function RevenuePage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-[1fr_360px] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
         {/* Sliders */}
         <div className="bg-white border border-brand-border rounded-xl p-6 shadow-sm">
           {tiers.map(tier => (

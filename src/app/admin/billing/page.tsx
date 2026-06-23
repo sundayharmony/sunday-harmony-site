@@ -113,7 +113,7 @@ export default function AdminBillingPage() {
         ))}
       </div>
 
-      <div className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-brand-border rounded-xl overflow-x-auto shadow-sm">
         {loading ? (
           <div className="p-8 text-center text-brand-dim text-sm">Loading…</div>
         ) : filtered.length === 0 ? (

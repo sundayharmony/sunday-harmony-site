@@ -41,7 +41,7 @@ export default function PackagesPage() {
       </div>
 
       {/* Selected Package Detail */}
-      <div className="grid grid-cols-[1fr_320px] gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 mb-8">
         {/* Services List */}
         <div className="bg-white border border-brand-border rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-1">

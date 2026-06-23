@@ -365,7 +365,7 @@ export default function ClientsPage() {
 
       <div className={`grid ${selected ? 'grid-cols-1 lg:grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
         {/* Client Table */}
-        <div className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white border border-brand-border rounded-xl overflow-x-auto shadow-sm">
           {loading ? (
             <div className="p-8 space-y-3">
               {[...Array(5)].map((_, i) => (
@@ -413,11 +413,15 @@ export default function ClientsPage() {
                   <span className="text-xs text-brand-dim">
                     Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
                   </span>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                       className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gray-50 border border-brand-border text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all">
                       ← Prev
                     </button>
+                    <span className="text-xs text-brand-dim md:hidden px-2">
+                      Page {page} of {totalPages}
+                    </span>
+                    <div className="hidden md:flex gap-1">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button key={p} onClick={() => setPage(p)}
                         className={`w-8 h-8 rounded-md text-xs font-semibold transition-all ${
@@ -426,6 +430,7 @@ export default function ClientsPage() {
                         {p}
                       </button>
                     ))}
+                    </div>
                     <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
                       className="px-3 py-1.5 rounded-md text-xs font-semibold bg-gray-50 border border-brand-border text-brand-muted disabled:opacity-30 hover:text-brand-text transition-all">
                       Next →

@@ -52,7 +52,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <AdminShellContext.Provider value={{ sidebarCollapsed, toggleSidebar }}>
       <AdminSidebar collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} hydrated={hydrated} />
-      <main className={`${marginClass} p-4 md:p-8 transition-[margin] duration-200 min-h-screen`}>
+      <main className={`${marginClass} p-4 pt-14 pl-12 md:p-8 md:pt-8 md:pl-8 transition-[margin] duration-200 min-h-screen`}>
         {children}
       </main>
     </AdminShellContext.Provider>

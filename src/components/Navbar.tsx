@@ -1,19 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 
 const navLinks = [
-  { href: '#services', label: 'Services' },
-  { href: '#packages', label: 'Packages' },
+  { href: '/#services', label: 'Services' },
+  { href: '/#packages', label: 'Packages' },
   { href: '/credit-funding', label: 'Credit & Funding', isPage: true },
-  { href: '#about', label: 'About' },
-  { href: '#contact', label: 'Contact' },
+  { href: '/#about', label: 'About' },
+  { href: '/#contact', label: 'Contact' },
 ]
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50)
@@ -27,6 +29,23 @@ export default function Navbar() {
     return () => {
       document.body.style.overflow = ''
     }
+  }, [mobileOpen])
+
+  useEffect(() => {
+    if (!mobileOpen) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileOpen(false)
+        toggleRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    const firstFocusable = menuRef.current?.querySelector<HTMLElement>('a, button')
+    firstFocusable?.focus()
+
+    return () => document.removeEventListener('keydown', onKeyDown)
   }, [mobileOpen])
 
   const closeMobile = () => setMobileOpen(false)
@@ -57,13 +76,13 @@ export default function Navbar() {
                   {link.label}
                 </Link>
               ) : (
-                <a
+                <Link
                   key={link.href}
                   href={link.href}
                   className="text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors"
                 >
                   {link.label}
-                </a>
+                </Link>
               )
             )}
             <Link
@@ -72,19 +91,23 @@ export default function Navbar() {
             >
               Login
             </Link>
-            <a
-              href="#contact"
+            <Link
+              href="/#contact"
               className="px-6 py-2.5 rounded-md bg-brand-text text-white font-semibold text-[13px] hover:bg-neutral-800 transition-all"
             >
               Free Audit
-            </a>
+            </Link>
           </div>
 
           {/* Mobile Toggle */}
           <button
-            className="md:hidden p-2"
+            ref={toggleRef}
+            type="button"
+            className="md:hidden flex items-center justify-center min-h-[44px] min-w-[44px] p-2"
             onClick={toggleMobile}
             aria-label="Menu"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
           >
             <div className={`w-[22px] h-0.5 bg-brand-text mb-[5px] transition-all ${mobileOpen ? 'rotate-45 translate-y-[7px]' : ''}`} />
             <div className={`w-[22px] h-0.5 bg-brand-text mb-[5px] transition-all ${mobileOpen ? 'opacity-0' : ''}`} />
@@ -95,7 +118,11 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {mobileOpen && (
-        <div className="fixed top-[72px] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] p-7 flex flex-col gap-4 md:hidden">
+        <div
+          ref={menuRef}
+          id="mobile-nav"
+          className="fixed top-[72px] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] p-7 flex flex-col gap-4 md:hidden"
+        >
           {navLinks.map((link) =>
             'isPage' in link && link.isPage ? (
               <Link
@@ -107,14 +134,14 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ) : (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 onClick={closeMobile}
                 className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
               >
                 {link.label}
-              </a>
+              </Link>
             )
           )}
           <Link
@@ -124,13 +151,13 @@ export default function Navbar() {
           >
             Login
           </Link>
-          <a
-            href="#contact"
+          <Link
+            href="/#contact"
             onClick={closeMobile}
             className="text-lg font-semibold text-accent py-4"
           >
             Get Your Free Audit
-          </a>
+          </Link>
         </div>
       )}
     </>

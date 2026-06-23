@@ -17,7 +17,7 @@ const navItems = [
   { href: '/dashboard/performance', icon: '📊', label: 'Performance' },
   { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
   { href: '/dashboard/package', icon: '📦', label: 'My Package' },
-  { href: '/dashboard/billing', icon: '💳', label: 'Billing' },
+  { href: '/dashboard/billing', icon: '🧾', label: 'Billing' },
   { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
 ]
 
@@ -42,7 +42,7 @@ export default function ClientSidebar() {
             )}
           </svg>
         </button>
-        <NotificationBell />
+        <NotificationBell align="start" />
       </div>
 
       {open && (
@@ -57,13 +57,13 @@ export default function ClientSidebar() {
       <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
-        <div className="p-5 pb-4 border-b border-brand-border">
+        <div className="p-5 pb-4 border-b border-brand-border overflow-visible">
           <div className="flex items-center justify-between">
             <Link href="/dashboard" className="font-serif text-lg font-extrabold text-brand-text">
               Sunday <span className="text-accent">Harmony</span>
             </Link>
             <div className="hidden md:block">
-              <NotificationBell />
+              <NotificationBell align="start" />
             </div>
           </div>
           <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Client Dashboard</div>

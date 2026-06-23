@@ -12,7 +12,7 @@ export default function DashboardLayout({
     <SessionProvider>
       <div className="min-h-screen bg-brand-bg-soft text-brand-text">
         <ClientSidebar />
-        <main className="ml-0 md:ml-[240px] p-4 md:p-8 min-h-screen">
+        <main className="ml-0 md:ml-[240px] p-4 pt-14 md:p-8 md:pt-8 min-h-screen">
           {children}
         </main>
       </div>

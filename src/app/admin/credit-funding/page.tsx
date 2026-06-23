@@ -473,7 +473,7 @@ function CreditFundingAdminContent() {
       )}
 
       {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40">
           <div className="w-full max-w-lg bg-white border border-brand-border rounded-xl shadow-xl p-6">
             <h2 className="text-lg font-bold text-brand-text mb-1">Send Application to Client</h2>
             <p className="text-sm text-brand-muted mb-4">

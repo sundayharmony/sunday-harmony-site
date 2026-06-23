@@ -452,7 +452,7 @@ export default function LeadsPage() {
 
       <div className={`grid ${selected ? 'grid-cols-1 lg:grid-cols-[1fr_380px]' : 'grid-cols-1'} gap-6`}>
         {/* Lead Table */}
-        <div className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white border border-brand-border rounded-xl overflow-x-auto shadow-sm">
           {loading ? (
             <div className="p-8 space-y-3">
               {[...Array(5)].map((_, i) => (
@@ -507,7 +507,7 @@ export default function LeadsPage() {
                   <span className="text-xs text-brand-dim">
                     Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
                   </span>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page === 1}
@@ -515,6 +515,10 @@ export default function LeadsPage() {
                     >
                       ← Prev
                     </button>
+                    <span className="text-xs text-brand-dim md:hidden px-2">
+                      Page {page} of {totalPages}
+                    </span>
+                    <div className="hidden md:flex gap-1">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                       <button
                         key={p}
@@ -528,6 +532,7 @@ export default function LeadsPage() {
                         {p}
                       </button>
                     ))}
+                    </div>
                     <button
                       onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
