@@ -9,10 +9,10 @@ import {
 import {
   sendCreditFundingAdminMessageEmail,
   sendCreditFundingDocumentRequestEmail,
-  sendCreditFundingStatusUpdateEmail,
   ensurePortalUserForCreditApplication,
   sendCreditFundingSubmissionEmail,
 } from '@/lib/credit-funding-applicant-onboarding'
+import { applyWorkflowStatusUpdate } from '@/lib/credit-funding-workflow'
 import {
   getCreditFundingApplications,
   getCreditFundingApplicationById,
@@ -24,6 +24,7 @@ import {
   getDocumentRequests,
   createDocumentRequest,
   createCreditFundingMessage,
+  syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
 import {
@@ -59,6 +60,10 @@ export async function GET(req: NextRequest) {
         actor_email: session.user.email || 'admin',
         details: `Viewed credit funding application ${app.application_id}`,
       })
+
+      if (includeDocs) {
+        await syncStaffSharedDocumentsFromStorage(id)
+      }
 
       const [documents, history, messages, docRequests] = await Promise.all([
         includeDocs ? getDocumentsByApplicationUuid(id) : Promise.resolve([]),
@@ -142,14 +147,18 @@ export async function PATCH(req: NextRequest) {
       if (!APPLICATION_STATUSES.includes(status as ApplicationStatus)) {
         return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
       }
-      const result = await updateCreditFundingApplicationStatus(id, status as ApplicationStatus, {
+      const result = await applyWorkflowStatusUpdate({
+        application: existing,
+        status: status as ApplicationStatus,
         staffEmail,
-        notes: status_notes || `Status updated to ${STATUS_LABELS[status as ApplicationStatus] || status}`,
+        staffName: session.user.name || 'Sunday Harmony Team',
+        statusNotes: status_notes || undefined,
+        notifyClient: true,
       })
       if (!result) {
         return NextResponse.json({ error: 'Failed to update status' }, { status: 500 })
       }
-      updated = result
+      updated = result.app
 
       logActivity({
         action: 'status_changed',
@@ -158,38 +167,6 @@ export async function PATCH(req: NextRequest) {
         actor_email: staffEmail,
         details: `Status changed to ${STATUS_LABELS[status as ApplicationStatus] || status} for ${existing.application_id}`,
       })
-
-      try {
-        await sendCreditFundingStatusUpdateEmail({
-          to: existing.email,
-          applicationId: existing.application_id,
-          statusLabel: STATUS_LABELS[status as ApplicationStatus] || status,
-          statusNotes: status_notes || undefined,
-        })
-      } catch (err) {
-        console.error('Failed to send status update email:', err)
-      }
-
-      if (existing.user_id) {
-        await createNotification({
-          user_id: existing.user_id,
-          title: 'Application Status Updated',
-          message: `Your application is now: ${STATUS_LABELS[status as ApplicationStatus] || status}`,
-          type: 'info',
-          link: '/dashboard/credit-funding',
-        })
-      } else {
-        const user = await getUserByEmail(existing.email)
-        if (user) {
-          await createNotification({
-            user_id: user.id,
-            title: 'Application Status Updated',
-            message: `Your application is now: ${STATUS_LABELS[status as ApplicationStatus] || status}`,
-            type: 'info',
-            link: '/dashboard/credit-funding',
-          })
-        }
-      }
     }
 
     const fieldUpdates: Parameters<typeof updateCreditFundingApplication>[1] = {}
@@ -228,7 +205,7 @@ export async function PATCH(req: NextRequest) {
         await updateCreditFundingApplicationStatus(id, 'documents_pending', {
           staffEmail,
           notes: `Document requested: ${document_request.label}`,
-        })
+        }).then((r) => r?.app ?? null)
       }
 
       try {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { getSupabase } from '@/lib/supabase'
-import type { DocumentType } from '@/lib/credit-funding-types'
+import type { StorageDocumentType } from '@/lib/credit-funding-types'
 
 import { CREDIT_FUNDING_MAX_BYTES } from '@/lib/credit-funding-types'
 
@@ -100,7 +100,7 @@ export function validateCreditFundingFile(
 }
 
 export interface StagedCreditFundingFile {
-  documentType: DocumentType
+  documentType: StorageDocumentType
   storagePath: string
   file_name: string
   file_size: number
@@ -121,7 +121,7 @@ export function isStagedPathForSession(storagePath: string, sessionId: string): 
 
 export async function stageCreditFundingDocument(params: {
   sessionId: string
-  documentType: DocumentType
+  documentType: StorageDocumentType
   buffer: Buffer
   contentType: string
   originalFileName: string
@@ -230,7 +230,7 @@ export interface UploadCreditFundingDocResult {
 
 export async function uploadCreditFundingDocument(params: {
   applicationUuid: string
-  documentType: DocumentType
+  documentType: StorageDocumentType
   buffer: Buffer
   contentType: string
   originalFileName: string

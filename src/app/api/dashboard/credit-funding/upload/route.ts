@@ -88,7 +88,10 @@ export async function POST(req: NextRequest) {
 
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),
-      subject: sanitizeEmailSubjectPart(`Document uploaded: ${application.application_id}`, 200),
+      subject: sanitizeEmailSubjectPart(
+        `Document uploaded — ${DOCUMENT_LABELS[documentType as DocumentType] || documentType}`,
+        200
+      ),
       html: `<p>${escHtml(session.user.name || application.full_name)} uploaded ${escHtml(DOCUMENT_LABELS[documentType as DocumentType] || documentType)} for application ${escHtml(application.application_id)}.</p>`,
       logLabel: 'cf-doc-upload-admin',
     })

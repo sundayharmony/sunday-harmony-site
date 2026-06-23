@@ -12,8 +12,11 @@ export const BUSINESS_DOCUMENT_TYPES = [
   'balance_sheet',
   'other_business',
 ] as const
+export const STAFF_DOCUMENT_TYPES = ['staff_shared'] as const
 export const DOCUMENT_TYPES = [...IDENTITY_DOCUMENT_TYPES, ...BUSINESS_DOCUMENT_TYPES] as const
 export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+export type StaffDocumentType = (typeof STAFF_DOCUMENT_TYPES)[number]
+export type StorageDocumentType = DocumentType | StaffDocumentType
 
 export const APPLICATION_STATUSES = [
   'submitted',
@@ -181,6 +184,30 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   other_business: 'Other Business Document',
 }
 
+export const STAFF_DOCUMENT_LABELS: Record<StaffDocumentType, string> = {
+  staff_shared: 'Document from your specialist',
+}
+
+export function documentDisplayLabel(documentType: string): string {
+  if (documentType in DOCUMENT_LABELS) {
+    return DOCUMENT_LABELS[documentType as DocumentType]
+  }
+  if (documentType in STAFF_DOCUMENT_LABELS) {
+    return STAFF_DOCUMENT_LABELS[documentType as StaffDocumentType]
+  }
+  return documentType.replace(/_/g, ' ')
+}
+
+export function isStaffSharedDocument(doc: {
+  document_type?: string
+  shared_by?: string | null
+  storage_path?: string
+}): boolean {
+  if (doc.shared_by === 'admin') return true
+  if (doc.document_type === 'staff_shared') return true
+  return Boolean(doc.storage_path?.includes('/staff_shared/'))
+}
+
 export interface CreditProfile {
   creditScore?: string
   bankruptcy?: boolean
@@ -287,13 +314,16 @@ export interface CreditFundingApplication {
 export interface UploadedDocument {
   id: string
   application_uuid: string
-  document_type: DocumentType
+  document_type: StorageDocumentType
   file_name: string
   file_type: string
   file_size: number
   storage_path: string
   mime_type: string
   scan_status: 'pending' | 'clean' | 'rejected'
+  shared_by?: 'applicant' | 'admin' | null
+  status_history_id?: string | null
+  message_id?: string | null
   created_at: string
 }
 

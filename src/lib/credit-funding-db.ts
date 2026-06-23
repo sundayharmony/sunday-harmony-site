@@ -8,6 +8,7 @@ import type {
   CreditFundingStatusHistory,
   DocumentType,
   FundingScores,
+  StorageDocumentType,
   UploadedDocument,
 } from '@/lib/credit-funding-types'
 import { deriveServiceType, deriveLeadTypeFromIntake } from '@/lib/credit-funding-types'
@@ -15,6 +16,7 @@ import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
 import { buildEncryptedApplicationRow } from '@/lib/credit-funding-sensitive-fields'
 import { decryptFieldOrLegacy } from '@/lib/field-encryption'
+import { CREDIT_FUNDING_BUCKET } from '@/lib/credit-funding-storage'
 
 export function generateApplicationId(): string {
   const date = new Date()
@@ -65,25 +67,127 @@ export async function createCreditFundingApplication(
 
 export async function createUploadedDocument(doc: {
   application_uuid: string
-  document_type: DocumentType
+  document_type: StorageDocumentType
   file_name: string
   file_type: string
   file_size: number
   storage_path: string
   mime_type: string
   scan_status: 'clean' | 'rejected'
+  shared_by?: 'applicant' | 'admin'
+  status_history_id?: string
+  message_id?: string
 }): Promise<UploadedDocument | null> {
-  const { data, error } = await getSupabase()
-    .from('uploaded_documents')
-    .insert(doc)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('createUploadedDocument error:', error)
-    return null
+  const base = {
+    application_uuid: doc.application_uuid,
+    document_type: doc.document_type,
+    file_name: doc.file_name,
+    file_type: doc.file_type,
+    file_size: doc.file_size,
+    storage_path: doc.storage_path,
+    mime_type: doc.mime_type,
+    scan_status: doc.scan_status,
   }
-  return data as UploadedDocument
+
+  const extended = {
+    ...base,
+    shared_by: doc.shared_by,
+    status_history_id: doc.status_history_id,
+    message_id: doc.message_id,
+  }
+
+  const attempts: Record<string, unknown>[] = [extended, base]
+
+  if (doc.document_type === 'staff_shared') {
+    attempts.push({ ...base, document_type: 'other_business' })
+  }
+
+  let lastError: { code?: string; message?: string } | null = null
+
+  for (const row of attempts) {
+    const cleaned = Object.fromEntries(
+      Object.entries(row).filter(([, value]) => value !== undefined)
+    )
+
+    const { data, error } = await getSupabase()
+      .from('uploaded_documents')
+      .insert(cleaned)
+      .select()
+      .single()
+
+    if (!error) {
+      return data as UploadedDocument
+    }
+
+    lastError = error
+    const retryable =
+      error.code === '42703' ||
+      error.code === 'PGRST204' ||
+      error.code === '23514' ||
+      (error.message?.includes('column') ?? false) ||
+      (error.message?.includes('check constraint') ?? false)
+
+    if (!retryable) break
+  }
+
+  console.error('createUploadedDocument error:', lastError)
+  return null
+}
+
+function displayNameFromStoredObjectName(objectName: string): string {
+  const withoutUuid = objectName.replace(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}_/i,
+    ''
+  )
+  return withoutUuid.replace(/_/g, ' ')
+}
+
+function mimeFromExtension(ext: string): string {
+  const map: Record<string, string> = {
+    pdf: 'application/pdf',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+  }
+  return map[ext] || 'application/octet-stream'
+}
+
+/** Index staff-shared storage objects missing from uploaded_documents (e.g. after a failed DB insert). */
+export async function syncStaffSharedDocumentsFromStorage(applicationUuid: string): Promise<number> {
+  const supabase = getSupabase()
+  const prefix = `${applicationUuid}/staff_shared`
+  const { data: files, error } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(prefix)
+  if (error || !files?.length) return 0
+
+  const { data: existing } = await supabase
+    .from('uploaded_documents')
+    .select('storage_path')
+    .eq('application_uuid', applicationUuid)
+
+  const existingPaths = new Set((existing || []).map((d) => d.storage_path as string))
+  let synced = 0
+
+  for (const file of files) {
+    if (!file.name || file.name.startsWith('.')) continue
+    const storagePath = `${prefix}/${file.name}`
+    if (existingPaths.has(storagePath)) continue
+
+    const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase() : 'bin'
+    const saved = await createUploadedDocument({
+      application_uuid: applicationUuid,
+      document_type: 'staff_shared',
+      file_name: displayNameFromStoredObjectName(file.name),
+      file_type: ext,
+      file_size: file.metadata?.size || 0,
+      storage_path: storagePath,
+      mime_type: mimeFromExtension(ext),
+      scan_status: 'clean',
+      shared_by: 'admin',
+    })
+    if (saved) synced++
+  }
+
+  return synced
 }
 
 export async function getCreditFundingApplications(filters?: {
@@ -203,17 +307,19 @@ export async function updateCreditFundingApplicationStatus(
   id: string,
   status: ApplicationStatus,
   meta?: { staffEmail?: string; notes?: string }
-): Promise<CreditFundingApplication | null> {
+): Promise<{ app: CreditFundingApplication; history: CreditFundingStatusHistory } | null> {
   const updated = await updateCreditFundingApplication(id, { status })
-  if (updated) {
-    await createStatusHistory({
-      application_uuid: id,
-      status,
-      staff_email: meta?.staffEmail || null,
-      notes: meta?.notes || `Status changed to ${status}`,
-    })
-  }
-  return updated
+  if (!updated) return null
+
+  const history = await createStatusHistory({
+    application_uuid: id,
+    status,
+    staff_email: meta?.staffEmail || null,
+    notes: meta?.notes || `Status changed to ${status}`,
+  })
+  if (!history) return null
+
+  return { app: updated, history }
 }
 
 export async function deleteCreditFundingApplication(id: string): Promise<boolean> {

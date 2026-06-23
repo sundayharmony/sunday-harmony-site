@@ -95,7 +95,7 @@ export async function sendCreditFundingSubmissionEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Application Received — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart('Application Received — Credit & Funding', 200),
     html: `
       <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
         <h2 style="color:#b8943f;border-bottom:2px solid #b8943f;padding-bottom:10px">
@@ -116,31 +116,101 @@ export async function sendCreditFundingSubmissionEmail(params: {
   })
 }
 
+const MAX_INLINE_EMAIL_IMAGE_BYTES = 1024 * 1024
+
+export interface CreditFundingEmailAttachment {
+  fileName: string
+  mimeType: string
+  buffer: Buffer
+}
+
+function buildEmailAttachmentPayload(files: CreditFundingEmailAttachment[]): {
+  mailAttachments: Array<{ filename: string; content: Buffer; contentType?: string; cid?: string }>
+  inlineImageCids: Array<{ cid: string; alt: string }>
+  nonImageNames: string[]
+} {
+  const mailAttachments: Array<{ filename: string; content: Buffer; contentType?: string; cid?: string }> = []
+  const inlineImageCids: Array<{ cid: string; alt: string }> = []
+  const nonImageNames: string[] = []
+
+  for (const file of files) {
+    const isImage = file.mimeType.startsWith('image/')
+    if (isImage && file.buffer.length <= MAX_INLINE_EMAIL_IMAGE_BYTES) {
+      const cid = `img-${crypto.randomBytes(8).toString('hex')}@sundayharmony.com`
+      mailAttachments.push({
+        filename: file.fileName,
+        content: file.buffer,
+        contentType: file.mimeType,
+        cid,
+      })
+      inlineImageCids.push({ cid, alt: file.fileName })
+    } else {
+      mailAttachments.push({
+        filename: file.fileName,
+        content: file.buffer,
+        contentType: file.mimeType,
+      })
+      nonImageNames.push(file.fileName)
+    }
+  }
+
+  return { mailAttachments, inlineImageCids, nonImageNames }
+}
+
 export async function sendCreditFundingStatusUpdateEmail(params: {
   to: string
   applicationId: string
   statusLabel: string
   statusNotes?: string
+  attachmentNames?: string[]
+  attachments?: CreditFundingEmailAttachment[]
 }): Promise<void> {
   if (!isEmailConfigured()) {
     console.error('Credit funding status email: SMTP not configured')
     return
   }
 
+  const { mailAttachments, inlineImageCids, nonImageNames } = buildEmailAttachmentPayload(
+    params.attachments || []
+  )
+  const namedAttachments = params.attachmentNames || []
+
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Application Update — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart(`Application Update — ${params.statusLabel}`, 200),
     html: clientDashboardAlertEmailHtml({
       heading: 'Application Status Update',
       firstName: 'there',
       bodyParagraphs: [
         `Your Credit & Funding application ${params.applicationId} status is now: ${params.statusLabel}.`,
         ...(params.statusNotes ? [params.statusNotes] : []),
+        ...(inlineImageCids.length > 0
+          ? ['Your specialist shared the following document(s):']
+          : []),
+        ...(namedAttachments.length > 0 && inlineImageCids.length === 0
+          ? [`Your specialist shared ${namedAttachments.length} document${namedAttachments.length !== 1 ? 's' : ''}: ${namedAttachments.join(', ')}. View and download them in your client portal.`]
+          : []),
+        ...(nonImageNames.length > 0
+          ? [`Additional file${nonImageNames.length !== 1 ? 's' : ''} attached to this email: ${nonImageNames.join(', ')}.`]
+          : []),
       ],
+      inlineImageCids,
       dashboardPath: '/dashboard/credit-funding',
       buttonLabel: 'View Application Status',
     }),
+    attachments: mailAttachments.length > 0 ? mailAttachments : undefined,
   })
+}
+
+export async function sendCreditFundingWorkflowUpdateEmail(params: {
+  to: string
+  applicationId: string
+  statusLabel: string
+  statusNotes?: string
+  attachmentNames?: string[]
+  attachments?: CreditFundingEmailAttachment[]
+}): Promise<void> {
+  await sendCreditFundingStatusUpdateEmail(params)
 }
 
 export async function sendCreditFundingDocumentRequestEmail(params: {
@@ -153,7 +223,7 @@ export async function sendCreditFundingDocumentRequestEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Document Requested — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart(`Document Requested — ${params.label}`, 200),
     html: clientDashboardAlertEmailHtml({
       heading: 'Document Requested',
       firstName: 'there',
@@ -177,7 +247,7 @@ export async function sendCreditFundingAdminMessageEmail(params: {
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Message from Sunday Harmony — ${params.applicationId}`, 200),
+    subject: sanitizeEmailSubjectPart('Message from Sunday Harmony', 200),
     html: `
       <div style="font-family:'Montserrat',Arial,sans-serif;max-width:600px">
         <h2 style="color:#b8943f">New Message</h2>

@@ -1,0 +1,74 @@
+-- Sunday Harmony — Supabase verification queries
+-- Run this in Supabase Dashboard → SQL Editor (NOT the Node diagnostic script).
+-- The production diagnostic runs locally: npm run diagnostic:prod
+
+-- ---------------------------------------------------------------------------
+-- 1. Migration 011 — RLS enabled on credit funding tables
+-- Expected: relrowsecurity = true for all rows
+-- ---------------------------------------------------------------------------
+SELECT relname AS table_name, relrowsecurity AS rls_enabled
+FROM pg_class
+WHERE relname IN (
+  'credit_funding_applications',
+  'uploaded_documents',
+  'credit_funding_status_history',
+  'credit_funding_messages',
+  'credit_funding_document_requests'
+)
+ORDER BY relname;
+
+-- ---------------------------------------------------------------------------
+-- 2. Migration 012 — uploaded_documents columns
+-- Expected: shared_by, status_history_id, message_id
+-- ---------------------------------------------------------------------------
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'uploaded_documents'
+  AND column_name IN ('shared_by', 'status_history_id', 'message_id')
+ORDER BY column_name;
+
+-- ---------------------------------------------------------------------------
+-- 3. Migration 012 — staff_shared allowed in document_type check
+-- Expected: constraint definition includes 'staff_shared'
+-- ---------------------------------------------------------------------------
+SELECT conname AS constraint_name, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = 'public.uploaded_documents'::regclass
+  AND contype = 'c'
+  AND conname LIKE '%document_type%';
+
+-- ---------------------------------------------------------------------------
+-- 4. Storage buckets — client-files should ideally be private (public = false)
+-- Expected: credit-funding-docs public=false; client-files public=false (after fix)
+-- ---------------------------------------------------------------------------
+SELECT id, name, public, file_size_limit
+FROM storage.buckets
+WHERE id IN ('credit-funding-docs', 'client-files')
+ORDER BY id;
+
+-- ---------------------------------------------------------------------------
+-- 5. Core tables exist (migrations 008–010)
+-- ---------------------------------------------------------------------------
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'credit_funding_applications',
+    'credit_funding_status_history',
+    'credit_funding_messages',
+    'credit_funding_document_requests',
+    'client_meetings',
+    'activity_log',
+    'notifications'
+  )
+ORDER BY table_name;
+
+-- ---------------------------------------------------------------------------
+-- 6. leads.lead_type column (migration 010)
+-- ---------------------------------------------------------------------------
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'leads'
+  AND column_name = 'lead_type';

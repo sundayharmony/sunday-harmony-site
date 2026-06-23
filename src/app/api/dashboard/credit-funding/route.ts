@@ -9,9 +9,10 @@ import {
   getDocumentRequests,
   getStatusHistory,
   getCreditFundingMessages,
+  syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
-import { DOCUMENT_LABELS } from '@/lib/credit-funding-types'
+import { documentDisplayLabel, isStaffSharedDocument } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,12 +44,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const [history, documents, docRequests, messages] = await Promise.all([
+    const [history, docRequests, messages] = await Promise.all([
       getStatusHistory(application.id),
-      getDocumentsByApplicationUuid(application.id),
       getDocumentRequests(application.id),
       getCreditFundingMessages(application.id),
     ])
+
+    await syncStaffSharedDocumentsFromStorage(application.id)
+    const documents = await getDocumentsByApplicationUuid(application.id)
 
     const docsWithUrls = await Promise.all(
       documents.map(async (doc) => ({
@@ -57,11 +60,38 @@ export async function GET() {
         file_name: doc.file_name,
         file_size: doc.file_size,
         scan_status: doc.scan_status,
-        label: DOCUMENT_LABELS[doc.document_type] || doc.document_type,
+        shared_by: doc.shared_by || (isStaffSharedDocument(doc) ? 'admin' : 'applicant'),
+        message_id: doc.message_id || null,
+        storage_path: doc.storage_path,
+        mime_type: doc.mime_type,
+        file_type: doc.file_type,
+        label: documentDisplayLabel(doc.document_type),
         created_at: doc.created_at,
         signedUrl: (await getCreditFundingDocumentSignedUrl(doc.storage_path)) || undefined,
       }))
     )
+
+    const applicantDocuments = docsWithUrls.filter((d) => !isStaffSharedDocument(d))
+    const teamDocuments = docsWithUrls.filter((d) => isStaffSharedDocument(d))
+
+    const messagesWithAttachments = messages.map((message) => ({
+      ...message,
+      attachments: teamDocuments
+        .filter(
+          (doc) =>
+            doc.message_id === message.id ||
+            (message.from_role === 'admin' &&
+              message.text.includes('Attached:') &&
+              message.text.includes(doc.file_name))
+        )
+        .map((doc) => ({
+          id: doc.id,
+          file_name: doc.file_name,
+          signedUrl: doc.signedUrl,
+          mime_type: doc.mime_type,
+          file_type: doc.file_type,
+        })),
+    }))
 
     return NextResponse.json({
       application: {
@@ -79,9 +109,10 @@ export async function GET() {
         updated_at: application.updated_at,
       },
       history,
-      documents: docsWithUrls,
+      documents: applicantDocuments,
+      teamDocuments,
       docRequests,
-      messages,
+      messages: messagesWithAttachments,
     })
   } catch (error) {
     logApiRouteError({ url: '/api/dashboard/credit-funding' } as NextRequest, 'dashboard/credit-funding GET', error)

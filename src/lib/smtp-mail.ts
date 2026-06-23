@@ -27,6 +27,12 @@ async function sendViaSmtp(opts: {
   html: string
   from?: string
   replyTo?: string
+  attachments?: Array<{
+    filename: string
+    content: Buffer | string
+    contentType?: string
+    cid?: string
+  }>
 }): Promise<void> {
   const transporter = createEmailTransporter()
   await transporter.sendMail({
@@ -35,6 +41,7 @@ async function sendViaSmtp(opts: {
     subject: opts.subject,
     html: opts.html,
     ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+    ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
   })
 }
 
@@ -45,6 +52,12 @@ export async function sendEmail(opts: {
   html: string
   from?: string
   replyTo?: string
+  attachments?: Array<{
+    filename: string
+    content: Buffer | string
+    contentType?: string
+    cid?: string
+  }>
 }): Promise<void> {
   if (!isEmailConfigured()) {
     throw new Error('SMTP is not configured')
@@ -123,12 +136,21 @@ export function clientDashboardAlertEmailHtml(opts: {
   bodyParagraphs: string[]
   dashboardPath: string
   buttonLabel?: string
+  inlineImageCids?: Array<{ cid: string; alt: string }>
 }): string {
   const site = getPublicSiteUrl()
   const path = opts.dashboardPath.startsWith('/') ? opts.dashboardPath : `/${opts.dashboardPath}`
   const href = `${site}${path}`
   const btn = opts.buttonLabel ?? 'View in Dashboard'
   const paras = opts.bodyParagraphs.map(p => `<p>${escHtml(p)}</p>`).join('')
+  const imageBlocks = (opts.inlineImageCids || [])
+    .map(
+      (img) => `
+      <div style="margin:16px 0;text-align:center">
+        <img src="cid:${escHtml(img.cid)}" alt="${escHtml(img.alt)}" style="max-width:100%;height:auto;border-radius:8px;border:1px solid #e5e5e5" />
+      </div>`
+    )
+    .join('')
   return `
     <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
       <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
@@ -136,6 +158,7 @@ export function clientDashboardAlertEmailHtml(opts: {
       </h2>
       <p>Hi ${escHtml(opts.firstName)},</p>
       ${paras}
+      ${imageBlocks}
       <div style="text-align:center;margin:24px 0">
         <a href="${escHtml(href)}" style="background:#c9a96e;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
           ${escHtml(btn)}

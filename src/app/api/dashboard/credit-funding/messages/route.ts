@@ -30,6 +30,13 @@ export async function GET() {
       return NextResponse.json({ error: 'No application found' }, { status: 404 })
     }
 
+    if (
+      application.email.toLowerCase() !== session.user.email.toLowerCase() &&
+      application.user_id !== session.user.id
+    ) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const messages = await getCreditFundingMessages(application.id)
     return NextResponse.json(messages)
   } catch (error) {
@@ -58,6 +65,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No application found' }, { status: 404 })
     }
 
+    if (
+      application.email.toLowerCase() !== session.user.email.toLowerCase() &&
+      application.user_id !== session.user.id
+    ) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const message = await createCreditFundingMessage({
       application_uuid: application.id,
       from_role: 'applicant',
@@ -72,7 +86,10 @@ export async function POST(req: NextRequest) {
 
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),
-      subject: sanitizeEmailSubjectPart(`Credit Funding message: ${application.application_id}`, 200),
+      subject: sanitizeEmailSubjectPart(
+        `Credit Funding message — ${session.user.name || application.full_name}`,
+        200
+      ),
       html: `
         <p><strong>From:</strong> ${escHtml(session.user.name || application.full_name)} (${escHtml(application.application_id)})</p>
         <div style="padding:12px;background:#f8f6f0;border-radius:8px;margin:12px 0">
