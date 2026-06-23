@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { removeClientFileByPublicUrlIfOurs, uploadClientFileToVault } from '@/lib/client-files-storage'
 import { createFileRecord, createNotification, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
@@ -19,7 +21,11 @@ export async function POST(request: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
 
-  let uploadedPublicUrl: string | null = null
+  const ip = getClientIp(request)
+  const rl = await rateLimitDurable(`admin-file-upload:${ip}`, 30, 15 * 60 * 1000)
+  if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
+  let uploadedObjectPath: string | null = null
 
   try {
     let formData: FormData
@@ -71,13 +77,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: up.error }, { status: 400 })
     }
 
-    const { publicUrl, file_size, file_type, displayName } = up.data
-    uploadedPublicUrl = publicUrl
+    const { objectPath, signedUrl, file_size, file_type, displayName } = up.data
+    uploadedObjectPath = objectPath
 
     const fileRecord = await createFileRecord({
       client_id,
       name: displayName,
-      file_url: publicUrl,
+      file_url: objectPath,
       file_size,
       file_type,
       category,
@@ -86,12 +92,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (!fileRecord) {
-      await removeClientFileByPublicUrlIfOurs(uploadedPublicUrl)
-      uploadedPublicUrl = null
+      await removeClientFileByPublicUrlIfOurs(objectPath)
+      uploadedObjectPath = null
       return NextResponse.json({ error: 'Failed to create file record' }, { status: 500 })
     }
 
-    uploadedPublicUrl = null
+    uploadedObjectPath = null
 
     try {
       const { data: clientUser } = await (
@@ -134,11 +140,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(fileRecord, { status: 201 })
+    return NextResponse.json({ ...fileRecord, file_url: signedUrl }, { status: 201 })
   } catch (err) {
     console.error('POST /api/admin/files/upload error:', err)
-    if (uploadedPublicUrl) {
-      await removeClientFileByPublicUrlIfOurs(uploadedPublicUrl)
+    if (uploadedObjectPath) {
+      await removeClientFileByPublicUrlIfOurs(uploadedObjectPath)
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

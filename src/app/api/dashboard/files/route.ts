@@ -3,9 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import {
   removeClientFileByPublicUrlIfOurs,
-  storageObjectPathFromPublicUrl,
+  resolveClientFileStoragePath,
   uploadClientFileToVault,
+  withSignedClientFileUrls,
 } from '@/lib/client-files-storage'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById, getClientById } from '@/lib/db'
 import {
   getAdminNotifyEmail,
@@ -63,7 +66,8 @@ export async function GET(request: NextRequest) {
     }
 
     const files = await getFilesByClient(clientId)
-    return NextResponse.json(files, { status: 200 })
+    const signed = await withSignedClientFileUrls(files)
+    return NextResponse.json(signed, { status: 200 })
   } catch (error: unknown) {
     console.error('GET /api/dashboard/files error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -87,6 +91,10 @@ export async function POST(request: NextRequest) {
     if (!clientId) {
       return NextResponse.json({ error: 'No client ID associated with user' }, { status: 400 })
     }
+
+    const ip = getClientIp(request)
+    const rl = await rateLimitDurable(`dashboard-file-upload:${ip}`, 20, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const contentTypeHeader = request.headers.get('content-type') || ''
 
@@ -129,12 +137,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: up.error }, { status: 400 })
       }
 
-      const { publicUrl, file_size, file_type, displayName } = up.data
+      const { objectPath, signedUrl, file_size, file_type, displayName } = up.data
 
       const fileRecord = await createFileRecord({
         client_id: clientId,
         name: displayName,
-        file_url: publicUrl,
+        file_url: objectPath,
         file_size,
         file_type,
         category,
@@ -143,13 +151,13 @@ export async function POST(request: NextRequest) {
       })
 
       if (!fileRecord) {
-        await removeClientFileByPublicUrlIfOurs(publicUrl)
+        await removeClientFileByPublicUrlIfOurs(objectPath)
         return NextResponse.json({ error: 'Failed to create file record' }, { status: 500 })
       }
 
       await notifyStaffClientFileUploaded(clientId, fileRecord.name)
 
-      return NextResponse.json(fileRecord, { status: 201 })
+      return NextResponse.json({ ...fileRecord, file_url: signedUrl }, { status: 201 })
     }
 
     const body = await request.json()
@@ -159,7 +167,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: name, file_url, file_type' }, { status: 400 })
     }
 
-    if (!storageObjectPathFromPublicUrl(file_url)) {
+    if (!resolveClientFileStoragePath(file_url)) {
       return NextResponse.json(
         { error: 'Files must be uploaded through the secure upload form.' },
         { status: 400 }

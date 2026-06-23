@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, getUserByEmail, createNotification } from '@/lib/db'
 import { upsertLeadFromCreditIntake, ensureClientFromCreditApplication } from '@/lib/crm-db'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import {
   ensurePortalUserForCreditApplication,
   sendCreditFundingSubmissionEmail,
@@ -58,13 +59,8 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = getClientIp(req)
-    const rl = rateLimit(`credit-funding:${ip}`, 3, 60 * 60 * 1000)
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Too many submissions. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rl = await rateLimitDurable(`credit-funding:${ip}`, 3, 60 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const formData = await req.formData()
 

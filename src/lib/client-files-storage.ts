@@ -6,6 +6,8 @@ export const CLIENT_FILES_BUCKET = 'client-files'
 /** Aligns with typical Vercel request body limits; raise only if your plan supports larger payloads. */
 export const CLIENT_FILE_MAX_BYTES = 4 * 1024 * 1024
 
+const SIGNED_URL_TTL_SEC = 3600
+
 const ALLOWED_MIME = new Set([
   'application/pdf',
   'image/png',
@@ -22,13 +24,25 @@ const ALLOWED_MIME = new Set([
   'application/zip',
 ])
 
+const MAGIC_SIGNATURES: Array<{ mime: string; check: (buf: Buffer) => boolean }> = [
+  { mime: 'application/pdf', check: (b) => b.subarray(0, 5).toString() === '%PDF-' },
+  {
+    mime: 'image/png',
+    check: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  },
+  { mime: 'image/jpeg', check: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  { mime: 'image/gif', check: (b) => b.subarray(0, 6).toString() === 'GIF87a' || b.subarray(0, 6).toString() === 'GIF89a' },
+  { mime: 'image/webp', check: (b) => b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' },
+  { mime: 'text/plain', check: () => true },
+  { mime: 'text/csv', check: () => true },
+]
+
 function extensionFromName(name: string): string {
   const i = name.lastIndexOf('.')
   if (i <= 0 || i === name.length - 1) return 'bin'
   return name.slice(i + 1).toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
 }
 
-/** Browsers often send empty type or application/octet-stream; infer from extension when possible. */
 function effectiveContentType(contentType: string, originalFileName: string): string {
   let ct = (contentType || '').split(';')[0].trim().toLowerCase()
   if (ct && ct !== 'application/octet-stream') return ct
@@ -52,6 +66,29 @@ function effectiveContentType(contentType: string, originalFileName: string): st
   return byExt[ext] || ct || 'application/octet-stream'
 }
 
+function scanFileBuffer(buffer: Buffer, mimeType: string): { ok: true } | { ok: false; reason: string } {
+  if (buffer.length < 4) return { ok: false, reason: 'File too small or empty' }
+
+  const normalizedMime = mimeType === 'image/jpg' ? 'image/jpeg' : mimeType
+  const sig = MAGIC_SIGNATURES.find((s) => s.mime === normalizedMime)
+  if (sig && !sig.check(buffer)) {
+    return { ok: false, reason: 'File content does not match declared type' }
+  }
+
+  const mzIndex = buffer.indexOf(Buffer.from('MZ'))
+  if (mzIndex >= 0 && mzIndex < buffer.length - 64) {
+    const peOffset = buffer.readUInt32LE(mzIndex + 0x3c)
+    if (peOffset > 0 && peOffset < buffer.length - 4) {
+      const peSig = buffer.subarray(peOffset, peOffset + 4).toString()
+      if (peSig === 'PE\0\0') {
+        return { ok: false, reason: 'Executable content detected' }
+      }
+    }
+  }
+
+  return { ok: true }
+}
+
 export function sanitizeStorageFileName(original: string): string {
   const base = original.replace(/^.*[/\\]/, '').trim() || 'file'
   const cleaned = base.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120)
@@ -71,11 +108,49 @@ export function validateClientFile(contentType: string, sizeBytes: number): { ok
 }
 
 export interface UploadClientFileResult {
-  publicUrl: string
+  /** Storage object path within client-files bucket (persist in DB). */
   objectPath: string
+  /** Time-limited signed URL for immediate download. */
+  signedUrl: string
   file_size: number
   file_type: string
   displayName: string
+}
+
+/** Resolve storage path from persisted file_url (object path or legacy public URL). */
+export function resolveClientFileStoragePath(fileUrl: string): string | null {
+  if (!fileUrl) return null
+  const fromPublic = storageObjectPathFromPublicUrl(fileUrl)
+  if (fromPublic) return fromPublic
+  if (/^[0-9a-f-]{36}\/[0-9a-f-]{36}_/i.test(fileUrl) || /^[0-9a-f-]{36}\//i.test(fileUrl)) {
+    return fileUrl.replace(/^\//, '')
+  }
+  return null
+}
+
+export async function getClientFileSignedUrl(objectPath: string, expiresInSec = SIGNED_URL_TTL_SEC): Promise<string | null> {
+  if (!objectPath) return null
+  const { data, error } = await getSupabase().storage
+    .from(CLIENT_FILES_BUCKET)
+    .createSignedUrl(objectPath, expiresInSec)
+  if (error) {
+    console.error('Signed URL error:', error)
+    return null
+  }
+  return data?.signedUrl ?? null
+}
+
+export async function withSignedClientFileUrls<T extends { file_url: string }>(
+  files: T[]
+): Promise<(T & { file_url: string })[]> {
+  return Promise.all(
+    files.map(async (file) => {
+      const path = resolveClientFileStoragePath(file.file_url)
+      if (!path) return file
+      const signed = await getClientFileSignedUrl(path)
+      return signed ? { ...file, file_url: signed } : file
+    })
+  )
 }
 
 export async function uploadClientFileToVault(params: {
@@ -89,6 +164,9 @@ export async function uploadClientFileToVault(params: {
   const effective = effectiveContentType(contentType, originalFileName)
   const v = validateClientFile(effective, buffer.length)
   if (!v.ok) return { ok: false, error: v.error }
+
+  const scan = scanFileBuffer(buffer, effective)
+  if (!scan.ok) return { ok: false, error: scan.reason }
 
   const safe = sanitizeStorageFileName(originalFileName)
   const objectPath = `${clientId}/${randomUUID()}_${safe}`
@@ -104,9 +182,8 @@ export async function uploadClientFileToVault(params: {
     return { ok: false, error: upErr.message || 'Upload failed' }
   }
 
-  const { data: pub } = supabase.storage.from(CLIENT_FILES_BUCKET).getPublicUrl(objectPath)
-  const publicUrl = pub?.publicUrl
-  if (!publicUrl) return { ok: false, error: 'Could not resolve public URL' }
+  const signedUrl = await getClientFileSignedUrl(objectPath)
+  if (!signedUrl) return { ok: false, error: 'Could not create signed URL' }
 
   let displayName = (displayNameOverride || '').trim() || sanitizeStorageFileName(originalFileName).replace(/_/g, ' ')
   if (displayName.length > 300) displayName = displayName.slice(0, 300)
@@ -115,8 +192,8 @@ export async function uploadClientFileToVault(params: {
   return {
     ok: true,
     data: {
-      publicUrl,
       objectPath,
+      signedUrl,
       file_size: buffer.length,
       file_type,
       displayName,
@@ -149,11 +226,16 @@ export function storageObjectPathFromPublicUrl(fileUrl: string): string | null {
   }
 }
 
-export async function removeClientFileByPublicUrlIfOurs(fileUrl: string): Promise<void> {
-  const path = storageObjectPathFromPublicUrl(fileUrl)
-  if (!path) return
-  const { error } = await getSupabase().storage.from(CLIENT_FILES_BUCKET).remove([path])
+export async function removeClientFileByStoragePath(objectPath: string): Promise<void> {
+  if (!objectPath) return
+  const { error } = await getSupabase().storage.from(CLIENT_FILES_BUCKET).remove([objectPath])
   if (error) console.error('Storage remove error:', error)
+}
+
+export async function removeClientFileByPublicUrlIfOurs(fileUrl: string): Promise<void> {
+  const path = resolveClientFileStoragePath(fileUrl)
+  if (!path) return
+  await removeClientFileByStoragePath(path)
 }
 
 /** Remove all objects under a client prefix in the vault bucket. */
@@ -165,8 +247,8 @@ export async function removeAllClientFilesFromVault(clientId: string): Promise<v
     return
   }
   const paths = (data || [])
-    .filter(item => item.name)
-    .map(item => `${clientId}/${item.name}`)
+    .filter((item) => item.name)
+    .map((item) => `${clientId}/${item.name}`)
   if (paths.length === 0) return
   const { error: removeErr } = await supabase.storage.from(CLIENT_FILES_BUCKET).remove(paths)
   if (removeErr) console.error('Storage bulk remove error:', removeErr)

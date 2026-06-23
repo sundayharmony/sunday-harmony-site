@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { removeClientFileByPublicUrlIfOurs } from '@/lib/client-files-storage'
+import { removeClientFileByPublicUrlIfOurs, withSignedClientFileUrls } from '@/lib/client-files-storage'
 import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getFileById, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import {
@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
     }
 
     const files = await getFilesByClient(clientId)
-    return NextResponse.json(files, { status: 200 })
+    const signed = await withSignedClientFileUrls(files)
+    return NextResponse.json(signed, { status: 200 })
   } catch (error: unknown) {
     console.error('GET /api/admin/files error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

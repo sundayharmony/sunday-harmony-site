@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { withSignedClientFileUrls } from '@/lib/client-files-storage'
 import { getContactProfile } from '@/lib/crm-db'
 
 export const dynamic = 'force-dynamic'
@@ -16,6 +17,10 @@ export async function GET(
   const data = await getContactProfile(entity, params.id)
   if (!data) {
     return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
+  }
+
+  if (data.files?.length) {
+    data.files = await withSignedClientFileUrls(data.files)
   }
 
   return NextResponse.json(data)

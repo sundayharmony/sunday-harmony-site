@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { assertHttpsSubmission } from '@/lib/credit-funding-validation'
 import { stageCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { verifyUploadSession } from '@/lib/credit-funding-upload-session'
@@ -16,10 +17,8 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = getClientIp(req)
-    const rl = rateLimit(`credit-funding-stage:${ip}`, 30, 60 * 60 * 1000)
-    if (!rl.allowed) {
-      return NextResponse.json({ error: 'Too many uploads. Please try again later.' }, { status: 429 })
-    }
+    const rl = await rateLimitDurable(`credit-funding-stage:${ip}`, 30, 60 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const formData = await req.formData()
     const sessionId = String(formData.get('sessionId') || '').trim()

@@ -66,7 +66,7 @@ Includes: CRM, credit-funding (+ workflow, export), clients, leads, files, tasks
 
 | ID | Finding | Location | Status |
 |----|---------|----------|--------|
-| S-H1 | **`client-files` storage bucket is public** — anyone with URL can read objects | `supabase-migration-006`, `client-files-storage.ts` | Open |
+| S-H1 | **`client-files` storage bucket is public** — anyone with URL can read objects | `supabase-migration-006`, `client-files-storage.ts` | **Fix deployed in code** — run migration 017; signed URLs |
 | S-H2 | Service role is sole DB gate — server compromise = full data access | `src/lib/supabase.ts` | Accepted risk; harden server |
 
 ### Medium
@@ -74,10 +74,10 @@ Includes: CRM, credit-funding (+ workflow, export), clients, leads, files, tasks
 | ID | Finding | Location | Status |
 |----|---------|----------|--------|
 | S-M1 | Credit funding messages missing ownership check | `dashboard/credit-funding/messages/route.ts` | **Fixed this session** |
-| S-M2 | In-memory rate limits don't work across Vercel instances | `rate-limit.ts` | Open |
-| S-M3 | No rate limits on admin/billing/dashboard APIs | Most admin routes | Open |
-| S-M4 | Upload session HMAC tokens don't expire | `credit-funding-upload-session.ts` | Open |
-| S-M5 | Client vault uploads lack magic-byte validation | `client-files-storage.ts` | Open |
+| S-M2 | In-memory rate limits don't work across Vercel instances | `rate-limit-durable.ts` | **Partial fix:** Upstash REST when env set; in-memory fallback |
+| S-M3 | No rate limits on admin/billing/dashboard APIs | Most admin routes | **Partial fix:** file upload routes rate-limited |
+| S-M4 | Upload session HMAC tokens don't expire | `credit-funding-upload-session.ts` | **Fixed:** 24h TTL tokens + legacy compat |
+| S-M5 | Client vault uploads lack magic-byte validation | `client-files-storage.ts` | **Fixed:** magic-byte + executable scan |
 | S-M6 | `admin/data` PATCH has no field whitelist | `admin/data/route.ts` | Open |
 | S-M7 | `supabase-schema.sql` RLS policies use `USING (true)` on core tables | Legacy migration | Low risk while anon key unused |
 
@@ -87,11 +87,47 @@ Includes: CRM, credit-funding (+ workflow, export), clients, leads, files, tasks
 |----|---------|----------|
 | S-L1 | No CSRF tokens (mitigated by SameSite cookies) | All cookie-auth POSTs |
 | S-L2 | Admin can call `/api/dashboard/activity` without `requireAdminSession` | `dashboard/activity/route.ts` |
-| S-L3 | CSP allows `unsafe-inline` / `unsafe-eval` | `next.config.js` |
+| S-L3 | CSP allows `unsafe-inline` / `unsafe-eval` | `next.config.js` | **Partial fix:** removed `unsafe-eval` from enforced CSP; report-only header added |
 | S-L4 | No 2FA for admin | `auth.ts` |
 | S-L5 | PBKDF2 10k iterations (not Argon2) | `db.ts` |
 | S-L6 | Dev encryption key fallback when env unset | `field-encryption.ts` |
 | S-L7 | `SETUP_TOKEN` / `ADMIN_PASSWORD` not in `.env.example` | Docs gap |
+
+---
+
+## S-CSP-2026 — Chrome Issues assessment (`/credit-funding` Step 4)
+
+**Assessed:** 2026-06-23  
+**Production URL:** `https://www.sundayharmony.com/credit-funding`
+
+### Live security headers (verified)
+
+| Header | Production value |
+|--------|------------------|
+| `Content-Security-Policy` | Matches [`next.config.js`](../next.config.js): includes `'unsafe-inline'` and `'unsafe-eval'` in `script-src` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` |
+| `X-Frame-Options` | `DENY` |
+| `X-Content-Type-Options` | `nosniff` |
+
+Production CSP **matches repo config** — no header drift detected.
+
+### CSP eval Chrome issue
+
+Chrome DevTools “CSP blocks eval” on this page indicates a script attempted `eval()` / `new Function()` while a stricter effective policy blocked it, **or** Chrome is flagging eval usage under monitoring. Likely sources on public pages:
+
+- Next.js client hydration chunks (framework)
+- `@vercel/analytics` (`va.vercel-scripts.com`) — loaded from [`layout.tsx`](../src/app/layout.tsx)
+- `@vercel/speed-insights` (connect-only; unlikely eval)
+
+**Remediation:** Remove `'unsafe-eval'` from enforced CSP; add `Content-Security-Policy-Report-Only` without `'unsafe-eval'` to catch violations before enforcement. Stripe (`js.stripe.com`) only loads on billing routes.
+
+### Form accessibility (Step 4)
+
+**Root cause:** [`CreditFundingForm.tsx`](../src/components/credit-funding/CreditFundingForm.tsx) — labels lack `htmlFor`; inputs/selects lack `id`/`name` on monitoring step (and most other steps). Only `dateOfBirth` and `ssn` were wired.
+
+**Unlabeled field count (approx.):** ~35 controls across all intake steps (personal, credit, monitoring, goals, business, consent).
+
+**Status:** Fix tracked in CSP hardening plan — add `cf-*` ids/names + `htmlFor` on all steps.
 
 ---
 

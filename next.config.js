@@ -1,47 +1,51 @@
 const path = require('path')
 
+const SUPABASE_HOST = 'https://*.supabase.co'
+
+/** @param {{ allowUnsafeEval?: boolean }} opts */
+function buildContentSecurityPolicy({ allowUnsafeEval = false } = {}) {
+  const scriptSrc = ["'self'", "'unsafe-inline'", 'https://va.vercel-scripts.com', 'https://js.stripe.com']
+  if (allowUnsafeEval) scriptSrc.push("'unsafe-eval'")
+
+  return [
+    "default-src 'self'",
+    `script-src ${scriptSrc.join(' ')}`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com`,
+    `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com`,
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    'upgrade-insecure-requests',
+  ].join('; ')
+}
+
+const strictCsp = buildContentSecurityPolicy({ allowUnsafeEval: false })
+const reportOnlyCsp = `${strictCsp}; report-uri /api/csp-report`
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
-  // Security headers
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: [
-          // Prevent clickjacking
           { key: 'X-Frame-Options', value: 'DENY' },
-          // Prevent MIME type sniffing
           { key: 'X-Content-Type-Options', value: 'nosniff' },
-          // Enable XSS filter
           { key: 'X-XSS-Protection', value: '1; mode=block' },
-          // Control referrer information
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          // Permissions policy — disable unnecessary browser features
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
-          // Strict Transport Security (HTTPS only)
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
-          // Content Security Policy
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://js.stripe.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: blob: https:",
-              "connect-src 'self' https://*.supabase.co https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com",
-              "frame-src https://js.stripe.com https://hooks.stripe.com https://*.stripe.com",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-            ].join('; '),
-          },
+          { key: 'Content-Security-Policy', value: strictCsp },
+          { key: 'Content-Security-Policy-Report-Only', value: reportOnlyCsp },
         ],
       },
     ]
   },
-  // Disable x-powered-by header
   poweredByHeader: false,
 }
 

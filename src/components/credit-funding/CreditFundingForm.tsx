@@ -61,6 +61,8 @@ const inputClass =
 
 const labelClass = 'block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide'
 
+const fid = (name: string) => `cf-${name}`
+
 interface FormState {
   fullName: string
   dateOfBirth: string
@@ -435,19 +437,20 @@ export default function CreditFundingForm() {
         {currentStepId === 'personal' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className={labelClass}>Full Legal Name *</label>
-              <input className={inputClass} value={form.fullName} onChange={(e) => update('fullName', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('fullName')}>Full Legal Name *</label>
+              <input id={fid('fullName')} name="fullName" className={inputClass} value={form.fullName} onChange={(e) => update('fullName', e.target.value)} />
               {errors.fullName && <p className="text-xs text-brand-red mt-1">{errors.fullName}</p>}
             </div>
             <div>
-              <label className={labelClass} htmlFor="dateOfBirth">Date of Birth *</label>
-              <input id="dateOfBirth" type="date" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('dateOfBirth')}>Date of Birth *</label>
+              <input id={fid('dateOfBirth')} name="dateOfBirth" type="date" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
               {errors.dateOfBirth && <p className="text-xs text-brand-red mt-1">{errors.dateOfBirth}</p>}
             </div>
             <div>
-              <label className={labelClass} htmlFor="ssn">Social Security Number *</label>
+              <label className={labelClass} htmlFor={fid('ssn')}>Social Security Number *</label>
               <SsnInputField
-                id="ssn"
+                id={fid('ssn')}
+                name="ssn"
                 className={inputClass}
                 value={form.ssn}
                 onChange={(digits) => update('ssn', digits)}
@@ -455,8 +458,10 @@ export default function CreditFundingForm() {
               />
             </div>
             <div>
-              <label className={labelClass}>Email Address *</label>
+              <label className={labelClass} htmlFor={fid('email')}>Email Address *</label>
               <input
+                id={fid('email')}
+                name="email"
                 type="email"
                 className={`${inputClass}${inviteEmailLocked ? ' bg-neutral-100 cursor-not-allowed' : ''}`}
                 value={form.email}
@@ -469,28 +474,28 @@ export default function CreditFundingForm() {
               {errors.email && <p className="text-xs text-brand-red mt-1">{errors.email}</p>}
             </div>
             <div>
-              <label className={labelClass}>Phone Number *</label>
-              <input type="tel" className={inputClass} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('phone')}>Phone Number *</label>
+              <input id={fid('phone')} name="phone" type="tel" className={inputClass} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
               {errors.phone && <p className="text-xs text-brand-red mt-1">{errors.phone}</p>}
             </div>
             <div className="sm:col-span-2">
-              <label className={labelClass}>Home Address *</label>
-              <input className={inputClass} value={form.address} onChange={(e) => update('address', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('address')}>Home Address *</label>
+              <input id={fid('address')} name="address" className={inputClass} value={form.address} onChange={(e) => update('address', e.target.value)} />
               {errors.address && <p className="text-xs text-brand-red mt-1">{errors.address}</p>}
             </div>
             <div>
-              <label className={labelClass}>City *</label>
-              <input className={inputClass} value={form.city} onChange={(e) => update('city', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('city')}>City *</label>
+              <input id={fid('city')} name="city" className={inputClass} value={form.city} onChange={(e) => update('city', e.target.value)} />
               {errors.city && <p className="text-xs text-brand-red mt-1">{errors.city}</p>}
             </div>
             <div>
-              <label className={labelClass}>State *</label>
-              <input className={inputClass} maxLength={2} placeholder="NJ" value={form.state} onChange={(e) => update('state', e.target.value.toUpperCase())} />
+              <label className={labelClass} htmlFor={fid('state')}>State *</label>
+              <input id={fid('state')} name="state" className={inputClass} maxLength={2} placeholder="NJ" value={form.state} onChange={(e) => update('state', e.target.value.toUpperCase())} />
               {errors.state && <p className="text-xs text-brand-red mt-1">{errors.state}</p>}
             </div>
             <div>
-              <label className={labelClass}>ZIP Code *</label>
-              <input className={inputClass} value={form.zipCode} onChange={(e) => update('zipCode', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('zipCode')}>ZIP Code *</label>
+              <input id={fid('zipCode')} name="zipCode" className={inputClass} value={form.zipCode} onChange={(e) => update('zipCode', e.target.value)} />
               {errors.zipCode && <p className="text-xs text-brand-red mt-1">{errors.zipCode}</p>}
             </div>
           </div>
@@ -513,24 +518,24 @@ export default function CreditFundingForm() {
         {currentStepId === 'credit' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Current Credit Score (if known)</label>
-              <input className={inputClass} placeholder="e.g. 650" value={form.creditProfile.creditScore || ''} onChange={(e) => updateCredit('creditScore', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('creditScore')}>Current Credit Score (if known)</label>
+              <input id={fid('creditScore')} name="creditScore" className={inputClass} placeholder="e.g. 650" value={form.creditProfile.creditScore || ''} onChange={(e) => updateCredit('creditScore', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Open Credit Cards</label>
-              <input className={inputClass} type="number" min="0" value={form.creditProfile.openCreditCards || ''} onChange={(e) => updateCredit('openCreditCards', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('openCreditCards')}>Open Credit Cards</label>
+              <input id={fid('openCreditCards')} name="openCreditCards" className={inputClass} type="number" min="0" value={form.creditProfile.openCreditCards || ''} onChange={(e) => updateCredit('openCreditCards', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Credit Inquiries</label>
-              <input className={inputClass} type="number" min="0" value={form.creditProfile.inquiries || ''} onChange={(e) => updateCredit('inquiries', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('inquiries')}>Credit Inquiries</label>
+              <input id={fid('inquiries')} name="inquiries" className={inputClass} type="number" min="0" value={form.creditProfile.inquiries || ''} onChange={(e) => updateCredit('inquiries', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Monthly Gross Income</label>
-              <input className={inputClass} placeholder="$" value={form.creditProfile.monthlyGrossIncome || ''} onChange={(e) => updateCredit('monthlyGrossIncome', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('monthlyGrossIncome')}>Monthly Gross Income</label>
+              <input id={fid('monthlyGrossIncome')} name="monthlyGrossIncome" className={inputClass} placeholder="$" value={form.creditProfile.monthlyGrossIncome || ''} onChange={(e) => updateCredit('monthlyGrossIncome', e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>Annual Income</label>
-              <input className={inputClass} placeholder="$" value={form.creditProfile.annualIncome || ''} onChange={(e) => updateCredit('annualIncome', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('annualIncome')}>Annual Income</label>
+              <input id={fid('annualIncome')} name="annualIncome" className={inputClass} placeholder="$" value={form.creditProfile.annualIncome || ''} onChange={(e) => updateCredit('annualIncome', e.target.value)} />
             </div>
             {[
               { key: 'bankruptcy' as const, label: 'Have you ever filed bankruptcy?' },
@@ -547,7 +552,8 @@ export default function CreditFundingForm() {
                     <label key={String(val)} className="flex items-center gap-1 text-sm cursor-pointer">
                       <input
                         type="radio"
-                        name={key}
+                        id={fid(`${key}-${val ? 'yes' : 'no'}`)}
+                        name={fid(key)}
                         checked={form.creditProfile[key] === val}
                         onChange={() => updateCredit(key, val)}
                       />
@@ -567,8 +573,8 @@ export default function CreditFundingForm() {
               These services typically offer low-cost trial memberships. If you sign up, you may wish to cancel before any recurring subscription charges occur. Please review each provider&apos;s terms directly.
             </div>
             <div className="mb-4">
-              <label className={labelClass}>Selected Provider *</label>
-              <select className={inputClass} value={form.selectedCreditProvider} onChange={(e) => update('selectedCreditProvider', e.target.value)}>
+              <label className={labelClass} htmlFor={fid('selectedCreditProvider')}>Selected Provider *</label>
+              <select id={fid('selectedCreditProvider')} name="selectedCreditProvider" className={inputClass} value={form.selectedCreditProvider} onChange={(e) => update('selectedCreditProvider', e.target.value)}>
                 <option value="">Select a provider</option>
                 {CREDIT_PROVIDERS.map((p) => (
                   <option key={p} value={p}>{p}</option>
@@ -616,14 +622,16 @@ export default function CreditFundingForm() {
             {form.selectedCreditProvider && (
               <>
                 <div className="mb-4">
-                  <label className={labelClass}>Username / Login Email *</label>
-                  <input className={inputClass} value={form.providerUsername} onChange={(e) => update('providerUsername', e.target.value)} autoComplete="off" />
+                  <label className={labelClass} htmlFor={fid('providerUsername')}>Username / Login Email *</label>
+                  <input id={fid('providerUsername')} name="providerUsername" className={inputClass} value={form.providerUsername} onChange={(e) => update('providerUsername', e.target.value)} autoComplete="off" />
                   {errors.providerUsername && <p className="text-xs text-brand-red mt-1">{errors.providerUsername}</p>}
                 </div>
                 <div className="mb-4">
-                  <label className={labelClass}>Password *</label>
+                  <label className={labelClass} htmlFor={fid('providerPassword')}>Password *</label>
                   <div className="relative">
                     <input
+                      id={fid('providerPassword')}
+                      name="providerPassword"
                       type={form.showPassword ? 'text' : 'password'}
                       className={inputClass}
                       value={form.providerPassword}
@@ -632,6 +640,7 @@ export default function CreditFundingForm() {
                     />
                     <button
                       type="button"
+                      aria-label={form.showPassword ? 'Hide provider password' : 'Show provider password'}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
                       onClick={() => update('showPassword', !form.showPassword)}
                     >
@@ -643,29 +652,34 @@ export default function CreditFundingForm() {
                 <div className="mb-5 pt-4 border-t border-brand-border">
                   <p className="text-sm font-semibold text-brand-text mb-3">Experian.com credentials</p>
                   <div className="mb-4">
-                    <label className={labelClass}>Experian.com Email *</label>
+                    <label className={labelClass} htmlFor={fid('experianEmail')}>Experian.com Email *</label>
                     <input
+                      id={fid('experianEmail')}
+                      name="experianEmail"
                       type="email"
                       className={inputClass}
                       value={form.experianEmail}
                       onChange={(e) => update('experianEmail', e.target.value)}
-                      autoComplete="off"
+                      autoComplete="username"
                       placeholder="your@email.com"
                     />
                     {errors.experianEmail && <p className="text-xs text-brand-red mt-1">{errors.experianEmail}</p>}
                   </div>
                   <div className="mb-4">
-                    <label className={labelClass}>Experian.com Password *</label>
+                    <label className={labelClass} htmlFor={fid('experianPassword')}>Experian.com Password *</label>
                     <div className="relative">
                       <input
+                        id={fid('experianPassword')}
+                        name="experianPassword"
                         type={form.showExperianPassword ? 'text' : 'password'}
                         className={inputClass}
                         value={form.experianPassword}
                         onChange={(e) => update('experianPassword', e.target.value)}
-                        autoComplete="new-password"
+                        autoComplete="current-password"
                       />
                       <button
                         type="button"
+                        aria-label={form.showExperianPassword ? 'Hide Experian password' : 'Show Experian password'}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
                         onClick={() => update('showExperianPassword', !form.showExperianPassword)}
                       >
@@ -687,27 +701,27 @@ export default function CreditFundingForm() {
         {currentStepId === 'goals' && (
           <div>
             <div className="mb-4">
-              <label className={labelClass}>What are your primary credit goals?</label>
-              <textarea className={`${inputClass} min-h-[100px]`} value={form.primaryCreditGoalsText} onChange={(e) => update('primaryCreditGoalsText', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('primaryCreditGoalsText')}>What are your primary credit goals?</label>
+              <textarea id={fid('primaryCreditGoalsText')} name="primaryCreditGoalsText" className={`${inputClass} min-h-[100px]`} value={form.primaryCreditGoalsText} onChange={(e) => update('primaryCreditGoalsText', e.target.value)} />
               {errors.primaryCreditGoalsText && <p className="text-xs text-brand-red mt-1">{errors.primaryCreditGoalsText}</p>}
             </div>
             <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
               {CREDIT_GOAL_OPTIONS.map((goal) => (
-                <label key={goal} className="flex items-center gap-2 text-sm text-brand-muted cursor-pointer p-2 rounded-lg hover:bg-neutral-50">
-                  <input type="checkbox" checked={form.creditGoals.includes(goal)} onChange={() => toggleGoal(goal)} />
+                <label key={goal} htmlFor={fid(`goal-${goal}`)} className="flex items-center gap-2 text-sm text-brand-muted cursor-pointer p-2 rounded-lg hover:bg-neutral-50">
+                  <input id={fid(`goal-${goal}`)} name="creditGoals" type="checkbox" checked={form.creditGoals.includes(goal)} onChange={() => toggleGoal(goal)} />
                   {goal}
                 </label>
               ))}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className={labelClass}>How much funding are you seeking? *</label>
-                <input className={inputClass} placeholder="e.g. $50,000" value={form.fundingAmount} onChange={(e) => update('fundingAmount', e.target.value)} />
+                <label className={labelClass} htmlFor={fid('fundingAmount')}>How much funding are you seeking? *</label>
+                <input id={fid('fundingAmount')} name="fundingAmount" className={inputClass} placeholder="e.g. $50,000" value={form.fundingAmount} onChange={(e) => update('fundingAmount', e.target.value)} />
                 {errors.fundingAmount && <p className="text-xs text-brand-red mt-1">{errors.fundingAmount}</p>}
               </div>
               <div>
-                <label className={labelClass}>Personal or business use? *</label>
-                <select className={inputClass} value={form.fundingUse} onChange={(e) => update('fundingUse', e.target.value)}>
+                <label className={labelClass} htmlFor={fid('fundingUse')}>Personal or business use? *</label>
+                <select id={fid('fundingUse')} name="fundingUse" className={inputClass} value={form.fundingUse} onChange={(e) => update('fundingUse', e.target.value)}>
                   <option value="">Select</option>
                   <option value="Personal">Personal</option>
                   <option value="Business">Business</option>
@@ -716,22 +730,22 @@ export default function CreditFundingForm() {
                 {errors.fundingUse && <p className="text-xs text-brand-red mt-1">{errors.fundingUse}</p>}
               </div>
               <div>
-                <label className={labelClass}>Do you currently own a business?</label>
-                <select className={inputClass} value={form.ownsBusiness ? 'yes' : 'no'} onChange={(e) => update('ownsBusiness', e.target.value === 'yes')}>
+                <label className={labelClass} htmlFor={fid('ownsBusiness')}>Do you currently own a business?</label>
+                <select id={fid('ownsBusiness')} name="ownsBusiness" className={inputClass} value={form.ownsBusiness ? 'yes' : 'no'} onChange={(e) => update('ownsBusiness', e.target.value === 'yes')}>
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
                 </select>
               </div>
               {form.ownsBusiness && (
                 <div>
-                  <label className={labelClass}>Business Name *</label>
-                  <input className={inputClass} value={form.businessName} onChange={(e) => update('businessName', e.target.value)} />
+                  <label className={labelClass} htmlFor={fid('businessName')}>Business Name *</label>
+                  <input id={fid('businessName')} name="businessName" className={inputClass} value={form.businessName} onChange={(e) => update('businessName', e.target.value)} />
                   {errors.businessName && <p className="text-xs text-brand-red mt-1">{errors.businessName}</p>}
                 </div>
               )}
               <div className="sm:col-span-2">
-                <label className={labelClass}>Timeframe for funding *</label>
-                <select className={inputClass} value={form.fundingTimeframe} onChange={(e) => update('fundingTimeframe', e.target.value)}>
+                <label className={labelClass} htmlFor={fid('fundingTimeframe')}>Timeframe for funding *</label>
+                <select id={fid('fundingTimeframe')} name="fundingTimeframe" className={inputClass} value={form.fundingTimeframe} onChange={(e) => update('fundingTimeframe', e.target.value)}>
                   <option value="">Select timeframe</option>
                   {FUNDING_TIMEFRAMES.map((t) => (
                     <option key={t} value={t}>{t}</option>
@@ -741,8 +755,8 @@ export default function CreditFundingForm() {
               </div>
             </div>
             <div>
-              <label className={labelClass}>Tell us about your situation and goals</label>
-              <textarea className={`${inputClass} min-h-[120px]`} value={form.goalsNotes} onChange={(e) => update('goalsNotes', e.target.value)} />
+              <label className={labelClass} htmlFor={fid('goalsNotes')}>Tell us about your situation and goals</label>
+              <textarea id={fid('goalsNotes')} name="goalsNotes" className={`${inputClass} min-h-[120px]`} value={form.goalsNotes} onChange={(e) => update('goalsNotes', e.target.value)} />
             </div>
           </div>
         )}
@@ -776,8 +790,10 @@ export default function CreditFundingForm() {
                 { key: 'accurateInfo' as const, text: 'I certify all information provided is accurate.' },
                 { key: 'authorizeReview' as const, text: 'I authorize Sunday Harmony to review my credit information.' },
               ].map(({ key, text }) => (
-                <label key={key} className="flex items-start gap-3 cursor-pointer">
+                <label key={key} htmlFor={fid(`consent-${key}`)} className="flex items-start gap-3 cursor-pointer">
                   <input
+                    id={fid(`consent-${key}`)}
+                    name={fid(`consent-${key}`)}
                     type="checkbox"
                     className="mt-1"
                     checked={form.consent[key]}
@@ -791,8 +807,10 @@ export default function CreditFundingForm() {
                   <span className="text-sm text-brand-muted">{text}</span>
                 </label>
               ))}
-              <label className="flex items-start gap-3 cursor-pointer">
+              <label htmlFor={fid('consent-agreeTerms')} className="flex items-start gap-3 cursor-pointer">
                 <input
+                  id={fid('consent-agreeTerms')}
+                  name={fid('consent-agreeTerms')}
                   type="checkbox"
                   className="mt-1"
                   checked={form.consent.agreeTerms}
@@ -815,13 +833,13 @@ export default function CreditFundingForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Typed Signature *</label>
-                <input className={inputClass} placeholder="Type your full legal name" value={form.typedSignature} onChange={(e) => update('typedSignature', e.target.value)} />
+                <label className={labelClass} htmlFor={fid('typedSignature')}>Typed Signature *</label>
+                <input id={fid('typedSignature')} name="typedSignature" className={inputClass} placeholder="Type your full legal name" value={form.typedSignature} onChange={(e) => update('typedSignature', e.target.value)} />
                 {errors.typedSignature && <p className="text-xs text-brand-red mt-1">{errors.typedSignature}</p>}
               </div>
               <div>
-                <label className={labelClass}>Date *</label>
-                <input type="date" className={inputClass} value={form.signatureDate} onChange={(e) => update('signatureDate', e.target.value)} />
+                <label className={labelClass} htmlFor={fid('signatureDate')}>Date *</label>
+                <input id={fid('signatureDate')} name="signatureDate" type="date" className={inputClass} value={form.signatureDate} onChange={(e) => update('signatureDate', e.target.value)} />
                 {errors.signatureDate && <p className="text-xs text-brand-red mt-1">{errors.signatureDate}</p>}
               </div>
             </div>

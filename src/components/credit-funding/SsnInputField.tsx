@@ -9,9 +9,10 @@ interface Props {
   error?: string
   className?: string
   id?: string
+  name?: string
 }
 
-export default function SsnInputField({ value, onChange, error, className = '', id = 'ssn' }: Props) {
+export default function SsnInputField({ value, onChange, error, className = '', id = 'ssn', name = 'ssn' }: Props) {
   const [focused, setFocused] = useState(false)
 
   const displayValue = focused
@@ -24,6 +25,7 @@ export default function SsnInputField({ value, onChange, error, className = '', 
     <div>
       <input
         id={id}
+        name={name}
         type="text"
         inputMode="numeric"
         autoComplete="off"
