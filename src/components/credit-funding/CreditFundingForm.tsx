@@ -601,6 +601,15 @@ export default function CreditFundingForm() {
                     Sign up at {form.selectedCreditProvider}
                     <span aria-hidden="true">↗</span>
                   </a>
+                  <div
+                    className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200/90 text-sm text-amber-950"
+                    role="note"
+                  >
+                    <p className="font-semibold text-amber-950">Cancel your trial after signing up</p>
+                    <p className="mt-1 text-amber-900/90 leading-relaxed">
+                      Trial memberships convert to paid plans — often $25.99+ per month. Cancel right after you create your account to avoid recurring charges.
+                    </p>
+                  </div>
                 </div>
               )
             })()}
