@@ -454,6 +454,147 @@ export async function deleteFileRecord(id: string): Promise<boolean> {
   return !error
 }
 
+// ââââââââââ CLIENT CASE STUDIES ââââââââââ
+export interface ClientCaseStudy {
+  id: string
+  client_id: string
+  title: string
+  file_url: string
+  storage_path: string
+  file_size: number
+  published: boolean
+  uploaded_by_name: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ClientCaseStudyWithClient extends ClientCaseStudy {
+  client_name: string
+  client_business: string
+}
+
+export async function getPublishedCaseStudies(): Promise<ClientCaseStudyWithClient[]> {
+  const { data, error } = await getSupabase()
+    .from('client_case_studies')
+    .select('*, clients!inner(name, business)')
+    .eq('published', true)
+    .order('title', { ascending: true })
+
+  if (error) {
+    console.error('getPublishedCaseStudies error:', error)
+    return []
+  }
+
+  return (data || []).map((row: Record<string, unknown>) => {
+    const clients = row.clients as { name: string; business: string } | null
+    const { clients: _c, ...study } = row
+    return {
+      ...(study as unknown as ClientCaseStudy),
+      client_name: clients?.name || '',
+      client_business: clients?.business || '',
+    }
+  })
+}
+
+export async function getAllCaseStudiesForAdmin(): Promise<ClientCaseStudyWithClient[]> {
+  const { data, error } = await getSupabase()
+    .from('client_case_studies')
+    .select('*, clients!inner(name, business)')
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    console.error('getAllCaseStudiesForAdmin error:', error)
+    return []
+  }
+
+  return (data || []).map((row: Record<string, unknown>) => {
+    const clients = row.clients as { name: string; business: string } | null
+    const { clients: _c, ...study } = row
+    return {
+      ...(study as unknown as ClientCaseStudy),
+      client_name: clients?.name || '',
+      client_business: clients?.business || '',
+    }
+  })
+}
+
+export async function getCaseStudyByClientId(clientId: string): Promise<ClientCaseStudy | null> {
+  const { data, error } = await getSupabase()
+    .from('client_case_studies')
+    .select('*')
+    .eq('client_id', clientId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getCaseStudyByClientId error:', error)
+    return null
+  }
+  return data
+}
+
+export async function upsertClientCaseStudy(
+  record: Omit<ClientCaseStudy, 'id' | 'created_at' | 'updated_at'> & { id?: string }
+): Promise<ClientCaseStudy | null> {
+  const now = new Date().toISOString()
+  const payload = {
+    client_id: record.client_id,
+    title: record.title,
+    file_url: record.file_url,
+    storage_path: record.storage_path,
+    file_size: record.file_size,
+    published: record.published,
+    uploaded_by_name: record.uploaded_by_name,
+    updated_at: now,
+  }
+
+  const { data, error } = await getSupabase()
+    .from('client_case_studies')
+    .upsert(payload, { onConflict: 'client_id' })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('upsertClientCaseStudy error:', error)
+    return null
+  }
+  return data
+}
+
+export async function updateClientCaseStudy(
+  id: string,
+  updates: Partial<Pick<ClientCaseStudy, 'title' | 'published'>>
+): Promise<ClientCaseStudy | null> {
+  const { data, error } = await getSupabase()
+    .from('client_case_studies')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('updateClientCaseStudy error:', error)
+    return null
+  }
+  return data
+}
+
+export async function deleteClientCaseStudy(id: string): Promise<ClientCaseStudy | null> {
+  const { data: existing } = await getSupabase()
+    .from('client_case_studies')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!existing) return null
+
+  const { error } = await getSupabase().from('client_case_studies').delete().eq('id', id)
+  if (error) {
+    console.error('deleteClientCaseStudy error:', error)
+    return null
+  }
+  return existing as ClientCaseStudy
+}
+
 // ââââââââââ TASKS ââââââââââ
 export interface Task {
   id: string

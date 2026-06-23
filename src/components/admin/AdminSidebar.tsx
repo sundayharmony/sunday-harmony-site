@@ -11,6 +11,7 @@ const navItems = [
   { href: '/admin/leads', icon: '\u{1F525}', label: 'Leads' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
   { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
+  { href: '/admin/case-studies', icon: '\u{1F4C4}', label: 'Case Studies' },
   { href: '/admin/billing', icon: '\u{1F4B3}', label: 'Billing' },
   { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },

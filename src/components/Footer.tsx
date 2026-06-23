@@ -10,6 +10,7 @@ export default function Footer() {
             {[
               { label: 'Services', href: '/#services' },
               { label: 'Packages', href: '/#packages' },
+              { label: 'Case Studies', href: '/case-studies' },
               { label: 'About', href: '/#about' },
               { label: 'Contact', href: '/#contact' },
             ].map((link) => (

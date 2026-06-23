@@ -1,0 +1,22 @@
+import { NextResponse } from 'next/server'
+import { getPublishedCaseStudies } from '@/lib/db'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  try {
+    const studies = await getPublishedCaseStudies()
+    const payload = studies.map((s) => ({
+      id: s.id,
+      title: s.title,
+      client_name: s.client_name,
+      client_business: s.client_business,
+      pdf_url: s.file_url,
+      updated_at: s.updated_at,
+    }))
+    return NextResponse.json(payload)
+  } catch (err) {
+    console.error('GET /api/case-studies error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

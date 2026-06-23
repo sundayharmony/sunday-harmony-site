@@ -11,6 +11,7 @@ import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
   FUNDING_TIMEFRAMES,
+  getCreditProviderSignupLink,
   requiresBusinessSection,
   type CreditProfile,
   type ConsentData,
@@ -75,6 +76,9 @@ interface FormState {
   providerUsername: string
   providerPassword: string
   showPassword: boolean
+  experianEmail: string
+  experianPassword: string
+  showExperianPassword: boolean
   primaryCreditGoalsText: string
   creditGoals: string[]
   fundingAmount: string
@@ -115,6 +119,9 @@ const initialState: FormState = {
   providerUsername: '',
   providerPassword: '',
   showPassword: false,
+  experianEmail: '',
+  experianPassword: '',
+  showExperianPassword: false,
   primaryCreditGoalsText: '',
   creditGoals: [],
   fundingAmount: '',
@@ -240,6 +247,10 @@ export default function CreditFundingForm() {
       if (!form.selectedCreditProvider) e.selectedCreditProvider = 'Select a provider'
       if (!form.providerUsername.trim()) e.providerUsername = 'Required'
       if (!form.providerPassword || form.providerPassword.length < 4) e.providerPassword = 'Required'
+      if (!form.experianEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.experianEmail)) {
+        e.experianEmail = 'Valid Experian.com email required'
+      }
+      if (!form.experianPassword || form.experianPassword.length < 4) e.experianPassword = 'Required'
     }
     if (stepId === 'goals') {
       if (!form.primaryCreditGoalsText.trim() && form.creditGoals.length === 0) {
@@ -316,6 +327,8 @@ export default function CreditFundingForm() {
       fd.append('selectedCreditProvider', form.selectedCreditProvider)
       fd.append('providerUsername', form.providerUsername)
       fd.append('providerPassword', form.providerPassword)
+      fd.append('experianEmail', form.experianEmail)
+      fd.append('experianPassword', form.experianPassword)
       fd.append('primaryCreditGoalsText', form.primaryCreditGoalsText)
       fd.append('creditGoals', JSON.stringify(form.creditGoals))
       fd.append('fundingAmount', form.fundingAmount)
@@ -563,31 +576,98 @@ export default function CreditFundingForm() {
               </select>
               {errors.selectedCreditProvider && <p className="text-xs text-brand-red mt-1">{errors.selectedCreditProvider}</p>}
             </div>
-            <div className="mb-4">
-              <label className={labelClass}>Username / Login Email *</label>
-              <input className={inputClass} value={form.providerUsername} onChange={(e) => update('providerUsername', e.target.value)} autoComplete="off" />
-              {errors.providerUsername && <p className="text-xs text-brand-red mt-1">{errors.providerUsername}</p>}
-            </div>
-            <div className="mb-4">
-              <label className={labelClass}>Password *</label>
-              <div className="relative">
-                <input
-                  type={form.showPassword ? 'text' : 'password'}
-                  className={inputClass}
-                  value={form.providerPassword}
-                  onChange={(e) => update('providerPassword', e.target.value)}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
-                  onClick={() => update('showPassword', !form.showPassword)}
+            {form.selectedCreditProvider && (() => {
+              const signupUrl = getCreditProviderSignupLink(form.selectedCreditProvider)
+              if (!signupUrl) return null
+              return (
+                <div
+                  className="mb-5 p-4 bg-sky-50 border border-sky-200 rounded-xl"
+                  role="region"
+                  aria-label={`Sign up with ${form.selectedCreditProvider}`}
                 >
-                  {form.showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              {errors.providerPassword && <p className="text-xs text-brand-red mt-1">{errors.providerPassword}</p>}
-            </div>
+                  <p className="text-sm font-semibold text-brand-text mb-1">
+                    Sign up with {form.selectedCreditProvider} first
+                  </p>
+                  <p className="text-sm text-brand-muted mb-3">
+                    Create your account with this provider before entering your login credentials below.
+                  </p>
+                  <a
+                    href={signupUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Sign up at ${form.selectedCreditProvider} (opens in a new tab)`}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+                  >
+                    Sign up at {form.selectedCreditProvider}
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                </div>
+              )
+            })()}
+            {form.selectedCreditProvider && (
+              <>
+                <div className="mb-4">
+                  <label className={labelClass}>Username / Login Email *</label>
+                  <input className={inputClass} value={form.providerUsername} onChange={(e) => update('providerUsername', e.target.value)} autoComplete="off" />
+                  {errors.providerUsername && <p className="text-xs text-brand-red mt-1">{errors.providerUsername}</p>}
+                </div>
+                <div className="mb-4">
+                  <label className={labelClass}>Password *</label>
+                  <div className="relative">
+                    <input
+                      type={form.showPassword ? 'text' : 'password'}
+                      className={inputClass}
+                      value={form.providerPassword}
+                      onChange={(e) => update('providerPassword', e.target.value)}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
+                      onClick={() => update('showPassword', !form.showPassword)}
+                    >
+                      {form.showPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  {errors.providerPassword && <p className="text-xs text-brand-red mt-1">{errors.providerPassword}</p>}
+                </div>
+                <div className="mb-5 pt-4 border-t border-brand-border">
+                  <p className="text-sm font-semibold text-brand-text mb-3">Experian.com credentials</p>
+                  <div className="mb-4">
+                    <label className={labelClass}>Experian.com Email *</label>
+                    <input
+                      type="email"
+                      className={inputClass}
+                      value={form.experianEmail}
+                      onChange={(e) => update('experianEmail', e.target.value)}
+                      autoComplete="off"
+                      placeholder="your@email.com"
+                    />
+                    {errors.experianEmail && <p className="text-xs text-brand-red mt-1">{errors.experianEmail}</p>}
+                  </div>
+                  <div className="mb-4">
+                    <label className={labelClass}>Experian.com Password *</label>
+                    <div className="relative">
+                      <input
+                        type={form.showExperianPassword ? 'text' : 'password'}
+                        className={inputClass}
+                        value={form.experianPassword}
+                        onChange={(e) => update('experianPassword', e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
+                        onClick={() => update('showExperianPassword', !form.showExperianPassword)}
+                      >
+                        {form.showExperianPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    {errors.experianPassword && <p className="text-xs text-brand-red mt-1">{errors.experianPassword}</p>}
+                  </div>
+                </div>
+              </>
+            )}
             <p className="text-xs text-brand-dim italic">
               Your information will be encrypted and used solely for credit repair and funding analysis.
             </p>

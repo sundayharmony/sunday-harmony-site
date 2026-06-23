@@ -46,6 +46,8 @@ interface ApplicationDetail {
   selected_credit_provider: string
   provider_username?: string
   provider_password?: string
+  experian_email?: string
+  experian_password?: string
   credit_profile?: Record<string, unknown>
   primary_credit_goals_text?: string
   funding_amount?: string
@@ -854,6 +856,8 @@ function CreditFundingAdminContent() {
                     <DetailField label="Provider" value={selected.selected_credit_provider} />
                     <DetailField label="Username / Login" value={selected.provider_username} />
                     <DetailField label="Password" value={selected.provider_password} />
+                    <DetailField label="Experian.com Email" value={selected.experian_email} />
+                    <DetailField label="Experian.com Password" value={selected.experian_password} />
                   </DetailSection>
 
                   <DetailSection title="Goals & Funding">

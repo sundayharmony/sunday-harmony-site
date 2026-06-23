@@ -29,6 +29,8 @@ export interface IntakeFormPayload {
   selectedCreditProvider: string
   providerUsername: string
   providerPassword: string
+  experianEmail: string
+  experianPassword: string
   primaryCreditGoalsText: string
   creditGoals: string[]
   fundingAmount: string
@@ -121,6 +123,8 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
     selectedCreditProvider: str(raw.selectedCreditProvider, 100),
     providerUsername: str(raw.providerUsername, 254),
     providerPassword: str(raw.providerPassword, 200),
+    experianEmail: str(raw.experianEmail, 254).toLowerCase(),
+    experianPassword: str(raw.experianPassword, 200),
     primaryCreditGoalsText: str(raw.primaryCreditGoalsText, 5000),
     creditGoals,
     fundingAmount: str(raw.fundingAmount, 100),
@@ -152,6 +156,12 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   }
   if (!payload.providerUsername) return 'Provider username or login email is required'
   if (!payload.providerPassword || payload.providerPassword.length < 4) return 'Provider password is required'
+  if (!payload.experianEmail || !EMAIL_RE.test(payload.experianEmail)) {
+    return 'Valid Experian.com email is required'
+  }
+  if (!payload.experianPassword || payload.experianPassword.length < 4) {
+    return 'Experian.com password is required'
+  }
 
   if (!payload.primaryCreditGoalsText && payload.creditGoals.length === 0) {
     return 'Please describe your credit goals or select at least one goal'

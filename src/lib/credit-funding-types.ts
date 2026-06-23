@@ -1,6 +1,18 @@
 export const CREDIT_PROVIDERS = ['IdentityIQ', 'Credit Hero Score', 'SmartCredit'] as const
 export type CreditProvider = (typeof CREDIT_PROVIDERS)[number]
 
+/** Affiliate / signup URLs shown on Step 4 when a provider is selected. */
+export const CREDIT_PROVIDER_SIGNUP_LINKS: Record<CreditProvider, string> = {
+  IdentityIQ: 'https://member.identityiq.com/signup.aspx',
+  'Credit Hero Score': 'https://www.creditheroscore.com/signup.asp',
+  SmartCredit: 'https://www.smartcredit.com/join/',
+}
+
+export function getCreditProviderSignupLink(provider: string): string | null {
+  if (!CREDIT_PROVIDERS.includes(provider as CreditProvider)) return null
+  return CREDIT_PROVIDER_SIGNUP_LINKS[provider as CreditProvider]
+}
+
 export const IDENTITY_DOCUMENT_TYPES = ['photo_id', 'proof_of_address', 'selfie_with_id', 'mail_proof'] as const
 export const BUSINESS_DOCUMENT_TYPES = [
   'articles_of_organization',
@@ -286,6 +298,8 @@ export interface CreditFundingApplication {
   selected_credit_provider: string
   provider_username_encrypted?: string
   provider_password_encrypted?: string
+  experian_email_encrypted?: string
+  experian_password_encrypted?: string
   credit_goals: string[]
   funding_goals: string
   primary_credit_goals_text?: string

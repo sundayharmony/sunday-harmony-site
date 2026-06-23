@@ -106,6 +106,8 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
     selected_credit_provider: payload.selectedCreditProvider,
     provider_username_encrypted: encryptField(payload.providerUsername),
     provider_password_encrypted: encryptField(payload.providerPassword),
+    experian_email_encrypted: encryptField(payload.experianEmail),
+    experian_password_encrypted: encryptField(payload.experianPassword),
     credit_goals: payload.creditGoals,
     primary_credit_goals_text: encryptFieldIfPresent(payload.primaryCreditGoalsText),
     funding_amount: payload.fundingAmount,
@@ -135,6 +137,8 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     ssn: decryptField(app.ssn_encrypted || ''),
     provider_username: decryptField(app.provider_username_encrypted || ''),
     provider_password: decryptField(app.provider_password_encrypted || ''),
+    experian_email: decryptField(app.experian_email_encrypted || ''),
+    experian_password: decryptField(app.experian_password_encrypted || ''),
     primary_credit_goals_text: app.primary_credit_goals_text
       ? decryptFieldOrLegacy(app.primary_credit_goals_text)
       : app.primary_credit_goals_text,
@@ -148,5 +152,7 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     ssn_encrypted: undefined,
     provider_username_encrypted: undefined,
     provider_password_encrypted: undefined,
+    experian_email_encrypted: undefined,
+    experian_password_encrypted: undefined,
   }
 }
