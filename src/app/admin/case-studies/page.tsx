@@ -184,7 +184,7 @@ export default function AdminCaseStudiesPage() {
             <a href="/case-studies" target="_blank" rel="noopener noreferrer" className="text-accent underline">
               Case Studies
             </a>{' '}
-            page (max 10 MB, PDF only).
+            page (max 50 MB, PDF only).
           </p>
         </div>
       </div>
