@@ -1,17 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import CaseStudyPdfSheet from '@/components/case-studies/CaseStudyPdfSheet'
 
 interface CaseStudyItem {
   id: string
   title: string
   pdf_url: string
   updated_at: string
-}
-
-function pdfEmbedUrl(url: string): string {
-  const base = url.split('#')[0]
-  return `${base}#toolbar=0&navpanes=0&scrollbar=1`
 }
 
 export default function CaseStudiesViewer() {
@@ -90,13 +86,7 @@ export default function CaseStudiesViewer() {
           <div className="px-5 py-4 border-b border-brand-border">
             <h2 className="font-serif text-xl font-bold text-brand-text">{selected.title}</h2>
           </div>
-          <div className="bg-neutral-100">
-            <iframe
-              src={pdfEmbedUrl(selected.pdf_url)}
-              title={`${selected.title} case study`}
-              className="w-full h-[min(75vh,900px)] min-h-[420px] border-0 bg-white"
-            />
-          </div>
+          <CaseStudyPdfSheet key={selected.id} url={selected.pdf_url} title={selected.title} />
         </div>
       )}
     </div>
