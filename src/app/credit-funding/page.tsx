@@ -14,7 +14,7 @@ export default function CreditFundingPage() {
   return (
     <>
       <Navbar />
-      <main className="pt-[72px] min-h-screen bg-brand-bg-soft">
+      <main className="pt-[var(--nav-total-height)] min-h-screen bg-brand-bg-soft">
         <section className="py-16 sm:py-20">
           <div className="max-w-[800px] mx-auto px-7">
             <div className="section-label">Credit &amp; Funding</div>

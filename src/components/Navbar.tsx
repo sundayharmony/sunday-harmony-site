@@ -16,6 +16,28 @@ const navLinks = [
 const linkClass =
   'text-[11px] lg:text-[12px] xl:text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors whitespace-nowrap shrink-0'
 
+function MenuIcon({ open }: { open: boolean }) {
+  return (
+    <span className="relative flex h-[18px] w-[22px] flex-col items-center justify-between" aria-hidden="true">
+      <span
+        className={`block h-0.5 w-full rounded-full bg-brand-text transition-all duration-200 ${
+          open ? 'translate-y-[8px] rotate-45' : ''
+        }`}
+      />
+      <span
+        className={`block h-0.5 w-full rounded-full bg-brand-text transition-all duration-200 ${
+          open ? 'scale-x-0 opacity-0' : ''
+        }`}
+      />
+      <span
+        className={`block h-0.5 w-full rounded-full bg-brand-text transition-all duration-200 ${
+          open ? '-translate-y-[8px] -rotate-45' : ''
+        }`}
+      />
+    </span>
+  )
+}
+
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -60,17 +82,22 @@ export default function Navbar() {
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-[1000] border-b border-brand-border backdrop-blur-xl transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-[1000] border-b border-brand-border backdrop-blur-xl transition-all duration-300 pt-[env(safe-area-inset-top,0px)] ${
           scrolled ? 'bg-[rgba(255,255,255,0.97)] shadow-sm' : 'bg-[rgba(255,255,255,0.9)]'
         }`}
       >
-        <div className="max-w-[1280px] mx-auto px-5 md:px-6 relative flex items-center justify-center h-[68px] md:h-[72px]">
-          <div className="absolute left-5 md:left-6 top-1/2 -translate-y-1/2 z-10">
-            <BrandLogo height={38} priority />
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-5 md:px-6 flex items-center justify-between md:relative md:justify-center h-[var(--nav-bar-height)]">
+          <div className="shrink-0 md:absolute md:left-6 md:top-1/2 md:-translate-y-1/2 z-10">
+            <div className="md:hidden">
+              <BrandLogo height={30} priority />
+            </div>
+            <div className="hidden md:block">
+              <BrandLogo height={38} priority />
+            </div>
           </div>
 
           {/* Desktop Links — centered */}
-          <div className="hidden md:flex flex-nowrap items-center justify-center gap-2 lg:gap-3 xl:gap-4 px-[140px] lg:px-[160px] xl:px-[180px]">
+          <div className="hidden md:flex flex-nowrap items-center justify-center gap-4 lg:gap-5 xl:gap-7 2xl:gap-8 px-[140px] lg:px-[160px] xl:px-[200px]">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -105,15 +132,13 @@ export default function Navbar() {
           <button
             ref={toggleRef}
             type="button"
-            className="md:hidden absolute right-5 top-1/2 -translate-y-1/2 flex items-center justify-center min-h-[44px] min-w-[44px] p-2 shrink-0"
+            className="md:hidden flex items-center justify-center min-h-[44px] min-w-[44px] p-2 shrink-0 -mr-1"
             onClick={toggleMobile}
-            aria-label="Menu"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
           >
-            <div className={`w-[22px] h-0.5 bg-brand-text mb-[5px] transition-all ${mobileOpen ? 'rotate-45 translate-y-[7px]' : ''}`} />
-            <div className={`w-[22px] h-0.5 bg-brand-text mb-[5px] transition-all ${mobileOpen ? 'opacity-0' : ''}`} />
-            <div className={`w-[22px] h-0.5 bg-brand-text transition-all ${mobileOpen ? '-rotate-45 -translate-y-[7px]' : ''}`} />
+            <MenuIcon open={mobileOpen} />
           </button>
         </div>
       </nav>
@@ -123,7 +148,7 @@ export default function Navbar() {
         <div
           ref={menuRef}
           id="mobile-nav"
-          className="fixed top-[68px] md:top-[72px] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] p-7 flex flex-col gap-4 md:hidden"
+          className="fixed top-[var(--nav-total-height)] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] px-5 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1 md:hidden overflow-y-auto"
         >
           {navLinks.map((link) => (
             <Link

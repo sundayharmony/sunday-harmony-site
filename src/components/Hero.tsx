@@ -3,7 +3,7 @@ import { heroAuditHighlights, heroStats } from '@/lib/data'
 export default function Hero() {
   return (
     <section
-      className="min-h-screen flex items-center pt-[92px] pb-16 relative overflow-hidden bg-gradient-to-br from-white via-neutral-50 to-neutral-100"
+      className="min-h-screen flex items-center pt-[calc(var(--nav-total-height)+1.75rem)] pb-16 relative overflow-hidden bg-gradient-to-br from-white via-neutral-50 to-neutral-100"
       id="hero"
     >
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:48px_48px] pointer-events-none" />

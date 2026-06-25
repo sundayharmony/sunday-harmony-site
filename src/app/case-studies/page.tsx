@@ -13,7 +13,7 @@ export default function CaseStudiesPage() {
   return (
     <>
       <Navbar />
-      <main className="pt-[72px] min-h-screen bg-brand-bg-soft">
+      <main className="pt-[var(--nav-total-height)] min-h-screen bg-brand-bg-soft">
         <section className="py-16 sm:py-20">
           <div className="max-w-[1100px] mx-auto px-7">
             <div className="section-label">Results</div>

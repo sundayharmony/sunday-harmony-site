@@ -7,12 +7,21 @@
   --brand-accent: #b8943f;
   --brand-accent-soft: #f0ebe3;
   --brand-text: #0a0a0a;
+  --nav-bar-height: 3.5rem;
+  --nav-total-height: calc(var(--nav-bar-height) + env(safe-area-inset-top, 0px));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --nav-bar-height: 4.5rem;
+    --nav-total-height: 4.5rem;
+  }
 }
 
 /* ══════════ BASE ══════════ */
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 72px;
+  scroll-padding-top: var(--nav-total-height);
 }
 
 body {
