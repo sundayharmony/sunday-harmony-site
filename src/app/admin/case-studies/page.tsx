@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { uploadCaseStudyToSignedUrl } from '@/lib/case-study-upload-client'
+import { CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
 
 interface CaseStudyRecord {
   id: string
@@ -34,6 +36,7 @@ export default function AdminCaseStudiesPage() {
   const [replaceId, setReplaceId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -90,30 +93,68 @@ export default function AdminCaseStudiesPage() {
       setError('Choose a PDF file')
       return
     }
+    if (selectedFile.size > CASE_STUDY_PDF_MAX_BYTES) {
+      setError(`PDF too large (max ${Math.floor(CASE_STUDY_PDF_MAX_BYTES / (1024 * 1024))} MB)`)
+      return
+    }
 
     setUploading(true)
+    setUploadProgress(0)
     setError('')
     setSuccess('')
     try {
-      const fd = new FormData()
-      fd.append('title', title.trim())
-      fd.append('file', selectedFile)
-      fd.append('published', published ? 'true' : 'false')
-      if (replaceId) fd.append('replace_id', replaceId)
+      const urlRes = await fetch('/api/admin/case-studies/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: selectedFile.name,
+          contentType: selectedFile.type || 'application/pdf',
+          fileSize: selectedFile.size,
+        }),
+      })
+      const urlBody = await urlRes.json().catch(() => ({}))
+      if (!urlRes.ok) {
+        setError(typeof urlBody.error === 'string' ? urlBody.error : 'Could not start upload')
+        return
+      }
 
-      const res = await fetch('/api/admin/case-studies', { method: 'POST', body: fd })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(typeof body.error === 'string' ? body.error : 'Upload failed')
+      const { signedUrl, path: storagePath, token } = urlBody as {
+        signedUrl?: string
+        path?: string
+        token?: string
+      }
+      if (!signedUrl || !storagePath || !token) {
+        setError('Invalid upload session')
+        return
+      }
+
+      await uploadCaseStudyToSignedUrl(signedUrl, token, selectedFile, setUploadProgress)
+
+      const savePayload = {
+        title: title.trim(),
+        storagePath,
+        file_size: selectedFile.size,
+        published,
+      }
+
+      const saveRes = await fetch('/api/admin/case-studies', {
+        method: replaceId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(replaceId ? { id: replaceId, ...savePayload } : savePayload),
+      })
+      const saveBody = await saveRes.json().catch(() => ({}))
+      if (!saveRes.ok) {
+        setError(typeof saveBody.error === 'string' ? saveBody.error : 'Failed to save case study')
         return
       }
 
       await loadCaseStudies()
       resetForm()
+      setUploadProgress(0)
       setSuccess(replaceId ? 'Case study replaced successfully.' : 'Case study uploaded successfully.')
     } catch (err) {
       console.error(err)
-      setError('Upload failed')
+      setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
     }
@@ -259,8 +300,23 @@ export default function AdminCaseStudiesPage() {
               disabled={uploading || !selectedFile || !title.trim()}
               className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:bg-opacity-90 transition-all disabled:opacity-50"
             >
-              {uploading ? 'Uploading…' : replacing ? 'Replace PDF' : 'Upload PDF'}
+              {uploading ? `Uploading… ${uploadProgress}%` : replacing ? 'Replace PDF' : 'Upload PDF'}
             </button>
+
+            {uploading && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-brand-dim font-semibold">
+                  <span>Uploading to storage</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-neutral-100 overflow-hidden">
+                  <div
+                    className="h-full bg-accent transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

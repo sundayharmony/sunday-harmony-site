@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import {
-  removeCaseStudyByPublicUrlIfOurs,
+  caseStudyObjectExists,
+  getCaseStudyPublicUrl,
+  isValidCaseStudyStoragePath,
   removeCaseStudyByStoragePath,
-  uploadCaseStudyPdf,
+  validateCaseStudyPdf,
 } from '@/lib/client-case-studies-storage'
 import {
   deleteCaseStudy,
@@ -28,97 +30,66 @@ export async function POST(request: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
 
-  let uploadedPublicUrl: string | null = null
   let uploadedStoragePath: string | null = null
 
   try {
-    let formData: FormData
-    try {
-      formData = await request.formData()
-    } catch {
-      return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
-    }
-
-    const titleRaw = formData.get('title')
-    const title = typeof titleRaw === 'string' ? titleRaw.trim().slice(0, 200) : ''
+    const body = await request.json()
+    const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : ''
     if (!title) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
-    const replaceIdRaw = formData.get('replace_id')
-    const replace_id = typeof replaceIdRaw === 'string' ? replaceIdRaw.trim() : ''
-
-    const fileEntry = formData.get('file')
-    if (!fileEntry || typeof fileEntry === 'string' || !('arrayBuffer' in fileEntry)) {
-      return NextResponse.json({ error: 'Missing PDF file' }, { status: 400 })
+    const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : ''
+    if (!storagePath || !isValidCaseStudyStoragePath(storagePath)) {
+      return NextResponse.json({ error: 'Invalid storagePath' }, { status: 400 })
     }
 
-    const publishedRaw = formData.get('published')
-    const published = publishedRaw !== 'false'
-
-    const arrayBuffer = await fileEntry.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    const contentType = fileEntry.type || 'application/pdf'
-
-    let existing = replace_id ? await getCaseStudyById(replace_id) : null
-    if (replace_id && !existing) {
-      return NextResponse.json({ error: 'Case study not found' }, { status: 404 })
+    const file_size = typeof body.file_size === 'number' ? body.file_size : Number(body.file_size)
+    if (!Number.isFinite(file_size) || file_size <= 0) {
+      return NextResponse.json({ error: 'file_size is required' }, { status: 400 })
     }
 
-    const up = await uploadCaseStudyPdf({
-      buffer,
-      contentType,
-      originalFileName: fileEntry.name || 'case-study.pdf',
-    })
-
-    if (!up.ok) {
-      return NextResponse.json({ error: up.error }, { status: 400 })
+    const pdfCheck = validateCaseStudyPdf('application/pdf', file_size)
+    if (!pdfCheck.ok) {
+      return NextResponse.json({ error: pdfCheck.error }, { status: 400 })
     }
 
-    const { publicUrl, objectPath, file_size } = up.data
-    uploadedPublicUrl = publicUrl
-    uploadedStoragePath = objectPath
+    const published = body.published !== false
 
+    const exists = await caseStudyObjectExists(storagePath)
+    if (!exists) {
+      return NextResponse.json({ error: 'Uploaded file not found in storage' }, { status: 400 })
+    }
+
+    const publicUrl = getCaseStudyPublicUrl(storagePath)
+    if (!publicUrl) {
+      return NextResponse.json({ error: 'Could not resolve public URL' }, { status: 500 })
+    }
+
+    uploadedStoragePath = storagePath
     const uploadedBy = session.user.name || session.user.email || 'Admin'
 
-    let record
-    if (existing) {
-      await removeCaseStudyByStoragePath(existing.storage_path)
-      record = await updateCaseStudy(existing.id, {
-        title,
-        file_url: publicUrl,
-        storage_path: objectPath,
-        file_size,
-        published,
-      })
-    } else {
-      record = await insertCaseStudy({
-        title,
-        file_url: publicUrl,
-        storage_path: objectPath,
-        file_size,
-        published,
-        uploaded_by_name: uploadedBy,
-      })
-    }
+    const record = await insertCaseStudy({
+      title,
+      file_url: publicUrl,
+      storage_path: storagePath,
+      file_size,
+      published,
+      uploaded_by_name: uploadedBy,
+    })
 
     if (!record) {
-      await removeCaseStudyByStoragePath(uploadedStoragePath)
-      uploadedPublicUrl = null
+      if (uploadedStoragePath) await removeCaseStudyByStoragePath(uploadedStoragePath)
       uploadedStoragePath = null
       return NextResponse.json({ error: 'Failed to save case study record' }, { status: 500 })
     }
 
-    uploadedPublicUrl = null
     uploadedStoragePath = null
-
-    return NextResponse.json(record, { status: existing ? 200 : 201 })
+    return NextResponse.json(record, { status: 201 })
   } catch (err) {
     console.error('POST /api/admin/case-studies error:', err)
     if (uploadedStoragePath) {
       await removeCaseStudyByStoragePath(uploadedStoragePath)
-    } else if (uploadedPublicUrl) {
-      await removeCaseStudyByPublicUrlIfOurs(uploadedPublicUrl)
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -128,6 +99,8 @@ export async function PATCH(request: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
 
+  let newStoragePath: string | null = null
+
   try {
     const body = await request.json()
     const id = typeof body.id === 'string' ? body.id.trim() : ''
@@ -135,12 +108,56 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    const updates: { title?: string; published?: boolean } = {}
+    const existing = await getCaseStudyById(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'Case study not found' }, { status: 404 })
+    }
+
+    const updates: {
+      title?: string
+      published?: boolean
+      file_url?: string
+      storage_path?: string
+      file_size?: number
+    } = {}
+
     if (typeof body.title === 'string' && body.title.trim()) {
       updates.title = body.title.trim().slice(0, 200)
     }
     if (typeof body.published === 'boolean') {
       updates.published = body.published
+    }
+
+    const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : ''
+    if (storagePath) {
+      if (!isValidCaseStudyStoragePath(storagePath)) {
+        return NextResponse.json({ error: 'Invalid storagePath' }, { status: 400 })
+      }
+
+      const file_size = typeof body.file_size === 'number' ? body.file_size : Number(body.file_size)
+      if (!Number.isFinite(file_size) || file_size <= 0) {
+        return NextResponse.json({ error: 'file_size is required when replacing file' }, { status: 400 })
+      }
+
+      const pdfCheck = validateCaseStudyPdf('application/pdf', file_size)
+      if (!pdfCheck.ok) {
+        return NextResponse.json({ error: pdfCheck.error }, { status: 400 })
+      }
+
+      const exists = await caseStudyObjectExists(storagePath)
+      if (!exists) {
+        return NextResponse.json({ error: 'Uploaded file not found in storage' }, { status: 400 })
+      }
+
+      const publicUrl = getCaseStudyPublicUrl(storagePath)
+      if (!publicUrl) {
+        return NextResponse.json({ error: 'Could not resolve public URL' }, { status: 500 })
+      }
+
+      updates.storage_path = storagePath
+      updates.file_url = publicUrl
+      updates.file_size = file_size
+      newStoragePath = storagePath
     }
 
     if (Object.keys(updates).length === 0) {
@@ -149,12 +166,23 @@ export async function PATCH(request: NextRequest) {
 
     const updated = await updateCaseStudy(id, updates)
     if (!updated) {
+      if (newStoragePath) {
+        await removeCaseStudyByStoragePath(newStoragePath)
+      }
       return NextResponse.json({ error: 'Case study not found or update failed' }, { status: 404 })
     }
 
+    if (newStoragePath && existing.storage_path && existing.storage_path !== newStoragePath) {
+      await removeCaseStudyByStoragePath(existing.storage_path)
+    }
+
+    newStoragePath = null
     return NextResponse.json(updated)
   } catch (err) {
     console.error('PATCH /api/admin/case-studies error:', err)
+    if (newStoragePath) {
+      await removeCaseStudyByStoragePath(newStoragePath)
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

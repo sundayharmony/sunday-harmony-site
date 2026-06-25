@@ -1,10 +1,8 @@
 import { randomUUID } from 'crypto'
+import { CLIENT_CASE_STUDIES_BUCKET, CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
 import { getSupabase } from '@/lib/supabase'
 
-export const CLIENT_CASE_STUDIES_BUCKET = 'client-case-studies'
-
-/** One-sheet PDFs; align with bucket file_size_limit in migration 016 / 019. */
-export const CASE_STUDY_PDF_MAX_BYTES = 50 * 1024 * 1024
+export { CLIENT_CASE_STUDIES_BUCKET, CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
 
 const PDF_MIME = 'application/pdf'
 
@@ -25,6 +23,71 @@ export function sanitizeCaseStudyFileName(original: string): string {
   const base = original.replace(/^.*[/\\]/, '').trim() || 'case-study.pdf'
   const cleaned = base.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120)
   return cleaned || 'case-study.pdf'
+}
+
+export function buildCaseStudyObjectPath(originalFileName: string): string {
+  return `uploads/${randomUUID()}_${sanitizeCaseStudyFileName(originalFileName)}`
+}
+
+export function getCaseStudyPublicUrl(objectPath: string): string | null {
+  const { data: pub } = getSupabase().storage.from(CLIENT_CASE_STUDIES_BUCKET).getPublicUrl(objectPath)
+  return pub?.publicUrl || null
+}
+
+const CASE_STUDY_UPLOAD_PATH_RE = /^uploads\/[0-9a-f-]{36}_[a-zA-Z0-9._-]+$/
+
+export function isValidCaseStudyStoragePath(storagePath: string): boolean {
+  return CASE_STUDY_UPLOAD_PATH_RE.test(storagePath)
+}
+
+export interface CaseStudySignedUpload {
+  signedUrl: string
+  path: string
+  token: string
+}
+
+export async function createCaseStudySignedUploadUrl(params: {
+  originalFileName: string
+  contentType: string
+  fileSize: number
+}): Promise<{ ok: true; data: CaseStudySignedUpload } | { ok: false; error: string }> {
+  const effective = effectiveContentType(params.contentType, params.originalFileName)
+  const v = validateCaseStudyPdf(effective, params.fileSize)
+  if (!v.ok) return { ok: false, error: v.error }
+
+  const objectPath = buildCaseStudyObjectPath(params.originalFileName)
+  const supabase = getSupabase()
+  const bucket = supabase.storage.from(CLIENT_CASE_STUDIES_BUCKET)
+  const signed = await bucket.createSignedUploadUrl(objectPath)
+
+  if (signed.error || !signed.data?.signedUrl || !signed.data?.token) {
+    console.error('Case study signed upload URL error:', signed.error)
+    return { ok: false, error: signed.error?.message || 'Could not create upload URL' }
+  }
+
+  return {
+    ok: true,
+    data: {
+      signedUrl: signed.data.signedUrl,
+      path: signed.data.path || objectPath,
+      token: signed.data.token,
+    },
+  }
+}
+
+export async function caseStudyObjectExists(storagePath: string): Promise<boolean> {
+  if (!isValidCaseStudyStoragePath(storagePath)) return false
+  const slash = storagePath.lastIndexOf('/')
+  const folder = slash >= 0 ? storagePath.slice(0, slash) : ''
+  const name = slash >= 0 ? storagePath.slice(slash + 1) : storagePath
+  const { data, error } = await getSupabase()
+    .storage.from(CLIENT_CASE_STUDIES_BUCKET)
+    .list(folder, { limit: 1, search: name })
+  if (error) {
+    console.error('Case study storage list error:', error)
+    return false
+  }
+  return Boolean(data?.some((o) => o.name === name))
 }
 
 export function validateCaseStudyPdf(contentType: string, sizeBytes: number): { ok: true } | { ok: false; error: string } {
