@@ -5,8 +5,6 @@ import { useEffect, useState } from 'react'
 interface CaseStudyItem {
   id: string
   title: string
-  client_name: string
-  client_business: string
   pdf_url: string
   updated_at: string
 }
@@ -69,7 +67,6 @@ export default function CaseStudiesViewer() {
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory">
           {studies.map((study) => {
             const active = study.id === selected?.id
-            const label = study.client_business || study.client_name || study.title
             return (
               <button
                 key={study.id}
@@ -81,7 +78,7 @@ export default function CaseStudiesViewer() {
                     : 'bg-white text-brand-muted border-brand-border hover:text-brand-text hover:border-neutral-300'
                 }`}
               >
-                {label}
+                {study.title}
               </button>
             )
           })}
@@ -92,11 +89,6 @@ export default function CaseStudiesViewer() {
         <div className="bg-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-brand-border">
             <h2 className="font-serif text-xl font-bold text-brand-text">{selected.title}</h2>
-            {(selected.client_name || selected.client_business) && (
-              <p className="text-sm text-brand-muted mt-1">
-                {[selected.client_name, selected.client_business].filter(Boolean).join(' · ')}
-              </p>
-            )}
           </div>
           <div className="bg-neutral-100">
             <iframe

@@ -455,9 +455,8 @@ export async function deleteFileRecord(id: string): Promise<boolean> {
 }
 
 // ââââââââââ CLIENT CASE STUDIES ââââââââââ
-export interface ClientCaseStudy {
+export interface CaseStudy {
   id: string
-  client_id: string
   title: string
   file_url: string
   storage_path: string
@@ -468,15 +467,13 @@ export interface ClientCaseStudy {
   updated_at: string
 }
 
-export interface ClientCaseStudyWithClient extends ClientCaseStudy {
-  client_name: string
-  client_business: string
-}
+/** @deprecated Use CaseStudy */
+export type ClientCaseStudy = CaseStudy
 
-export async function getPublishedCaseStudies(): Promise<ClientCaseStudyWithClient[]> {
+export async function getPublishedCaseStudies(): Promise<CaseStudy[]> {
   const { data, error } = await getSupabase()
     .from('client_case_studies')
-    .select('*, clients!inner(name, business)')
+    .select('*')
     .eq('published', true)
     .order('title', { ascending: true })
 
@@ -485,21 +482,13 @@ export async function getPublishedCaseStudies(): Promise<ClientCaseStudyWithClie
     return []
   }
 
-  return (data || []).map((row: Record<string, unknown>) => {
-    const clients = row.clients as { name: string; business: string } | null
-    const { clients: _c, ...study } = row
-    return {
-      ...(study as unknown as ClientCaseStudy),
-      client_name: clients?.name || '',
-      client_business: clients?.business || '',
-    }
-  })
+  return (data || []) as CaseStudy[]
 }
 
-export async function getAllCaseStudiesForAdmin(): Promise<ClientCaseStudyWithClient[]> {
+export async function getAllCaseStudiesForAdmin(): Promise<CaseStudy[]> {
   const { data, error } = await getSupabase()
     .from('client_case_studies')
-    .select('*, clients!inner(name, business)')
+    .select('*')
     .order('updated_at', { ascending: false })
 
   if (error) {
@@ -507,63 +496,48 @@ export async function getAllCaseStudiesForAdmin(): Promise<ClientCaseStudyWithCl
     return []
   }
 
-  return (data || []).map((row: Record<string, unknown>) => {
-    const clients = row.clients as { name: string; business: string } | null
-    const { clients: _c, ...study } = row
-    return {
-      ...(study as unknown as ClientCaseStudy),
-      client_name: clients?.name || '',
-      client_business: clients?.business || '',
-    }
-  })
+  return (data || []) as CaseStudy[]
 }
 
-export async function getCaseStudyByClientId(clientId: string): Promise<ClientCaseStudy | null> {
+export async function getCaseStudyById(id: string): Promise<CaseStudy | null> {
   const { data, error } = await getSupabase()
     .from('client_case_studies')
     .select('*')
-    .eq('client_id', clientId)
+    .eq('id', id)
     .maybeSingle()
 
   if (error) {
-    console.error('getCaseStudyByClientId error:', error)
+    console.error('getCaseStudyById error:', error)
     return null
   }
   return data
 }
 
-export async function upsertClientCaseStudy(
-  record: Omit<ClientCaseStudy, 'id' | 'created_at' | 'updated_at'> & { id?: string }
-): Promise<ClientCaseStudy | null> {
+export async function insertCaseStudy(
+  record: Omit<CaseStudy, 'id' | 'created_at' | 'updated_at'>
+): Promise<CaseStudy | null> {
   const now = new Date().toISOString()
-  const payload = {
-    client_id: record.client_id,
-    title: record.title,
-    file_url: record.file_url,
-    storage_path: record.storage_path,
-    file_size: record.file_size,
-    published: record.published,
-    uploaded_by_name: record.uploaded_by_name,
-    updated_at: now,
-  }
-
   const { data, error } = await getSupabase()
     .from('client_case_studies')
-    .upsert(payload, { onConflict: 'client_id' })
+    .insert({
+      ...record,
+      created_at: now,
+      updated_at: now,
+    })
     .select()
     .single()
 
   if (error) {
-    console.error('upsertClientCaseStudy error:', error)
+    console.error('insertCaseStudy error:', error)
     return null
   }
   return data
 }
 
-export async function updateClientCaseStudy(
+export async function updateCaseStudy(
   id: string,
-  updates: Partial<Pick<ClientCaseStudy, 'title' | 'published'>>
-): Promise<ClientCaseStudy | null> {
+  updates: Partial<Pick<CaseStudy, 'title' | 'published' | 'file_url' | 'storage_path' | 'file_size'>>
+): Promise<CaseStudy | null> {
   const { data, error } = await getSupabase()
     .from('client_case_studies')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -572,13 +546,16 @@ export async function updateClientCaseStudy(
     .single()
 
   if (error) {
-    console.error('updateClientCaseStudy error:', error)
+    console.error('updateCaseStudy error:', error)
     return null
   }
   return data
 }
 
-export async function deleteClientCaseStudy(id: string): Promise<ClientCaseStudy | null> {
+/** @deprecated Use updateCaseStudy */
+export const updateClientCaseStudy = updateCaseStudy
+
+export async function deleteCaseStudy(id: string): Promise<CaseStudy | null> {
   const { data: existing } = await getSupabase()
     .from('client_case_studies')
     .select('*')
@@ -589,11 +566,14 @@ export async function deleteClientCaseStudy(id: string): Promise<ClientCaseStudy
 
   const { error } = await getSupabase().from('client_case_studies').delete().eq('id', id)
   if (error) {
-    console.error('deleteClientCaseStudy error:', error)
+    console.error('deleteCaseStudy error:', error)
     return null
   }
-  return existing as ClientCaseStudy
+  return existing as CaseStudy
 }
+
+/** @deprecated Use deleteCaseStudy */
+export const deleteClientCaseStudy = deleteCaseStudy
 
 // ââââââââââ TASKS ââââââââââ
 export interface Task {

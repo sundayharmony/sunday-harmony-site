@@ -6,12 +6,11 @@ import {
   uploadCaseStudyPdf,
 } from '@/lib/client-case-studies-storage'
 import {
-  deleteClientCaseStudy,
+  deleteCaseStudy,
   getAllCaseStudiesForAdmin,
-  getCaseStudyByClientId,
-  getClientById,
-  updateClientCaseStudy,
-  upsertClientCaseStudy,
+  getCaseStudyById,
+  insertCaseStudy,
+  updateCaseStudy,
 } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -40,27 +39,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
     }
 
-    const clientIdRaw = formData.get('client_id')
-    const client_id = typeof clientIdRaw === 'string' ? clientIdRaw.trim() : ''
-    if (!client_id) {
-      return NextResponse.json({ error: 'Missing client_id' }, { status: 400 })
+    const titleRaw = formData.get('title')
+    const title = typeof titleRaw === 'string' ? titleRaw.trim().slice(0, 200) : ''
+    if (!title) {
+      return NextResponse.json({ error: 'Title is required' }, { status: 400 })
     }
 
-    const client = await getClientById(client_id)
-    if (!client) {
-      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
-    }
+    const replaceIdRaw = formData.get('replace_id')
+    const replace_id = typeof replaceIdRaw === 'string' ? replaceIdRaw.trim() : ''
 
     const fileEntry = formData.get('file')
     if (!fileEntry || typeof fileEntry === 'string' || !('arrayBuffer' in fileEntry)) {
       return NextResponse.json({ error: 'Missing PDF file' }, { status: 400 })
     }
-
-    const titleRaw = formData.get('title')
-    const title =
-      typeof titleRaw === 'string' && titleRaw.trim()
-        ? titleRaw.trim().slice(0, 200)
-        : client.business || client.name
 
     const publishedRaw = formData.get('published')
     const published = publishedRaw !== 'false'
@@ -69,13 +60,12 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     const contentType = fileEntry.type || 'application/pdf'
 
-    const existing = await getCaseStudyByClientId(client_id)
-    if (existing) {
-      await removeCaseStudyByStoragePath(existing.storage_path)
+    let existing = replace_id ? await getCaseStudyById(replace_id) : null
+    if (replace_id && !existing) {
+      return NextResponse.json({ error: 'Case study not found' }, { status: 404 })
     }
 
     const up = await uploadCaseStudyPdf({
-      clientId: client_id,
       buffer,
       contentType,
       originalFileName: fileEntry.name || 'case-study.pdf',
@@ -89,15 +79,28 @@ export async function POST(request: NextRequest) {
     uploadedPublicUrl = publicUrl
     uploadedStoragePath = objectPath
 
-    const record = await upsertClientCaseStudy({
-      client_id,
-      title,
-      file_url: publicUrl,
-      storage_path: objectPath,
-      file_size,
-      published,
-      uploaded_by_name: session.user.name || session.user.email || 'Admin',
-    })
+    const uploadedBy = session.user.name || session.user.email || 'Admin'
+
+    let record
+    if (existing) {
+      await removeCaseStudyByStoragePath(existing.storage_path)
+      record = await updateCaseStudy(existing.id, {
+        title,
+        file_url: publicUrl,
+        storage_path: objectPath,
+        file_size,
+        published,
+      })
+    } else {
+      record = await insertCaseStudy({
+        title,
+        file_url: publicUrl,
+        storage_path: objectPath,
+        file_size,
+        published,
+        uploaded_by_name: uploadedBy,
+      })
+    }
 
     if (!record) {
       await removeCaseStudyByStoragePath(uploadedStoragePath)
@@ -144,7 +147,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
-    const updated = await updateClientCaseStudy(id, updates)
+    const updated = await updateCaseStudy(id, updates)
     if (!updated) {
       return NextResponse.json({ error: 'Case study not found or update failed' }, { status: 404 })
     }
@@ -167,7 +170,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing id' }, { status: 400 })
     }
 
-    const removed = await deleteClientCaseStudy(id)
+    const removed = await deleteCaseStudy(id)
     if (!removed) {
       return NextResponse.json({ error: 'Case study not found' }, { status: 404 })
     }

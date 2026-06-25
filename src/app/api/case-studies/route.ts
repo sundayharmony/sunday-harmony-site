@@ -9,8 +9,6 @@ export async function GET() {
     const payload = studies.map((s) => ({
       id: s.id,
       title: s.title,
-      client_name: s.client_name,
-      client_business: s.client_business,
       pdf_url: s.file_url,
       updated_at: s.updated_at,
     }))

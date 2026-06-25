@@ -46,18 +46,17 @@ export interface UploadCaseStudyPdfResult {
 }
 
 export async function uploadCaseStudyPdf(params: {
-  clientId: string
   buffer: Buffer
   contentType: string
   originalFileName: string
 }): Promise<{ ok: true; data: UploadCaseStudyPdfResult } | { ok: false; error: string }> {
-  const { clientId, buffer, contentType, originalFileName } = params
+  const { buffer, contentType, originalFileName } = params
   const effective = effectiveContentType(contentType, originalFileName)
   const v = validateCaseStudyPdf(effective, buffer.length)
   if (!v.ok) return { ok: false, error: v.error }
 
   const safe = sanitizeCaseStudyFileName(originalFileName)
-  const objectPath = `${clientId}/${randomUUID()}_${safe}`
+  const objectPath = `uploads/${randomUUID()}_${safe}`
 
   const supabase = getSupabase()
   const { error: upErr } = await supabase.storage.from(CLIENT_CASE_STUDIES_BUCKET).upload(objectPath, buffer, {
