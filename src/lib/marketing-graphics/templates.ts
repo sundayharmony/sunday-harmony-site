@@ -1,4 +1,4 @@
-import { packages, services, siteConfig, heroSubtext } from '@/lib/data'
+import { heroStats, packages, services, siteConfig, heroSubtext } from '@/lib/data'
 import type { GraphicCopy, GraphicPreset, GraphicTemplateMeta } from './types'
 
 export const GRAPHIC_TEMPLATES: GraphicTemplateMeta[] = [
@@ -53,12 +53,12 @@ export const DEFAULT_COPY: Record<string, GraphicCopy> = {
   },
   statProof: {
     headline: 'Why Sunday Harmony?',
-    stat1Value: 'A+',
-    stat1Label: 'Service',
-    stat2Value: '4+',
-    stat2Label: 'Years of Experience',
-    stat3Value: '100+',
-    stat3Label: 'Businesses Served',
+    stat1Value: heroStats[0]?.value ?? 'A+',
+    stat1Label: heroStats[0]?.label ?? 'Service',
+    stat2Value: heroStats[1]?.value ?? '4+',
+    stat2Label: heroStats[1]?.label ?? 'Years of Experience',
+    stat3Value: heroStats[2]?.value ?? '150',
+    stat3Label: heroStats[2]?.label ?? 'Businesses Served',
     footer: siteConfig.tagline,
   },
   packagePromo: {
