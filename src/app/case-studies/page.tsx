@@ -21,7 +21,7 @@ export default function CaseStudiesPage() {
               Client <span className="gold-text">Case Studies</span>
             </h1>
             <p className="text-[15px] text-brand-muted mb-10 leading-relaxed max-w-[640px]">
-              Explore one-page snapshots of how we help New Jersey businesses grow — real strategies, real outcomes, and the work behind the results.
+              Explore one-page snapshots of how we help businesses grow — real strategies, real outcomes, and the work behind the results.
             </p>
             <CaseStudiesViewer />
           </div>

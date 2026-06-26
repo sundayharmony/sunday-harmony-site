@@ -1,4 +1,4 @@
-import { heroStats, packages, services, siteConfig } from '@/lib/data'
+import { packages, services, siteConfig, heroSubtext } from '@/lib/data'
 import type { GraphicCopy, GraphicPreset, GraphicTemplateMeta } from './types'
 
 export const GRAPHIC_TEMPLATES: GraphicTemplateMeta[] = [
@@ -34,7 +34,7 @@ export const DEFAULT_COPY: Record<string, GraphicCopy> = {
     badge: siteConfig.tagline,
     headline: 'Stop guessing at marketing.',
     accentPhrase: 'Start growing with clarity.',
-    body: 'We help New Jersey small businesses get found online, generate better leads, and grow revenue with one partner handling strategy, execution, and reporting.',
+    body: heroSubtext,
     ctaLabel: 'Get Your Free Audit →',
     footer: siteConfig.url.replace('https://', ''),
   },
@@ -53,12 +53,12 @@ export const DEFAULT_COPY: Record<string, GraphicCopy> = {
   },
   statProof: {
     headline: 'Why Sunday Harmony?',
-    stat1Value: heroStats[0]?.value ?? '14.3%',
-    stat1Label: heroStats[0]?.label ?? 'Industry CAGR Growth',
-    stat2Value: heroStats[1]?.value ?? '96%',
-    stat2Label: heroStats[1]?.label ?? 'SMBs Plan to Advertise',
-    stat3Value: heroStats[2]?.value ?? '54%',
-    stat3Label: heroStats[2]?.label ?? 'Owners Do Marketing Solo',
+    stat1Value: 'A+',
+    stat1Label: 'Service',
+    stat2Value: '4+',
+    stat2Label: 'Years of Experience',
+    stat3Value: '100+',
+    stat3Label: 'Businesses Served',
     footer: siteConfig.tagline,
   },
   packagePromo: {

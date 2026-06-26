@@ -3,7 +3,7 @@ import { siteConfig } from '@/lib/data'
 import { getFormatById } from './formats'
 import type { GeminiGenerationMode, GraphicCopy, GraphicFormatId, GraphicTemplateId } from './types'
 
-const BRAND_SYSTEM = `You are a professional marketing designer for Sunday Harmony, an all-in-one marketing partner for New Jersey small businesses.
+const BRAND_SYSTEM = `You are a professional marketing designer for Sunday Harmony, an all-in-one marketing partner for businesses.
 
 BRAND RULES (follow strictly):
 - Style: Minimal, premium, monochrome base with a single gold accent. Clean whitespace. No clutter.

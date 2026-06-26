@@ -5,17 +5,20 @@
 
 export const siteConfig = {
   name: 'Sunday Harmony',
-  tagline: "NJ's All-in-One Marketing Partner",
+  tagline: 'Your All-in-One Marketing Partner',
   email: 'sales@sundayharmony.com',
   url: 'https://www.sundayharmony.com',
   location: 'New Jersey',
   founded: '2023',
 }
 
+export const heroSubtext =
+  'We help businesses get found online, generate better leads, and grow revenue with one partner handling strategy, execution, and reporting.'
+
 export const heroStats = [
-  { value: '14.3%', label: 'Industry CAGR Growth' },
-  { value: '96%', label: 'SMBs Plan to Advertise' },
-  { value: '54%', label: 'Owners Do Marketing Solo' },
+  { value: 'A+', label: 'Service' },
+  { value: '4+', label: 'Years of Experience' },
+  { value: '100+', label: 'Businesses Served' },
 ]
 
 /** Hero panel: real expectations for the free audit (replaces decorative “metrics” widget). */
@@ -194,7 +197,7 @@ export const team = [
     initials: 'MC',
     name: 'Mac Cesar',
     role: 'CEO & Marketing Specialist',
-    bio: 'Passionate about helping small businesses unlock their marketing potential. Mac brings strategic vision and hands-on execution to every client relationship.',
+    bio: 'Passionate about helping businesses unlock their marketing potential. Mac brings strategic vision and hands-on execution to every client relationship.',
   },
   {
     initials: 'BO',

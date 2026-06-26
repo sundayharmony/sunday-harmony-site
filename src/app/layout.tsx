@@ -12,13 +12,15 @@ const montserrat = Montserrat({
 })
 
 export const metadata: Metadata = {
-  title: 'Sunday Harmony | Marketing Agency for NJ Small Businesses',
+  title: 'Sunday Harmony | Your All-in-One Marketing Partner',
   description:
-    "Sunday Harmony helps NJ small businesses stop guessing at marketing and start growing. Social media, SEO, Google Ads, and more — one partner who handles it all.",
-  keywords: 'NJ marketing agency, New Jersey small business marketing, local SEO NJ, social media management',
+    'Sunday Harmony helps businesses stop guessing at marketing and start growing. Social media, SEO, Google Ads, and more — one partner who handles it all.',
+  keywords:
+    'marketing agency, business marketing, local SEO, social media management, Google Ads',
   openGraph: {
-    title: "Sunday Harmony | NJ's All-in-One Marketing Partner",
-    description: 'We help NJ small businesses get found online, generate leads, and grow revenue.',
+    title: 'Sunday Harmony | Your All-in-One Marketing Partner',
+    description:
+      'We help businesses get found online, generate leads, and grow revenue.',
     url: 'https://www.sundayharmony.com',
     siteName: 'Sunday Harmony',
     locale: 'en_US',
@@ -26,8 +28,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sunday Harmony | NJ Marketing Agency',
-    description: 'Stop guessing at marketing. Start growing. All-in-one marketing for NJ small businesses.',
+    title: 'Sunday Harmony | All-in-One Marketing Partner',
+    description:
+      'Stop guessing at marketing. Start growing. All-in-one marketing for businesses.',
   },
   robots: 'index, follow',
 }

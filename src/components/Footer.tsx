@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import BrandLogo from '@/components/BrandLogo'
+import { siteConfig } from '@/lib/data'
 
 export default function Footer() {
   return (
@@ -32,7 +33,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="text-center mt-8 pt-6 border-t border-brand-border text-xs text-brand-dim">
-          &copy; {new Date().getFullYear()} Sunday Harmony. All rights reserved. &bull; New Jersey&apos;s All-in-One Marketing Partner
+          &copy; {new Date().getFullYear()} Sunday Harmony. All rights reserved. &bull; {siteConfig.tagline}
         </div>
       </div>
     </footer>

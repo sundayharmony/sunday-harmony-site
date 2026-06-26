@@ -1,4 +1,4 @@
-import { heroAuditHighlights, heroStats } from '@/lib/data'
+import { heroAuditHighlights, heroStats, heroSubtext, siteConfig } from '@/lib/data'
 
 export default function Hero() {
   return (
@@ -15,7 +15,7 @@ export default function Hero() {
           <div>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent tracking-wide mb-7">
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-              NJ&apos;s All-in-One Marketing Partner
+              {siteConfig.tagline}
             </div>
 
             <h1 className="font-serif text-[clamp(40px,6.2vw,68px)] font-extrabold leading-[1.02] text-brand-text mb-7">
@@ -26,8 +26,7 @@ export default function Hero() {
             </h1>
 
             <p className="text-lg text-brand-muted leading-relaxed mb-10 max-w-[560px]">
-              We help New Jersey small businesses get found online, generate better leads, and grow revenue
-              with one partner handling strategy, execution, and reporting.
+              {heroSubtext}
             </p>
 
             <div className="flex gap-3.5 flex-wrap mb-6">
@@ -77,7 +76,7 @@ export default function Hero() {
               </div>
 
               <p className="text-sm text-brand-muted leading-relaxed mb-6">
-                A practical review of how customers find you today—and the highest-impact fixes first, tailored to New Jersey local businesses.
+                A practical review of how customers find you today—and the highest-impact fixes first, tailored to your market and goals.
               </p>
 
               <ul className="space-y-3 mb-7">

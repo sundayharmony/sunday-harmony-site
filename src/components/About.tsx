@@ -18,7 +18,7 @@ export default function About() {
                 Marketing shouldn&apos;t feel like a mystery
               </h3>
               <p className="text-[15px] text-brand-muted mb-4 leading-relaxed">
-                At Sunday Harmony, we understand the challenges NJ small businesses face. You know you need marketing, but you&apos;re too busy running your business to figure it all out &mdash; and the last agency you tried left you feeling ignored and confused.
+                At Sunday Harmony, we understand the challenges businesses face. You know you need marketing, but you&apos;re too busy running your business to figure it all out &mdash; and the last agency you tried left you feeling ignored and confused.
               </p>
               <p className="text-[15px] text-brand-muted mb-7 leading-relaxed">
                 We&apos;re different. We speak plain English, we prove our ROI, and we treat every client like our only client. We&apos;re your local marketing partner, not a faceless agency.
