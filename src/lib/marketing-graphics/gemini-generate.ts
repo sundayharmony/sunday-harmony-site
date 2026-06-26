@@ -3,7 +3,7 @@ import path from 'path'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { brandLogos, type LogoVariant } from '@/lib/brand-tokens'
 import { buildGeminiPrompt } from './gemini-brand-brief'
-import { getGeminiAspectRatio, getGeminiImageSize } from './gemini-aspect-ratio'
+import { getGeminiAspectRatio } from './gemini-aspect-ratio'
 import { getFormatById } from './formats'
 import type {
   GeminiGenerationMode,
@@ -13,7 +13,7 @@ import type {
   GraphicTemplateId,
 } from './types'
 
-const DEFAULT_MODEL = 'gemini-2.5-flash-image-preview'
+const DEFAULT_MODEL = 'gemini-2.5-flash-image'
 
 function getApiKey(): string {
   const key = process.env.GEMINI_API_KEY?.trim()
@@ -75,10 +75,9 @@ export async function generateGeminiMarketingImages(params: {
   const model = genAI.getGenerativeModel({
     model: modelName,
     generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
+      responseModalities: ['IMAGE'],
       imageConfig: {
         aspectRatio: getGeminiAspectRatio(format),
-        imageSize: getGeminiImageSize(format),
       },
     } as Record<string, unknown>,
   })
@@ -113,7 +112,7 @@ export async function generateGeminiMarketingImages(params: {
       throw new Error(
         text
           ? `Model returned text instead of an image: ${text.slice(0, 200)}`
-          : 'No image returned. Try GEMINI_IMAGE_MODEL=gemini-2.5-flash-image-preview or enable billing in Google AI Studio.'
+          : 'No image returned. Try GEMINI_IMAGE_MODEL=gemini-2.5-flash-image or enable billing in Google AI Studio.'
       )
     }
 
