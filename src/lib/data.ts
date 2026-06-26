@@ -18,7 +18,7 @@ export const heroSubtext =
 export const heroStats = [
   { value: 'A+', label: 'Service' },
   { value: '4+', label: 'Years of Experience' },
-  { value: '150', label: 'Businesses Served' },
+  { value: '150+', label: 'Businesses Served' },
 ]
 
 /** Hero panel: real expectations for the free audit (replaces decorative “metrics” widget). */
@@ -29,13 +29,6 @@ export const heroAuditHighlights = [
   { id: 'ads', text: 'Ad spend efficiency (if you run paid ads)' },
   { id: 'roadmap', text: 'Prioritized next steps—plain English, no jargon' },
 ] as const
-
-export const proofItems = [
-  { icon: '★', label: 'Google Premier Tools' },
-  { icon: '◈', label: 'AI-Powered Workflows' },
-  { icon: '✓', label: 'Digital + Physical Marketing' },
-  { icon: '♢', label: 'Plain English Reporting' },
-]
 
 export const services = [
   {

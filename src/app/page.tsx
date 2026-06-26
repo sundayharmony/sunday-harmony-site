@@ -1,7 +1,6 @@
 import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
-import ProofBar from '@/components/ProofBar'
 import Services from '@/components/Services'
 import Packages from '@/components/Packages'
 import Process from '@/components/Process'
@@ -24,7 +23,6 @@ export default function Home() {
       <Navbar />
       <main id="main">
         <Hero />
-        <ProofBar />
         <Services />
         <Divider />
         <Packages />

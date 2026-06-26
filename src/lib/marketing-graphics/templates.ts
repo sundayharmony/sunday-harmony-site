@@ -57,7 +57,7 @@ export const DEFAULT_COPY: Record<string, GraphicCopy> = {
     stat1Label: heroStats[0]?.label ?? 'Service',
     stat2Value: heroStats[1]?.value ?? '4+',
     stat2Label: heroStats[1]?.label ?? 'Years of Experience',
-    stat3Value: heroStats[2]?.value ?? '150',
+    stat3Value: heroStats[2]?.value ?? '150+',
     stat3Label: heroStats[2]?.label ?? 'Businesses Served',
     footer: siteConfig.tagline,
   },
