@@ -65,6 +65,7 @@ export default function GraphicPreview({ state, exportRef }: GraphicPreviewProps
             backgroundStyle={state.backgroundStyle}
             logoVariant={state.logoVariant}
             showSafeZone={isPrint}
+            backgroundImageUrl={state.aiBackgroundDataUrl}
           />
         </div>
       </div>

@@ -15,6 +15,8 @@ export interface TemplateRenderProps {
   backgroundStyle: BackgroundStyle
   logoVariant: LogoVariant
   showSafeZone?: boolean
+  /** AI background image (composite mode) */
+  backgroundImageUrl?: string | null
 }
 
 export function getTemplateTheme(backgroundStyle: BackgroundStyle, logoOverride?: LogoVariant) {
@@ -62,7 +64,8 @@ export function bodySize(format: GraphicFormat): number {
 
 export function artboardStyle(
   format: GraphicFormat,
-  backgroundStyle: BackgroundStyle
+  backgroundStyle: BackgroundStyle,
+  backgroundImageUrl?: string | null
 ): React.CSSProperties {
   const theme = getTemplateTheme(backgroundStyle)
   return {
@@ -71,7 +74,9 @@ export function artboardStyle(
     position: 'relative',
     overflow: 'hidden',
     fontFamily: brandFonts.family,
-    background: theme.background,
+    background: backgroundImageUrl
+      ? `url(${backgroundImageUrl}) center/cover no-repeat`
+      : theme.background,
     color: theme.textColor,
     boxSizing: 'border-box',
   }

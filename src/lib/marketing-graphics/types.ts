@@ -52,6 +52,16 @@ export interface GraphicState {
   copy: GraphicCopy
   backgroundStyle: BackgroundStyle
   logoVariant: LogoVariant
+  /** AI-generated background for composite mode (data URL) */
+  aiBackgroundDataUrl?: string | null
+}
+
+export type GeminiGenerationMode = 'full' | 'background'
+
+export interface GeneratedGeminiImage {
+  id: string
+  dataUrl: string
+  mimeType: string
 }
 
 export interface GraphicTemplateMeta {

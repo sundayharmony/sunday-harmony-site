@@ -21,6 +21,7 @@ export function HeroQuoteGraphic({
   backgroundStyle,
   logoVariant,
   showSafeZone,
+  backgroundImageUrl,
 }: TemplateRenderProps) {
   const theme = getTemplateTheme(backgroundStyle, logoVariant)
   const pad = paddingForFormat(format)
@@ -28,9 +29,9 @@ export function HeroQuoteGraphic({
   const isCompact = format.height <= 630 || format.id === 'businessCard'
 
   return (
-    <div style={artboardStyle(format, backgroundStyle)} data-graphic-artboard>
-      <div style={gridOverlayStyle()} />
-      <div style={radialGlowStyle()} />
+    <div style={artboardStyle(format, backgroundStyle, backgroundImageUrl)} data-graphic-artboard>
+      {!backgroundImageUrl && <div style={gridOverlayStyle()} />}
+      {!backgroundImageUrl && <div style={radialGlowStyle()} />}
       {showSafeZone && safeZoneOverlayStyle(format) && (
         <div style={safeZoneOverlayStyle(format)!} />
       )}

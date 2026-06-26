@@ -18,6 +18,7 @@ export function CtaBlockGraphic({
   backgroundStyle,
   logoVariant,
   showSafeZone,
+  backgroundImageUrl,
 }: TemplateRenderProps) {
   const theme = getTemplateTheme(backgroundStyle, logoVariant)
   const pad = paddingForFormat(format)
@@ -26,8 +27,12 @@ export function CtaBlockGraphic({
   return (
     <div
       style={{
-        ...artboardStyle(format, backgroundStyle),
-        background: backgroundStyle === 'white' ? brandColors.bgSoft : artboardStyle(format, backgroundStyle).background,
+        ...artboardStyle(format, backgroundStyle, backgroundImageUrl),
+        background: backgroundImageUrl
+          ? artboardStyle(format, backgroundStyle, backgroundImageUrl).background
+          : backgroundStyle === 'white'
+            ? brandColors.bgSoft
+            : artboardStyle(format, backgroundStyle).background,
       }}
       data-graphic-artboard
     >

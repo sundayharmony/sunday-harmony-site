@@ -18,13 +18,14 @@ export function PackagePromoGraphic({
   backgroundStyle,
   logoVariant,
   showSafeZone,
+  backgroundImageUrl,
 }: TemplateRenderProps) {
   const theme = getTemplateTheme(backgroundStyle, logoVariant)
   const pad = paddingForFormat(format)
   const isCard = format.id === 'businessCard'
 
   return (
-    <div style={artboardStyle(format, backgroundStyle)} data-graphic-artboard>
+    <div style={artboardStyle(format, backgroundStyle, backgroundImageUrl)} data-graphic-artboard>
       {showSafeZone && safeZoneOverlayStyle(format) && (
         <div style={safeZoneOverlayStyle(format)!} />
       )}
