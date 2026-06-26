@@ -22,6 +22,7 @@ export default function GeminiGeneratorPanel({
 }: GeminiGeneratorPanelProps) {
   const [mode, setMode] = useState<GeminiGenerationMode>('full')
   const [variantCount, setVariantCount] = useState(2)
+  const [customPrompt, setCustomPrompt] = useState('')
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [images, setImages] = useState<GeneratedGeminiImage[]>([])
@@ -46,6 +47,7 @@ export default function GeminiGeneratorPanel({
           mode,
           logoVariant: state.logoVariant,
           variantCount,
+          customPrompt: customPrompt.trim() || undefined,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -111,12 +113,28 @@ export default function GeminiGeneratorPanel({
           onClick={handleGenerate}
           className="px-5 py-2.5 rounded-lg bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 disabled:opacity-50"
         >
-          {generating ? 'Generating with Gemini…' : 'Generate with Gemini'}
+          {generating ? 'Generating with Gemini… (15–60s)' : 'Generate with Gemini'}
         </button>
       </div>
 
+      <label className="block space-y-1.5 max-w-3xl">
+        <span className="text-[11px] font-semibold text-brand-dim uppercase tracking-wide">
+          Custom prompt <span className="normal-case font-normal text-brand-dim">(optional)</span>
+        </span>
+        <textarea
+          rows={4}
+          value={customPrompt}
+          onChange={(e) => setCustomPrompt(e.target.value)}
+          placeholder="e.g. Use a warm sunset gradient, show a subtle NJ skyline silhouette, make the CTA button larger, autumn campaign mood…"
+          className="w-full px-3 py-2.5 rounded-lg border border-brand-border bg-white text-sm text-brand-text placeholder:text-brand-dim focus:outline-none focus:ring-2 focus:ring-accent/30 resize-y min-h-[88px]"
+          maxLength={2000}
+        />
+        <span className="text-[10px] text-brand-dim">{customPrompt.length}/2000 — Added to the brand brief; exact copy from the editor still applies in full-ad mode.</span>
+      </label>
+
       <p className="text-xs text-brand-muted leading-relaxed max-w-3xl">
-        Sends your exact copy, brand colors, and logo PNG to Gemini. Review every variant before publishing.
+        Sends your exact copy, brand colors, logo PNG, and custom prompt to Gemini. Each variant takes about
+        15–30 seconds. Review every result before publishing.
         {mode === 'background' && ' After selecting a variant, use “Apply as template background” then export from the Template tab.'}
       </p>
 

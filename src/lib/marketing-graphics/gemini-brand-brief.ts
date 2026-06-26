@@ -41,6 +41,7 @@ export function buildGeminiPrompt(params: {
   logoVariant: LogoVariant
   variantIndex?: number
   variantTotal?: number
+  customPrompt?: string
 }): string {
   const format = getFormatById(params.formatId)
   const dimensions = format ? `${format.width}×${format.height}px (${format.label})` : params.formatId
@@ -50,6 +51,11 @@ export function buildGeminiPrompt(params: {
       ? `\nThis is design variant ${params.variantIndex ?? 1} of ${params.variantTotal}. Use a distinct composition while keeping the same copy and brand rules.`
       : ''
 
+  const custom =
+    params.customPrompt?.trim()
+      ? `\n\nADDITIONAL CREATIVE DIRECTION (follow unless it conflicts with brand rules or exact copy):\n${params.customPrompt.trim()}`
+      : ''
+
   if (params.mode === 'background') {
     return `${BRAND_SYSTEM}
 
@@ -57,7 +63,7 @@ TASK: Generate a BACKGROUND ONLY for a marketing graphic (${dimensions}).
 - Abstract/minimal background: soft white-to-gray gradient, subtle grid or radial glow, gold accent hints (#b8943f).
 - NO text, NO logos, NO buttons, NO typography of any kind.
 - Leave clear space in center and edges for text overlay.
-- Match Sunday Harmony website hero aesthetic.${variantNote}`
+- Match Sunday Harmony website hero aesthetic.${variantNote}${custom}`
   }
 
   return `${BRAND_SYSTEM}
@@ -67,5 +73,5 @@ TASK: Generate a complete marketing ad graphic (${dimensions}) for ${siteConfig.
 - Layout: Logo + headline dominant + gold accent on key phrase + body + dark CTA pill button + footer URL/email if provided.
 - Render all copy below EXACTLY as written.
 
-${copyBlock(params.copy, params.templateId)}${variantNote}`
+${copyBlock(params.copy, params.templateId)}${variantNote}${custom}`
 }

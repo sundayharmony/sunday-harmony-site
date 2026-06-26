@@ -9,6 +9,10 @@ import type {
 } from '@/lib/marketing-graphics/types'
 import type { LogoVariant } from '@/lib/brand-tokens'
 
+export const runtime = 'nodejs'
+/** Gemini image calls can take 15–30s each; allow up to 4 parallel variants. */
+export const maxDuration = 120
+
 const TEMPLATE_IDS = new Set<GraphicTemplateId>([
   'heroQuote',
   'ctaBlock',
@@ -76,6 +80,9 @@ export async function POST(request: NextRequest) {
     const variantCount =
       typeof body.variantCount === 'number' ? body.variantCount : Number(body.variantCount) || 2
 
+    const customPrompt =
+      typeof body.customPrompt === 'string' ? body.customPrompt.trim().slice(0, 2000) : undefined
+
     const result = await generateGeminiMarketingImages({
       copy,
       templateId,
@@ -83,6 +90,7 @@ export async function POST(request: NextRequest) {
       mode,
       logoVariant,
       variantCount,
+      customPrompt: customPrompt || undefined,
     })
 
     return NextResponse.json(result)

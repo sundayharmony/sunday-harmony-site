@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
 import path from 'path'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, type GenerativeModel } from '@google/generative-ai'
 import { brandLogos, type LogoVariant } from '@/lib/brand-tokens'
 import { buildGeminiPrompt } from './gemini-brand-brief'
 import { getGeminiAspectRatio } from './gemini-aspect-ratio'
@@ -24,7 +24,11 @@ function getApiKey(): string {
 }
 
 function getModelName(): string {
-  return process.env.GEMINI_IMAGE_MODEL?.trim() || DEFAULT_MODEL
+  const configured = process.env.GEMINI_IMAGE_MODEL?.trim()
+  if (configured && configured.includes('preview')) {
+    return 'gemini-2.5-flash-image'
+  }
+  return configured || DEFAULT_MODEL
 }
 
 async function loadLogoInline(logoVariant: LogoVariant): Promise<{ mimeType: string; data: string } | null> {
@@ -38,10 +42,24 @@ async function loadLogoInline(logoVariant: LogoVariant): Promise<{ mimeType: str
   }
 }
 
-function extractImagesFromResponse(response: Awaited<ReturnType<ReturnType<GoogleGenerativeAI['getGenerativeModel']>['generateContent']>>): {
-  mimeType: string
-  data: string
-}[] {
+function createImageModel(genAI: GoogleGenerativeAI, modelName: string, formatId: GraphicFormatId): GenerativeModel {
+  const format = getFormatById(formatId)
+  if (!format) throw new Error('Invalid format')
+
+  return genAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      imageConfig: {
+        aspectRatio: getGeminiAspectRatio(format),
+      },
+    } as Record<string, unknown>,
+  })
+}
+
+function extractImagesFromResponse(
+  response: Awaited<ReturnType<GenerativeModel['generateContent']>>
+): { mimeType: string; data: string }[] {
   const images: { mimeType: string; data: string }[] = []
   const candidates = response.response?.candidates ?? []
   for (const candidate of candidates) {
@@ -57,6 +75,60 @@ function extractImagesFromResponse(response: Awaited<ReturnType<ReturnType<Googl
   return images
 }
 
+function formatGeminiError(err: unknown): string {
+  if (err instanceof Error) {
+    const msg = err.message
+    if (msg.includes('404') && msg.includes('not found')) {
+      return 'Gemini image model not found. Set GEMINI_IMAGE_MODEL=gemini-2.5-flash-image in Vercel or remove an outdated override.'
+    }
+    if (msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
+      return 'Invalid GEMINI_API_KEY. Check the key in Google AI Studio and Vercel environment variables.'
+    }
+    if (msg.includes('quota') || msg.includes('429')) {
+      return 'Gemini rate limit reached. Wait a moment and try again, or reduce variants to 1.'
+    }
+    return msg
+  }
+  return 'Generation failed'
+}
+
+async function generateOneVariant(
+  model: GenerativeModel,
+  prompt: string,
+  logoInline: { mimeType: string; data: string } | null,
+  index: number
+): Promise<GeneratedGeminiImage> {
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = []
+  if (logoInline) {
+    parts.push({ inlineData: logoInline })
+  }
+  parts.push({ text: prompt })
+
+  let result: Awaited<ReturnType<GenerativeModel['generateContent']>>
+  try {
+    result = await model.generateContent({ contents: [{ role: 'user', parts }] })
+  } catch (err) {
+    throw new Error(formatGeminiError(err))
+  }
+
+  const extracted = extractImagesFromResponse(result)
+  if (extracted.length === 0) {
+    const text = result.response.text?.()
+    throw new Error(
+      text
+        ? `Model returned text instead of an image: ${text.slice(0, 200)}`
+        : 'No image returned. Enable billing for image models in Google AI Studio.'
+    )
+  }
+
+  const img = extracted[0]
+  return {
+    id: `gemini-${Date.now()}-${index}`,
+    mimeType: img.mimeType,
+    dataUrl: `data:${img.mimeType};base64,${img.data}`,
+  }
+}
+
 export async function generateGeminiMarketingImages(params: {
   copy: GraphicCopy
   templateId: GraphicTemplateId
@@ -64,6 +136,7 @@ export async function generateGeminiMarketingImages(params: {
   mode: GeminiGenerationMode
   logoVariant: LogoVariant
   variantCount: number
+  customPrompt?: string
 }): Promise<{ images: GeneratedGeminiImage[]; model: string; promptSample: string }> {
   const format = getFormatById(params.formatId)
   if (!format) throw new Error('Invalid format')
@@ -71,24 +144,13 @@ export async function generateGeminiMarketingImages(params: {
   const apiKey = getApiKey()
   const modelName = getModelName()
   const genAI = new GoogleGenerativeAI(apiKey)
-
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseModalities: ['IMAGE'],
-      imageConfig: {
-        aspectRatio: getGeminiAspectRatio(format),
-      },
-    } as Record<string, unknown>,
-  })
+  const model = createImageModel(genAI, modelName, params.formatId)
 
   const logoInline = params.mode === 'full' ? await loadLogoInline(params.logoVariant) : null
   const count = Math.min(Math.max(params.variantCount, 1), 4)
-  const images: GeneratedGeminiImage[] = []
-  let promptSample = ''
 
-  for (let i = 0; i < count; i++) {
-    const prompt = buildGeminiPrompt({
+  const prompts = Array.from({ length: count }, (_, i) =>
+    buildGeminiPrompt({
       copy: params.copy,
       templateId: params.templateId,
       formatId: params.formatId,
@@ -96,33 +158,13 @@ export async function generateGeminiMarketingImages(params: {
       logoVariant: params.logoVariant,
       variantIndex: i + 1,
       variantTotal: count,
+      customPrompt: params.customPrompt,
     })
-    if (i === 0) promptSample = prompt
+  )
 
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: prompt }]
-    if (logoInline) {
-      parts.push({ inlineData: logoInline })
-    }
+  const images = await Promise.all(
+    prompts.map((prompt, i) => generateOneVariant(model, prompt, logoInline, i))
+  )
 
-    const result = await model.generateContent({ contents: [{ role: 'user', parts }] })
-    const extracted = extractImagesFromResponse(result)
-
-    if (extracted.length === 0) {
-      const text = result.response.text?.()
-      throw new Error(
-        text
-          ? `Model returned text instead of an image: ${text.slice(0, 200)}`
-          : 'No image returned. Try GEMINI_IMAGE_MODEL=gemini-2.5-flash-image or enable billing in Google AI Studio.'
-      )
-    }
-
-    const img = extracted[0]
-    images.push({
-      id: `gemini-${Date.now()}-${i}`,
-      mimeType: img.mimeType,
-      dataUrl: `data:${img.mimeType};base64,${img.data}`,
-    })
-  }
-
-  return { images, model: modelName, promptSample }
+  return { images, model: modelName, promptSample: prompts[0] }
 }
