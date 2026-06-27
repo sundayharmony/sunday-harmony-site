@@ -25,7 +25,7 @@ export interface User {
   email: string
   password: string
   name: string
-  role: 'admin' | 'client'
+  role: 'admin' | 'client' | 'credit_manager'
   client_id?: string
   created_at: string
 }
@@ -56,7 +56,7 @@ export async function createUser(userData: {
   email: string
   password: string
   name: string
-  role: 'admin' | 'client'
+  role: 'admin' | 'client' | 'credit_manager'
   client_id?: string
 }): Promise<User | null> {
   const { data, error } = await getSupabase()
@@ -315,6 +315,82 @@ export async function createMessage(msgData: {
   const { data, error } = await getSupabase().from('messages').insert(msgData).select().single()
   if (error) { console.error('createMessage error:', error); return null }
   return data
+}
+
+// ═══════ STAFF MESSAGES (admin ↔ credit_manager) ═══════
+export interface StaffMessage {
+  id: string
+  from_user_id: string
+  text: string
+  created_at: string
+  from_name?: string
+  from_role?: string
+}
+
+export async function getStaffMessages(): Promise<StaffMessage[]> {
+  const { data, error } = await getSupabase()
+    .from('staff_messages')
+    .select('id, from_user_id, text, created_at')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    if (error.code !== '42P01') console.error('getStaffMessages error:', error)
+    return []
+  }
+
+  const rows = data || []
+  if (rows.length === 0) return []
+
+  const userIds = [...new Set(rows.map((r) => r.from_user_id))]
+  const { data: users } = await getSupabase()
+    .from('users')
+    .select('id, name, role')
+    .in('id', userIds)
+
+  const userMap = new Map((users || []).map((u) => [u.id, u]))
+
+  return rows.map((row) => {
+    const user = userMap.get(row.from_user_id)
+    return {
+      id: row.id,
+      from_user_id: row.from_user_id,
+      text: row.text,
+      created_at: row.created_at,
+      from_name: user?.name,
+      from_role: user?.role,
+    }
+  })
+}
+
+export async function createStaffMessage(msgData: {
+  from_user_id: string
+  text: string
+}): Promise<StaffMessage | null> {
+  const { data, error } = await getSupabase()
+    .from('staff_messages')
+    .insert({ from_user_id: msgData.from_user_id, text: msgData.text })
+    .select('id, from_user_id, text, created_at')
+    .single()
+
+  if (error) {
+    console.error('createStaffMessage error:', error)
+    return null
+  }
+  return data
+}
+
+export async function getStaffUsers(): Promise<User[]> {
+  const { data, error } = await getSupabase()
+    .from('users')
+    .select('*')
+    .in('role', ['admin', 'credit_manager'])
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('getStaffUsers error:', error)
+    return []
+  }
+  return data || []
 }
 
 // ââââââââââ ADMIN DATA ââââââââââ

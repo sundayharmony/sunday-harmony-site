@@ -38,6 +38,8 @@ function LoginForm() {
 
         if (role === 'admin') {
           router.push('/admin')
+        } else if (role === 'credit_manager') {
+          router.push('/admin/credit-funding')
         } else if (role === 'client') {
           router.push('/dashboard')
         } else {

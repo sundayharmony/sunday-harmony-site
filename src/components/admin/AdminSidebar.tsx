@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { signOut } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
 
-const navItems = [
+const allNavItems = [
   { href: '/admin', icon: '\u{1F4CA}', label: 'Overview' },
   { href: '/admin/crm', icon: '\u{1F4CB}', label: 'CRM' },
   { href: '/admin/leads', icon: '\u{1F525}', label: 'Leads' },
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/admin/marketing-graphics', icon: '\u{1F3A8}', label: 'Marketing Graphics' },
   { href: '/admin/billing', icon: '\u{1F4B3}', label: 'Billing' },
   { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
+  { href: '/admin/team-messages', icon: '\u{1F91D}', label: 'Team Chat' },
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
   { href: '/admin/files', icon: '\u{1F4C1}', label: 'Files' },
   { href: '/admin/approvals', icon: '\u{1F44D}', label: 'Approvals' },
@@ -28,6 +29,12 @@ const navItems = [
   { href: '/admin/discovery', icon: '\u{1F3AF}', label: 'Discovery' },
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
+
+const creditManagerHrefs = new Set([
+  '/admin/credit-funding',
+  '/admin/team-messages',
+  '/admin/settings',
+])
 
 interface AdminSidebarProps {
   collapsed?: boolean
@@ -42,12 +49,21 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { data: session } = useSession()
+  const role = session?.user?.role
+  const isCreditManager = role === 'credit_manager'
+
+  const navItems = isCreditManager
+    ? allNavItems.filter((item) => creditManagerHrefs.has(item.href))
+    : allNavItems
+
+  const dashboardLabel = isCreditManager ? 'Credit Manager' : 'Admin Dashboard'
+  const logoHref = isCreditManager ? '/admin/credit-funding' : '/admin'
 
   const desktopHidden = hydrated && collapsed
 
   return (
     <>
-      {/* Mobile toggle */}
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
         className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-gray-50 border border-brand-border text-brand-text"
@@ -62,7 +78,6 @@ export default function AdminSidebar({
         </svg>
       </button>
 
-      {/* Desktop expand when sidebar collapsed */}
       {desktopHidden && onToggleSidebar && (
         <button
           type="button"
@@ -77,7 +92,6 @@ export default function AdminSidebar({
         </button>
       )}
 
-      {/* Backdrop (mobile) */}
       {mobileOpen && (
         <button
           type="button"
@@ -87,17 +101,17 @@ export default function AdminSidebar({
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } ${desktopHidden ? 'md:-translate-x-full' : 'md:translate-x-0'}`}
       >
-        {/* Logo + collapse */}
         <div className="p-5 pb-4 border-b border-brand-border flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <BrandLogo href="/admin" height={32} />
-            <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Admin Dashboard</div>
+            <BrandLogo href={logoHref} height={32} />
+            <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">
+              {dashboardLabel}
+            </div>
           </div>
           {onToggleSidebar && (
             <button
@@ -114,10 +128,9 @@ export default function AdminSidebar({
           )}
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-4 px-3 overflow-y-auto">
           {navItems.map((item) => {
-            const active = pathname === item.href
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
             return (
               <Link
                 key={item.href}
@@ -136,7 +149,6 @@ export default function AdminSidebar({
           })}
         </nav>
 
-        {/* Footer */}
         <div className="p-4 border-t border-brand-border">
           <Link
             href="/"

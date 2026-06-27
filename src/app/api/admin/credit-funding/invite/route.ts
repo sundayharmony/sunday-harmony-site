@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, getUserByEmail } from '@/lib/db'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   createInvitedCreditFundingApplication,
   extendApplicationInvitation,
@@ -57,7 +57,7 @@ async function sendInviteForApplication(
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const body = await req.json()
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const body = await req.json()
@@ -152,7 +152,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const id = new URL(req.url).searchParams.get('id')

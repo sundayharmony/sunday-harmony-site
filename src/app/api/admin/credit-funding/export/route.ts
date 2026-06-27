@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { maskEmail, maskPhone } from '@/lib/field-encryption'
 import { getCreditFundingApplications } from '@/lib/credit-funding-db'
 
@@ -14,7 +14,7 @@ function csvEscape(val: string): string {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const { searchParams } = new URL(req.url)

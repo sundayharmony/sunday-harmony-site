@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { formatApplicationForAdmin } from '@/lib/credit-funding-admin'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { applyWorkflowStatusUpdate } from '@/lib/credit-funding-workflow'
@@ -17,7 +17,7 @@ const MAX_ATTACHMENTS = 5
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const formData = await req.formData()

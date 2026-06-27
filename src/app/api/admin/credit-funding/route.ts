@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, createNotification, getUserByEmail } from '@/lib/db'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   formatApplicationForAdmin,
   formatApplicationListItemForAdmin,
@@ -38,7 +38,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const { searchParams } = new URL(req.url)
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const body = await req.json()
@@ -275,7 +275,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const body = await req.json()
