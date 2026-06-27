@@ -608,6 +608,24 @@ export async function fulfillDocumentRequest(id: string): Promise<boolean> {
   return true
 }
 
+/** Fulfill only if the request belongs to the given application (prevents cross-app IDOR). */
+export async function fulfillDocumentRequestForApplication(
+  id: string,
+  applicationUuid: string
+): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from('credit_funding_document_requests')
+    .update({ status: 'uploaded', fulfilled_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('application_uuid', applicationUuid)
+
+  if (error) {
+    console.error('fulfillDocumentRequestForApplication error:', error)
+    return false
+  }
+  return true
+}
+
 export async function linkApplicationToUser(applicationId: string, userId: string, clientId?: string): Promise<boolean> {
   const updates: Record<string, string | null> = { user_id: userId }
   if (clientId) updates.client_id = clientId

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { generateGeminiMarketingImages } from '@/lib/marketing-graphics/gemini-generate'
 import type {
   GeminiGenerationMode,
@@ -60,6 +62,11 @@ export async function POST(request: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
 
+  const adminEmail = session.user?.email || 'admin'
+  const ip = getClientIp(request)
+  const rl = await rateLimitDurable(`gemini-gen:${adminEmail}:${ip}`, 10, 60 * 60 * 1000)
+  if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
   try {
     const body = await request.json()
     const copy = parseCopy(body.copy)
@@ -77,8 +84,10 @@ export async function POST(request: NextRequest) {
     const logoVariant: LogoVariant =
       body.logoVariant === 'white' || body.logoVariant === 'hidden' ? body.logoVariant : 'black'
 
-    const variantCount =
-      typeof body.variantCount === 'number' ? body.variantCount : Number(body.variantCount) || 2
+    const variantCount = Math.min(
+      4,
+      Math.max(1, typeof body.variantCount === 'number' ? body.variantCount : Number(body.variantCount) || 2)
+    )
 
     const customPrompt =
       typeof body.customPrompt === 'string' ? body.customPrompt.trim().slice(0, 2000) : undefined
@@ -98,6 +107,8 @@ export async function POST(request: NextRequest) {
     console.error('POST /api/admin/marketing-graphics/generate-gemini error:', err)
     const message = err instanceof Error ? err.message : 'Generation failed'
     const status = message.includes('GEMINI_API_KEY') ? 503 : 500
-    return NextResponse.json({ error: message }, { status })
+    const clientMessage =
+      status === 503 ? message : 'Image generation failed. Check server logs or try fewer variants.'
+    return NextResponse.json({ error: clientMessage }, { status })
   }
 }

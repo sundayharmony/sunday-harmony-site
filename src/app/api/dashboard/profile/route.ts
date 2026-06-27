@@ -1,27 +1,14 @@
-import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
-import { authOptions } from '@/lib/auth'
 import { getClientById } from '@/lib/db'
+import { requireClientSession, getClientIdFromSession } from '@/lib/client-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireClientSession()
+  if (session instanceof NextResponse) return session
 
-  const user = session.user as { role?: string; clientId?: string }
-  if (user.role !== 'client') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const clientId = user.clientId
-  if (!clientId) {
-    return NextResponse.json({ error: 'No client profile linked' }, { status: 404 })
-  }
-
-  const client = await getClientById(clientId)
+  const client = await getClientById(getClientIdFromSession(session))
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
@@ -33,17 +20,12 @@ export async function GET() {
     email: client.email || '',
     phone: client.phone || '',
     industry: client.industry || '',
-    package_tier: client.package_tier || 'spark',
-    monthly_price: client.monthly_price || 0,
-    start_date: client.start_date || new Date().toISOString(),
-    status: client.status || 'active',
-    is_potential: Boolean(client.is_potential),
-    billing_status: client.billing_status || 'not_started',
-    next_billing_date: client.next_billing_date || null,
-    last_payment_at: client.last_payment_at || null,
-    stripe_customer_id: client.stripe_customer_id || '',
-    stripe_subscription_id: client.stripe_subscription_id || '',
-    deliverables: Array.isArray(client.deliverables) ? client.deliverables : [],
-    quick_wins: Array.isArray(client.quick_wins) ? client.quick_wins : [],
+    package_tier: client.package_tier || '',
+    billing_status: client.billing_status || '',
+    monthly_price: client.monthly_price ?? 0,
+    status: client.status || '',
+    is_potential: client.is_potential ?? false,
+    stripe_subscription_id: client.stripe_subscription_id || null,
+    created_at: client.created_at,
   })
 }

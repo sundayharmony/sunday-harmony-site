@@ -2,22 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getUserByEmail } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { escHtml, isEmailConfigured, sendEmail } from '@/lib/smtp-mail'
+import { hashVerificationToken } from '@/lib/verification-token'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit: 5 requests per 15 minutes per IP
     const ip = getClientIp(req)
-    const rlIp = rateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
-    if (!rlIp.allowed) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rlIp = await rateLimitDurable(`forgot-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rlIp.allowed) return rateLimitResponse(rlIp.resetIn)
 
     const { email } = await req.json()
     if (!email?.trim()) {
@@ -25,28 +21,24 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    const rlEmail = rateLimit(`forgot-password:email:${normalizedEmail}`, 3, 15 * 60 * 1000)
-    if (!rlEmail.allowed) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rlEmail = await rateLimitDurable(`forgot-password:email:${normalizedEmail}`, 3, 15 * 60 * 1000)
+    if (!rlEmail.allowed) return rateLimitResponse(rlEmail.resetIn)
+
     const user = await getUserByEmail(normalizedEmail)
 
-    // Always return success to prevent email enumeration
     if (!user) {
-      return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })
+      return NextResponse.json({
+        success: true,
+        message: 'If an account exists with that email, a verification code has been sent.',
+      })
     }
 
-    // Generate a 6-digit verification code
     const code = crypto.randomInt(100000, 999999).toString()
-    const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 minutes
+    const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
-    // Store code in user record (reuse reset_token fields)
     const { error: tokenError } = await getSupabase()
       .from('users')
-      .update({ reset_token: code, reset_token_expires: expires })
+      .update({ reset_token: hashVerificationToken(code), reset_token_expires: expires })
       .eq('id', user.id)
 
     if (tokenError) {
@@ -54,7 +46,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
     }
 
-    // Send verification code email
     if (isEmailConfigured()) {
       await sendEmail({
         to: normalizedEmail,
@@ -82,7 +73,10 @@ export async function POST(req: NextRequest) {
       console.error('Forgot password: email not configured')
     }
 
-    return NextResponse.json({ success: true, message: 'If an account exists with that email, a verification code has been sent.' })
+    return NextResponse.json({
+      success: true,
+      message: 'If an account exists with that email, a verification code has been sent.',
+    })
   } catch (error) {
     console.error('Forgot password error:', error)
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })

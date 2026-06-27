@@ -32,8 +32,9 @@ export default function CaseStudyPdfSheet({ url, title }: Props) {
         if (cancelled) return
 
         const containerWidth = container.clientWidth || container.offsetWidth || 800
+        const maxPages = Math.min(pdf.numPages, 20)
 
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
           if (cancelled) return
 
           const page = await pdf.getPage(pageNum)

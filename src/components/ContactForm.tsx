@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react'
 import { siteConfig, serviceOptions } from '@/lib/data'
+import SectionHeader from '@/components/ui/SectionHeader'
 
 interface FormData {
   firstName: string
@@ -52,10 +53,14 @@ export default function ContactForm() {
   return (
     <section className="py-24 pt-8" id="contact">
       <div className="max-w-[1100px] mx-auto px-7">
-        <div className="section-label">Get In Touch</div>
-        <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
-          Let&apos;s talk about <span className="gold-text">your business</span>
-        </h2>
+        <SectionHeader
+          label="Get In Touch"
+          title={
+            <>
+              Let&apos;s talk about <span className="gold-text">your business</span>
+            </>
+          }
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
           {/* Info */}

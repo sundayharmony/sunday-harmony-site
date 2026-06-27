@@ -1,4 +1,5 @@
 import { packages } from '@/lib/data'
+import SectionHeader from '@/components/ui/SectionHeader'
 
 const colorMap: Record<string, string> = {
   blue: 'text-brand-muted',
@@ -11,13 +12,15 @@ export default function Packages() {
   return (
     <section className="py-24" id="packages">
       <div className="max-w-[1100px] mx-auto px-7">
-        <div className="section-label">Pricing</div>
-        <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
-          Packages built for <span className="gold-text">every stage of growth</span>
-        </h2>
-        <p className="text-[17px] text-brand-muted max-w-[580px] leading-relaxed">
-          From getting started on social media to full-service marketing. No hidden fees, no long-term contracts required.
-        </p>
+        <SectionHeader
+          label="Pricing"
+          title={
+            <>
+              Packages built for <span className="gold-text">every stage of growth</span>
+            </>
+          }
+          description="From getting started on social media to full-service marketing. No hidden fees, no long-term contracts required."
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
           {packages.map((pkg) => (

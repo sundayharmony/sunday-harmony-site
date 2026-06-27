@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import {
+  hashVerificationToken,
+  verificationTokenMatches,
+} from '@/lib/verification-token'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit: 5 attempts per 15 minutes per IP
     const ip = getClientIp(req)
-    const rlIp = rateLimit(`reset-password:${ip}`, 5, 15 * 60 * 1000)
-    if (!rlIp.allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rlIp = await rateLimitDurable(`reset-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rlIp.allowed) return rateLimitResponse(rlIp.resetIn)
 
     const { code, email, password } = await req.json()
 
     if (!code || !email || !password?.trim()) {
-      return NextResponse.json({ error: 'Verification code, email, and new password are required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Verification code, email, and new password are required' },
+        { status: 400 }
+      )
     }
 
     if (password.length < 8) {
@@ -31,50 +33,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Password is too long' }, { status: 400 })
     }
 
-    // Require at least one uppercase, one lowercase, and one number
     if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
       return NextResponse.json(
-        { error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' },
+        {
+          error:
+            'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+        },
         { status: 400 }
       )
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    const rlEmail = rateLimit(`reset-password:email:${normalizedEmail}`, 10, 15 * 60 * 1000)
-    if (!rlEmail.allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rlEmail = await rateLimitDurable(`reset-password:email:${normalizedEmail}`, 10, 15 * 60 * 1000)
+    if (!rlEmail.allowed) return rateLimitResponse(rlEmail.resetIn)
 
     const codeKey = code.trim().replace(/\s/g, '')
-    const rlCode = rateLimit(`reset-password:code:${normalizedEmail}:${codeKey}`, 5, 15 * 60 * 1000)
-    if (!rlCode.allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts for this code. Request a new code.' },
-        { status: 429 }
-      )
-    }
+    const rlCode = await rateLimitDurable(
+      `reset-password:code:${normalizedEmail}:${codeKey}`,
+      5,
+      15 * 60 * 1000
+    )
+    if (!rlCode.allowed) return rateLimitResponse(rlCode.resetIn)
 
-    // Find user with this email and matching code
     const { data: user, error } = await getSupabase()
       .from('users')
-      .select('*')
+      .select('id, reset_token, reset_token_expires')
       .ilike('email', normalizedEmail)
-      .eq('reset_token', code.trim())
       .single()
 
-    if (error || !user) {
+    if (error || !user || !verificationTokenMatches(user.reset_token, codeKey)) {
       return NextResponse.json({ error: 'Invalid verification code' }, { status: 400 })
     }
 
-    // Check expiry
     if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
-      return NextResponse.json({ error: 'Verification code has expired. Please request a new one.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Verification code has expired. Please request a new one.' },
+        { status: 400 }
+      )
     }
 
-    // Update password and clear token
     const hashedPassword = hashPassword(password)
     const { error: updateError } = await getSupabase()
       .from('users')

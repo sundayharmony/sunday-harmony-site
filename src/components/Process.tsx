@@ -1,16 +1,19 @@
 import { processSteps } from '@/lib/data'
+import SectionHeader from '@/components/ui/SectionHeader'
 
 export default function Process() {
   return (
     <section className="py-24 bg-brand-bg-soft" id="process">
       <div className="max-w-[1100px] mx-auto px-7">
-        <div className="section-label">How It Works</div>
-        <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
-          From first call to <span className="gold-text">first results</span>
-        </h2>
-        <p className="text-[17px] text-brand-muted max-w-[580px] leading-relaxed">
-          We make getting started simple. Here&apos;s what happens when you reach out.
-        </p>
+        <SectionHeader
+          label="How It Works"
+          title={
+            <>
+              From first call to <span className="gold-text">first results</span>
+            </>
+          }
+          description="We make getting started simple. Here's what happens when you reach out."
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12 relative">
           {/* Connecting line (desktop only) */}

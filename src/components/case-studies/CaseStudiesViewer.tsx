@@ -1,53 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import CaseStudyPdfSheet from '@/components/case-studies/CaseStudyPdfSheet'
+import dynamic from 'next/dynamic'
+import { useState } from 'react'
 
-interface CaseStudyItem {
+const CaseStudyPdfSheet = dynamic(() => import('@/components/case-studies/CaseStudyPdfSheet'), {
+  ssr: false,
+  loading: () => <p className="p-8 text-sm text-brand-muted text-center">Loading PDF viewer…</p>,
+})
+
+export interface CaseStudyItem {
   id: string
   title: string
   pdf_url: string
   updated_at: string
 }
 
-export default function CaseStudiesViewer() {
-  const [studies, setStudies] = useState<CaseStudyItem[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+interface Props {
+  initialStudies: CaseStudyItem[]
+}
 
-  useEffect(() => {
-    ;(async () => {
-      try {
-        const res = await fetch('/api/case-studies')
-        if (!res.ok) throw new Error('Failed to load case studies')
-        const data = await res.json()
-        const list = Array.isArray(data) ? data : []
-        setStudies(list)
-        if (list.length > 0) setSelectedId(list[0].id)
-        setError('')
-      } catch (err) {
-        console.error(err)
-        setError('Unable to load case studies right now.')
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [])
+export default function CaseStudiesViewer({ initialStudies }: Props) {
+  const [studies] = useState<CaseStudyItem[]>(initialStudies)
+  const [selectedId, setSelectedId] = useState<string | null>(initialStudies[0]?.id ?? null)
 
   const selected = studies.find((s) => s.id === selectedId) ?? studies[0]
-
-  if (loading) {
-    return <p className="text-sm text-brand-muted">Loading case studies…</p>
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
-        {error}
-      </div>
-    )
-  }
 
   if (studies.length === 0) {
     return (

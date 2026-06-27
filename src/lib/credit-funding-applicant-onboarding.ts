@@ -11,6 +11,7 @@ import {
   sanitizeEmailSubjectPart,
   sendEmail,
 } from '@/lib/smtp-mail'
+import { hashVerificationToken } from '@/lib/verification-token'
 
 const SETUP_CODE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -45,7 +46,7 @@ export async function ensurePortalUserForCreditApplication(
     await getSupabase()
       .from('users')
       .update({
-        reset_token: setupCode,
+        reset_token: hashVerificationToken(setupCode),
         reset_token_expires: new Date(Date.now() + SETUP_CODE_TTL_MS).toISOString(),
       })
       .eq('id', user.id)

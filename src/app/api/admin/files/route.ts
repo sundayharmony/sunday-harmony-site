@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { removeClientFileByPublicUrlIfOurs, withSignedClientFileUrls } from '@/lib/client-files-storage'
+import { removeClientFileByPublicUrlIfOurs, resolveClientFileStoragePath, withSignedClientFileUrls } from '@/lib/client-files-storage'
 import { getFilesByClient, createFileRecord, deleteFileRecord, createNotification, getFileById, getClientById } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import {
@@ -44,6 +44,13 @@ export async function POST(request: NextRequest) {
     if (!client_id || !name || !file_url || !file_type) {
       return NextResponse.json(
         { error: 'Missing required fields: client_id, name, file_url, file_type' },
+        { status: 400 }
+      )
+    }
+
+    if (!resolveClientFileStoragePath(String(file_url))) {
+      return NextResponse.json(
+        { error: 'file_url must be a valid client-files storage URL from an admin upload' },
         { status: 400 }
       )
     }

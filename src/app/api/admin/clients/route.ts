@@ -16,13 +16,9 @@ import { cleanupStripeForClient } from '@/lib/billing-service'
 import { syncClientFromLead } from '@/lib/crm-db'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { isFreeTier, TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
-import { getPublicSiteUrl, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
+import { getPublicSiteUrl, escHtml, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
-
-function escHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
 
 function sendNewClientWelcomeEmail(params: {
   to: string
@@ -31,9 +27,9 @@ function sendNewClientWelcomeEmail(params: {
   tierLabel: string
   siteUrl: string
   isPotential: boolean
-  loginPassword?: string
+  accountCreated?: boolean
 }): void {
-  const { to, clientName, business, tierLabel, siteUrl, isPotential, loginPassword } = params
+  const { to, clientName, business, tierLabel, siteUrl, isPotential, accountCreated } = params
   const first = (clientName || '').trim().split(/\s+/)[0] || 'there'
   const fn = escHtml(first)
   const biz = escHtml(business)
@@ -43,12 +39,14 @@ function sendNewClientWelcomeEmail(params: {
     ? `<p>Hi ${fn},</p><p>Thank you for connecting with Sunday Harmony. We've added <strong>${biz}</strong> to our client list as a <strong>potential</strong> engagement and will follow up with next steps.</p>`
     : `<p>Hi ${fn},</p><p>We're excited to have <strong>${biz}</strong> on board! Your <strong>${tier}</strong> package is now active.</p>`
 
-  const credentialsBlock = loginPassword
+  const credentialsBlock = accountCreated
     ? `<div style="background:#f8f6f0;border-radius:8px;padding:16px;margin:20px 0">
-        <p style="margin:0 0 8px;font-size:13px;color:#666"><strong>Your login details</strong></p>
+        <p style="margin:0 0 8px;font-size:13px;color:#666"><strong>Your login</strong></p>
         <p style="margin:0;font-size:13px;color:#333">Email: <strong>${escHtml(to)}</strong></p>
-        <p style="margin:0;font-size:13px;color:#333">Password: <strong>${escHtml(loginPassword)}</strong></p>
-        <p style="margin:8px 0 0;font-size:11px;color:#999">We recommend changing your password after your first login.</p>
+        <p style="margin:8px 0 0;font-size:13px;color:#444;line-height:1.5">
+          For security, passwords are never sent by email. Use the password your Sunday Harmony contact shared with you,
+          or <a href="${escHtml(siteUrl)}/forgot-password" style="color:#c9a96e">request a reset code</a> to set a new one.
+        </p>
       </div>`
     : `<p style="font-size:14px;color:#444;margin:16px 0">You can log in to your client dashboard with the email address above once your account has been activated. If you need access or have questions, reply to this email and we'll help right away.</p>`
 
@@ -185,7 +183,7 @@ export async function POST(req: NextRequest) {
         tierLabel: tierLabels[packageTier] || packageTier,
         siteUrl: getPublicSiteUrl(),
         isPotential: normalizedIsPotential,
-        loginPassword: trimmedPassword || undefined,
+        accountCreated: Boolean(trimmedPassword),
       })
     } catch (err) {
       console.error('Welcome email setup failed:', err)

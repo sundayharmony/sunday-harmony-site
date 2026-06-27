@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getPublishedCaseStudies } from '@/lib/db'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 export async function GET() {
   try {

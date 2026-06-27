@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import FileDropzone from '@/components/ui/FileDropzone'
 import { CREDIT_FUNDING_MAX_MB, getCreditFundingFileValidationError } from '@/lib/credit-funding-types'
 import type { DocumentType } from '@/lib/credit-funding-types'
 import type { StagedDocumentState } from '@/components/credit-funding/useStagedDocumentUploads'
@@ -29,7 +30,6 @@ export default function DocumentUploadCard({
   onRemove,
 }: DocumentUploadCardProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [dragOver, setDragOver] = useState(false)
   const [localError, setLocalError] = useState('')
 
   const status = state?.status || 'idle'
@@ -75,22 +75,14 @@ export default function DocumentUploadCard({
             : 'bg-neutral-50 text-brand-dim border-brand-border'
 
   return (
-    <div
-      className={`rounded-xl border-2 transition-colors ${
-        dragOver ? 'border-accent bg-accent-soft/20' : 'border-brand-border bg-white'
-      } ${status === 'uploaded' ? 'ring-1 ring-green-200' : ''}`}
-      onDragOver={(e) => {
-        e.preventDefault()
-        if (!isBusy) setDragOver(true)
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        e.preventDefault()
-        setDragOver(false)
-        if (isBusy) return
-        const file = e.dataTransfer.files[0]
-        if (file) void handleFile(file)
-      }}
+    <FileDropzone
+      accept={ACCEPT}
+      disabled={isBusy}
+      onFile={(file) => void handleFile(file)}
+      className={`rounded-xl border-2 transition-colors border-brand-border bg-white ${
+        status === 'uploaded' ? 'ring-1 ring-green-200' : ''
+      }`}
+      activeClassName="border-accent bg-accent-soft/20"
     >
       <div className="p-4">
         <div className="flex items-start gap-3 mb-3">
@@ -165,6 +157,6 @@ export default function DocumentUploadCard({
           </p>
         )}
       </div>
-    </div>
+    </FileDropzone>
   )
 }

@@ -3,15 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import BrandLogo from '@/components/BrandLogo'
-
-const navLinks = [
-  { href: '/#services', label: 'Services' },
-  { href: '/#packages', label: 'Packages' },
-  { href: '/case-studies', label: 'Case Studies', isPage: true },
-  { href: '/credit-funding', label: 'Credit & Funding', shortLabel: 'Credit', isPage: true },
-  { href: '/#about', label: 'About', hideBelow: 'lg' as const },
-  { href: '/#contact', label: 'Contact' },
-]
+import AuditCtaButton from '@/components/ui/AuditCtaButton'
+import { siteNavLinks } from '@/lib/navigation'
 
 const linkClass =
   'text-[11px] lg:text-[12px] xl:text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors whitespace-nowrap shrink-0'
@@ -96,15 +89,14 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* Desktop Links — centered */}
           <div className="hidden md:flex flex-nowrap items-center justify-center gap-4 lg:gap-5 xl:gap-7 2xl:gap-8 px-[140px] lg:px-[160px] xl:px-[200px]">
-            {navLinks.map((link) => (
+            {siteNavLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={`${linkClass}${link.hideBelow === 'lg' ? ' hidden lg:inline' : ''}`}
               >
-                {'shortLabel' in link && link.shortLabel ? (
+                {link.shortLabel ? (
                   <>
                     <span className="xl:hidden">{link.shortLabel}</span>
                     <span className="hidden xl:inline">{link.label}</span>
@@ -120,15 +112,9 @@ export default function Navbar() {
           </div>
 
           <div className="absolute right-5 md:right-6 top-1/2 -translate-y-1/2 hidden md:block">
-            <Link
-              href="/#contact"
-              className="shrink-0 px-4 lg:px-5 xl:px-6 py-2 lg:py-2.5 rounded-md bg-brand-text text-white font-semibold text-[11px] lg:text-[12px] xl:text-[13px] hover:bg-neutral-800 transition-all whitespace-nowrap"
-            >
-              Free Audit
-            </Link>
+            <AuditCtaButton variant="nav" />
           </div>
 
-          {/* Mobile Toggle */}
           <button
             ref={toggleRef}
             type="button"
@@ -143,14 +129,13 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Mobile Menu */}
       {mobileOpen && (
         <div
           ref={menuRef}
           id="mobile-nav"
           className="fixed top-[var(--nav-total-height)] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] px-5 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1 md:hidden overflow-y-auto"
         >
-          {navLinks.map((link) => (
+          {siteNavLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -167,13 +152,7 @@ export default function Navbar() {
           >
             Login
           </Link>
-          <Link
-            href="/#contact"
-            onClick={closeMobile}
-            className="text-lg font-semibold text-accent py-4"
-          >
-            Get Your Free Audit
-          </Link>
+          <AuditCtaButton variant="mobile" onClick={closeMobile} />
         </div>
       )}
     </>

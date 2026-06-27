@@ -1,23 +1,18 @@
-import crypto from 'crypto'
+import {
+  getCreditFundingSigningSecret,
+  signCreditFundingPayload,
+  verifyCreditFundingSignature,
+} from '@/lib/credit-funding-signing'
 
 export const APPLICATION_INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 function getInviteSecret(): string {
-  const key = process.env.CREDIT_FUNDING_ENCRYPTION_KEY?.trim()
-  if (key) return key
-
-  const auth = process.env.NEXTAUTH_SECRET?.trim()
-  if (auth) return auth
-
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Application invite signing requires CREDIT_FUNDING_ENCRYPTION_KEY or NEXTAUTH_SECRET')
-  }
-  return 'dev-credit-funding-invite'
+  return getCreditFundingSigningSecret('Application invite signing')
 }
 
 export function createApplicationInviteToken(applicationId: string, expiresAtMs: number): string {
   const payload = `${applicationId}.${expiresAtMs}`
-  const sig = crypto.createHmac('sha256', getInviteSecret()).update(payload).digest('base64url')
+  const sig = signCreditFundingPayload(getInviteSecret(), payload)
   return `${payload}.${sig}`
 }
 
@@ -34,9 +29,7 @@ export function verifyApplicationInviteToken(token: string): { applicationId: st
   if (!Number.isFinite(expiresAtMs)) return null
 
   const payload = `${applicationId}.${expiresAtMs}`
-  const expected = crypto.createHmac('sha256', getInviteSecret()).update(payload).digest('base64url')
-  if (expected.length !== sig.length) return null
-  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return null
+  if (!verifyCreditFundingSignature(getInviteSecret(), payload, sig)) return null
 
   return { applicationId, expiresAtMs }
 }

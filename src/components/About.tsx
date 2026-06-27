@@ -1,5 +1,6 @@
 import { aboutValues, team } from '@/lib/data'
 import BrandLogo from '@/components/BrandLogo'
+import SectionHeader from '@/components/ui/SectionHeader'
 
 export default function About() {
   return (
@@ -7,10 +8,14 @@ export default function About() {
       {/* About Section */}
       <section className="py-24" id="about">
         <div className="max-w-[1100px] mx-auto px-7">
-          <div className="section-label">About Us</div>
-          <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
-            We&apos;re the partner <span className="gold-text">you&apos;ve been looking for</span>
-          </h2>
+        <SectionHeader
+          label="About Us"
+          title={
+            <>
+              We&apos;re the partner <span className="gold-text">you&apos;ve been looking for</span>
+            </>
+          }
+        />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center mt-12">
             <div>
@@ -50,10 +55,14 @@ export default function About() {
       {/* Team Section */}
       <section className="py-24 pt-0">
         <div className="max-w-[1100px] mx-auto px-7">
-          <div className="section-label">Our Team</div>
-          <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
-            The people behind <span className="gold-text">your growth</span>
-          </h2>
+          <SectionHeader
+            label="Our Team"
+            title={
+              <>
+                The people behind <span className="gold-text">your growth</span>
+              </>
+            }
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-12 max-w-[700px]">
             {team.map((member) => (

@@ -162,9 +162,15 @@ export async function generateGeminiMarketingImages(params: {
     })
   )
 
-  const images = await Promise.all(
-    prompts.map((prompt, i) => generateOneVariant(model, prompt, logoInline, i))
-  )
+  const images: GeneratedGeminiImage[] = []
+  const concurrency = 2
+  for (let i = 0; i < prompts.length; i += concurrency) {
+    const batch = prompts.slice(i, i + concurrency)
+    const batchImages = await Promise.all(
+      batch.map((prompt, j) => generateOneVariant(model, prompt, logoInline, i + j))
+    )
+    images.push(...batchImages)
+  }
 
   return { images, model: modelName, promptSample: prompts[0] }
 }

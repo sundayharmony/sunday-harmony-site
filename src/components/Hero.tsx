@@ -1,4 +1,5 @@
 import { heroAuditHighlights, heroStats, heroSubtext, siteConfig } from '@/lib/data'
+import AuditCtaButton from '@/components/ui/AuditCtaButton'
 
 export default function Hero() {
   return (
@@ -30,12 +31,7 @@ export default function Hero() {
             </p>
 
             <div className="flex gap-3.5 flex-wrap mb-6">
-              <a
-                href="#contact"
-                className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-brand-text text-white text-sm font-semibold hover:-translate-y-0.5 hover:bg-neutral-800 transition-all"
-              >
-                Get Your Free Audit &rarr;
-              </a>
+              <AuditCtaButton variant="primary" />
               <a
                 href="#packages"
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
@@ -93,13 +89,7 @@ export default function Hero() {
                 ))}
               </ul>
 
-              <a
-                href="#contact"
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-brand-border bg-accent-soft px-4 py-3.5 text-sm font-semibold text-brand-text transition-all hover:bg-neutral-100 hover:-translate-y-0.5"
-              >
-                Request your free audit
-                <span aria-hidden className="text-accent">→</span>
-              </a>
+              <AuditCtaButton variant="inline" className="mt-0" />
               <p className="mt-3 text-center text-[11px] text-brand-dim">
                 No spam. We&apos;ll email or call with next steps.
               </p>

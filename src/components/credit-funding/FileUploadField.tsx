@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import FileDropzone from '@/components/ui/FileDropzone'
 import { CREDIT_FUNDING_MAX_MB, getCreditFundingFileValidationError } from '@/lib/credit-funding-types'
 
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/png,image/jpeg'
@@ -24,11 +25,7 @@ export default function FileUploadField({
   onChange,
   error,
 }: FileUploadFieldProps) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [dragOver, setDragOver] = useState(false)
   const [localError, setLocalError] = useState('')
-
-  const validateFile = (file: File): string | null => getCreditFundingFileValidationError(file)
 
   const handleFile = (file: File | null) => {
     setLocalError('')
@@ -36,7 +33,7 @@ export default function FileUploadField({
       onChange(null)
       return
     }
-    const err = validateFile(file)
+    const err = getCreditFundingFileValidationError(file)
     if (err) {
       setLocalError(err)
       onChange(null)
@@ -47,6 +44,12 @@ export default function FileUploadField({
 
   const previewUrl = value && value.type.startsWith('image/') ? URL.createObjectURL(value) : null
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
   return (
     <div className="mb-5">
       <label className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
@@ -55,32 +58,15 @@ export default function FileUploadField({
         {optional && <span className="text-brand-dim font-normal ml-1">(optional)</span>}
       </label>
 
-      <div
-        className={`border-2 border-dashed rounded-xl p-5 transition-colors cursor-pointer ${
-          dragOver ? 'border-accent bg-accent-soft/30' : 'border-brand-border hover:border-accent/50'
-        } ${error || localError ? 'border-brand-red/50' : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragOver(false)
-          const file = e.dataTransfer.files[0]
-          if (file) handleFile(file)
-        }}
-        onClick={() => inputRef.current?.click()}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click() }}
+      <FileDropzone
+        accept={ACCEPT}
+        onFile={(file) => handleFile(file)}
+        clickToSelect
+        className={`border-2 border-dashed rounded-xl p-5 transition-colors cursor-pointer border-brand-border hover:border-accent/50 ${
+          error || localError ? 'border-brand-red/50' : ''
+        }`}
+        activeClassName="border-accent bg-accent-soft/30"
       >
-        <input
-          ref={inputRef}
-          type="file"
-          name={name}
-          accept={ACCEPT}
-          className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0] || null)}
-        />
-
         {!value ? (
           <div className="text-center">
             <div className="text-2xl mb-2">📎</div>
@@ -106,7 +92,6 @@ export default function FileUploadField({
               onClick={(e) => {
                 e.stopPropagation()
                 onChange(null)
-                if (inputRef.current) inputRef.current.value = ''
               }}
               className="text-xs text-brand-red hover:underline px-2 py-1"
             >
@@ -114,11 +99,9 @@ export default function FileUploadField({
             </button>
           </div>
         )}
-      </div>
+      </FileDropzone>
 
-      {(error || localError) && (
-        <p className="text-xs text-brand-red mt-1">{error || localError}</p>
-      )}
+      {(error || localError) && <p className="text-xs text-brand-red mt-1">{error || localError}</p>}
     </div>
   )
 }

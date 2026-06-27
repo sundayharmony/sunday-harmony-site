@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 
+/**
+ * Page-route auth only. `/api/*` is NOT matched — each API route must enforce its own auth
+ * (requireAdminSession, requireClientSession, etc.). Do not rely on middleware for API security.
+ */
+
 /** Public routes where a logged-in client is sent to the dashboard instead. */
 const CLIENT_HOME_PATHS = new Set(['/', '/login', '/forgot-password', '/reset-password'])
 

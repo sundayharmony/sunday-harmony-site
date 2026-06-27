@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { logApiRouteError } from '@/lib/api-route-log'
+import { requireApplicantCreditFundingAccess } from '@/lib/credit-funding-dashboard-auth'
 import {
-  getCreditFundingApplicationByEmail,
-  getCreditFundingApplicationByUserId,
-  createCreditFundingMessage,
-  fulfillDocumentRequest,
+  fulfillDocumentRequestForApplication,
   createUploadedDocument,
   getDocumentRequests,
 } from '@/lib/credit-funding-db'
@@ -18,30 +14,12 @@ import { DOCUMENT_LABELS } from '@/lib/credit-funding-types'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-async function resolveApplication(email: string, userId: string) {
-  const byUser = await getCreditFundingApplicationByUserId(userId)
-  if (byUser) return byUser
-  return getCreditFundingApplicationByEmail(email)
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const access = await requireApplicantCreditFundingAccess()
+    if (!access.ok) return access.response
 
-    const application = await resolveApplication(session.user.email, session.user.id)
-    if (!application) {
-      return NextResponse.json({ error: 'No application found' }, { status: 404 })
-    }
-
-    if (
-      application.email.toLowerCase() !== session.user.email.toLowerCase() &&
-      application.user_id !== session.user.id
-    ) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
+    const { session, application } = access
 
     const formData = await req.formData()
     const documentType = formData.get('documentType') as string
@@ -77,13 +55,13 @@ export async function POST(req: NextRequest) {
     })
 
     if (requestId) {
-      await fulfillDocumentRequest(requestId)
+      await fulfillDocumentRequestForApplication(requestId, application.id)
     } else {
       const pending = await getDocumentRequests(application.id)
       const match = pending.find(
         (r) => r.document_type === documentType && r.status === 'pending'
       )
-      if (match) await fulfillDocumentRequest(match.id)
+      if (match) await fulfillDocumentRequestForApplication(match.id, application.id)
     }
 
     sendHtmlMailNonBlocking({

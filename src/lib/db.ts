@@ -337,7 +337,7 @@ export async function getAdminData(): Promise<AdminData> {
   }
 }
 
-export async function updateAdminData(updates: Partial<AdminData>): Promise<AdminData> {
+export async function updateAdminData(updates: Partial<AdminData>): Promise<AdminData | null> {
   const current = await getAdminData()
   const merged = { id: 'singleton', ...current, ...updates }
   const { data, error } = await getSupabase()
@@ -345,7 +345,10 @@ export async function updateAdminData(updates: Partial<AdminData>): Promise<Admi
     .upsert(merged)
     .select()
     .single()
-  if (error) { console.error('updateAdminData error:', error); return merged }
+  if (error) {
+    console.error('updateAdminData error:', error)
+    return null
+  }
   return data
 }
 

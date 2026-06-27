@@ -1,27 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getOnboardingResponse, upsertOnboardingResponse } from '@/lib/db'
+import { requireClientSession, getClientIdFromSession } from '@/lib/client-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await requireClientSession()
+    if (session instanceof NextResponse) return session
 
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string; clientId?: string }
-    if (user.role !== 'client') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const clientId = user.clientId
-    if (!clientId) {
-      return NextResponse.json({ error: 'No client ID associated with user' }, { status: 400 })
-    }
+    const clientId = getClientIdFromSession(session)
 
     const response = await getOnboardingResponse(clientId)
 
@@ -49,21 +37,10 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await requireClientSession()
+    if (session instanceof NextResponse) return session
 
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { role?: string; clientId?: string }
-    if (user.role !== 'client') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const clientId = user.clientId
-    if (!clientId) {
-      return NextResponse.json({ error: 'No client ID associated with user' }, { status: 400 })
-    }
+    const clientId = getClientIdFromSession(session)
 
     const body = await request.json()
     const {

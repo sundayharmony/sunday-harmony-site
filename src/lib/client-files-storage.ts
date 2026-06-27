@@ -37,11 +37,7 @@ const MAGIC_SIGNATURES: Array<{ mime: string; check: (buf: Buffer) => boolean }>
   { mime: 'text/csv', check: () => true },
 ]
 
-function extensionFromName(name: string): string {
-  const i = name.lastIndexOf('.')
-  if (i <= 0 || i === name.length - 1) return 'bin'
-  return name.slice(i + 1).toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
-}
+import { extensionFromName } from '@/lib/storage-utils'
 
 function effectiveContentType(contentType: string, originalFileName: string): string {
   let ct = (contentType || '').split(';')[0].trim().toLowerCase()

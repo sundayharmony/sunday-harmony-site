@@ -1,60 +1,35 @@
-import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
-import { authOptions } from '@/lib/auth'
 import { getMessages, createMessage, getClientById } from '@/lib/db'
-import { getAdminNotifyEmail, getPublicSiteUrl, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
+import {
+  escHtml,
+  getAdminNotifyEmail,
+  getPublicSiteUrl,
+  isEmailConfigured,
+  sanitizeEmailSubjectPart,
+  sendHtmlMailNonBlocking,
+} from '@/lib/smtp-mail'
+import { requireClientSession, getClientIdFromSession } from '@/lib/client-auth'
 
 export const dynamic = 'force-dynamic'
 
-function escHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireClientSession()
+  if (session instanceof NextResponse) return session
 
-  const userRole = (session.user as { role?: string }).role
-  if (userRole !== 'client') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const clientId = (session.user as { clientId?: string }).clientId
-  if (!clientId) {
-    return NextResponse.json(
-      { error: 'No client account is linked to this login. Contact Sunday Harmony.' },
-      { status: 400 }
-    )
-  }
-
-  const messages = await getMessages(clientId)
+  const messages = await getMessages(getClientIdFromSession(session))
   return NextResponse.json(messages)
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireClientSession()
+  if (session instanceof NextResponse) return session
 
-  const userRole = (session.user as { role?: string }).role
-  if (userRole !== 'client') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const clientId = (session.user as { clientId?: string }).clientId
-  if (!clientId) {
-    return NextResponse.json({ error: 'No client profile linked' }, { status: 400 })
-  }
-
+  const clientId = getClientIdFromSession(session)
   const { text } = await request.json()
   if (!text?.trim()) {
     return NextResponse.json({ error: 'Message text required' }, { status: 400 })
   }
 
-  // Input length validation
   if (typeof text === 'string' && text.length > 10000) {
     return NextResponse.json({ error: 'Message is too long (max 10000 characters)' }, { status: 400 })
   }
@@ -66,7 +41,6 @@ export async function POST(request: Request) {
     text: text.trim(),
   })
 
-  // Send email notification to admin (non-blocking)
   if (isEmailConfigured()) {
     try {
       const client = await getClientById(clientId)

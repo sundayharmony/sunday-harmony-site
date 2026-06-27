@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
+import PublicPageLayout from '@/components/layout/PublicPageLayout'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Credit & Funding | Sunday Harmony',
@@ -81,47 +80,42 @@ const sections = [
 
 export default function CreditFundingPrivacyPage() {
   return (
-    <>
-      <Navbar />
-      <main className="pt-[var(--nav-total-height)] min-h-screen bg-brand-bg-soft">
-        <section className="py-16 sm:py-20">
-          <div className="max-w-[800px] mx-auto px-7">
-            <Link href="/credit-funding" className="text-sm text-accent hover:underline mb-6 inline-block">
-              ← Back to Application
-            </Link>
-            <div className="section-label">Credit &amp; Funding</div>
-            <h1 className="font-serif text-[clamp(28px,4vw,40px)] font-extrabold leading-[1.12] text-brand-text mb-4">
-              Privacy Policy
-            </h1>
-            <p className="text-sm text-brand-dim mb-10">
-              Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
+    <PublicPageLayout
+      maxWidthClass="max-w-[800px]"
+      label="Credit & Funding"
+      title="Privacy Policy"
+      hero={
+        <>
+          <Link href="/credit-funding" className="text-sm text-accent hover:underline mb-6 inline-block">
+            ← Back to Application
+          </Link>
+          <p className="text-sm text-brand-dim mb-10">
+            Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+          </p>
+        </>
+      }
+    >
+      <div className="bg-white border border-brand-border rounded-2xl shadow-sm p-6 sm:p-8 space-y-8">
+        <p className="text-[15px] text-brand-muted leading-relaxed">
+          Sunday Harmony (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) is committed to protecting your privacy.
+          This policy describes how we collect, use, store, and safeguard information submitted through our
+          Credit &amp; Funding application portal.
+        </p>
 
-            <div className="bg-white border border-brand-border rounded-2xl shadow-sm p-6 sm:p-8 space-y-8">
-              <p className="text-[15px] text-brand-muted leading-relaxed">
-                Sunday Harmony (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) is committed to protecting your privacy.
-                This policy describes how we collect, use, store, and safeguard information submitted through our
-                Credit &amp; Funding application portal.
-              </p>
-
-              {sections.map((section) => (
-                <div key={section.title}>
-                  <h2 className="font-serif text-lg font-bold text-brand-text mb-3">{section.title}</h2>
-                  <ul className="space-y-2">
-                    {section.content.map((item) => (
-                      <li key={item} className="text-sm text-brand-muted leading-relaxed flex gap-2">
-                        <span className="text-accent mt-1">•</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+        {sections.map((section) => (
+          <div key={section.title}>
+            <h2 className="font-serif text-lg font-bold text-brand-text mb-3">{section.title}</h2>
+            <ul className="space-y-2">
+              {section.content.map((item) => (
+                <li key={item} className="text-sm text-brand-muted leading-relaxed flex gap-2">
+                  <span className="text-accent mt-1">•</span>
+                  <span>{item}</span>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
-        </section>
-      </main>
-      <Footer />
-    </>
+        ))}
+      </div>
+    </PublicPageLayout>
   )
 }

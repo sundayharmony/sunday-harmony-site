@@ -100,12 +100,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    if (userData.id !== userId) {
+      return NextResponse.json({ error: 'Session mismatch' }, { status: 403 })
+    }
+
     const isValid = verifyPassword(currentPassword, userData.password)
     if (!isValid) {
       return NextResponse.json({ error: 'Current password is incorrect' }, { status: 401 })
     }
 
-    const result = await updateUser(userId, { password: newPassword })
+    const result = await updateUser(userData.id, { password: newPassword })
     if (!result) {
       return NextResponse.json({ error: 'Failed to update password' }, { status: 500 })
     }

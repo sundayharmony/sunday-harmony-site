@@ -21,7 +21,7 @@ describe('validateSubscriptionPayment', () => {
         status: 'incomplete',
         latest_invoice: {
           payment_intent: { status: 'requires_action', client_secret: 'pi_secret' },
-        } as Stripe.Invoice,
+        } as unknown as Stripe.Invoice,
       })
     )
     assert.equal('requiresAction' in result && result.requiresAction, true)

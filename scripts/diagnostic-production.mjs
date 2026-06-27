@@ -189,6 +189,19 @@ async function phase3() {
     results.push('storage client-files: MISSING')
   }
 
+  const caseStudiesBucket = buckets?.find((b) => b.id === 'client-case-studies')
+  if (caseStudiesBucket) {
+    const limitMb = caseStudiesBucket.file_size_limit
+      ? Math.round(caseStudiesBucket.file_size_limit / (1024 * 1024))
+      : null
+    const ok50 = limitMb != null && limitMb >= 50
+    results.push(
+      `019 client-case-studies limit: ${limitMb != null ? `${limitMb}MB` : 'unknown'}${ok50 ? ' (ok)' : ' (run migration 019 for 50MB)'}`
+    )
+  } else {
+    results.push('storage client-case-studies: MISSING (run migration 016)')
+  }
+
   // Migration 011: credit_funding_messages table (009) + RLS on applications
   const { error: msgErr } = await sb.from('credit_funding_messages').select('id').limit(1)
   results.push(`009 credit_funding_messages: ${msgErr ? 'MISSING' : 'ready'}`)

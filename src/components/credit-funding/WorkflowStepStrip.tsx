@@ -2,9 +2,27 @@
 
 import type { WorkflowStepState } from '@/lib/credit-funding-workflow-steps'
 
+export interface FormStepStripItem {
+  id: string
+  label: string
+  isComplete: boolean
+  isCurrent: boolean
+  isUpcoming: boolean
+}
+
+type StepItem = WorkflowStepState | FormStepStripItem
+
+function stepKey(step: StepItem, index: number): string {
+  return 'status' in step ? step.status : step.id || String(index)
+}
+
 interface Props {
-  steps: WorkflowStepState[]
+  steps: StepItem[]
   layout?: 'vertical' | 'horizontal'
+}
+
+function hasHistoryEntry(step: StepItem): step is WorkflowStepState {
+  return 'historyEntry' in step
 }
 
 export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
@@ -13,7 +31,7 @@ export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
       <div className="overflow-x-auto pb-1 -mx-1 px-1">
         <div className="flex items-start gap-1 min-w-max">
           {steps.map((step, i) => (
-            <div key={step.status} className="flex items-center">
+            <div key={stepKey(step, i)} className="flex items-center">
               <div className="flex flex-col items-center w-[72px] sm:w-[88px]">
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
@@ -48,7 +66,7 @@ export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
   return (
     <div className="space-y-0">
       {steps.map((step, i) => (
-        <div key={step.status} className="flex gap-3">
+        <div key={stepKey(step, i)} className="flex gap-3">
           <div className="flex flex-col items-center">
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
@@ -69,12 +87,12 @@ export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
             <p className={`text-sm font-medium ${step.isCurrent ? 'text-brand-text' : 'text-brand-muted'}`}>
               {step.label}
             </p>
-            {step.historyEntry && (
+            {hasHistoryEntry(step) && step.historyEntry && (
               <p className="text-xs text-brand-dim mt-0.5">
                 {new Date(step.historyEntry.created_at).toLocaleString()}
               </p>
             )}
-            {step.isCurrent && step.historyEntry?.notes && (
+            {step.isCurrent && hasHistoryEntry(step) && step.historyEntry?.notes && (
               <p className="text-xs text-brand-muted mt-1">{step.historyEntry.notes}</p>
             )}
           </div>

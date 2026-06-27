@@ -1,4 +1,11 @@
-import MarketingGraphicsEditor from '@/components/admin/marketing-graphics/MarketingGraphicsEditor'
+import dynamic from 'next/dynamic'
+
+const MarketingGraphicsEditor = dynamic(
+  () => import('@/components/admin/marketing-graphics/MarketingGraphicsEditor'),
+  {
+    loading: () => <p className="text-sm text-brand-muted">Loading graphics editor…</p>,
+  }
+)
 
 export default function AdminMarketingGraphicsPage() {
   return (

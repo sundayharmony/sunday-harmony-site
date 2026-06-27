@@ -19,7 +19,10 @@ import {
   linkApplicationToUser,
   completeInvitedCreditFundingApplication,
   getCreditFundingApplicationById,
+  deleteCreditFundingApplication,
+  updateCreditFundingApplicationStatus,
 } from '@/lib/credit-funding-db'
+import { getIdempotentResponse, setIdempotentResponse } from '@/lib/idempotency'
 import {
   finalizeStagedCreditFundingDocument,
   isStagedPathForSession,
@@ -53,6 +56,17 @@ const DOC_FIELD_MAP: Partial<Record<DocumentType, string>> = {
 }
 
 export async function POST(req: NextRequest) {
+  const idempotencyKey = req.headers.get('x-idempotency-key')?.trim()
+  if (idempotencyKey && idempotencyKey.length <= 128) {
+    const cached = await getIdempotentResponse('credit-intake', idempotencyKey)
+    if (cached) {
+      return NextResponse.json(cached.body, { status: cached.status })
+    }
+  }
+
+  let createdApplicationId: string | null = null
+  let wasInvitedFlow = false
+
   try {
     if (!assertHttpsSubmission(req)) {
       return NextResponse.json({ error: 'HTTPS is required' }, { status: 403 })
@@ -121,6 +135,7 @@ export async function POST(req: NextRequest) {
     let application: Awaited<ReturnType<typeof createCreditFundingApplication>> | null = null
 
     if (inviteToken) {
+      wasInvitedFlow = true
       const verified = verifyApplicationInviteToken(inviteToken)
       if (!verified || Date.now() > verified.expiresAtMs) {
         return NextResponse.json({ error: 'This application link has expired or is invalid.' }, { status: 403 })
@@ -152,6 +167,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to save application. Please try again.' }, { status: 500 })
     }
 
+    createdApplicationId = application.id
+
     if (existingUser && !application.user_id) {
       await linkApplicationToUser(application.id, existingUser.id, existingUser.client_id || undefined)
     }
@@ -164,6 +181,7 @@ export async function POST(req: NextRequest) {
           sessionId: uploadSessionId,
         })
         if (!finalized.ok) {
+          await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow)
           return NextResponse.json({ error: `${staged.documentType}: ${finalized.error}` }, { status: 400 })
         }
         await createUploadedDocument({
@@ -193,6 +211,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (!upload.ok) {
+          await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow)
           return NextResponse.json({ error: `${docType}: ${upload.error}` }, { status: 400 })
         }
 
@@ -279,13 +298,32 @@ export async function POST(req: NextRequest) {
       logLabel: 'credit-funding-admin-alert',
     })
 
-    return NextResponse.json({
+    const successBody = {
       success: true,
       applicationId: application.application_id,
       message: 'Your application has been submitted successfully.',
-    })
+    }
+
+    if (idempotencyKey && idempotencyKey.length <= 128) {
+      await setIdempotentResponse('credit-intake', idempotencyKey, successBody, 200)
+    }
+
+    return NextResponse.json(successBody)
   } catch (error) {
+    if (createdApplicationId) {
+      await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow)
+    }
     logApiRouteError(req, 'credit-funding/intake', error)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
   }
+}
+
+async function rollbackIntakeApplication(applicationId: string, wasInvited: boolean): Promise<void> {
+  if (wasInvited) {
+    await updateCreditFundingApplicationStatus(applicationId, 'invitation_pending', {
+      notes: 'Intake rolled back due to document processing failure',
+    })
+    return
+  }
+  await deleteCreditFundingApplication(applicationId)
 }

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import AuditCtaButton from '@/components/ui/AuditCtaButton'
 
 export default function CtaBanner() {
   return (
@@ -13,12 +13,7 @@ export default function CtaBanner() {
           <p className="text-[17px] text-brand-muted mb-9 max-w-[500px] mx-auto relative">
             Get a free audit of your online presence &mdash; we&apos;ll show you exactly what&apos;s working, what&apos;s not, and how to fix it. No strings attached.
           </p>
-          <Link
-            href="/#contact"
-            className="relative inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-brand-text text-white text-sm font-semibold hover:-translate-y-0.5 hover:bg-neutral-800 transition-all"
-          >
-            Get Your Free Audit &rarr;
-          </Link>
+          <AuditCtaButton variant="primary" href="/#contact" className="relative" />
         </div>
       </div>
     </section>

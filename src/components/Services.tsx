@@ -1,16 +1,19 @@
 import { services } from '@/lib/data'
+import SectionHeader from '@/components/ui/SectionHeader'
 
 export default function Services() {
   return (
     <section className="py-24 bg-brand-bg-soft" id="services">
       <div className="max-w-[1100px] mx-auto px-7">
-        <div className="section-label">What We Do</div>
-        <h2 className="font-serif text-[clamp(32px,5vw,52px)] font-extrabold leading-[1.12] text-brand-text mb-5">
-          <span className="gold-text">Everything your business needs</span> to grow online
-        </h2>
-        <p className="text-[17px] text-brand-muted max-w-[580px] leading-relaxed">
-          From social media to Google Ads to physical marketing &mdash; we&apos;re your all-in-one team so you can focus on running your business.
-        </p>
+        <SectionHeader
+          label="What We Do"
+          title={
+            <>
+              <span className="gold-text">Everything your business needs</span> to grow online
+            </>
+          }
+          description="From social media to Google Ads to physical marketing — we're your all-in-one team so you can focus on running your business."
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-12">
           {services.map((service) => (

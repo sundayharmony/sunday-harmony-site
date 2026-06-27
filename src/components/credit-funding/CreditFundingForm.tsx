@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
+import { WorkflowStepStrip } from '@/components/credit-funding/WorkflowStepStrip'
 import SsnInputField from '@/components/credit-funding/SsnInputField'
 import { useStagedDocumentUploads } from '@/components/credit-funding/useStagedDocumentUploads'
 import BusinessInfoSection from '@/components/credit-funding/BusinessInfoSection'
@@ -160,7 +161,17 @@ export default function CreditFundingForm() {
 
   const stepFlow = useMemo(() => getStepFlow(form), [form.ownsBusiness, form.fundingUse, form.creditProfile])
   const currentStepId = stepFlow[Math.min(step, stepFlow.length - 1)] ?? 'personal'
-  const stepLabels = stepFlow.map((id) => STEP_LABELS[id])
+  const stepStripItems = useMemo(
+    () =>
+      stepFlow.map((id, i) => ({
+        id,
+        label: STEP_LABELS[id],
+        isComplete: i < step,
+        isCurrent: i === step,
+        isUpcoming: i > step,
+      })),
+    [stepFlow, step]
+  )
 
   useEffect(() => {
     setStep((s) => Math.min(s, stepFlow.length - 1))
@@ -415,24 +426,9 @@ export default function CreditFundingForm() {
       )}
       {/* Progress */}
       <div className="px-6 pt-6 pb-4 border-b border-brand-border bg-brand-bg-soft">
-        <div className="flex items-center justify-between mb-3 overflow-x-auto gap-2">
-          {stepLabels.map((label, i) => (
-            <div key={label} className="flex items-center flex-shrink-0">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                  i < step ? 'bg-accent text-white' : i === step ? 'bg-brand-text text-white' : 'bg-neutral-200 text-brand-dim'
-                }`}
-              >
-                {i < step ? '✓' : i + 1}
-              </div>
-              {i < stepLabels.length - 1 && (
-                <div className={`w-6 sm:w-10 h-0.5 mx-1 ${i < step ? 'bg-accent' : 'bg-neutral-200'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-        <p className="text-sm font-semibold text-brand-text">{stepLabels[step]}</p>
-        <p className="text-xs text-brand-dim">Step {step + 1} of {stepLabels.length}</p>
+        <WorkflowStepStrip steps={stepStripItems} layout="horizontal" />
+        <p className="text-sm font-semibold text-brand-text mt-3">{stepStripItems[step]?.label}</p>
+        <p className="text-xs text-brand-dim">Step {step + 1} of {stepStripItems.length}</p>
       </div>
 
       <div className="p-6 sm:p-8">

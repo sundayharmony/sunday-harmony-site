@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { createLead, logActivity } from '@/lib/db'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { getAdminNotifyEmail, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { getClientIp } from '@/lib/rate-limit'
+import { getAdminNotifyEmail, escHtml, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
-
-// Sanitize user input for HTML email templates
-function escHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
 
 // POST /api/contact
 // Receives form data and sends email notification
@@ -17,13 +13,8 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 3 submissions per 15 minutes per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`contact:${ip}`, 3, 15 * 60 * 1000)
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Too many submissions. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rl = await rateLimitDurable(`contact:${ip}`, 3, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const body = await req.json()
     const { firstName, lastName, email, phone, business, service, message } = body

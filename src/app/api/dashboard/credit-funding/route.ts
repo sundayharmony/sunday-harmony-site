@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { logApiRouteError } from '@/lib/api-route-log'
+import { requireApplicantCreditFundingAccess } from '@/lib/credit-funding-dashboard-auth'
 import {
-  getCreditFundingApplicationByEmail,
-  getCreditFundingApplicationByUserId,
   getDocumentsByApplicationUuid,
   getDocumentRequests,
   getStatusHistory,
@@ -16,33 +13,12 @@ import { documentDisplayLabel, isStaffSharedDocument } from '@/lib/credit-fundin
 
 export const dynamic = 'force-dynamic'
 
-async function resolveApplicantApplication(email: string, userId: string) {
-  const byUser = await getCreditFundingApplicationByUserId(userId)
-  if (byUser) return byUser
-  return getCreditFundingApplicationByEmail(email)
-}
-
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const access = await requireApplicantCreditFundingAccess()
+    if (!access.ok) return access.response
 
-    const userId = session.user.id
-    const email = session.user.email
-
-    const application = await resolveApplicantApplication(email, userId)
-    if (!application) {
-      return NextResponse.json({ error: 'No application found for this account' }, { status: 404 })
-    }
-
-    if (
-      application.email.toLowerCase() !== email.toLowerCase() &&
-      application.user_id !== userId
-    ) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-    }
+    const { application } = access
 
     const [history, docRequests, messages] = await Promise.all([
       getStatusHistory(application.id),

@@ -1,23 +1,11 @@
 import { randomUUID } from 'crypto'
 import { CLIENT_CASE_STUDIES_BUCKET, CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
+import { effectiveContentType, extensionFromName } from '@/lib/storage-utils'
 import { getSupabase } from '@/lib/supabase'
 
 export { CLIENT_CASE_STUDIES_BUCKET, CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
 
 const PDF_MIME = 'application/pdf'
-
-function extensionFromName(name: string): string {
-  const i = name.lastIndexOf('.')
-  if (i <= 0 || i === name.length - 1) return 'bin'
-  return name.slice(i + 1).toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
-}
-
-function effectiveContentType(contentType: string, originalFileName: string): string {
-  let ct = (contentType || '').split(';')[0].trim().toLowerCase()
-  if (ct && ct !== 'application/octet-stream') return ct
-  if (extensionFromName(originalFileName) === 'pdf') return PDF_MIME
-  return ct || 'application/octet-stream'
-}
 
 export function sanitizeCaseStudyFileName(original: string): string {
   const base = original.replace(/^.*[/\\]/, '').trim() || 'case-study.pdf'
@@ -77,17 +65,17 @@ export async function createCaseStudySignedUploadUrl(params: {
 
 export async function caseStudyObjectExists(storagePath: string): Promise<boolean> {
   if (!isValidCaseStudyStoragePath(storagePath)) return false
-  const slash = storagePath.lastIndexOf('/')
-  const folder = slash >= 0 ? storagePath.slice(0, slash) : ''
-  const name = slash >= 0 ? storagePath.slice(slash + 1) : storagePath
   const { data, error } = await getSupabase()
     .storage.from(CLIENT_CASE_STUDIES_BUCKET)
-    .list(folder, { limit: 1, search: name })
+    .download(storagePath)
   if (error) {
-    console.error('Case study storage list error:', error)
+    if (error.message?.toLowerCase().includes('not found') || (error as { statusCode?: string }).statusCode === '404') {
+      return false
+    }
+    console.error('Case study storage download probe error:', error)
     return false
   }
-  return Boolean(data?.some((o) => o.name === name))
+  return Boolean(data)
 }
 
 export function validateCaseStudyPdf(contentType: string, sizeBytes: number): { ok: true } | { ok: false; error: string } {

@@ -55,6 +55,13 @@ export async function rateLimitDurable(
 ): Promise<RateLimitResult> {
   const durable = await upstashRateLimit(identifier, limit, windowMs)
   if (durable) return durable
+
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL === '1') {
+    console.warn(
+      '[rate-limit] Upstash not configured — falling back to in-memory limits (unreliable on serverless). Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.'
+    )
+  }
+
   return memoryRateLimit(identifier, limit, windowMs)
 }
 
