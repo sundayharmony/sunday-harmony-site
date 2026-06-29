@@ -58,7 +58,7 @@ function getStepFlow(form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'cred
   return flow
 }
 
-const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'proof_of_address', 'mail_proof']
+const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'mail_proof']
 
 const inputClass =
   'w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors'

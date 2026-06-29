@@ -16,30 +16,30 @@ export const IDENTITY_DOCUMENTS: DocumentStepItem[] = [
   {
     type: 'photo_id',
     label: DOCUMENT_LABELS.photo_id,
-    description: 'Driver’s license, passport, or state-issued ID — front and back if applicable.',
+    description: "Driver's license, passport, or state-issued ID - front and back if applicable.",
     required: true,
-    icon: '🪪',
-  },
-  {
-    type: 'proof_of_address',
-    label: DOCUMENT_LABELS.proof_of_address,
-    description: 'Utility bill, bank statement, or lease dated within the last 90 days.',
-    required: true,
-    icon: '🏠',
+    icon: '\u{1FA73}',
   },
   {
     type: 'mail_proof',
     label: DOCUMENT_LABELS.mail_proof,
     description: 'Photo of mail showing your full name and home address.',
     required: true,
-    icon: '✉️',
+    icon: '\u2709\uFE0F',
+  },
+  {
+    type: 'proof_of_address',
+    label: DOCUMENT_LABELS.proof_of_address,
+    description: 'Utility bill, bank statement, or lease dated within the last 90 days.',
+    required: false,
+    icon: '\u{1F3E0}',
   },
   {
     type: 'selfie_with_id',
     label: DOCUMENT_LABELS.selfie_with_id,
     description: 'Clear photo of you holding your government ID next to your face.',
     required: false,
-    icon: '🤳',
+    icon: '\u{1F933}',
   },
 ]
 
@@ -59,5 +59,5 @@ export const BUSINESS_DOCUMENTS: DocumentStepItem[] = BUSINESS_DOCUMENT_TYPES.ma
   label: DOCUMENT_LABELS[type],
   description: BUSINESS_DOC_DESCRIPTIONS[type] || 'Upload a clear PDF or photo.',
   required: false,
-  icon: '📄',
+  icon: '\u{1F4C4}',
 }))

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
-import { logActivity, getUserByEmail, createNotification } from '@/lib/db'
+import { logActivity, getUserByEmail, createNotification, getCreditManagers } from '@/lib/db'
 import { upsertLeadFromCreditIntake, ensureClientFromCreditApplication } from '@/lib/crm-db'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import {
   ensurePortalUserForCreditApplication,
   sendCreditFundingSubmissionEmail,
+  sendCreditFundingExpertNotificationEmail,
 } from '@/lib/credit-funding-applicant-onboarding'
 import {
   parseIntakePayload,
@@ -44,7 +45,7 @@ import {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const REQUIRED_DOCS: DocumentType[] = ['photo_id', 'proof_of_address', 'mail_proof']
+const REQUIRED_DOCS: DocumentType[] = ['photo_id', 'mail_proof']
 const OPTIONAL_DOCS: DocumentType[] = ['selfie_with_id']
 const ALL_DOC_TYPES = [...REQUIRED_DOCS, ...OPTIONAL_DOCS, ...BUSINESS_DOCUMENT_TYPES]
 
@@ -297,6 +298,25 @@ export async function POST(req: NextRequest) {
       }),
       logLabel: 'credit-funding-admin-alert',
     })
+
+    const creditExperts = await getCreditManagers()
+    for (const expert of creditExperts) {
+      try {
+        await sendCreditFundingExpertNotificationEmail({
+          to: expert.email,
+          expertName: expert.name,
+          applicantName: payload.fullName,
+          applicantEmail: payload.email,
+          applicantPhone: payload.phone,
+          applicationId: application.application_id,
+          fundingAmount: payload.fundingAmount,
+          fundingUse: payload.fundingUse,
+          creditProvider: payload.selectedCreditProvider,
+        })
+      } catch (err) {
+        console.error(`Failed to send expert notification to ${expert.email}:`, err)
+      }
+    }
 
     const successBody = {
       success: true,

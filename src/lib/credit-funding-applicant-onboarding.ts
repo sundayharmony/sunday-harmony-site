@@ -305,3 +305,54 @@ export async function sendCreditFundingAdminMessageEmail(params: {
     `,
   })
 }
+
+export async function sendCreditFundingExpertNotificationEmail(params: {
+  to: string
+  expertName: string
+  applicantName: string
+  applicantEmail: string
+  applicantPhone: string
+  applicationId: string
+  fundingAmount: string
+  fundingUse: string
+  creditProvider: string
+}): Promise<void> {
+  if (!isEmailConfigured()) {
+    console.error('Credit funding expert notification: SMTP not configured')
+    return
+  }
+
+  const site = getPublicSiteUrl()
+  const firstName = params.expertName.split(' ')[0] || 'there'
+
+  await sendEmail({
+    to: params.to,
+    subject: sanitizeEmailSubjectPart(`New Application Submitted — ${params.applicantName}`, 200),
+    html: `
+      <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
+        <h2 style="color:#b8943f;border-bottom:2px solid #b8943f;padding-bottom:10px">
+          Hi ${escHtml(firstName)},
+        </h2>
+        <p style="color:#525252;line-height:1.6">
+          A new Credit &amp; Funding application has been submitted and requires your attention.
+        </p>
+        <div style="padding:16px;background:#fafafa;border-radius:8px;margin:16px 0">
+          <p style="margin:0 0 8px 0;color:#0a0a0a;font-size:14px"><strong>Application ID:</strong> ${escHtml(params.applicationId)}</p>
+          <p style="margin:0 0 8px 0;color:#0a0a0a;font-size:14px"><strong>Applicant:</strong> ${escHtml(params.applicantName)}</p>
+          <p style="margin:0 0 8px 0;color:#0a0a0a;font-size:14px"><strong>Email:</strong> ${escHtml(params.applicantEmail)}</p>
+          <p style="margin:0 0 8px 0;color:#0a0a0a;font-size:14px"><strong>Phone:</strong> ${escHtml(params.applicantPhone)}</p>
+          <p style="margin:0 0 8px 0;color:#0a0a0a;font-size:14px"><strong>Credit Provider:</strong> ${escHtml(params.creditProvider)}</p>
+          <p style="margin:0 0 8px 0;color:#0a0a0a;font-size:14px"><strong>Funding Request:</strong> ${escHtml(params.fundingAmount)} (${escHtml(params.fundingUse)})</p>
+        </div>
+        <p style="margin:24px 0">
+          <a href="${escHtml(site)}/admin/credit-funding" style="display:inline-block;padding:12px 24px;background:#0a0a0a;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">
+            Review Application
+          </a>
+        </p>
+        <p style="font-size:13px;color:#a3a3a3;margin-top:20px">
+          You are receiving this email because you are a Credit Expert at Sunday Harmony.
+        </p>
+      </div>
+    `,
+  })
+}

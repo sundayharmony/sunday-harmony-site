@@ -90,6 +90,18 @@ export async function deleteUser(id: string): Promise<boolean> {
   return true
 }
 
+export async function getCreditManagers(): Promise<User[]> {
+  const { data, error } = await getSupabase()
+    .from('users')
+    .select('*')
+    .eq('role', 'credit_manager')
+  if (error) {
+    console.error('getCreditManagers error:', error)
+    return []
+  }
+  return data || []
+}
+
 // ââââââââââ LEADS ââââââââââ
 export interface Lead {
   id: string
