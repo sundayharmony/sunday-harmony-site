@@ -31,7 +31,6 @@ import { isValidSsn } from '@/lib/ssn-utils'
 type StepId =
   | 'personal'
   | 'identity'
-  | 'credit'
   | 'monitoring'
   | 'goals'
   | 'business-info'
@@ -41,7 +40,6 @@ type StepId =
 const STEP_LABELS: Record<StepId, string> = {
   personal: 'Personal Information',
   identity: 'Identity Documents',
-  credit: 'Credit Profile',
   monitoring: 'Credit Monitoring',
   goals: 'Credit Goals',
   'business-info': 'Business Information',
@@ -50,7 +48,7 @@ const STEP_LABELS: Record<StepId, string> = {
 }
 
 function getStepFlow(form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'creditProfile'>): StepId[] {
-  const flow: StepId[] = ['personal', 'identity', 'credit', 'monitoring', 'goals']
+  const flow: StepId[] = ['personal', 'identity', 'monitoring', 'goals']
   if (requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)) {
     flow.push('business-info', 'business-docs')
   }
@@ -515,58 +513,6 @@ export default function CreditFundingForm() {
           </div>
         )}
 
-        {currentStepId === 'credit' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass} htmlFor={fid('creditScore')}>Current Credit Score (if known)</label>
-              <input id={fid('creditScore')} name="creditScore" className={inputClass} placeholder="e.g. 650" value={form.creditProfile.creditScore || ''} onChange={(e) => updateCredit('creditScore', e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor={fid('openCreditCards')}>Open Credit Cards</label>
-              <input id={fid('openCreditCards')} name="openCreditCards" className={inputClass} type="number" min="0" value={form.creditProfile.openCreditCards || ''} onChange={(e) => updateCredit('openCreditCards', e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor={fid('inquiries')}>Credit Inquiries</label>
-              <input id={fid('inquiries')} name="inquiries" className={inputClass} type="number" min="0" value={form.creditProfile.inquiries || ''} onChange={(e) => updateCredit('inquiries', e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor={fid('monthlyGrossIncome')}>Monthly Gross Income</label>
-              <input id={fid('monthlyGrossIncome')} name="monthlyGrossIncome" className={inputClass} placeholder="$" value={form.creditProfile.monthlyGrossIncome || ''} onChange={(e) => updateCredit('monthlyGrossIncome', e.target.value)} />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor={fid('annualIncome')}>Annual Income</label>
-              <input id={fid('annualIncome')} name="annualIncome" className={inputClass} placeholder="$" value={form.creditProfile.annualIncome || ''} onChange={(e) => updateCredit('annualIncome', e.target.value)} />
-            </div>
-            {[
-              { key: 'bankruptcy' as const, label: 'Have you ever filed bankruptcy?' },
-              { key: 'collections' as const, label: 'Do you have any collections?' },
-              { key: 'chargeOffs' as const, label: 'Do you have charge-offs?' },
-              { key: 'latePayments24Months' as const, label: 'Late payments in the last 24 months?' },
-              { key: 'employed' as const, label: 'Are you currently employed?' },
-              { key: 'businessOwner' as const, label: 'Business Owner?' },
-            ].map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between py-2 px-3 bg-neutral-50 rounded-lg border border-brand-border">
-                <span className="text-sm text-brand-muted">{label}</span>
-                <div className="flex gap-3">
-                  {[true, false].map((val) => (
-                    <label key={String(val)} className="flex items-center gap-1 text-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        id={fid(`${key}-${val ? 'yes' : 'no'}`)}
-                        name={fid(key)}
-                        checked={form.creditProfile[key] === val}
-                        onChange={() => updateCredit(key, val)}
-                      />
-                      {val ? 'Yes' : 'No'}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Step 4 */}
         {currentStepId === 'monitoring' && (
           <div>
             <div className="mb-5 p-4 bg-accent-soft/40 border border-brand-border rounded-xl text-sm text-brand-muted leading-relaxed">
