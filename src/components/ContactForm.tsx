@@ -79,7 +79,7 @@ export default function ContactForm() {
                 label: 'Website',
                 display: siteConfig.url.replace(/^https?:\/\//, '').replace(/^www\./, ''),
                 href: siteConfig.url,
-                external: true,
+                external: true as const,
               },
             ].map((item) => (
               <div key={item.label} className="flex gap-3.5 items-start mb-5">
@@ -91,17 +91,15 @@ export default function ContactForm() {
                     {item.label}
                   </div>
                   <div className="text-[15px] text-brand-text font-medium">
-                    {'href' in item ? (
-                      <a
-                        href={item.href}
-                        className="hover:text-accent transition-colors"
-                        {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                      >
-                        {item.display}
-                      </a>
-                    ) : (
-                      item.display
-                    )}
+                    <a
+                      href={item.href}
+                      className="hover:text-accent transition-colors"
+                      {...('external' in item && item.external
+                        ? { target: '_blank', rel: 'noopener noreferrer' }
+                        : {})}
+                    >
+                      {item.display}
+                    </a>
                   </div>
                 </div>
               </div>
