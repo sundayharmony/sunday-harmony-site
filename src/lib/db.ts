@@ -81,6 +81,15 @@ export async function updateUser(id: string, updates: Partial<Omit<User, 'id'>>)
   return data
 }
 
+export async function deleteUser(id: string): Promise<boolean> {
+  const { error } = await getSupabase().from('users').delete().eq('id', id)
+  if (error) {
+    console.error('deleteUser error:', error)
+    return false
+  }
+  return true
+}
+
 // ââââââââââ LEADS ââââââââââ
 export interface Lead {
   id: string

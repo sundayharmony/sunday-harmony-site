@@ -219,6 +219,27 @@ export async function removeStagedCreditFundingSession(sessionId: string): Promi
   }
 }
 
+/** Remove all uploaded files for an application from storage. */
+export async function deleteAllCreditFundingFilesForApplication(applicationUuid: string): Promise<void> {
+  const supabase = getSupabase()
+  const paths: string[] = []
+
+  const { data: docTypes } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(applicationUuid)
+  if (!docTypes?.length) return
+
+  for (const docFolder of docTypes) {
+    const folderPath = `${applicationUuid}/${docFolder.name}`
+    const { data: files } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(folderPath)
+    for (const f of files || []) {
+      if (f.name) paths.push(`${folderPath}/${f.name}`)
+    }
+  }
+
+  if (paths.length) {
+    await supabase.storage.from(CREDIT_FUNDING_BUCKET).remove(paths)
+  }
+}
+
 export interface UploadCreditFundingDocResult {
   storagePath: string
   file_size: number

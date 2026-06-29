@@ -6,6 +6,7 @@ import StatusBadge from '@/components/ui/StatusBadge'
 import AdminApplicationWorkflow, {
   type WorkflowStepPayload,
 } from '@/components/credit-funding/AdminApplicationWorkflow'
+import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
 import {
   APPLICATION_STATUSES,
   DOCUMENT_LABELS,
@@ -322,6 +323,39 @@ function CreditFundingAdminContent() {
     }
   }
 
+  const deleteApplication = async () => {
+    if (!selected) return
+    const confirmed = window.confirm(
+      `Permanently delete ${selected.application_id} (${selected.full_name})?\n\nThis removes all documents, messages, and history. This cannot be undone.`
+    )
+    if (!confirmed) return
+
+    const deletedId = selected.id
+    const deletedLabel = selected.application_id
+    setSaving(true)
+    setError('')
+    setInviteNotice('')
+    try {
+      const r = await fetch(`/api/admin/credit-funding?id=${encodeURIComponent(deletedId)}`, {
+        method: 'DELETE',
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Failed to delete application')
+
+      setSelected(null)
+      setDocuments([])
+      setMessages([])
+      setHistory([])
+      setDocRequests([])
+      setApplications((prev) => prev.filter((a) => a.id !== deletedId))
+      setInviteNotice(`Deleted application ${data.application_id || deletedLabel}.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete application')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const filtered = useMemo(() => {
     if (!search.trim()) return applications
     const q = search.toLowerCase()
@@ -469,6 +503,8 @@ function CreditFundingAdminContent() {
           </button>
         </div>
       </div>
+
+      <CreditExpertsPanel />
 
       {inviteNotice && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">{inviteNotice}</div>
@@ -642,6 +678,14 @@ function CreditFundingAdminContent() {
                   <p className="text-sm text-brand-dim">{selected.application_id} · {selected.service_type?.replace(/_/g, ' ')}</p>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={deleteApplication}
+                  className="shrink-0 px-3 py-1.5 text-xs font-semibold text-brand-red border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                >
+                  Delete application
+                </button>
               </div>
 
               {selected.status === 'invitation_pending' ? (

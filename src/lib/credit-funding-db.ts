@@ -17,7 +17,7 @@ import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
 import { buildEncryptedApplicationRow } from '@/lib/credit-funding-sensitive-fields'
 import { decryptFieldOrLegacy } from '@/lib/field-encryption'
 import { APPLICATION_INVITE_TTL_MS } from '@/lib/credit-funding-invite'
-import { CREDIT_FUNDING_BUCKET } from '@/lib/credit-funding-storage'
+import { CREDIT_FUNDING_BUCKET, deleteAllCreditFundingFilesForApplication } from '@/lib/credit-funding-storage'
 
 export function generateApplicationId(): string {
   const date = new Date()
@@ -477,6 +477,12 @@ export async function updateCreditFundingApplicationStatus(
 }
 
 export async function deleteCreditFundingApplication(id: string): Promise<boolean> {
+  try {
+    await deleteAllCreditFundingFilesForApplication(id)
+  } catch (err) {
+    console.error('deleteCreditFundingApplication storage cleanup:', err)
+  }
+
   const { error } = await getSupabase()
     .from('credit_funding_applications')
     .delete()

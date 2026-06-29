@@ -25,6 +25,7 @@ import {
   createDocumentRequest,
   createCreditFundingMessage,
   syncStaffSharedDocumentsFromStorage,
+  deleteCreditFundingApplication,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
 import {
@@ -326,5 +327,43 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding POST', error)
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await requireCreditFundingStaffSession()
+    if (session instanceof NextResponse) return session
+
+    const id = new URL(req.url).searchParams.get('id')
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    }
+
+    const existing = await getCreditFundingApplicationById(id)
+    if (!existing) {
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
+
+    const ok = await deleteCreditFundingApplication(id)
+    if (!ok) {
+      return NextResponse.json({ error: 'Failed to delete application' }, { status: 500 })
+    }
+
+    logActivity({
+      action: 'deleted',
+      entity_type: 'credit_funding_application',
+      entity_id: id,
+      actor_email: session.user.email || 'admin',
+      details: `Deleted credit funding application ${existing.application_id} (${existing.full_name})`,
+    })
+
+    return NextResponse.json({
+      success: true,
+      application_id: existing.application_id,
+    })
+  } catch (error) {
+    logApiRouteError(req, 'admin/credit-funding DELETE', error)
+    return NextResponse.json({ error: 'Failed to delete application' }, { status: 500 })
   }
 }
