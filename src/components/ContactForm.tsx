@@ -81,7 +81,6 @@ export default function ContactForm() {
                 href: siteConfig.url,
                 external: true,
               },
-              { icon: '📍', label: 'Location', display: siteConfig.location },
             ].map((item) => (
               <div key={item.label} className="flex gap-3.5 items-start mb-5">
                 <div className="w-10 h-10 rounded-[10px] bg-accent-soft border border-brand-border flex items-center justify-center text-base flex-shrink-0">

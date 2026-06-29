@@ -43,9 +43,6 @@ export default function About() {
             <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
               <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-10">
                 <BrandLogo height={120} href={null} />
-                <div className="text-xs text-brand-dim mt-6 tracking-[0.1em]">
-                  EST. 2023 &bull; New Jersey
-                </div>
               </div>
             </div>
           </div>

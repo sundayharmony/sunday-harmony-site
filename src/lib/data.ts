@@ -8,8 +8,6 @@ export const siteConfig = {
   tagline: 'Your All-in-One Marketing Partner',
   email: 'sales@sundayharmony.com',
   url: 'https://www.sundayharmony.com',
-  location: 'New Jersey',
-  founded: '2023',
 }
 
 export const heroSubtext =
