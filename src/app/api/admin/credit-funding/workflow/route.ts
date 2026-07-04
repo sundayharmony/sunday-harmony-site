@@ -87,6 +87,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(formatApplicationForAdmin(result.app))
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding/workflow POST', error)
-    return NextResponse.json({ error: 'Failed to update workflow step' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update workflow step' },
+      { status: 500 }
+    )
   }
 }

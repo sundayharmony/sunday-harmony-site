@@ -33,7 +33,7 @@ interface Props {
   history?: WorkflowHistoryItem[]
   statusNotes: string
   onStatusNotesChange: (notes: string) => void
-  onStatusChange: (payload: WorkflowStepPayload) => void
+  onStatusChange: (payload: WorkflowStepPayload) => Promise<boolean>
   saving?: boolean
   pendingDocCount?: number
 }
@@ -78,33 +78,35 @@ export default function AdminApplicationWorkflow({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const submitStep = (status: ApplicationStatus, notes?: string) => {
-    onStatusChange(buildPayload(status, notes))
-    clearStepFields()
+  const submitStep = async (status: ApplicationStatus, notes?: string) => {
+    const saved = await onStatusChange(buildPayload(status, notes))
+    if (saved) {
+      clearStepFields()
+    }
   }
 
   const handleAdvance = () => {
     if (!nextStatus) return
-    submitStep(nextStatus)
+    void submitStep(nextStatus)
   }
 
   const handleBack = () => {
     if (!prevStatus) return
-    submitStep(prevStatus)
+    void submitStep(prevStatus)
   }
 
   const handleDecline = () => {
     if (!window.confirm('Decline this application? The client will be notified by email.')) return
-    submitStep('declined', statusNotes || 'Application declined')
+    void submitStep('declined', statusNotes || 'Application declined')
   }
 
   const handleComplete = () => {
-    submitStep('completed', statusNotes || 'Application completed')
+    void submitStep('completed', statusNotes || 'Application completed')
   }
 
   const handleArchive = () => {
     if (!window.confirm('Archive this application?')) return
-    submitStep('archived', statusNotes || 'Application archived')
+    void submitStep('archived', statusNotes || 'Application archived')
   }
 
   const handleManualApply = () => {
@@ -114,7 +116,7 @@ export default function AdminApplicationWorkflow({
       const label = STATUS_LABELS[manualStatus]
       if (!window.confirm(`Set status to "${label}"? The client will be notified if notification is enabled.`)) return
     }
-    submitStep(manualStatus)
+    void submitStep(manualStatus)
   }
 
   const handleFilesSelected = (fileList: FileList | null) => {

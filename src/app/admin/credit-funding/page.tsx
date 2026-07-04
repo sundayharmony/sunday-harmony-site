@@ -12,6 +12,7 @@ import {
   DOCUMENT_LABELS,
   DOCUMENT_TYPES,
   STATUS_LABELS,
+  documentDisplayLabel,
   type ApplicationStatus,
   type FundingScores,
 } from '@/lib/credit-funding-types'
@@ -371,8 +372,9 @@ function CreditFundingAdminContent() {
   const pendingDocCount = docRequests.filter((d) => d.status === 'pending').length
 
   const handleStatusChange = async (payload: WorkflowStepPayload) => {
-    if (!selected) return
+    if (!selected) return false
     setSaving(true)
+    setError('')
     try {
       const fd = new FormData()
       fd.append('id', selected.id)
@@ -384,16 +386,19 @@ function CreditFundingAdminContent() {
       }
 
       const r = await fetch('/api/admin/credit-funding/workflow', { method: 'POST', body: fd })
-      if (!r.ok) throw new Error('Update failed')
-      const updated = await r.json()
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Update failed')
+      const updated = data
       setSelected((prev) => (prev ? { ...prev, ...updated } : prev))
       setApplications((prev) =>
         prev.map((a) => (a.id === selected.id ? { ...a, ...updated, status: updated.status } : a))
       )
       setEditFields((f) => ({ ...f, status_notes: '' }))
       await loadDetail(selected.id)
-    } catch {
-      setError('Failed to save changes')
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes')
+      return false
     } finally {
       setSaving(false)
     }
@@ -424,7 +429,7 @@ function CreditFundingAdminContent() {
           {documents.map((doc) => (
             <div key={doc.id} className="flex justify-between p-3 bg-neutral-50 rounded-lg text-sm">
               <div>
-                <p className="font-medium">{DOC_LABELS_MAP[doc.document_type] || doc.document_type}</p>
+                <p className="font-medium">{documentDisplayLabel(doc.document_type)}</p>
                 <p className="text-xs text-brand-dim">{doc.file_name}</p>
               </div>
               {doc.signedUrl && (

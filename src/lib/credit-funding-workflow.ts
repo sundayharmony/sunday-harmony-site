@@ -2,13 +2,17 @@ import { createNotification, getUserByEmail } from '@/lib/db'
 import {
   createCreditFundingMessage,
   createUploadedDocument,
+  syncStaffSharedDocumentsFromStorage,
   updateCreditFundingApplicationStatus,
 } from '@/lib/credit-funding-db'
 import {
   sendCreditFundingStatusUpdateEmail,
   sendCreditFundingWorkflowUpdateEmail,
 } from '@/lib/credit-funding-applicant-onboarding'
-import { uploadCreditFundingDocument } from '@/lib/credit-funding-storage'
+import {
+  deleteCreditFundingStoragePaths,
+  uploadCreditFundingDocument,
+} from '@/lib/credit-funding-storage'
 import {
   STATUS_LABELS,
   type ApplicationStatus,
@@ -36,6 +40,17 @@ export interface ApplyWorkflowStatusResult {
   attachmentNames: string[]
   messageCreated: boolean
   savedAttachmentCount: number
+}
+
+async function cleanupUploadedRecords(
+  uploadedRecords: Array<{ storagePath: string }>
+): Promise<void> {
+  if (!uploadedRecords.length) return
+  try {
+    await deleteCreditFundingStoragePaths(uploadedRecords.map((record) => record.storagePath))
+  } catch (err) {
+    console.error('Failed to clean up uploaded workflow attachments:', err)
+  }
 }
 
 function buildPortalMessageText(params: {
@@ -98,14 +113,6 @@ export async function applyWorkflowStatusUpdate(
   const statusLabel = STATUS_LABELS[status] || status
   const notes = statusNotes?.trim() || `Status updated to ${statusLabel}`
 
-  const result = await updateCreditFundingApplicationStatus(application.id, status, {
-    staffEmail,
-    notes,
-  })
-  if (!result) return null
-
-  const attachmentNames: string[] = []
-  const emailAttachments: Array<{ fileName: string; mimeType: string; buffer: Buffer }> = []
   const uploadedRecords: Array<{
     displayName: string
     file_type: string
@@ -114,6 +121,8 @@ export async function applyWorkflowStatusUpdate(
     mime_type: string
     scan_status: 'clean' | 'rejected'
   }> = []
+  const attachmentNames: string[] = []
+  const emailAttachments: Array<{ fileName: string; mimeType: string; buffer: Buffer }> = []
 
   for (const file of attachments) {
     const uploaded = await uploadCreditFundingDocument({
@@ -123,7 +132,10 @@ export async function applyWorkflowStatusUpdate(
       contentType: file.contentType,
       originalFileName: file.originalFileName,
     })
-    if (!uploaded.ok) continue
+    if (!uploaded.ok) {
+      await cleanupUploadedRecords(uploadedRecords)
+      throw new Error(`Attachment upload failed for "${file.originalFileName}": ${uploaded.error}`)
+    }
     attachmentNames.push(uploaded.data.displayName)
     uploadedRecords.push(uploaded.data)
     emailAttachments.push({
@@ -131,6 +143,15 @@ export async function applyWorkflowStatusUpdate(
       mimeType: uploaded.data.mime_type,
       buffer: file.buffer,
     })
+  }
+
+  const result = await updateCreditFundingApplicationStatus(application.id, status, {
+    staffEmail,
+    notes,
+  })
+  if (!result) {
+    await cleanupUploadedRecords(uploadedRecords)
+    throw new Error('Failed to update application status')
   }
 
   const hasClientContent = Boolean(statusNotes?.trim()) || attachmentNames.length > 0
@@ -171,9 +192,14 @@ export async function applyWorkflowStatusUpdate(
     }
   }
 
-  if (uploadedRecords.length > 0 && savedAttachmentCount === 0) {
-    console.error(
-      'Staff attachments uploaded to storage but not saved to database. Run supabase-migration-012-credit-funding-workflow-attachments.sql'
+  if (uploadedRecords.length > savedAttachmentCount) {
+    const recovered = await syncStaffSharedDocumentsFromStorage(application.id)
+    savedAttachmentCount += recovered
+  }
+
+  if (uploadedRecords.length > savedAttachmentCount) {
+    throw new Error(
+      'The workflow step was updated, but one or more attachments could not be saved for display. Please refresh and try again.'
     )
   }
 
