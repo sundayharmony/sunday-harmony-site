@@ -67,11 +67,6 @@ export function scanFileBuffer(buffer: Buffer, mimeType: string): { ok: true } |
     }
   }
 
-  const sample = buffer.subarray(0, Math.min(buffer.length, 8192)).toString('latin1').toLowerCase()
-  if (sample.includes('<script') || sample.includes('javascript:')) {
-    return { ok: false, reason: 'Suspicious script content detected' }
-  }
-
   return { ok: true }
 }
 
