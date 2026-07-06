@@ -214,6 +214,22 @@ export function getCreditFundingFileValidationError(file: File): string | null {
   return null
 }
 
+export function defaultDocumentDisplayTitle(originalFileName: string): string {
+  const base = originalFileName.replace(/^.*[/\\]/, '').trim() || 'Document'
+  const dot = base.lastIndexOf('.')
+  if (dot > 0) return base.slice(0, dot)
+  return base
+}
+
+export function sanitizeDocumentDisplayTitle(title: string | undefined, fallbackFileName: string): string {
+  const cleaned = (title ?? '')
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200)
+  return cleaned || defaultDocumentDisplayTitle(fallbackFileName)
+}
+
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   photo_id: 'Government Photo ID',
   proof_of_address: 'Proof of Address',

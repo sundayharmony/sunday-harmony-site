@@ -381,8 +381,9 @@ function CreditFundingAdminContent() {
       fd.append('status', payload.status)
       fd.append('notify_client', payload.notifyClient ? 'true' : 'false')
       if (payload.notes) fd.append('status_notes', payload.notes)
-      for (const file of payload.attachments || []) {
-        fd.append('attachments', file)
+      for (const attachment of payload.attachments || []) {
+        fd.append('attachments', attachment.file)
+        fd.append('attachment_titles', attachment.title)
       }
 
       const r = await fetch('/api/admin/credit-funding/workflow', { method: 'POST', body: fd })

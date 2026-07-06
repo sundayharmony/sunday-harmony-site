@@ -43,20 +43,29 @@ export async function POST(req: NextRequest) {
     const staffEmail = session.user.email || 'admin'
     const staffName = session.user.name || 'Sunday Harmony Team'
 
-    const attachments: Array<{ buffer: Buffer; contentType: string; originalFileName: string }> = []
+    const attachments: Array<{
+      buffer: Buffer
+      contentType: string
+      originalFileName: string
+      displayTitle?: string
+    }> = []
     const files = formData.getAll('attachments').filter((entry): entry is File => entry instanceof File)
+    const titleEntries = formData.getAll('attachment_titles').map((entry) => entry.toString())
 
     if (files.length > MAX_ATTACHMENTS) {
       return NextResponse.json({ error: `Maximum ${MAX_ATTACHMENTS} attachments allowed` }, { status: 400 })
     }
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
       if (file.size <= 0) continue
       const buffer = Buffer.from(await file.arrayBuffer())
+      const displayTitle = titleEntries[i]?.trim() || undefined
       attachments.push({
         buffer,
         contentType: file.type,
         originalFileName: file.name,
+        displayTitle,
       })
     }
 

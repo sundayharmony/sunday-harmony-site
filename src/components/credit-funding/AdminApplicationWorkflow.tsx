@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 import { WorkflowStepStrip } from '@/components/credit-funding/WorkflowStepStrip'
 import { buildWorkflowSteps, type WorkflowHistoryItem } from '@/lib/credit-funding-workflow-steps'
-import { getCreditFundingFileValidationError } from '@/lib/credit-funding-types'
+import { getCreditFundingFileValidationError, defaultDocumentDisplayTitle } from '@/lib/credit-funding-types'
 import {
   APPLICATION_STATUSES,
   STATUS_ACTION_HINTS,
@@ -21,10 +21,15 @@ import {
 const inputClass =
   'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent'
 
+export interface WorkflowAttachment {
+  file: File
+  title: string
+}
+
 export interface WorkflowStepPayload {
   status: ApplicationStatus
   notes?: string
-  attachments?: File[]
+  attachments?: WorkflowAttachment[]
   notifyClient: boolean
 }
 
@@ -48,7 +53,7 @@ export default function AdminApplicationWorkflow({
   pendingDocCount = 0,
 }: Props) {
   const [manualStatus, setManualStatus] = useState(currentStatus)
-  const [attachments, setAttachments] = useState<File[]>([])
+  const [attachments, setAttachments] = useState<WorkflowAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState('')
   const [notifyClient, setNotifyClient] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -123,7 +128,7 @@ export default function AdminApplicationWorkflow({
     setAttachmentError('')
     if (!fileList?.length) return
 
-    const next: File[] = [...attachments]
+    const next: WorkflowAttachment[] = [...attachments]
     for (const file of Array.from(fileList)) {
       if (next.length >= 5) {
         setAttachmentError('Maximum 5 attachments per step')
@@ -134,10 +139,14 @@ export default function AdminApplicationWorkflow({
         setAttachmentError(err)
         continue
       }
-      next.push(file)
+      next.push({ file, title: defaultDocumentDisplayTitle(file.name) })
     }
     setAttachments(next)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const updateAttachmentTitle = (index: number, title: string) => {
+    setAttachments((prev) => prev.map((item, i) => (i === index ? { ...item, title } : item)))
   }
 
   const removeAttachment = (index: number) => {
@@ -209,18 +218,35 @@ export default function AdminApplicationWorkflow({
             />
             {attachmentError && <p className="text-xs text-red-600 mt-1">{attachmentError}</p>}
             {attachments.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {attachments.map((file, index) => (
-                  <li key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 text-xs bg-white border border-brand-border rounded-lg px-2 py-1.5">
-                    <span className="truncate text-brand-text">{file.name}</span>
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => removeAttachment(index)}
-                      className="text-red-600 font-semibold shrink-0 hover:underline"
-                    >
-                      Remove
-                    </button>
+              <ul className="mt-2 space-y-2">
+                {attachments.map((attachment, index) => (
+                  <li
+                    key={`${attachment.file.name}-${index}`}
+                    className="bg-white border border-brand-border rounded-lg px-2 py-2 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] text-brand-dim">{attachment.file.name}</span>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => removeAttachment(index)}
+                        className="text-red-600 font-semibold shrink-0 hover:underline text-xs"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-brand-dim">Title</label>
+                      <input
+                        type="text"
+                        value={attachment.title}
+                        onChange={(e) => updateAttachmentTitle(index, e.target.value)}
+                        disabled={saving}
+                        placeholder="Document title shown to client"
+                        maxLength={200}
+                        className={`${inputClass} mt-0.5 text-xs`}
+                      />
+                    </div>
                   </li>
                 ))}
               </ul>

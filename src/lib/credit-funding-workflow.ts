@@ -14,6 +14,7 @@ import {
   uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
 import {
+  sanitizeDocumentDisplayTitle,
   STATUS_LABELS,
   type ApplicationStatus,
   type CreditFundingApplication,
@@ -23,6 +24,7 @@ export interface WorkflowAttachmentInput {
   buffer: Buffer
   contentType: string
   originalFileName: string
+  displayTitle?: string
 }
 
 export interface ApplyWorkflowStatusParams {
@@ -136,10 +138,11 @@ export async function applyWorkflowStatusUpdate(
       await cleanupUploadedRecords(uploadedRecords)
       throw new Error(`Attachment upload failed for "${file.originalFileName}": ${uploaded.error}`)
     }
-    attachmentNames.push(uploaded.data.displayName)
-    uploadedRecords.push(uploaded.data)
+    const displayName = sanitizeDocumentDisplayTitle(file.displayTitle, file.originalFileName)
+    attachmentNames.push(displayName)
+    uploadedRecords.push({ ...uploaded.data, displayName })
     emailAttachments.push({
-      fileName: uploaded.data.displayName,
+      fileName: displayName,
       mimeType: uploaded.data.mime_type,
       buffer: file.buffer,
     })
