@@ -11,6 +11,7 @@ const allNavItems = [
   { href: '/admin/crm', icon: '\u{1F4CB}', label: 'CRM' },
   { href: '/admin/leads', icon: '\u{1F525}', label: 'Leads' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
+  { href: '/admin/dispute-letters', icon: '\u{1F4DD}', label: 'Dispute Letters' },
   { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
   { href: '/admin/case-studies', icon: '\u{1F4C4}', label: 'Case Studies' },
   { href: '/admin/marketing-graphics', icon: '\u{1F3A8}', label: 'Marketing Graphics' },

@@ -1,0 +1,14 @@
+{
+  "equifax": {
+    "name": "Equifax Information Services LLC",
+    "lines": ["P.O. Box 740256", "Atlanta, GA 30374"]
+  },
+  "experian": {
+    "name": "Experian",
+    "lines": ["P.O. Box 4500", "Allen, TX 75013"]
+  },
+  "transunion": {
+    "name": "TransUnion LLC",
+    "lines": ["P.O. Box 2000", "Chester, PA 19016"]
+  }
+}

@@ -1,0 +1,145 @@
+# Structured citation lookup for credit letter automation.
+# Use with knowledge/index.md for human-readable routing.
+
+bureau_dispute:
+  description: Dispute inaccurate information with a consumer reporting agency
+  primary:
+    fcra: "611"
+    usc: "1681i"
+  duties:
+    - "30-day free reinvestigation"
+    - "notify furnisher within 5 business days"
+    - "delete or modify inaccurate or unverifiable information"
+    - "written notice of results within 5 business days"
+  also_see:
+    - fcra: "609"
+      usc: "1681g"
+    - fcra: "611(b)"
+      usc: "1681i"
+      note: "statement of dispute"
+  key_file: knowledge/fcra/key-sections.md
+  full_text: knowledge/fcra/ftc-fcra-march-2026.md
+
+furnisher_dispute:
+  description: Dispute directly with entity that furnished information to a CRA
+  primary:
+    fcra: "623"
+    usc: "1681s-2"
+  duties:
+    - "investigate direct dispute with supporting documentation"
+    - "report results to consumer before §611 period expires"
+    - "notify CRAs and correct if inaccurate"
+    - "investigate when notified by CRA under §611(a)(2)"
+  also_see:
+    - fcra: "623(a)(1)"
+      usc: "1681s-2"
+      note: "accuracy prohibition"
+  key_file: knowledge/fcra/key-sections.md
+  full_text: knowledge/fcra/ftc-fcra-march-2026.md
+
+debt_validation:
+  description: Request validation of debt from third-party debt collector
+  primary:
+    fdcpa: "809"
+    usc: "1692g"
+  window_days: 30
+  duties:
+    - "collector must send validation notice within 5 days of initial contact"
+    - "cease collection until verification mailed if disputed in writing within 30 days"
+    - "provide original creditor name and address on written request"
+  also_see:
+    - fdcpa: "805(c)"
+      usc: "1692c"
+      note: "cease communication"
+    - fdcpa: "807(8)"
+      usc: "1692e"
+      note: "must communicate disputed status"
+  key_file: knowledge/fdcpa/key-sections.md
+  full_text: knowledge/fdcpa/ftc-fdcpa.md
+
+cease_communication:
+  description: Stop debt collector contact
+  primary:
+    fdcpa: "805(c)"
+    usc: "1692c"
+  duties:
+    - "written notice to collector"
+    - "collector must stop except limited termination/remedy notices"
+  key_file: knowledge/fdcpa/key-sections.md
+
+billing_error:
+  description: Dispute billing error on open-end credit account
+  primary:
+    fcba: "1666"
+    usc: "1666"
+  window_days: 60
+  duties:
+    - "written notice with name, account, error amount, and reasons"
+    - "creditor acknowledgment within 30 days"
+    - "resolution within 2 billing cycles or 90 days"
+    - "no collection on disputed amount during investigation"
+  also_see:
+    - usc: "1666a"
+      note: "credit reporting restrictions during dispute"
+    - usc: "1666(c)"
+      note: "definition of collection action"
+  key_file: knowledge/usc/15-usc-ch41-subch-i-part-d-fcba.md
+
+adverse_action_fcra:
+  description: Notice rights after adverse action based on consumer report
+  primary:
+    fcra: "615"
+    usc: "1681m"
+  duties:
+    - "adverse action notice"
+    - "CRA name address and toll-free number"
+    - "right to free report within 60 days"
+    - "right to dispute under §611"
+  key_file: knowledge/fcra/key-sections.md
+
+adverse_action_ecoa:
+  description: Adverse action and statement of reasons under ECOA
+  primary:
+    ecoa: "1691(d)"
+    usc: "1691d"
+  duties:
+    - "notice of action within 30 days of completed application"
+    - "statement of specific reasons for adverse action"
+  key_file: knowledge/usc/15-usc-ch41-subch-iv-ecoa.md
+
+ecoa_discrimination:
+  description: Prohibition on credit discrimination
+  primary:
+    ecoa: "1691"
+    usc: "1691"
+  protected_classes:
+    - race
+    - color
+    - religion
+    - national origin
+    - sex
+    - marital status
+    - age
+    - public assistance income
+    - exercise of rights under chapter 41
+  key_file: knowledge/usc/15-usc-ch41-subch-iv-ecoa.md
+
+fcra_civil_remedies:
+  description: Civil liability for FCRA violations
+  primary:
+    - fcra: "616"
+      usc: "1681n"
+      type: willful
+    - fcra: "617"
+      usc: "1681o"
+      type: negligent
+  key_file: knowledge/fcra/key-sections.md
+
+fdcpa_civil_remedies:
+  description: Civil liability for FDCPA violations
+  primary:
+    fdcpa: "813"
+    usc: "1692k"
+  damages:
+    individual_max: 1000
+  key_file: knowledge/fdcpa/key-sections.md

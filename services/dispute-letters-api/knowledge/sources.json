@@ -1,0 +1,43 @@
+{
+  "fcra_ftc": {
+    "url": "https://www.ftc.gov/system/files/ftc_gov/pdf/fcra-march-2026.pdf",
+    "local_path": "knowledge/fcra/ftc-fcra-march-2026.md",
+    "edition": "March 2026",
+    "posted": "2026-03-04",
+    "fetched": "2026-07-06"
+  },
+  "fdcpa_ftc": {
+    "url": "https://www.ftc.gov/legal-library/browse/rules/fair-debt-collection-practices-act-text",
+    "local_path": "knowledge/fdcpa/ftc-fdcpa.md",
+    "mirror_url": "https://www.ftc.gov/system/files/documents/plain-language/fair-debt-collection-practices-act.pdf",
+    "edition": "Last amended July 2010",
+    "fetched": "2026-07-06"
+  },
+  "usc_1681_fcra": {
+    "url": "https://uscode.house.gov/view.xhtml?req=%28title%3A15%20USC%20section%3A1681%20edition%3Aprelim%29%20OR%20%28granuleid%3AUSC-prelim-title15%20USC-section1681%29&f=treesort&edition=prelim&num=0&jumpTo=true",
+    "local_path": "knowledge/usc/15-usc-1681-fcra.md",
+    "mirror_url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title15/html/USCODE-2024-title15-chap41-subchapIII.htm",
+    "edition": "2024 Main Ed.",
+    "fetched": "2026-07-06"
+  },
+  "usc_subch_i_tila": {
+    "url": "https://uscode.house.gov/view.xhtml?req=granuleid%3AUSC-prelim-title15-chapter41-subchapter1&edition=prelim",
+    "local_path": "knowledge/usc/15-usc-ch41-subch-i-tila.md",
+    "mirror_url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title15/html/USCODE-2024-title15-chap41-subchapI.htm",
+    "edition": "2024 Main Ed.",
+    "fetched": "2026-07-06"
+  },
+  "usc_subch_i_part_d_fcba": {
+    "url": "https://uscode.house.gov/view.xhtml?req=granuleid%3AUSC-prelim-title15-chapter41-subchapter1-partD&edition=prelim",
+    "local_path": "knowledge/usc/15-usc-ch41-subch-i-part-d-fcba.md",
+    "mirror_url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title15/html/USCODE-2024-title15-chap41-subchapI-partD.htm",
+    "edition": "2024 Main Ed.",
+    "fetched": "2026-07-06"
+  },
+  "usc_subch_iv_ecoa": {
+    "url": "https://uscode.house.gov/view.xhtml?req=granuleid%3AUSC-prelim-title15-chapter41-subchapter4&edition=prelim",
+    "local_path": "knowledge/usc/15-usc-ch41-subch-iv-ecoa.md",
+    "edition": "2024 Main Ed. (preliminary)",
+    "fetched": "2026-07-06"
+  }
+}

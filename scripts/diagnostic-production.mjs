@@ -33,6 +33,8 @@ const OPTIONAL_VERCEL_ENV = [
   'STRIPE_SECRET_KEY',
   'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
   'STRIPE_WEBHOOK_SECRET',
+  'DISPUTE_LETTERS_API_URL',
+  'DISPUTE_LETTERS_API_SECRET',
 ]
 
 const PUBLIC_ROUTES = [
@@ -166,6 +168,7 @@ async function phase3() {
     ['008 credit_funding_applications', 'credit_funding_applications'],
     ['009 credit_funding_status_history', 'credit_funding_status_history'],
     ['010 client_meetings', 'client_meetings'],
+    ['022 dispute_sessions', 'dispute_sessions'],
   ]
 
   const results = []
@@ -200,6 +203,18 @@ async function phase3() {
     )
   } else {
     results.push('storage client-case-studies: MISSING (run migration 016)')
+  }
+
+  const disputeBucket = buckets?.find((b) => b.id === 'dispute-letters')
+  if (disputeBucket) {
+    const limitMb = disputeBucket.file_size_limit
+      ? Math.round(disputeBucket.file_size_limit / (1024 * 1024))
+      : null
+    results.push(
+      `022 dispute-letters bucket: ${disputeBucket.public ? 'PUBLIC (risk)' : 'private'}${limitMb != null ? ` ${limitMb}MB` : ''}`
+    )
+  } else {
+    results.push('storage dispute-letters: MISSING (run migration 022)')
   }
 
   // Migration 011: credit_funding_messages table (009) + RLS on applications
@@ -553,6 +568,22 @@ async function phase11() {
 
   const sessionRoute = await fetchCheck(`${BASE_URL}/api/credit-funding/session`, { method: 'POST' })
   results.push(`upload session POST → ${sessionRoute.status}${sessionRoute.status === 429 || sessionRoute.status === 200 || sessionRoute.status === 403 ? ' (exists)' : sessionRoute.status === 404 ? ' (missing)' : ''}`)
+
+  const disputeConfig = await fetchCheck(`${BASE_URL}/api/admin/dispute-letters/config`)
+  results.push(`dispute letters config → ${disputeConfig.status}${disputeConfig.status === 401 ? ' (exists, auth required)' : disputeConfig.status === 404 ? ' (NOT DEPLOYED)' : ''}`)
+
+  const env = loadEnvLocal()
+  const disputeApiUrl = process.env.DISPUTE_LETTERS_API_URL || env.DISPUTE_LETTERS_API_URL
+  if (disputeApiUrl) {
+    try {
+      const health = await fetchCheck(`${disputeApiUrl.replace(/\/$/, '')}/health`)
+      results.push(`dispute letters Railway /health → ${health.status}`)
+    } catch (e) {
+      results.push(`dispute letters Railway /health → unreachable (${String(e.message).slice(0, 60)})`)
+    }
+  } else {
+    results.push('dispute letters Railway: DISPUTE_LETTERS_API_URL not set locally')
+  }
 
   const notDeployed = results.some((r) => r.includes('NOT DEPLOYED') || r.includes('(missing)'))
   status(

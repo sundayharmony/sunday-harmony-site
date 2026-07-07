@@ -35,6 +35,10 @@ next-env.d.ts
 
 # Misc
 *.log
+__pycache__/
+*.pyc
+.dispute-secret.tmp
+.dispute-railway-url.tmp
 
 # Playwright
 /test-results/

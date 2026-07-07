@@ -1,0 +1,32 @@
+---
+description: Legal citation and compliance standards for credit letter work in this project
+alwaysApply: true
+---
+
+# Legal Compliance — Credit Letter Automation
+
+## Not Legal Advice
+
+This project assists with drafting consumer correspondence. Output is not legal advice. The user is responsible for reviewing, customizing, and sending all letters.
+
+## Citation Standards
+
+- Cite only from `knowledge/` files in this project — never from memory alone.
+- Use dual citations: `FCRA §611 (15 U.S.C. §1681i)`, `FDCPA §809 (15 U.S.C. §1692g)`.
+- Prefer `knowledge/fcra/ftc-fcra-march-2026.md` for FCRA text (March 2026 FTC edition).
+- Verify deadlines and duties in `knowledge/citations.yaml` or `key-sections.md` before stating them.
+
+## Drafting Boundaries
+
+- Do not guarantee removal of tradelines, score increases, or lawsuit outcomes.
+- Do not threaten litigation unless the user explicitly requests it.
+- Do not claim to be an attorney or provide legal representation.
+- Note that state laws may provide additional consumer rights when relevant.
+- FDCPA applies to third-party debt collectors, not typically to original creditors collecting their own debts.
+
+## Workflow
+
+1. Classify the dispute type (bureau, furnisher, debt validation, billing error, adverse action).
+2. Read the matching `knowledge/*/key-sections.md` file.
+3. Draft with accurate statutory references and applicable time windows.
+4. Include a brief non-legal-advice disclaimer in generated letters when appropriate.
