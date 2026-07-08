@@ -368,7 +368,7 @@ export default function CreditFundingForm() {
       const intakeData = await intakeRes.json().catch(() => ({}))
       if (!intakeRes.ok) {
         if (intakeRes.status === 413) {
-          throw new Error('Upload too large. Use files under 4 MB each (PDF, JPG, or PNG).')
+          throw new Error('Upload too large. Use files under 4 MB each (PDF, JPG, PNG, or TXT).')
         }
         throw new Error(intakeData.error || 'Submission failed')
       }

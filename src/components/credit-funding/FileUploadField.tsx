@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import FileDropzone from '@/components/ui/FileDropzone'
 import { CREDIT_FUNDING_MAX_MB, getCreditFundingFileValidationError } from '@/lib/credit-funding-types'
 
-const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/png,image/jpeg'
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.txt,application/pdf,image/png,image/jpeg,text/plain'
 
 interface FileUploadFieldProps {
   label: string
@@ -71,7 +71,7 @@ export default function FileUploadField({
           <div className="text-center">
             <div className="text-2xl mb-2">📎</div>
             <p className="text-sm text-brand-muted">Drag & drop or click to upload</p>
-            <p className="text-xs text-brand-dim mt-1">PDF, JPG, JPEG, PNG — max {CREDIT_FUNDING_MAX_MB} MB each</p>
+            <p className="text-xs text-brand-dim mt-1">PDF, JPG, JPEG, PNG, TXT — max {CREDIT_FUNDING_MAX_MB} MB each</p>
           </div>
         ) : (
           <div className="flex items-center gap-4">

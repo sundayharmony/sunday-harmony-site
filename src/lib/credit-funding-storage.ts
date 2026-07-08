@@ -12,6 +12,7 @@ const ALLOWED_MIME = new Set([
   'image/png',
   'image/jpeg',
   'image/jpg',
+  'text/plain',
 ])
 
 const MAGIC_SIGNATURES: Array<{ mime: string; check: (buf: Buffer) => boolean }> = [
@@ -36,6 +37,7 @@ function effectiveContentType(contentType: string, originalFileName: string): st
     png: 'image/png',
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
+    txt: 'text/plain',
   }
   return byExt[ext] || ct || 'application/octet-stream'
 }
@@ -51,9 +53,11 @@ export function scanFileBuffer(buffer: Buffer, mimeType: string): { ok: true } |
   if (buffer.length < 4) return { ok: false, reason: 'File too small or empty' }
 
   const normalizedMime = mimeType === 'image/jpg' ? 'image/jpeg' : mimeType
-  const sig = MAGIC_SIGNATURES.find((s) => s.mime === normalizedMime || (normalizedMime === 'image/jpeg' && s.mime === 'image/jpeg'))
-  if (!sig || !sig.check(buffer)) {
-    return { ok: false, reason: 'File content does not match declared type' }
+  if (normalizedMime !== 'text/plain') {
+    const sig = MAGIC_SIGNATURES.find((s) => s.mime === normalizedMime || (normalizedMime === 'image/jpeg' && s.mime === 'image/jpeg'))
+    if (!sig || !sig.check(buffer)) {
+      return { ok: false, reason: 'File content does not match declared type' }
+    }
   }
 
   const mzIndex = buffer.indexOf(Buffer.from('MZ'))
@@ -81,14 +85,14 @@ export function validateCreditFundingFile(
   }
 
   const ext = extensionFromName(originalFileName)
-  if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) {
-    return { ok: false, error: 'File type not allowed. Use PDF, JPG, JPEG, or PNG.' }
+  if (!['pdf', 'png', 'jpg', 'jpeg', 'txt'].includes(ext)) {
+    return { ok: false, error: 'File type not allowed. Use PDF, JPG, JPEG, PNG, or TXT.' }
   }
 
   const mime = effectiveContentType(contentType, originalFileName)
   const normalized = mime === 'image/jpg' ? 'image/jpeg' : mime
   if (!ALLOWED_MIME.has(normalized) && !ALLOWED_MIME.has(mime)) {
-    return { ok: false, error: 'File type not allowed. Use PDF, JPG, JPEG, or PNG.' }
+    return { ok: false, error: 'File type not allowed. Use PDF, JPG, JPEG, PNG, or TXT.' }
   }
 
   return { ok: true, mime: normalized }

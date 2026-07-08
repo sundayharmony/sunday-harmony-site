@@ -302,6 +302,7 @@ function mimeFromExtension(ext: string): string {
     png: 'image/png',
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
+    txt: 'text/plain',
   }
   return map[ext] || 'application/octet-stream'
 }

@@ -8,7 +8,7 @@ export default function DocumentUploadNotice() {
     >
       <p className="font-semibold text-amber-950">Important — file size limit</p>
       <p className="mt-1.5 text-amber-900/90 leading-relaxed">
-        Each document must be <strong>{CREDIT_FUNDING_MAX_MB} MB or smaller</strong> (PDF, JPG, or PNG).
+        Each document must be <strong>{CREDIT_FUNDING_MAX_MB} MB or smaller</strong> (PDF, JPG, PNG, or TXT).
         Phone photos are often too large. Before continuing, compress the image or save a smaller copy — otherwise
         your application cannot be submitted.
       </p>

@@ -205,12 +205,12 @@ export default function AdminApplicationWorkflow({
           <div>
             <label className="text-xs font-semibold text-brand-dim">Attach documents (optional)</label>
             <p className="text-[11px] text-brand-dim mt-0.5 mb-1.5">
-              PDF, JPG, or PNG — up to 5 files. Shared in portal and referenced in email.
+              PDF, JPG, PNG, or TXT — up to 5 files. Shared in portal and referenced in email.
             </p>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
+              accept=".pdf,.jpg,.jpeg,.png,.txt"
               multiple
               disabled={saving || attachments.length >= 5}
               onChange={(e) => handleFilesSelected(e.target.files)}

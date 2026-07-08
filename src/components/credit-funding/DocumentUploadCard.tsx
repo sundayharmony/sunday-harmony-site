@@ -6,7 +6,7 @@ import { CREDIT_FUNDING_MAX_MB, getCreditFundingFileValidationError } from '@/li
 import type { DocumentType } from '@/lib/credit-funding-types'
 import type { StagedDocumentState } from '@/components/credit-funding/useStagedDocumentUploads'
 
-const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/png,image/jpeg'
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.txt,application/pdf,image/png,image/jpeg,text/plain'
 
 interface DocumentUploadCardProps {
   documentType: DocumentType
@@ -148,7 +148,7 @@ export default function DocumentUploadCard({
         </div>
 
         <p className="text-[11px] text-brand-dim mt-2">
-          PDF, JPG, or PNG — max {CREDIT_FUNDING_MAX_MB} MB. Drag and drop supported.
+          PDF, JPG, PNG, or TXT — max {CREDIT_FUNDING_MAX_MB} MB. Drag and drop supported.
         </p>
 
         {(localError || state?.error) && (
