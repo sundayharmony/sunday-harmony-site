@@ -145,7 +145,7 @@ export default function DisputeLettersPage() {
             <input
               type="file"
               className="hidden"
-              accept=".html,.htm,.pdf,.txt,.doc,.docx,.png,.jpg,.jpeg"
+              accept=".html,.htm,.pdf,.txt,.text,text/plain,.doc,.docx,.png,.jpg,.jpeg"
               disabled={uploading || apiConfigured === false}
               onChange={(e) => {
                 const f = e.target.files?.[0]

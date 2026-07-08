@@ -71,6 +71,7 @@ export function validateDisputeReportFile(
     html: 'text/html',
     htm: 'text/html',
     txt: 'text/plain',
+    text: 'text/plain',
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     doc: 'application/msword',
     png: 'image/png',

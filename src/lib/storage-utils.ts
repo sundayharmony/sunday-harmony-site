@@ -7,6 +7,8 @@ export function extensionFromName(name: string): string {
 export function effectiveContentType(contentType: string, originalFileName: string, pdfMime = 'application/pdf'): string {
   let ct = (contentType || '').split(';')[0].trim().toLowerCase()
   if (ct && ct !== 'application/octet-stream') return ct
-  if (extensionFromName(originalFileName) === 'pdf') return pdfMime
+  const ext = extensionFromName(originalFileName)
+  if (ext === 'pdf') return pdfMime
+  if (ext === 'txt') return 'text/plain'
   return ct || 'application/octet-stream'
 }

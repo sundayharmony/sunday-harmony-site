@@ -14,11 +14,9 @@ COPY app ./app
 COPY knowledge ./knowledge
 COPY .cursor ./.cursor
 COPY data ./data
-COPY start.sh ./start.sh
-RUN chmod +x ./start.sh
 
 ENV DISPUTE_DATA_DIR=/tmp/dispute-letters-data
 
 EXPOSE 8000
 
-CMD ["./start.sh"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
