@@ -11,13 +11,17 @@ import type {
   StorageDocumentType,
   UploadedDocument,
 } from '@/lib/credit-funding-types'
-import { deriveServiceType, deriveLeadTypeFromIntake } from '@/lib/credit-funding-types'
+import { deriveServiceType, deriveLeadTypeFromIntake, isStaffSharedDocument } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
 import { buildEncryptedApplicationRow } from '@/lib/credit-funding-sensitive-fields'
 import { decryptFieldOrLegacy } from '@/lib/field-encryption'
 import { APPLICATION_INVITE_TTL_MS } from '@/lib/credit-funding-invite'
-import { CREDIT_FUNDING_BUCKET, deleteAllCreditFundingFilesForApplication } from '@/lib/credit-funding-storage'
+import {
+  CREDIT_FUNDING_BUCKET,
+  deleteAllCreditFundingFilesForApplication,
+  deleteCreditFundingStoragePaths,
+} from '@/lib/credit-funding-storage'
 
 export function generateApplicationId(): string {
   const date = new Date()
@@ -416,6 +420,20 @@ export async function getCreditFundingApplicationByUserId(userId: string): Promi
   return data as CreditFundingApplication | undefined
 }
 
+export async function getUploadedDocumentById(id: string): Promise<UploadedDocument | undefined> {
+  const { data, error } = await getSupabase()
+    .from('uploaded_documents')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getUploadedDocumentById error:', error)
+    return undefined
+  }
+  return data as UploadedDocument | undefined
+}
+
 export async function getDocumentsByApplicationUuid(applicationUuid: string): Promise<UploadedDocument[]> {
   const { data, error } = await getSupabase()
     .from('uploaded_documents')
@@ -631,6 +649,87 @@ export async function fulfillDocumentRequestForApplication(
     return false
   }
   return true
+}
+
+export async function reopenDocumentRequestForApplication(
+  applicationUuid: string,
+  documentType: string
+): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from('credit_funding_document_requests')
+    .update({ status: 'pending', fulfilled_at: null })
+    .eq('application_uuid', applicationUuid)
+    .eq('document_type', documentType)
+    .eq('status', 'uploaded')
+
+  if (error) {
+    console.error('reopenDocumentRequestForApplication error:', error)
+    return false
+  }
+  return true
+}
+
+export type DeleteCreditFundingDocumentResult =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' | 'wrong_application' | 'staff_shared' | 'delete_failed' }
+
+async function deleteUploadedDocumentCore(
+  documentId: string,
+  applicationUuid: string,
+  options: { allowStaffShared: boolean }
+): Promise<DeleteCreditFundingDocumentResult> {
+  const doc = await getUploadedDocumentById(documentId)
+  if (!doc) return { ok: false, reason: 'not_found' }
+  if (doc.application_uuid !== applicationUuid) return { ok: false, reason: 'wrong_application' }
+  if (!options.allowStaffShared && isStaffSharedDocument(doc)) {
+    return { ok: false, reason: 'staff_shared' }
+  }
+
+  const { document_type: documentType, storage_path: storagePath } = doc
+  const wasApplicantDoc = !isStaffSharedDocument(doc)
+
+  try {
+    await deleteCreditFundingStoragePaths([storagePath])
+  } catch (err) {
+    console.error('deleteUploadedDocumentCore storage error:', err)
+  }
+
+  const { error } = await getSupabase()
+    .from('uploaded_documents')
+    .delete()
+    .eq('id', documentId)
+    .eq('application_uuid', applicationUuid)
+
+  if (error) {
+    console.error('deleteUploadedDocumentCore error:', error)
+    return { ok: false, reason: 'delete_failed' }
+  }
+
+  if (wasApplicantDoc) {
+    const remaining = await getDocumentsByApplicationUuid(applicationUuid)
+    const sameTypeRemaining = remaining.filter(
+      (d) => d.document_type === documentType && !isStaffSharedDocument(d)
+    )
+    if (sameTypeRemaining.length === 0) {
+      await reopenDocumentRequestForApplication(applicationUuid, documentType)
+    }
+  }
+
+  return { ok: true }
+}
+
+export async function deleteApplicantUploadedDocument(
+  documentId: string,
+  applicationUuid: string
+): Promise<DeleteCreditFundingDocumentResult> {
+  return deleteUploadedDocumentCore(documentId, applicationUuid, { allowStaffShared: false })
+}
+
+export async function deleteAdminUploadedDocument(
+  documentId: string,
+  applicationUuid: string
+): Promise<DeleteCreditFundingDocumentResult> {
+  return deleteUploadedDocumentCore(documentId, applicationUuid, { allowStaffShared: true })
 }
 
 export async function linkApplicationToUser(applicationId: string, userId: string, clientId?: string): Promise<boolean> {

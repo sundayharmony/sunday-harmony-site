@@ -80,6 +80,7 @@ export default function ClientCreditFundingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState<string | null>(null)
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [previewDoc, setPreviewDoc] = useState<PreviewDocument | null>(null)
@@ -111,6 +112,23 @@ export default function ClientCreditFundingPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [data?.messages])
+
+  const deleteDoc = async (docId: string, fileName: string) => {
+    if (!window.confirm(`Delete "${fileName}"? This cannot be undone.`)) return
+    setDeletingDocId(docId)
+    try {
+      const r = await fetch(`/api/dashboard/credit-funding/documents/${docId}`, { method: 'DELETE' })
+      if (!r.ok) {
+        const err = await r.json()
+        throw new Error(err.error || 'Delete failed')
+      }
+      await load()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Delete failed')
+    } finally {
+      setDeletingDocId(null)
+    }
+  }
 
   const uploadDoc = async (request: DocRequest, file: File) => {
     setUploading(request.id)
@@ -352,6 +370,8 @@ export default function ClientCreditFundingPage() {
                   onPreview={setPreviewDoc}
                   previewLabel="View"
                   downloadLabel="Download"
+                  onDelete={() => deleteDoc(doc.id, doc.file_name)}
+                  deleting={deletingDocId === doc.id}
                 />
               </div>
             ))}

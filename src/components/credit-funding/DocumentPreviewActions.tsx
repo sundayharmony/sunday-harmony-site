@@ -11,6 +11,9 @@ interface Props {
   onPreview: (doc: PreviewDocument) => void
   previewLabel?: string
   downloadLabel?: string
+  onDelete?: () => void
+  deleting?: boolean
+  deleteLabel?: string
 }
 
 export default function DocumentPreviewActions({
@@ -21,6 +24,9 @@ export default function DocumentPreviewActions({
   onPreview,
   previewLabel = 'Preview',
   downloadLabel = 'Download',
+  onDelete,
+  deleting = false,
+  deleteLabel = 'Delete',
 }: Props) {
   if (!signedUrl) {
     return <span className="text-xs text-brand-dim shrink-0">Unavailable</span>
@@ -47,6 +53,16 @@ export default function DocumentPreviewActions({
       >
         {downloadLabel}
       </a>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={deleting}
+          className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+        >
+          {deleting ? 'Deleting…' : deleteLabel}
+        </button>
+      )}
     </div>
   )
 }

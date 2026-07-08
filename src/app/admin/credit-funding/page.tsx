@@ -163,6 +163,7 @@ function CreditFundingAdminContent() {
   })
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteNotice, setInviteNotice] = useState('')
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
 
   const selectApplication = (id: string) => {
     loadDetail(id)
@@ -324,6 +325,32 @@ function CreditFundingAdminContent() {
     }
   }
 
+  const deleteDocument = async (doc: DocumentItem) => {
+    if (!selected) return
+    if (
+      !window.confirm(
+        `Delete "${doc.file_name}"?\n\nThis removes the file from storage. The client will no longer see it.`
+      )
+    ) {
+      return
+    }
+
+    setDeletingDocId(doc.id)
+    try {
+      const r = await fetch(
+        `/api/admin/credit-funding/documents/${encodeURIComponent(doc.id)}?applicationId=${encodeURIComponent(selected.id)}`,
+        { method: 'DELETE' }
+      )
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Failed to delete document')
+      await loadDetail(selected.id)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete document')
+    } finally {
+      setDeletingDocId(null)
+    }
+  }
+
   const deleteApplication = async () => {
     if (!selected) return
     const confirmed = window.confirm(
@@ -428,14 +455,31 @@ function CreditFundingAdminContent() {
       ) : (
         <div className="space-y-2">
           {documents.map((doc) => (
-            <div key={doc.id} className="flex justify-between p-3 bg-neutral-50 rounded-lg text-sm">
-              <div>
+            <div key={doc.id} className="flex items-center justify-between gap-3 p-3 bg-neutral-50 rounded-lg text-sm">
+              <div className="min-w-0">
                 <p className="font-medium">{documentDisplayLabel(doc.document_type)}</p>
-                <p className="text-xs text-brand-dim">{doc.file_name}</p>
+                <p className="text-xs text-brand-dim truncate">{doc.file_name}</p>
               </div>
-              {doc.signedUrl && (
-                <a href={doc.signedUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent">View</a>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {doc.signedUrl && (
+                  <a
+                    href={doc.signedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold text-accent hover:underline"
+                  >
+                    View
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => deleteDocument(doc)}
+                  disabled={deletingDocId === doc.id}
+                  className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                >
+                  {deletingDocId === doc.id ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
