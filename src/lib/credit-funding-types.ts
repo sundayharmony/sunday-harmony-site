@@ -1,46 +1,53 @@
-export const CREDIT_PROVIDERS = ['IdentityIQ', 'Credit Hero Score', 'SmartCredit', 'CFPB'] as const
+export const LISTED_CREDIT_PROVIDERS = ['IdentityIQ', 'Credit Hero Score', 'SmartCredit'] as const
+export type ListedCreditProvider = (typeof LISTED_CREDIT_PROVIDERS)[number]
+
+export const CREDIT_PROVIDERS = [...LISTED_CREDIT_PROVIDERS, 'Other'] as const
 export type CreditProvider = (typeof CREDIT_PROVIDERS)[number]
 
 /** Official Experian.com account registration — shown above Experian credential fields on Step 4. */
 export const EXPERIAN_SIGNUP_URL = 'https://usa.experian.com/registration/'
 
-/** Affiliate / signup URLs shown on Step 4 when a provider is selected. */
-export const CREDIT_PROVIDER_SIGNUP_LINKS: Record<CreditProvider, string> = {
+/** CFPB consumer portal registration — shown above CFPB credential fields on Step 4. */
+export const CFPB_PORTAL_URL = 'https://portal.consumerfinance.gov/consumer/s/login/SelfRegister'
+
+/** Affiliate / signup URLs shown on Step 4 when a listed provider is selected. */
+export const CREDIT_PROVIDER_SIGNUP_LINKS: Record<ListedCreditProvider, string> = {
   IdentityIQ: 'https://protect.identityiq.com/idp/idprotect/identityiq-google-branded/?aff_id=1582&aff_sub=identityiq%20trial&gad_source=1&gad_campaignid=14899793009&gbraid=0AAAAADqklV352qWLWjQJ9WVZDYqRzi1eK&gclid=CjwKCAjw3ejRBhAdEiwADkqPn6jMk2A1HW5dnbF1KhqidkCpOe-SHR_WouvL6B02jMH4MkJj0SsNuRoC_u0QAvD_BwE',
   'Credit Hero Score': 'https://www.creditheroscore.com/signup.asp',
   SmartCredit: 'https://www.smartcredit.com/join/',
-  CFPB: 'https://portal.consumerfinance.gov/consumer/s/login/SelfRegister',
 }
 
 /** Whether the provider link opens a login portal (vs. signup/affiliate). */
-export const CREDIT_PROVIDER_LINK_ACTION: Record<CreditProvider, 'signup' | 'login'> = {
+export const CREDIT_PROVIDER_LINK_ACTION: Record<ListedCreditProvider, 'signup' | 'login'> = {
   IdentityIQ: 'signup',
   'Credit Hero Score': 'signup',
   SmartCredit: 'signup',
-  CFPB: 'login',
 }
 
 /** Trial-cancel warning applies to paid-trial monitoring services, not free/government portals. */
-export const CREDIT_PROVIDER_TRIAL_WARNING: Record<CreditProvider, boolean> = {
+export const CREDIT_PROVIDER_TRIAL_WARNING: Record<ListedCreditProvider, boolean> = {
   IdentityIQ: true,
   'Credit Hero Score': true,
   SmartCredit: true,
-  CFPB: false,
+}
+
+function isListedCreditProvider(provider: string): provider is ListedCreditProvider {
+  return LISTED_CREDIT_PROVIDERS.includes(provider as ListedCreditProvider)
 }
 
 export function getCreditProviderSignupLink(provider: string): string | null {
-  if (!CREDIT_PROVIDERS.includes(provider as CreditProvider)) return null
-  return CREDIT_PROVIDER_SIGNUP_LINKS[provider as CreditProvider]
+  if (!isListedCreditProvider(provider)) return null
+  return CREDIT_PROVIDER_SIGNUP_LINKS[provider]
 }
 
 export function getCreditProviderLinkAction(provider: string): 'signup' | 'login' | null {
-  if (!CREDIT_PROVIDERS.includes(provider as CreditProvider)) return null
-  return CREDIT_PROVIDER_LINK_ACTION[provider as CreditProvider]
+  if (!isListedCreditProvider(provider)) return null
+  return CREDIT_PROVIDER_LINK_ACTION[provider]
 }
 
 export function creditProviderShowsTrialWarning(provider: string): boolean {
-  if (!CREDIT_PROVIDERS.includes(provider as CreditProvider)) return false
-  return CREDIT_PROVIDER_TRIAL_WARNING[provider as CreditProvider]
+  if (!isListedCreditProvider(provider)) return false
+  return CREDIT_PROVIDER_TRIAL_WARNING[provider]
 }
 
 export const IDENTITY_DOCUMENT_TYPES = ['photo_id', 'proof_of_address', 'selfie_with_id', 'mail_proof'] as const
@@ -346,6 +353,8 @@ export interface CreditFundingApplication {
   provider_password_encrypted?: string
   experian_email_encrypted?: string
   experian_password_encrypted?: string
+  cfpb_email_encrypted?: string
+  cfpb_password_encrypted?: string
   credit_goals: string[]
   funding_goals: string
   primary_credit_goals_text?: string

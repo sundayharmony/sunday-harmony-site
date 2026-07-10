@@ -31,6 +31,8 @@ export interface IntakeFormPayload {
   providerPassword: string
   experianEmail: string
   experianPassword: string
+  cfpbEmail: string
+  cfpbPassword: string
   primaryCreditGoalsText: string
   creditGoals: string[]
   fundingAmount: string
@@ -125,6 +127,8 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
     providerPassword: str(raw.providerPassword, 200),
     experianEmail: str(raw.experianEmail, 254).toLowerCase(),
     experianPassword: str(raw.experianPassword, 200),
+    cfpbEmail: str(raw.cfpbEmail, 254).toLowerCase(),
+    cfpbPassword: str(raw.cfpbPassword, 200),
     primaryCreditGoalsText: str(raw.primaryCreditGoalsText, 5000),
     creditGoals,
     fundingAmount: str(raw.fundingAmount, 100),
@@ -161,6 +165,12 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   }
   if (!payload.experianPassword || payload.experianPassword.length < 4) {
     return 'Experian.com password is required'
+  }
+  if (!payload.cfpbEmail || !EMAIL_RE.test(payload.cfpbEmail)) {
+    return 'Valid CFPB portal email is required'
+  }
+  if (!payload.cfpbPassword || payload.cfpbPassword.length < 4) {
+    return 'CFPB portal password is required'
   }
 
   if (!payload.primaryCreditGoalsText && payload.creditGoals.length === 0) {

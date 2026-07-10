@@ -11,6 +11,7 @@ import Link from 'next/link'
 import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
+  CFPB_PORTAL_URL,
   EXPERIAN_SIGNUP_URL,
   FUNDING_TIMEFRAMES,
   creditProviderShowsTrialWarning,
@@ -83,6 +84,9 @@ interface FormState {
   experianEmail: string
   experianPassword: string
   showExperianPassword: boolean
+  cfpbEmail: string
+  cfpbPassword: string
+  showCfpbPassword: boolean
   primaryCreditGoalsText: string
   creditGoals: string[]
   fundingAmount: string
@@ -126,6 +130,9 @@ const initialState: FormState = {
   experianEmail: '',
   experianPassword: '',
   showExperianPassword: false,
+  cfpbEmail: '',
+  cfpbPassword: '',
+  showCfpbPassword: false,
   primaryCreditGoalsText: '',
   creditGoals: [],
   fundingAmount: '',
@@ -265,6 +272,10 @@ export default function CreditFundingForm() {
         e.experianEmail = 'Valid Experian.com email required'
       }
       if (!form.experianPassword || form.experianPassword.length < 4) e.experianPassword = 'Required'
+      if (!form.cfpbEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.cfpbEmail)) {
+        e.cfpbEmail = 'Valid CFPB portal email required'
+      }
+      if (!form.cfpbPassword || form.cfpbPassword.length < 4) e.cfpbPassword = 'Required'
     }
     if (stepId === 'goals') {
       if (!form.primaryCreditGoalsText.trim() && form.creditGoals.length === 0) {
@@ -343,6 +354,8 @@ export default function CreditFundingForm() {
       fd.append('providerPassword', form.providerPassword)
       fd.append('experianEmail', form.experianEmail)
       fd.append('experianPassword', form.experianPassword)
+      fd.append('cfpbEmail', form.cfpbEmail)
+      fd.append('cfpbPassword', form.cfpbPassword)
       fd.append('primaryCreditGoalsText', form.primaryCreditGoalsText)
       fd.append('creditGoals', JSON.stringify(form.creditGoals))
       fd.append('fundingAmount', form.fundingAmount)
@@ -528,6 +541,11 @@ export default function CreditFundingForm() {
               </select>
               {errors.selectedCreditProvider && <p className="text-xs text-brand-red mt-1">{errors.selectedCreditProvider}</p>}
             </div>
+            {form.selectedCreditProvider === 'Other' && (
+              <div className="mb-5 p-4 bg-neutral-50 border border-brand-border rounded-xl text-sm text-brand-muted leading-relaxed">
+                Enter the login credentials for your credit monitoring service below.
+              </div>
+            )}
             {form.selectedCreditProvider && (() => {
               const providerUrl = getCreditProviderSignupLink(form.selectedCreditProvider)
               if (!providerUrl) return null
@@ -545,7 +563,7 @@ export default function CreditFundingForm() {
                   </p>
                   <p className="text-sm text-brand-muted mb-3">
                     {isLogin
-                      ? 'Access the CFPB consumer portal and sign in before entering your login credentials below.'
+                      ? 'Access the provider portal and sign in before entering your login credentials below.'
                       : 'Create your account with this provider before entering your login credentials below.'}
                   </p>
                   <a
@@ -660,6 +678,65 @@ export default function CreditFundingForm() {
                       </button>
                     </div>
                     {errors.experianPassword && <p className="text-xs text-brand-red mt-1">{errors.experianPassword}</p>}
+                  </div>
+                </div>
+                <div className="mb-5 pt-4 border-t border-brand-border">
+                  <div
+                    className="mb-4 p-4 bg-sky-50 border border-sky-200 rounded-xl"
+                    role="region"
+                    aria-label="Register with CFPB consumer portal"
+                  >
+                    <p className="text-sm font-semibold text-brand-text mb-1">Register with the CFPB consumer portal first</p>
+                    <p className="text-sm text-brand-muted mb-3">
+                      Create your free CFPB account before entering your credentials below.
+                    </p>
+                    <a
+                      href={CFPB_PORTAL_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Register at CFPB consumer portal (opens in a new tab)"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+                    >
+                      Register at CFPB
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
+                  <p className="text-sm font-semibold text-brand-text mb-3">CFPB portal credentials</p>
+                  <div className="mb-4">
+                    <label className={labelClass} htmlFor={fid('cfpbEmail')}>CFPB Portal Email *</label>
+                    <input
+                      id={fid('cfpbEmail')}
+                      name="cfpbEmail"
+                      type="email"
+                      className={inputClass}
+                      value={form.cfpbEmail}
+                      onChange={(e) => update('cfpbEmail', e.target.value)}
+                      autoComplete="off"
+                    />
+                    {errors.cfpbEmail && <p className="text-xs text-brand-red mt-1">{errors.cfpbEmail}</p>}
+                  </div>
+                  <div className="mb-4">
+                    <label className={labelClass} htmlFor={fid('cfpbPassword')}>CFPB Portal Password *</label>
+                    <div className="relative">
+                      <input
+                        id={fid('cfpbPassword')}
+                        name="cfpbPassword"
+                        type={form.showCfpbPassword ? 'text' : 'password'}
+                        className={inputClass}
+                        value={form.cfpbPassword}
+                        onChange={(e) => update('cfpbPassword', e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        aria-label={form.showCfpbPassword ? 'Hide CFPB password' : 'Show CFPB password'}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
+                        onClick={() => update('showCfpbPassword', !form.showCfpbPassword)}
+                      >
+                        {form.showCfpbPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    {errors.cfpbPassword && <p className="text-xs text-brand-red mt-1">{errors.cfpbPassword}</p>}
                   </div>
                 </div>
               </>

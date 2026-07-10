@@ -108,6 +108,8 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
     provider_password_encrypted: encryptField(payload.providerPassword),
     experian_email_encrypted: encryptField(payload.experianEmail),
     experian_password_encrypted: encryptField(payload.experianPassword),
+    cfpb_email_encrypted: encryptField(payload.cfpbEmail),
+    cfpb_password_encrypted: encryptField(payload.cfpbPassword),
     credit_goals: payload.creditGoals,
     primary_credit_goals_text: encryptFieldIfPresent(payload.primaryCreditGoalsText),
     funding_amount: payload.fundingAmount,
@@ -139,6 +141,8 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     provider_password: decryptField(app.provider_password_encrypted || ''),
     experian_email: decryptField(app.experian_email_encrypted || ''),
     experian_password: decryptField(app.experian_password_encrypted || ''),
+    cfpb_email: decryptField(app.cfpb_email_encrypted || ''),
+    cfpb_password: decryptField(app.cfpb_password_encrypted || ''),
     primary_credit_goals_text: app.primary_credit_goals_text
       ? decryptFieldOrLegacy(app.primary_credit_goals_text)
       : app.primary_credit_goals_text,
@@ -154,5 +158,7 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     provider_password_encrypted: undefined,
     experian_email_encrypted: undefined,
     experian_password_encrypted: undefined,
+    cfpb_email_encrypted: undefined,
+    cfpb_password_encrypted: undefined,
   }
 }
