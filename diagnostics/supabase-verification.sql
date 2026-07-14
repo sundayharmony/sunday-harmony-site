@@ -91,10 +91,17 @@ WHERE table_schema = 'public'
 ORDER BY table_name;
 
 -- ---------------------------------------------------------------------------
--- 6. leads.lead_type column (migration 010)
+-- 7. Migration 025 — staff MFA columns on users
+-- Expected: totp_secret_encrypted, totp_enabled, totp_backup_hashes, totp_verified_at
 -- ---------------------------------------------------------------------------
-SELECT column_name, data_type
+SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = 'public'
-  AND table_name = 'leads'
-  AND column_name = 'lead_type';
+  AND table_name = 'users'
+  AND column_name IN (
+    'totp_secret_encrypted',
+    'totp_enabled',
+    'totp_backup_hashes',
+    'totp_verified_at'
+  )
+ORDER BY column_name;

@@ -35,6 +35,13 @@ function LoginForm() {
         const res = await fetch('/api/auth/session')
         const session = await res.json()
         const role = session?.user?.role
+        const mfaVerified = session?.user?.mfaVerified
+        const mfaEnrollmentRequired = session?.user?.mfaEnrollmentRequired
+
+        if ((role === 'admin' || role === 'credit_manager') && !mfaVerified) {
+          router.push(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa')
+          return
+        }
 
         if (role === 'admin') {
           router.push('/admin')

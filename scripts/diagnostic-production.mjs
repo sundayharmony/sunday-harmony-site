@@ -534,20 +534,15 @@ async function phase9() {
     9,
     'Auth, security & middleware',
     missingHeaders.length === 0 && adminProtected && dashProtected && !anonExposed ? 'PASS' : anonExposed ? 'FAIL' : 'WARN',
-    `Security headers: ${present.length}/${securityHeaders.length}; /admin/crm → ${adminRedirect.status}${adminProtected ? ' (redirect to login)' : ''}; /dashboard → ${dashRedirect.status}${dashProtected ? ' (redirect to login)' : ''}; Encryption at rest: ${encryptionOk ? 'configured' : 'unverified'}; Anon RLS: ${anonRls}; 2FA: not implemented`,
+    `Security headers: ${present.length}/${securityHeaders.length}; /admin/crm → ${adminRedirect.status}${adminProtected ? ' (redirect to login)' : ''}; /dashboard → ${dashRedirect.status}${dashProtected ? ' (redirect to login)' : ''}; Encryption at rest: ${encryptionOk ? 'configured' : 'unverified'}; Anon RLS: ${anonRls}; Staff MFA: TOTP required (see /login/mfa)`,
     anonExposed
-      ? 'Run supabase-migration-020-fix-permissive-rls.sql in Supabase SQL Editor, then npm run security:verify-anon-rls'
+      ? 'Run supabase-migration-024-revoke-anon-crm-access.sql in Supabase SQL Editor, then npm run security:verify-anon-rls'
       : missingHeaders.length
         ? 'Check next.config.js headers on production'
         : null
   )
 
-  report.warnings.push({
-    phase: 9,
-    name: '2FA not implemented',
-    evidence: 'NextAuth credentials only — no TOTP/2FA in auth.ts',
-    remediation: 'Future enhancement if required by compliance',
-  })
+  // Note: legacy "2FA not implemented" warning removed — Area 02 staff TOTP shipped.
 }
 
 // ─── Phase 10: E2E automations (DB-level checks) ───

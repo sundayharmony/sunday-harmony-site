@@ -51,6 +51,9 @@ export async function requireAdminSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveAdminAccess(session)
   if (!access.ok) return forbiddenResponse(access.status)
+  if (!session?.user?.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
   return session as Session
 }
 
@@ -59,6 +62,9 @@ export async function requireCreditFundingStaffSession(): Promise<Session | Next
   const session = await getServerSession(authOptions)
   const access = resolveCreditFundingStaffAccess(session)
   if (!access.ok) return forbiddenResponse(access.status)
+  if (!session?.user?.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
   return session as Session
 }
 
@@ -67,5 +73,8 @@ export async function requireStaffSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveStaffAccess(session)
   if (!access.ok) return forbiddenResponse(access.status)
+  if (!session?.user?.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
   return session as Session
 }

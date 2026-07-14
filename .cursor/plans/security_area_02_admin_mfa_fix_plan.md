@@ -25,7 +25,7 @@ isProject: false
 
 # Area 02 — Deep dive + fix plan
 
-**Status:** plan-ready (awaiting permission to implement)  
+**Status:** implemented — run migration 025 on prod, then staff enroll at `/login/mfa/setup`  
 **Priority:** P0 (after Area 01)  
 **Scope:** Admin / credit_manager account takeover — MFA + session hardening  
 **Out of scope this area:** PBKDF2 → argon2 (Area 04); service-role secrets (Area 03); CSP/XSS (Area 05)

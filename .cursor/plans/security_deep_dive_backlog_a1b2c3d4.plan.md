@@ -91,7 +91,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | Area | Status | Deep dive | Fix plan | Implemented |
 |------|--------|-----------|----------|-------------|
 | 01 Storage + RLS | done | 2026-07-14 | [fix plan](security_area_01_storage_rls_fix_plan.md) | verified PASS |
-| 02 Admin MFA / takeover | plan-ready | 2026-07-14 | [fix plan](security_area_02_admin_mfa_fix_plan.md) | awaiting permission |
+| 02 Admin MFA / takeover | done | 2026-07-14 | [fix plan](security_area_02_admin_mfa_fix_plan.md) | code shipped; run migration 025 |
 | 03 Service-role / secrets | pending | — | — | — |
 | 04 Password crypto | pending | — | — | — |
 | 05 CSP + XSS | pending | — | — | — |
