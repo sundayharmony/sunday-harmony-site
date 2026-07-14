@@ -1,23 +1,24 @@
 ---
-description: Commit and push when implementation work is complete
+description: Always commit and push after completing task changes
 alwaysApply: true
 ---
 
-# Commit and push when done
+# Always commit and push
 
-When you finish making code or config changes for a task, **commit and push** before ending the turn unless the user explicitly says not to.
+After you finish work that changes the repo (code, config, migrations, scripts, plans, rules), **commit and push** before ending the turn. Do not wait to be asked.
 
 ## Workflow
 
 1. Run `git status` and `git diff` to see what changed.
-2. Stage only files related to the task. Never stage secrets (`.env*`, credentials, API keys).
-3. Write a concise commit message focused on why (1 sentence, imperative mood).
-4. Commit, then `git push` to the current branch.
-5. Confirm the commit hash and branch in your reply.
+2. Stage only files related to the task (include `.cursor/plans/` and `.cursor/rules/` created for the task).
+3. Never stage secrets (`.env`, `.env.*`, credentials, API keys) or unrelated local dumps.
+4. Write a concise commit message focused on why (1 sentence, imperative mood).
+5. Commit, then `git push` to the current branch (`git push -u origin HEAD` if no upstream).
+6. Confirm the commit hash and branch in your reply.
 
 ## Do not commit
 
-- `.env`, `.env.*`, credential files, diagnostic dumps, or other local-only artifacts unless the user explicitly asks.
+- `.env`, `.env.*`, credential files, diagnostic dumps (`diagnostic-report.*`), or other local-only artifacts unless the user explicitly asks.
 - Unrelated untracked files from other work.
 
 ## If nothing to commit
