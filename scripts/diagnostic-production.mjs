@@ -63,14 +63,30 @@ function status(phase, name, result, evidence, remediation) {
   if (result === 'WARN') report.warnings.push({ phase, name, evidence, remediation })
 }
 
-function loadEnvLocal() {
+function loadEnvFile(path) {
   const env = {}
-  if (!fs.existsSync('.env.local')) return env
-  for (const line of fs.readFileSync('.env.local', 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z0-9_]+)="(.*)"/)
-    if (m) env[m[1]] = m[2]
+  if (!fs.existsSync(path)) return env
+  for (let line of fs.readFileSync(path, 'utf8').split(/\r?\n/)) {
+    line = line.trim()
+    if (!line || line.startsWith('#') || !line.includes('=')) continue
+    const i = line.indexOf('=')
+    const k = line.slice(0, i).trim()
+    let v = line.slice(i + 1).trim()
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+      v = v.slice(1, -1)
+    }
+    if (v) env[k] = v
   }
   return env
+}
+
+/** Prefer non-empty values from .env.local, then Vercel pull / production dumps. */
+function loadEnvLocal() {
+  const merged = {}
+  for (const path of ['.env.vercel.production', '.env.vercel-pull-tmp', '.env.local']) {
+    Object.assign(merged, loadEnvFile(path))
+  }
+  return merged
 }
 
 async function fetchCheck(url, opts = {}) {
@@ -471,8 +487,9 @@ async function phase9() {
   // Encryption check via Supabase
   let encryptionOk = false
   const env = loadEnvLocal()
-  if (env.NEXT_PUBLIC_SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-    const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY
+  if (env.NEXT_PUBLIC_SUPABASE_URL && serviceKey) {
+    const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, serviceKey)
     const { data } = await sb
       .from('credit_funding_applications')
       .select('provider_password_encrypted')
@@ -486,6 +503,25 @@ async function phase9() {
     }
   }
 
+  // Anon RLS regression check (Area 01) — sensitive tables must not return rows to anon key
+  let anonRls = 'skipped'
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY
+  if (env.NEXT_PUBLIC_SUPABASE_URL && anonKey && serviceKey) {
+    const anonSb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, anonKey)
+    const adminSb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, serviceKey)
+    const probeTables = ['users', 'clients', 'leads', 'admin_data', 'activity_log']
+    const exposed = []
+    for (const t of probeTables) {
+      const a = await anonSb.from(t).select('*', { count: 'exact', head: true })
+      const s = await adminSb.from(t).select('*', { count: 'exact', head: true })
+      if (!a.error && (a.count ?? 0) > 0) exposed.push(`${t}:${a.count}`)
+      else if (!a.error && (s.count ?? 0) > 0 && (a.count ?? 0) === 0) {
+        /* denied — ok */
+      }
+    }
+    anonRls = exposed.length ? `EXPOSED ${exposed.join(', ')}` : 'ok (core tables denied)'
+  }
+
   // PII masking - admin API without auth returns 401; with data would need session
   // Middleware redirect checks
   const adminRedirect = await fetchCheck(`${BASE_URL}/admin/crm`)
@@ -493,12 +529,17 @@ async function phase9() {
   const adminProtected = adminRedirect.status === 307 || adminRedirect.status === 302 || (adminRedirect.headers.location || '').includes('login')
   const dashProtected = dashRedirect.status === 307 || dashRedirect.status === 302 || (dashRedirect.headers.location || '').includes('login')
 
+  const anonExposed = anonRls.startsWith('EXPOSED')
   status(
     9,
     'Auth, security & middleware',
-    missingHeaders.length === 0 && adminProtected && dashProtected ? 'PASS' : 'WARN',
-    `Security headers: ${present.length}/${securityHeaders.length}; /admin/crm → ${adminRedirect.status}${adminProtected ? ' (redirect to login)' : ''}; /dashboard → ${dashRedirect.status}${dashProtected ? ' (redirect to login)' : ''}; Encryption at rest: ${encryptionOk ? 'configured' : 'unverified'}; 2FA: not implemented`,
-    missingHeaders.length ? 'Check next.config.js headers on production' : null
+    missingHeaders.length === 0 && adminProtected && dashProtected && !anonExposed ? 'PASS' : anonExposed ? 'FAIL' : 'WARN',
+    `Security headers: ${present.length}/${securityHeaders.length}; /admin/crm → ${adminRedirect.status}${adminProtected ? ' (redirect to login)' : ''}; /dashboard → ${dashRedirect.status}${dashProtected ? ' (redirect to login)' : ''}; Encryption at rest: ${encryptionOk ? 'configured' : 'unverified'}; Anon RLS: ${anonRls}; 2FA: not implemented`,
+    anonExposed
+      ? 'Run supabase-migration-020-fix-permissive-rls.sql in Supabase SQL Editor, then npm run security:verify-anon-rls'
+      : missingHeaders.length
+        ? 'Check next.config.js headers on production'
+        : null
   )
 
   report.warnings.push({

@@ -39,13 +39,39 @@ WHERE conrelid = 'public.uploaded_documents'::regclass
   AND conname LIKE '%document_type%';
 
 -- ---------------------------------------------------------------------------
--- 4. Storage buckets — client-files should ideally be private (public = false)
--- Expected: credit-funding-docs public=false; client-files public=false (after fix)
+-- 4. Storage buckets — private vaults vs public marketing
+-- Expected: credit-funding-docs / client-files / dispute-letters public=false
+--           client-case-studies public=true (intentional)
 -- ---------------------------------------------------------------------------
 SELECT id, name, public, file_size_limit
 FROM storage.buckets
-WHERE id IN ('credit-funding-docs', 'client-files')
+WHERE id IN ('credit-funding-docs', 'client-files', 'dispute-letters', 'client-case-studies')
 ORDER BY id;
+
+-- ---------------------------------------------------------------------------
+-- 4b. Migration 020 — no always-true policies remain on public tables
+-- Expected: 0 rows
+-- ---------------------------------------------------------------------------
+SELECT tablename, policyname, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND (qual = 'true' OR with_check = 'true')
+ORDER BY tablename, policyname;
+
+-- ---------------------------------------------------------------------------
+-- 4c. Core CRM / auth tables have RLS enabled
+-- Expected: relrowsecurity = true for all rows
+-- ---------------------------------------------------------------------------
+SELECT c.relname AS table_name, c.relrowsecurity AS rls_enabled
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'r'
+  AND c.relname IN (
+    'users', 'clients', 'leads', 'admin_data', 'activity_log',
+    'messages', 'files', 'notifications', 'client_meetings'
+  )
+ORDER BY c.relname;
 
 -- ---------------------------------------------------------------------------
 -- 5. Core tables exist (migrations 008–010)

@@ -101,14 +101,15 @@ Apply `supabase-migration-005-stripe-webhook-events.sql` (or the matching block 
 
 ## Client file vault (Supabase Storage)
 
-Admin and client **Document vault** uploads go to a **public** Storage bucket `client-files` (object keys include UUIDs). One-time setup:
+Admin and client **Document vault** uploads go to a **private** Storage bucket `client-files`. The app serves downloads via **signed URLs** (`src/lib/client-files-storage.ts`).
 
-1. In Supabase **SQL Editor**, run [`supabase-migration-006-client-files-bucket.sql`](supabase-migration-006-client-files-bucket.sql) **or** create a bucket named `client-files` in **Storage** and mark it **Public** with a **4 MB** file size limit if you prefer the dashboard.
+1. Prefer [`supabase-migration-017-client-files-private.sql`](supabase-migration-017-client-files-private.sql) and [`supabase-migration-020-fix-permissive-rls.sql`](supabase-migration-020-fix-permissive-rls.sql) (private bucket + deny-by-default RLS). Do **not** leave `client-files` public.
 2. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set (same as the rest of the app).
+3. Verify anon cannot read CRM tables: `npm run security:verify-anon-rls`.
 
 **Limits:** uploads are capped at **4 MB** per file in code (`src/lib/client-files-storage.ts`) to stay within typical **Vercel serverless request body** limits. Raising the limit requires a compatible Vercel plan and confidence your function timeout and body parser behavior support larger payloads.
 
-**Allowed types:** PDF, common images, plain text, CSV, Word, Excel, zip (see allowlist in `client-files-storage.ts`). Deletes remove both the DB row and the Storage object when the `file_url` is a Supabase public object URL for this bucket.
+**Allowed types:** PDF, common images, plain text, CSV, Word, Excel, zip (see allowlist in `client-files-storage.ts`). Deletes remove both the DB row and the Storage object when the path resolves to this bucket.
 
 ## Admin Leads — Google Places discovery
 

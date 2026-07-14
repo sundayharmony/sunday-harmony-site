@@ -11,6 +11,9 @@
     "test:e2e": "playwright test",
     "test:unit": "npx tsx --test src/lib/__tests__/*.test.ts",
     "diagnostic:prod": "node scripts/diagnostic-production.mjs",
+    "security:verify-anon-rls": "node scripts/verify-anon-rls.mjs",
+    "security:apply-rls-020": "node scripts/apply-migration-020-rls.mjs",
+    "security:invalidate-exposed-auth": "node scripts/invalidate-exposed-auth.mjs",
     "auto-sync": "powershell -ExecutionPolicy Bypass -File ./auto-sync.ps1 -Branch auto-sync -RunChecks"
   },
   "dependencies": {
@@ -25,6 +28,7 @@
     "next-auth": "^4.24.11",
     "nodemailer": "^8.0.7",
     "pdfjs-dist": "^4.10.38",
+    "pg": "^8.22.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "stripe": "^22.1.0"
