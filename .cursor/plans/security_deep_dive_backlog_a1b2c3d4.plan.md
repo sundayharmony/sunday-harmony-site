@@ -10,10 +10,10 @@ todos:
     status: completed
   - id: area-03-service-role
     content: "P0 — Service-role key concentration + secret/env hygiene"
-    status: pending
+    status: completed
   - id: area-04-password-crypto
     content: "P1 — Password hashing/compare hardening (PBKDF2 cost, timingSafeEqual)"
-    status: pending
+    status: in_progress
   - id: area-05-csp-xss
     content: "P1 — CSP tightening + dangerouslySetInnerHTML (dispute letters)"
     status: pending
@@ -92,8 +92,8 @@ Do not combine areas in one pass unless you explicitly allow it.
 |------|--------|-----------|----------|-------------|
 | 01 Storage + RLS | done | 2026-07-14 | [fix plan](security_area_01_storage_rls_fix_plan.md) | verified PASS |
 | 02 Admin MFA / takeover | done | 2026-07-14 | [fix plan](security_area_02_admin_mfa_fix_plan.md) | code shipped; run migration 025 |
-| 03 Service-role / secrets | pending | — | — | — |
-| 04 Password crypto | pending | — | — | — |
+| 03 Service-role / secrets | done | 2026-07-14 | [fix plan](security_area_03_secrets_hygiene_fix_plan.md) | shipped; rotation deferred |
+| 04 Password crypto | plan-ready | 2026-07-14 | [fix plan](security_area_04_password_crypto_fix_plan.md) | — |
 | 05 CSP + XSS | pending | — | — | — |
 | 06 API authz | pending | — | — | — |
 | 07 Rate limits | pending | — | — | — |
