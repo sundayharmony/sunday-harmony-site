@@ -85,6 +85,11 @@ NOTIFY_EMAIL=sales@sundayharmony.com
 3. Add environment variables in Vercel dashboard
 4. Deploy
 
+Keep production credentials in the hosting dashboards and use only `.env.local`
+for local development. Every `.env.*` file is gitignored except
+`.env.example`. Before committing, run `npm run security:scan-secrets` to scan
+the staged files for common credential formats.
+
 ### Netlify
 
 1. Set `output: 'export'` in `next.config.js` (for static export)
@@ -104,7 +109,7 @@ Apply `supabase-migration-005-stripe-webhook-events.sql` (or the matching block 
 Admin and client **Document vault** uploads go to a **private** Storage bucket `client-files`. The app serves downloads via **signed URLs** (`src/lib/client-files-storage.ts`).
 
 1. Prefer [`supabase-migration-017-client-files-private.sql`](supabase-migration-017-client-files-private.sql) and [`supabase-migration-020-fix-permissive-rls.sql`](supabase-migration-020-fix-permissive-rls.sql) (private bucket + deny-by-default RLS). Do **not** leave `client-files` public.
-2. Ensure `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set (same as the rest of the app).
+2. Ensure `NEXT_PUBLIC_SUPABASE_URL` and the server-only `SUPABASE_SECRET_KEY` are set. The legacy `SUPABASE_SERVICE_ROLE_KEY` name remains supported as a fallback. Never expose either key through a `NEXT_PUBLIC_` variable.
 3. Verify anon cannot read CRM tables: `npm run security:verify-anon-rls`.
 
 **Limits:** uploads are capped at **4 MB** per file in code (`src/lib/client-files-storage.ts`) to stay within typical **Vercel serverless request body** limits. Raising the limit requires a compatible Vercel plan and confidence your function timeout and body parser behavior support larger payloads.

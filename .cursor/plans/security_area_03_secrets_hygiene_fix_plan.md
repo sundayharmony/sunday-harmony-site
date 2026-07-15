@@ -4,25 +4,25 @@ overview: "Service-role key is correctly server-only and no secrets are in git h
 todos:
   - id: gitignore-gap
     content: "Ignore all .env.* secret dumps (.env.vercel.production, .env.migration-check, .env.railway-deploy)"
-    status: pending
+    status: completed
   - id: scrub-local-dumps
     content: "Consolidate to one local secret file; delete redundant dumps + loose probe scripts"
-    status: pending
+    status: completed
   - id: key-name-standardize
     content: "Confirm prod Supabase key name (SERVICE_ROLE vs SECRET) and standardize supabase.ts"
-    status: pending
+    status: completed
   - id: secret-scan-guard
     content: "Add pre-commit / npm secret-scan to block committing keys"
-    status: pending
+    status: completed
   - id: rotation-decision
-    content: "Decide whether to rotate service-role key + DB password (disruptive)"
-    status: pending
+    content: "Rotation deferred pending explicit approval; no evidence of a repository leak"
+    status: completed
 isProject: false
 ---
 
 # Area 03 — Deep dive + fix plan
 
-**Status:** plan-ready (awaiting permission to implement)
+**Status:** implemented (credential rotation deferred pending explicit approval)
 **Priority:** P0 (last of the three)
 **Scope:** How the service-role key and other secrets are stored, exposed, and rotated.
 
@@ -137,8 +137,8 @@ Rotation is disruptive (requires updating Vercel + Railway + local), so this is 
 
 ## Success criteria
 
-- [ ] No live-secret file can be committed without tripping ignore rules + scan
-- [ ] Only `.env.example` is tracked
-- [ ] One canonical local env file
-- [ ] `supabase.ts` works with either Supabase key name
-- [ ] Rotation decision recorded (done or explicitly deferred)
+- [x] No live-secret file can be committed without tripping ignore rules + scan
+- [x] Only `.env.example` is tracked
+- [x] One canonical local env file
+- [x] `supabase.ts` works with either Supabase key name
+- [x] Rotation decision recorded (deferred pending explicit approval)

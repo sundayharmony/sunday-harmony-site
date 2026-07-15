@@ -14,6 +14,8 @@
     "security:verify-anon-rls": "node scripts/verify-anon-rls.mjs",
     "security:apply-rls-020": "node scripts/apply-migration-020-rls.mjs",
     "security:invalidate-exposed-auth": "node scripts/invalidate-exposed-auth.mjs",
+    "security:scan-secrets": "node scripts/scan-staged-secrets.mjs",
+    "security:scan-secrets:self-test": "node scripts/scan-staged-secrets.mjs --self-test",
     "auto-sync": "powershell -ExecutionPolicy Bypass -File ./auto-sync.ps1 -Branch auto-sync -RunChecks"
   },
   "dependencies": {

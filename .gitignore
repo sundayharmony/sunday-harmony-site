@@ -9,12 +9,10 @@ out/
 build/
 dist/
 
-# Environment
+# Environment (keep only the placeholder template trackable)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
 # Debug
 npm-debug.log*
@@ -47,4 +45,3 @@ __pycache__/
 /playwright/.cache/
 
 .vercel
-.env*.local
