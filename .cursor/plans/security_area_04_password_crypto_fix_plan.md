@@ -4,22 +4,22 @@ overview: "Password hashes use PBKDF2-SHA512 at only 10,000 iterations with a no
 todos:
   - id: versioned-hash
     content: "New versioned hash format at 210k iterations + timingSafeEqual verify"
-    status: pending
+    status: completed
   - id: rehash-on-login
     content: "Transparent rehash-on-login for legacy 10k-iteration hashes"
-    status: pending
+    status: completed
   - id: tests
     content: "Unit tests: legacy verify, new verify, rehash detection, tamper cases"
-    status: pending
+    status: completed
   - id: verify-push
     content: "Typecheck + tests, commit, push"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 04 — Deep dive + fix plan
 
-**Status:** plan-ready (awaiting permission to implement)
+**Status:** implemented
 **Priority:** P1 (first after the P0s)
 **Scope:** `hashPassword` / `verifyPassword` in `src/lib/db.ts` and every caller.
 
@@ -49,7 +49,8 @@ Callers (all go through these two functions — single choke point, good):
 | `src/app/api/dashboard/settings/route.ts` (change password) | `verifyPassword` + `updateUser` → `hashPassword` |
 | `src/app/api/auth/reset-password/route.ts` | `hashPassword` |
 | `src/lib/db.ts` `createUser` / `updateUser` / `seedAdmin` | `hashPassword` |
-| `scripts/invalidate-exposed-auth.mjs` | reimplements the same format (must stay in sync) |
+| `scripts/invalidate-exposed-auth.mjs` | imports the shared password hasher |
+| `scripts/provision-credit-manager.mjs` | imports the shared password hasher |
 
 ## Findings
 
@@ -97,9 +98,9 @@ Format is bare `salt:hash` with iterations implied. Raising iterations naively w
 - Same in the change-password route's current-password check (it rehashes anyway via update).
 - Result: every active user upgrades to 210k on next login with zero disruption; stale accounts stay verifiable via the legacy path.
 
-### Step 3 — Sync the ops script
+### Step 3 — Sync the ops scripts
 
-- `scripts/invalidate-exposed-auth.mjs` duplicates the old hash format; update it to emit the new format (per the no-duplicate-code rule, keep the format constants in one place as far as an `.mjs` script allows).
+- `scripts/invalidate-exposed-auth.mjs` and `scripts/provision-credit-manager.mjs` now import the shared TypeScript implementation and run through `tsx`; neither duplicates the password format.
 
 ### Step 4 — Tests
 
@@ -116,8 +117,8 @@ Low. Legacy verification path keeps every existing hash working; new format only
 
 ## Success criteria
 
-- [ ] New hashes at 210,000 iterations, versioned format
-- [ ] `timingSafeEqual` everywhere passwords are compared
-- [ ] Legacy hashes verify and upgrade on login
-- [ ] Malformed hashes fail closed without exceptions
-- [ ] Unit tests cover legacy/new/malformed paths
+- [x] New hashes at 210,000 iterations, versioned format
+- [x] `timingSafeEqual` everywhere passwords are compared
+- [x] Legacy hashes verify and upgrade on login
+- [x] Malformed hashes fail closed without exceptions
+- [x] Unit tests cover legacy/new/malformed paths

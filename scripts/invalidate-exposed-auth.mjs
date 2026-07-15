@@ -6,15 +6,16 @@
  *
  * Does NOT email users. Affected accounts must use forgot-password after this runs.
  *
- * Usage: node scripts/invalidate-exposed-auth.mjs
- *        node scripts/invalidate-exposed-auth.mjs --all-users
- * Dry run:  node scripts/invalidate-exposed-auth.mjs --dry-run
+ * Usage: npx tsx scripts/invalidate-exposed-auth.mjs
+ *        npx tsx scripts/invalidate-exposed-auth.mjs --all-users
+ * Dry run:  npx tsx scripts/invalidate-exposed-auth.mjs --dry-run
  */
 import { readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
+import { hashPassword } from '../src/lib/password-crypto.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const dryRun = process.argv.includes('--dry-run')
@@ -41,12 +42,6 @@ function loadEnv(path) {
     env[k] = v
   }
   return env
-}
-
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex')
-  return `${salt}:${hash}`
 }
 
 function pick(envList, keys) {

@@ -1,23 +1,16 @@
-import crypto from 'crypto'
 import { getSupabase } from './supabase'
+import {
+  hashPassword,
+  passwordNeedsRehash,
+  verifyPassword,
+} from './password-crypto'
+
+export { hashPassword, passwordNeedsRehash, verifyPassword }
 
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Database Layer â Supabase (PostgreSQL)
 // All functions are async now
 // ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-
-// ââââââââââ PASSWORD HASHING ââââââââââ
-export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex')
-  return `${salt}:${hash}`
-}
-
-export function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(':')
-  const verify = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex')
-  return hash === verify
-}
 
 // ââââââââââ USERS ââââââââââ
 export interface User {
@@ -79,6 +72,31 @@ export async function updateUser(id: string, updates: Partial<Omit<User, 'id'>>)
   const { data, error } = await getSupabase().from('users').update(updates).eq('id', id).select().single()
   if (error) { console.error('updateUser error:', error); return null }
   return data
+}
+
+export async function upgradeUserPasswordHash(
+  id: string,
+  password: string,
+  storedHash: string
+): Promise<boolean> {
+  if (!passwordNeedsRehash(storedHash)) return true
+
+  try {
+    const { error } = await getSupabase()
+      .from('users')
+      .update({ password: hashPassword(password) })
+      .eq('id', id)
+      .eq('password', storedHash)
+
+    if (error) {
+      console.error('upgradeUserPasswordHash error:', error)
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('upgradeUserPasswordHash error:', error)
+    return false
+  }
 }
 
 export async function deleteUser(id: string): Promise<boolean> {

@@ -1,7 +1,7 @@
 /**
  * Provision a staff credit_manager (or other role) in production Supabase + send setup email.
  * Usage:
- *   node scripts/provision-credit-manager.mjs --email user@example.com --name "Full Name" [--role credit_manager] [--site-url https://www.sundayharmony.com]
+ *   npx tsx scripts/provision-credit-manager.mjs --email user@example.com --name "Full Name" [--role credit_manager] [--site-url https://www.sundayharmony.com]
  */
 import fs from 'fs'
 import path from 'path'
@@ -9,6 +9,7 @@ import crypto from 'crypto'
 import { fileURLToPath } from 'url'
 import { createClient } from '@supabase/supabase-js'
 import nodemailer from 'nodemailer'
+import { hashPassword } from '../src/lib/password-crypto.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -79,12 +80,6 @@ function parseArgs(argv) {
     else if (a === '--site-url') out.siteUrl = argv[++i]
   }
   return out
-}
-
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex')
-  return `${salt}:${hash}`
 }
 
 function tokenPepper() {

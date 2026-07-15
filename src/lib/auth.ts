@@ -1,7 +1,12 @@
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import crypto from 'crypto'
-import { getUserByEmail, verifyPassword, seedAdmin } from './db'
+import {
+  getUserByEmail,
+  seedAdmin,
+  upgradeUserPasswordHash,
+  verifyPassword,
+} from './db'
 import { rateLimitDurable } from './rate-limit-durable'
 import {
   consumeBackupCode,
@@ -71,6 +76,10 @@ export const authOptions: NextAuthOptions = {
 
         const valid = verifyPassword(credentials.password, user.password)
         if (!valid) return null
+
+        // One-time upgrade for legacy/under-cost hashes. A failed write must not
+        // reject an otherwise valid login; the next login will retry it.
+        await upgradeUserPasswordHash(user.id, credentials.password, user.password)
 
         const staff = isStaffRole(user.role)
         if (!staff) {
