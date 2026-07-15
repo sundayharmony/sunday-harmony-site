@@ -4,25 +4,25 @@ overview: "The setup endpoint and admin seed are already well-gated, and product
 todos:
   - id: timing-safe-secrets
     content: "Use timing-safe comparison for SETUP_TOKEN and CRON_SECRET checks"
-    status: pending
+    status: completed
   - id: setup-honest-response
     content: "Make /api/setup report when seeding was skipped instead of claiming success"
-    status: pending
+    status: completed
   - id: dead-code-cleanup
     content: "Remove unused ensureSeedAdmin export and stray setup route comment"
-    status: pending
+    status: completed
   - id: gitignore-diagnostics
     content: "Gitignore diagnostic-report.* local dumps"
-    status: pending
+    status: completed
   - id: tests
     content: "Add focused test coverage for setup/ops gating"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 12 - Deep Dive + Fix Plan
 
-**Status:** plan-ready (awaiting implement)
+**Status:** implemented and verified
 **Priority:** P2
 **Scope:** `/api/setup`, `seedAdmin`, `/api/internal/cleanup-credit-funding-staging`, bootstrap env vars, operational scripts, and local artifact hygiene.
 
@@ -103,11 +103,28 @@ When `ADMIN_PASSWORD` is unset, `seedAdmin()` silently returns, but the route st
 
 ## Acceptance criteria
 
-- [ ] Setup token and cron secret comparisons are timing-safe.
-- [ ] `/api/setup` distinguishes seeded vs skipped outcomes without leaking account details.
-- [ ] `ensureSeedAdmin` dead code and stray comments removed.
-- [ ] `diagnostic-report.*` ignored by git.
-- [ ] Focused tests, full unit tests, typecheck, and build pass.
+- [x] Setup token and cron secret comparisons are timing-safe.
+- [x] `/api/setup` distinguishes seeded vs skipped outcomes without leaking account details.
+- [x] `ensureSeedAdmin` dead code and stray comments removed.
+- [x] `diagnostic-report.*` ignored by git.
+- [x] Focused tests, full unit tests, typecheck, and build pass.
+
+---
+
+## Implementation notes
+
+- Added `timingSafeStringEqual()` and used it for `SETUP_TOKEN` and `CRON_SECRET` checks.
+- `seedAdmin()` now returns a `SeedAdminResult`; `/api/setup` reports skipped seeding with a non-success payload instead of claiming the admin was seeded.
+- Removed the unused `ensureSeedAdmin` wrapper and the stale setup route comment.
+- Added `diagnostic-report.*` to `.gitignore`.
+- Added Area 12 tests in `src/lib/__tests__/setup-ops-security.test.ts`.
+
+## Verification
+
+- `npx tsx --test src/lib/__tests__/setup-ops-security.test.ts`
+- `npm run test:unit`
+- `npm run typecheck`
+- `npm run build` (passes with existing `<img>` optimization warnings outside this change)
 
 ---
 

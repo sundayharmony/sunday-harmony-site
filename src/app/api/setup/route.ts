@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { seedAdmin } from '@/lib/db'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { timingSafeStringEqual } from '@/lib/timing-safe'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,18 +33,35 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    if (!body.token || body.token !== setupToken) {
+    if (!timingSafeStringEqual(String(body.token || ''), setupToken)) {
       return NextResponse.json(
         { error: 'Invalid setup token' },
         { status: 401 }
       )
     }
 
-    await seedAdmin()
+    const result = await seedAdmin()
+    if (!result.seeded) {
+      const message =
+        result.reason === 'already_seeded_this_process'
+          ? 'Admin seed already processed in this runtime.'
+          : 'Admin seed was skipped. Check server configuration.'
+
+      return NextResponse.json(
+        {
+          success: false,
+          seeded: false,
+          reason: result.reason,
+          message,
+        },
+        { status: result.reason === 'already_seeded_this_process' ? 200 : 409 }
+      )
+    }
 
     // Only confirm success — never leak admin details
     return NextResponse.json({
       success: true,
+      seeded: true,
       message: 'Admin account has been seeded.',
     })
   } catch (error: unknown) {
@@ -54,6 +72,3 @@ export async function POST(req: NextRequest) {
     )
   }
 }
-
-// Bug fix: add try-catch around seedAdmin
-

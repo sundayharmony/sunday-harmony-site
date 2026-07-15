@@ -3,7 +3,6 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import crypto from 'crypto'
 import {
   getUserByEmail,
-  seedAdmin,
   upgradeUserPasswordHash,
   verifyPassword,
 } from './db'
@@ -268,9 +267,4 @@ export const authOptions: NextAuthOptions = {
   },
   useSecureCookies: process.env.NODE_ENV === 'production',
   secret: process.env.NEXTAUTH_SECRET,
-}
-
-/** One-shot admin seed for setup scripts — not called from authorize. */
-export async function ensureSeedAdmin(): Promise<void> {
-  await seedAdmin()
 }

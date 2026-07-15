@@ -896,16 +896,20 @@ export async function releaseStripeWebhookEvent(eventId: string): Promise<void> 
 
 let adminSeededThisProcess = false
 
+export type SeedAdminResult =
+  | { seeded: true; reason: 'created_or_exists' }
+  | { seeded: false; reason: 'already_seeded_this_process' | 'missing_admin_password' | 'database_error' }
+
 // ââââââââââ SEED DEFAULT ADMIN ââââââââââ
-export async function seedAdmin(): Promise<void> {
-  if (adminSeededThisProcess) return
+export async function seedAdmin(): Promise<SeedAdminResult> {
+  if (adminSeededThisProcess) return { seeded: false, reason: 'already_seeded_this_process' }
 
   const adminPass = process.env.ADMIN_PASSWORD
   if (!adminPass) {
     if (process.env.NODE_ENV === 'production') {
       console.error('seedAdmin: ADMIN_PASSWORD is required in production')
     }
-    return
+    return { seeded: false, reason: 'missing_admin_password' }
   }
 
   try {
@@ -922,11 +926,14 @@ export async function seedAdmin(): Promise<void> {
       )
     if (error && !error.message?.includes('duplicate') && !error.code?.startsWith('23')) {
       console.error('seedAdmin error:', error)
+      return { seeded: false, reason: 'database_error' }
     } else {
       adminSeededThisProcess = true
+      return { seeded: true, reason: 'created_or_exists' }
     }
   } catch (err) {
-    // Silently ignore seed failures â the admin likely already exists
+    console.error('seedAdmin error:', err)
+    return { seeded: false, reason: 'database_error' }
   }
 }
 
