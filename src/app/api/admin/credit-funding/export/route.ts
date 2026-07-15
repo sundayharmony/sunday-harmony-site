@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
-import { maskEmail, maskPhone } from '@/lib/field-encryption'
+import { decryptFieldOrLegacy, maskEmail, maskPhone } from '@/lib/field-encryption'
 import { getCreditFundingApplications } from '@/lib/credit-funding-db'
 
 export const dynamic = 'force-dynamic'
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       a.application_id,
       a.full_name,
       maskEmail(a.email),
-      maskPhone(a.phone),
+      maskPhone(decryptFieldOrLegacy(a.phone)),
       a.service_type || '',
       a.assigned_specialist || '',
       (a.credit_goals || []).join('; '),

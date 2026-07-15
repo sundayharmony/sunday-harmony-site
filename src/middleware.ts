@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
-import { isStaffRole } from '@/lib/mfa-totp'
+import { isStaffRole } from '@/lib/staff-roles'
 
 /**
  * Page-route auth only. `/api/*` is NOT matched — each API route must enforce its own auth

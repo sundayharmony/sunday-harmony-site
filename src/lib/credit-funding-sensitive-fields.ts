@@ -1,6 +1,24 @@
-import { decryptField, decryptFieldOrLegacy, encryptField, encryptFieldIfPresent } from '@/lib/field-encryption'
+import {
+  decryptField,
+  decryptFieldOrLegacy,
+  encryptField,
+  encryptFieldIfPresent,
+  maskSecret,
+} from '@/lib/field-encryption'
 import type { BusinessProfile, CreditFundingApplication, CreditProfile } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
+
+const REDACTED = '••••••••'
+
+export function encryptFreeTextForDb(value: string | undefined | null): string | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value?.trim() || ''
+  return trimmed ? encryptField(trimmed) : ''
+}
+
+export function decryptFreeTextForView(value: string | undefined | null): string {
+  return value ? decryptFieldOrLegacy(value) : ''
+}
 
 export function encryptCreditProfileForDb(profile: CreditProfile): CreditProfile {
   return {
@@ -127,6 +145,38 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
   }
 }
 
+export function buildEncryptedInvitationRow(params: {
+  fullName: string
+  email: string
+  phone: string
+  clientId?: string
+  inviteExpiresAt: Date
+  personalMessage?: string
+}) {
+  return {
+    full_name: params.fullName.trim(),
+    email: params.email.trim().toLowerCase(),
+    phone: encryptField(params.phone),
+    address: encryptField('Pending'),
+    city: encryptField('Pending'),
+    state: encryptField('XX'),
+    zip_code: encryptField('00000'),
+    credit_profile: {},
+    selected_credit_provider: 'Pending',
+    credit_goals: [],
+    funding_goals: '',
+    consent_data: {},
+    typed_signature: encryptField('Pending'),
+    signature_date: new Date().toISOString().slice(0, 10),
+    status: 'invitation_pending',
+    service_type: 'credit_and_funding',
+    credit_funding_client_status: 'intake_started',
+    client_id: params.clientId || null,
+    invite_expires_at: params.inviteExpiresAt.toISOString(),
+    invite_personal_message: encryptFreeTextForDb(params.personalMessage) || null,
+  }
+}
+
 export function decryptApplicationSensitiveFields(app: CreditFundingApplication) {
   return {
     ...app,
@@ -143,6 +193,10 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     experian_password: decryptField(app.experian_password_encrypted || ''),
     cfpb_email: decryptField(app.cfpb_email_encrypted || ''),
     cfpb_password: decryptField(app.cfpb_password_encrypted || ''),
+    internal_notes: decryptFreeTextForView(app.internal_notes),
+    client_notes: decryptFreeTextForView(app.client_notes),
+    next_steps: decryptFreeTextForView(app.next_steps),
+    invite_personal_message: decryptFreeTextForView(app.invite_personal_message),
     primary_credit_goals_text: app.primary_credit_goals_text
       ? decryptFieldOrLegacy(app.primary_credit_goals_text)
       : app.primary_credit_goals_text,
@@ -160,5 +214,63 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     experian_password_encrypted: undefined,
     cfpb_email_encrypted: undefined,
     cfpb_password_encrypted: undefined,
+  }
+}
+
+export function decryptApplicationOperationalFields(app: CreditFundingApplication) {
+  return {
+    ...app,
+    phone: decryptFieldOrLegacy(app.phone),
+    address: decryptFieldOrLegacy(app.address),
+    city: decryptFieldOrLegacy(app.city),
+    state: decryptFieldOrLegacy(app.state),
+    zip_code: decryptFieldOrLegacy(app.zip_code),
+    internal_notes: decryptFreeTextForView(app.internal_notes),
+    client_notes: decryptFreeTextForView(app.client_notes),
+    next_steps: decryptFreeTextForView(app.next_steps),
+    invite_personal_message: decryptFreeTextForView(app.invite_personal_message),
+    primary_credit_goals_text: app.primary_credit_goals_text
+      ? decryptFieldOrLegacy(app.primary_credit_goals_text)
+      : app.primary_credit_goals_text,
+    goals_notes: app.goals_notes ? decryptFieldOrLegacy(app.goals_notes) : app.goals_notes,
+    credit_profile: decryptCreditProfileForAdmin(app.credit_profile || {}),
+    business_profile: app.business_profile
+      ? deserializeBusinessProfileForAdmin(app.business_profile as Record<string, unknown>)
+      : app.business_profile,
+    date_of_birth_encrypted: undefined,
+    ssn_encrypted: undefined,
+    provider_username_encrypted: undefined,
+    provider_password_encrypted: undefined,
+    experian_email_encrypted: undefined,
+    experian_password_encrypted: undefined,
+    cfpb_email_encrypted: undefined,
+    cfpb_password_encrypted: undefined,
+  }
+}
+
+export function redactApplicationSecretsForDefaultAdmin(app: CreditFundingApplication) {
+  const operational = decryptApplicationOperationalFields(app)
+  return {
+    ...operational,
+    date_of_birth: app.date_of_birth_encrypted ? maskSecret(app.date_of_birth_encrypted) : '',
+    ssn: app.ssn_encrypted ? REDACTED : '',
+    provider_username: app.provider_username_encrypted ? REDACTED : '',
+    provider_password: app.provider_password_encrypted ? REDACTED : '',
+    experian_email: app.experian_email_encrypted ? REDACTED : '',
+    experian_password: app.experian_password_encrypted ? REDACTED : '',
+    cfpb_email: app.cfpb_email_encrypted ? REDACTED : '',
+    cfpb_password: app.cfpb_password_encrypted ? REDACTED : '',
+    typed_signature: app.typed_signature ? REDACTED : '',
+    credit_profile: {
+      ...(operational.credit_profile || {}),
+      monthlyGrossIncome: operational.credit_profile?.monthlyGrossIncome ? REDACTED : '',
+      annualIncome: operational.credit_profile?.annualIncome ? REDACTED : '',
+    },
+    business_profile: operational.business_profile
+      ? {
+          ...operational.business_profile,
+          ein: operational.business_profile.ein ? REDACTED : '',
+        }
+      : operational.business_profile,
   }
 }

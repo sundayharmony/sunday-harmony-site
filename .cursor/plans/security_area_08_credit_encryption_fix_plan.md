@@ -4,28 +4,28 @@ overview: "Credit-funding intake encrypts many high-risk fields, and production 
 todos:
   - id: admin-secret-reveal
     content: "Stop returning SSN/passwords in the normal admin detail payload; add explicit reveal endpoints with audit logging"
-    status: pending
+    status: completed
   - id: free-text-encryption
     content: "Encrypt credit-funding messages, status notes, document request notes, and staff/client workflow notes at rest"
-    status: pending
+    status: completed
   - id: list-query-minimization
     content: "Replace broad select('*') list paths with explicit summary/detail selects"
-    status: pending
+    status: completed
   - id: invitation-phone
     content: "Encrypt phone and placeholder sensitive fields on staff-created invitation rows"
-    status: pending
+    status: completed
   - id: ciphertext-format
     content: "Add a versioned ciphertext prefix/key-id format while preserving legacy decrypt fallback"
-    status: pending
+    status: completed
   - id: tests
     content: "Add focused encryption coverage tests for create/update/read formatting and secret reveal behavior"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 08 - Deep Dive + Fix Plan
 
-**Status:** plan-ready (awaiting permission to implement)
+**Status:** implemented and verified
 **Priority:** P1
 **Scope:** Credit-funding PII and sensitive data at rest, in API payloads, and in admin/client presentation.
 
@@ -182,9 +182,22 @@ Document upload paths include sanitized original filenames after a UUID. If a us
 
 ## Success Criteria
 
-- [ ] Opening an admin application detail no longer returns SSN/passwords by default.
-- [ ] Sensitive fields can be revealed only through a deliberate audited endpoint.
-- [ ] Credit-funding messages/notes/request notes are encrypted at rest with legacy read fallback.
-- [ ] Admin list/export paths avoid broad `select('*')` and do not fetch credential/SSN columns.
-- [ ] Pending invitation rows no longer store phone numbers in plaintext.
-- [ ] New ciphertext is versioned while old ciphertext remains readable.
+- [x] Opening an admin application detail no longer returns SSN/passwords by default.
+- [x] Sensitive fields can be revealed only through a deliberate audited endpoint.
+- [x] Credit-funding messages/notes/request notes are encrypted at rest with legacy read fallback.
+- [x] Admin list/export paths avoid broad `select('*')` and do not fetch credential/SSN columns.
+- [x] Pending invitation rows no longer store phone numbers in plaintext.
+- [x] New ciphertext is versioned while old ciphertext remains readable.
+
+---
+
+## Implementation Notes
+
+- `encryptField` now writes `enc:v1:` ciphertext while `decryptField` keeps raw-base64 legacy compatibility.
+- Admin credit-funding detail responses redact SSN, DOB, login credentials, passwords, signature, income, and business EIN by default.
+- Sensitive field access is available through an explicit MFA-protected reveal endpoint with per-user rate limiting and `sensitive_field_revealed` activity logging.
+- The admin UI now reveals sensitive fields one at a time instead of rendering them directly.
+- Credit-funding messages, status notes, document request notes, internal/client notes, next steps, invitation personal messages, and staff-created invitation phone/placeholder fields are encrypted on write and decrypted on authorized reads.
+- Admin list queries now use an explicit summary select, and CSV export decrypts phone before masking.
+- The shared `isStaffRole` helper was split into an edge-safe module so middleware no longer pulls Node crypto through the MFA TOTP module.
+- Focused tests passed: `credit-funding-encryption.test.ts` and `mfa-totp.test.ts`. `npm run typecheck` and `npm run build` passed. Build retains pre-existing image/useMemo warnings in credit-funding UI files.

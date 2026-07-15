@@ -3,14 +3,11 @@ import * as OTPAuth from 'otpauth'
 import QRCode from 'qrcode'
 import { decryptField, encryptField } from '@/lib/field-encryption'
 import { hashVerificationToken, verificationTokenMatches } from '@/lib/verification-token'
+export { isStaffRole } from '@/lib/staff-roles'
 
 const ISSUER = 'Sunday Harmony'
 const BACKUP_CODE_COUNT = 8
 const BACKUP_CODE_BYTES = 4
-
-export function isStaffRole(role?: string | null): boolean {
-  return role === 'admin' || role === 'credit_manager'
-}
 
 export function generateTotpSecret(): string {
   const secret = new OTPAuth.Secret({ size: 20 })

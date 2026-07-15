@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
-import { isStaffRole } from '@/lib/mfa-totp'
+import { isStaffRole } from '@/lib/staff-roles'
 
 /** Staff with completed password step who still need MFA verify or enrollment. */
 export async function requireStaffMfaBootstrapSession() {

@@ -2,6 +2,9 @@ import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
+import { isStaffRole as isSharedStaffRole } from '@/lib/staff-roles'
+
+export { isStaffRole } from '@/lib/staff-roles'
 
 export type UserRole = 'admin' | 'client' | 'credit_manager'
 
@@ -10,11 +13,7 @@ export function isAdminRole(role?: string | null): boolean {
 }
 
 export function isCreditFundingStaffRole(role?: string | null): boolean {
-  return role === 'admin' || role === 'credit_manager'
-}
-
-export function isStaffRole(role?: string | null): boolean {
-  return isCreditFundingStaffRole(role)
+  return isSharedStaffRole(role)
 }
 
 export function resolveAdminAccess(

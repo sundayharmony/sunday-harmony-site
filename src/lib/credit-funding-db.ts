@@ -14,7 +14,12 @@ import type {
 import { deriveServiceType, deriveLeadTypeFromIntake, isStaffSharedDocument } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
-import { buildEncryptedApplicationRow } from '@/lib/credit-funding-sensitive-fields'
+import {
+  buildEncryptedApplicationRow,
+  buildEncryptedInvitationRow,
+  decryptFreeTextForView,
+  encryptFreeTextForDb,
+} from '@/lib/credit-funding-sensitive-fields'
 import { decryptFieldOrLegacy } from '@/lib/field-encryption'
 import { APPLICATION_INVITE_TTL_MS } from '@/lib/credit-funding-invite'
 import {
@@ -29,6 +34,26 @@ export function generateApplicationId(): string {
   const suffix = randomBytes(3).toString('hex').toUpperCase()
   return `CF-${ymd}-${suffix}`
 }
+
+const CREDIT_FUNDING_LIST_SELECT = [
+  'id',
+  'application_id',
+  'full_name',
+  'email',
+  'phone',
+  'service_type',
+  'credit_goals',
+  'funding_goals',
+  'selected_credit_provider',
+  'status',
+  'assigned_specialist',
+  'funding_amount',
+  'funding_use',
+  'invite_expires_at',
+  'invite_personal_message',
+  'created_at',
+  'updated_at',
+].join(', ')
 
 export async function createCreditFundingApplication(
   payload: IntakeFormPayload,
@@ -107,26 +132,14 @@ export async function createInvitedCreditFundingApplication(params: {
 
   const row: Record<string, unknown> = {
     application_id: applicationId,
-    full_name: params.fullName.trim(),
-    email: normalizedEmail,
-    phone,
-    address: INVITE_PLACEHOLDER,
-    city: INVITE_PLACEHOLDER,
-    state: 'XX',
-    zip_code: '00000',
-    credit_profile: {},
-    selected_credit_provider: INVITE_PLACEHOLDER,
-    credit_goals: [],
-    funding_goals: '',
-    consent_data: {},
-    typed_signature: INVITE_PLACEHOLDER,
-    signature_date: new Date().toISOString().slice(0, 10),
-    status: 'invitation_pending',
-    service_type: 'credit_and_funding',
-    credit_funding_client_status: 'intake_started',
-    client_id: params.clientId || null,
-    invite_expires_at: inviteExpiresAt.toISOString(),
-    invite_personal_message: params.personalMessage?.trim() || null,
+    ...buildEncryptedInvitationRow({
+      fullName: params.fullName,
+      email: normalizedEmail,
+      phone,
+      clientId: params.clientId,
+      inviteExpiresAt,
+      personalMessage: params.personalMessage,
+    }),
   }
 
   const { data, error } = await getSupabase()
@@ -161,7 +174,7 @@ export async function extendApplicationInvitation(
     updated_at: new Date().toISOString(),
   }
   if (personalMessage !== undefined) {
-    updates.invite_personal_message = personalMessage.trim() || null
+    updates.invite_personal_message = encryptFreeTextForDb(personalMessage) || null
   }
 
   const { data, error } = await getSupabase()
@@ -355,7 +368,7 @@ export async function getCreditFundingApplications(filters?: {
 }): Promise<CreditFundingApplication[]> {
   let query = getSupabase()
     .from('credit_funding_applications')
-    .select('*')
+    .select(CREDIT_FUNDING_LIST_SELECT)
     .order('created_at', { ascending: false })
 
   if (filters?.status && filters.status !== 'all') {
@@ -368,7 +381,7 @@ export async function getCreditFundingApplications(filters?: {
     return []
   }
 
-  let results = (data || []) as CreditFundingApplication[]
+  let results = (data || []) as unknown as CreditFundingApplication[]
   const search = filters?.search?.trim().toLowerCase()
   if (search) {
     results = results.filter(
@@ -462,9 +475,20 @@ export async function updateCreditFundingApplication(
     client_id: string | null
   }>
 ): Promise<CreditFundingApplication | null> {
+  const encryptedUpdates = { ...updates }
+  if (updates.internal_notes !== undefined) {
+    encryptedUpdates.internal_notes = encryptFreeTextForDb(updates.internal_notes)
+  }
+  if (updates.client_notes !== undefined) {
+    encryptedUpdates.client_notes = encryptFreeTextForDb(updates.client_notes)
+  }
+  if (updates.next_steps !== undefined) {
+    encryptedUpdates.next_steps = encryptFreeTextForDb(updates.next_steps)
+  }
+
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...encryptedUpdates, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
@@ -526,7 +550,7 @@ export async function createStatusHistory(entry: {
       application_uuid: entry.application_uuid,
       status: entry.status,
       staff_email: entry.staff_email || null,
-      notes: entry.notes || '',
+      notes: encryptFreeTextForDb(entry.notes) || '',
     })
     .select()
     .single()
@@ -535,7 +559,8 @@ export async function createStatusHistory(entry: {
     console.error('createStatusHistory error:', error)
     return null
   }
-  return data as CreditFundingStatusHistory
+  const history = data as CreditFundingStatusHistory
+  return { ...history, notes: decryptFreeTextForView(history.notes) }
 }
 
 export async function getStatusHistory(applicationUuid: string): Promise<CreditFundingStatusHistory[]> {
@@ -549,7 +574,10 @@ export async function getStatusHistory(applicationUuid: string): Promise<CreditF
     console.error('getStatusHistory error:', error)
     return []
   }
-  return (data || []) as CreditFundingStatusHistory[]
+  return ((data || []) as CreditFundingStatusHistory[]).map((entry) => ({
+    ...entry,
+    notes: decryptFreeTextForView(entry.notes),
+  }))
 }
 
 export async function getCreditFundingMessages(applicationUuid: string): Promise<CreditFundingMessage[]> {
@@ -563,7 +591,10 @@ export async function getCreditFundingMessages(applicationUuid: string): Promise
     console.error('getCreditFundingMessages error:', error)
     return []
   }
-  return (data || []) as CreditFundingMessage[]
+  return ((data || []) as CreditFundingMessage[]).map((message) => ({
+    ...message,
+    text: decryptFreeTextForView(message.text),
+  }))
 }
 
 export async function createCreditFundingMessage(msg: {
@@ -575,7 +606,7 @@ export async function createCreditFundingMessage(msg: {
 }): Promise<CreditFundingMessage | null> {
   const { data, error } = await getSupabase()
     .from('credit_funding_messages')
-    .insert(msg)
+    .insert({ ...msg, text: encryptFreeTextForDb(msg.text) || '' })
     .select()
     .single()
 
@@ -583,7 +614,8 @@ export async function createCreditFundingMessage(msg: {
     console.error('createCreditFundingMessage error:', error)
     return null
   }
-  return data as CreditFundingMessage
+  const message = data as CreditFundingMessage
+  return { ...message, text: decryptFreeTextForView(message.text) }
 }
 
 export async function getDocumentRequests(applicationUuid: string): Promise<CreditFundingDocumentRequest[]> {
@@ -597,7 +629,10 @@ export async function getDocumentRequests(applicationUuid: string): Promise<Cred
     console.error('getDocumentRequests error:', error)
     return []
   }
-  return (data || []) as CreditFundingDocumentRequest[]
+  return ((data || []) as CreditFundingDocumentRequest[]).map((request) => ({
+    ...request,
+    notes: decryptFreeTextForView(request.notes),
+  }))
 }
 
 export async function createDocumentRequest(req: {
@@ -609,7 +644,11 @@ export async function createDocumentRequest(req: {
 }): Promise<CreditFundingDocumentRequest | null> {
   const { data, error } = await getSupabase()
     .from('credit_funding_document_requests')
-    .insert({ ...req, status: 'pending' })
+    .insert({
+      ...req,
+      notes: encryptFreeTextForDb(req.notes) || '',
+      status: 'pending',
+    })
     .select()
     .single()
 
@@ -617,7 +656,8 @@ export async function createDocumentRequest(req: {
     console.error('createDocumentRequest error:', error)
     return null
   }
-  return data as CreditFundingDocumentRequest
+  const request = data as CreditFundingDocumentRequest
+  return { ...request, notes: decryptFreeTextForView(request.notes) }
 }
 
 export async function fulfillDocumentRequest(id: string): Promise<boolean> {

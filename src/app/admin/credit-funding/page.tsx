@@ -102,7 +102,22 @@ interface DocRequest {
   notes?: string
 }
 
+type SensitiveRevealField =
+  | 'date_of_birth'
+  | 'ssn'
+  | 'provider_username'
+  | 'provider_password'
+  | 'experian_email'
+  | 'experian_password'
+  | 'cfpb_email'
+  | 'cfpb_password'
+  | 'typed_signature'
+  | 'monthly_gross_income'
+  | 'annual_income'
+  | 'business_ein'
+
 const DOC_LABELS_MAP: Record<string, string> = { ...DOCUMENT_LABELS }
+const MASKED_VALUE = '••••••••'
 
 function yesNo(value?: boolean | null) {
   if (value === true) return 'Yes'
@@ -166,6 +181,7 @@ function CreditFundingAdminContent() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteNotice, setInviteNotice] = useState('')
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
 
   const selectApplication = (id: string) => {
     loadDetail(id)
@@ -277,6 +293,80 @@ function CreditFundingAdminContent() {
     if (statusFilter !== 'all') params.set('status', statusFilter)
     if (search.trim()) params.set('search', search.trim())
     window.open(`/api/admin/credit-funding/export?${params}`, '_blank')
+  }
+
+  const revealSensitiveField = async (field: SensitiveRevealField) => {
+    if (!selected) return
+    setRevealingField(field)
+    setError('')
+    try {
+      const r = await fetch(
+        `/api/admin/credit-funding/${encodeURIComponent(selected.id)}/reveal-sensitive`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field }),
+        }
+      )
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Reveal failed')
+
+      const value = String(data.value || '')
+      setSelected((prev) => {
+        if (!prev) return prev
+        if (field === 'monthly_gross_income') {
+          return {
+            ...prev,
+            credit_profile: { ...(prev.credit_profile || {}), monthlyGrossIncome: value },
+          }
+        }
+        if (field === 'annual_income') {
+          return {
+            ...prev,
+            credit_profile: { ...(prev.credit_profile || {}), annualIncome: value },
+          }
+        }
+        if (field === 'business_ein') {
+          return {
+            ...prev,
+            business_profile: { ...(prev.business_profile || {}), ein: value },
+          }
+        }
+        return { ...prev, [field]: value }
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reveal field')
+    } finally {
+      setRevealingField(null)
+    }
+  }
+
+  const renderSensitiveField = (
+    label: string,
+    field: SensitiveRevealField,
+    value?: string | null,
+    formatter?: (value: string) => string
+  ) => {
+    const hasValue = Boolean(value && value !== MASKED_VALUE)
+    return (
+      <div>
+        <p className="text-xs font-semibold text-brand-dim uppercase mb-0.5">{label}</p>
+        {hasValue ? (
+          <p className="text-brand-text whitespace-pre-wrap break-words">
+            {formatter ? formatter(value as string) : value}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => revealSensitiveField(field)}
+            disabled={revealingField === field}
+            className="text-xs font-semibold text-accent underline disabled:opacity-50"
+          >
+            {revealingField === field ? 'Revealing...' : 'Reveal sensitive value'}
+          </button>
+        )}
+      </div>
+    )
   }
 
   const sendApplicationInvite = async (e: React.FormEvent) => {
@@ -832,8 +922,6 @@ function CreditFundingAdminContent() {
                     {[
                       ['Email', selected.email],
                       ['Phone', selected.phone],
-                      ['Date of Birth', selected.date_of_birth],
-                      ['Social Security Number', selected.ssn ? formatSsnFull(selected.ssn.replace(/\D/g, '')) : undefined],
                       ['Address', `${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`],
                       ['Service Type', selected.service_type?.replace(/_/g, ' ')],
                       ['Funding Summary', selected.funding_goals],
@@ -844,6 +932,10 @@ function CreditFundingAdminContent() {
                         <p className="text-brand-text">{value}</p>
                       </div>
                     ))}
+                    {renderSensitiveField('Date of Birth', 'date_of_birth', selected.date_of_birth)}
+                    {renderSensitiveField('Social Security Number', 'ssn', selected.ssn, (value) =>
+                      formatSsnFull(value.replace(/\D/g, ''))
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
@@ -924,11 +1016,10 @@ function CreditFundingAdminContent() {
                 <div>
                   <DetailSection title="Personal Information">
                     <DetailField label="Full Name" value={selected.full_name} />
-                    <DetailField label="Date of Birth" value={selected.date_of_birth} />
-                    <DetailField
-                      label="Social Security Number"
-                      value={selected.ssn ? formatSsnFull(selected.ssn.replace(/\D/g, '')) : undefined}
-                    />
+                    {renderSensitiveField('Date of Birth', 'date_of_birth', selected.date_of_birth)}
+                    {renderSensitiveField('Social Security Number', 'ssn', selected.ssn, (value) =>
+                      formatSsnFull(value.replace(/\D/g, ''))
+                    )}
                     <DetailField label="Email" value={selected.email} />
                     <DetailField label="Phone" value={selected.phone} />
                     <DetailField label="Address" value={`${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`} />
@@ -938,8 +1029,16 @@ function CreditFundingAdminContent() {
                     <DetailField label="Credit Score" value={String(selected.credit_profile?.creditScore || '')} />
                     <DetailField label="Open Credit Cards" value={String(selected.credit_profile?.openCreditCards || '')} />
                     <DetailField label="Inquiries" value={String(selected.credit_profile?.inquiries || '')} />
-                    <DetailField label="Monthly Gross Income" value={String(selected.credit_profile?.monthlyGrossIncome || '')} />
-                    <DetailField label="Annual Income" value={String(selected.credit_profile?.annualIncome || '')} />
+                    {renderSensitiveField(
+                      'Monthly Gross Income',
+                      'monthly_gross_income',
+                      String(selected.credit_profile?.monthlyGrossIncome || '')
+                    )}
+                    {renderSensitiveField(
+                      'Annual Income',
+                      'annual_income',
+                      String(selected.credit_profile?.annualIncome || '')
+                    )}
                     <DetailField label="Bankruptcy" value={yesNo(selected.credit_profile?.bankruptcy as boolean | undefined)} />
                     <DetailField label="Collections" value={yesNo(selected.credit_profile?.collections as boolean | undefined)} />
                     <DetailField label="Charge-offs" value={yesNo(selected.credit_profile?.chargeOffs as boolean | undefined)} />
@@ -950,12 +1049,12 @@ function CreditFundingAdminContent() {
 
                   <DetailSection title="Credit Monitoring Provider">
                     <DetailField label="Provider" value={selected.selected_credit_provider} />
-                    <DetailField label="Username / Login" value={selected.provider_username} />
-                    <DetailField label="Password" value={selected.provider_password} />
-                    <DetailField label="Experian.com Email" value={selected.experian_email} />
-                    <DetailField label="Experian.com Password" value={selected.experian_password} />
-                    <DetailField label="CFPB Portal Email" value={selected.cfpb_email} />
-                    <DetailField label="CFPB Portal Password" value={selected.cfpb_password} />
+                    {renderSensitiveField('Username / Login', 'provider_username', selected.provider_username)}
+                    {renderSensitiveField('Password', 'provider_password', selected.provider_password)}
+                    {renderSensitiveField('Experian.com Email', 'experian_email', selected.experian_email)}
+                    {renderSensitiveField('Experian.com Password', 'experian_password', selected.experian_password)}
+                    {renderSensitiveField('CFPB Portal Email', 'cfpb_email', selected.cfpb_email)}
+                    {renderSensitiveField('CFPB Portal Password', 'cfpb_password', selected.cfpb_password)}
                   </DetailSection>
 
                   <DetailSection title="Goals & Funding">
@@ -973,7 +1072,7 @@ function CreditFundingAdminContent() {
                     <DetailSection title="Business Information">
                       <DetailField label="Legal Name" value={String(selected.business_profile.legalName || '')} />
                       <DetailField label="DBA" value={String(selected.business_profile.dba || '')} />
-                      <DetailField label="EIN" value={String(selected.business_profile.ein || '')} />
+                      {renderSensitiveField('EIN', 'business_ein', String(selected.business_profile.ein || ''))}
                       <DetailField label="Entity Type" value={String(selected.business_profile.entityType || '')} />
                       <DetailField label="Industry" value={String(selected.business_profile.industry || '')} />
                       <DetailField label="Year Established" value={String(selected.business_profile.yearEstablished || '')} />
@@ -992,7 +1091,7 @@ function CreditFundingAdminContent() {
                     <DetailField label="Accurate Information" value={yesNo(selected.consent_data?.accurateInfo)} />
                     <DetailField label="Authorize Review" value={yesNo(selected.consent_data?.authorizeReview)} />
                     <DetailField label="Agree to Terms" value={yesNo(selected.consent_data?.agreeTerms)} />
-                    <DetailField label="Typed Signature" value={selected.typed_signature} />
+                    {renderSensitiveField('Typed Signature', 'typed_signature', selected.typed_signature)}
                     <DetailField label="Signature Date" value={selected.signature_date} />
                   </DetailSection>
                 </div>

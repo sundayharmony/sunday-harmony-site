@@ -3,6 +3,7 @@ import crypto from 'crypto'
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
 const TAG_LENGTH = 16
+const ENCRYPTION_PREFIX = 'enc:v1:'
 
 function getEncryptionKey(): Buffer {
   const raw = process.env.CREDIT_FUNDING_ENCRYPTION_KEY?.trim()
@@ -29,7 +30,7 @@ export function encryptField(plaintext: string): string {
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
-  return Buffer.concat([iv, tag, encrypted]).toString('base64')
+  return `${ENCRYPTION_PREFIX}${Buffer.concat([iv, tag, encrypted]).toString('base64')}`
 }
 
 /** Decrypt sensitive text. Returns empty string on failure. */
@@ -37,7 +38,10 @@ export function decryptField(ciphertext: string): string {
   if (!ciphertext) return ''
   try {
     const key = getEncryptionKey()
-    const data = Buffer.from(ciphertext, 'base64')
+    const encoded = ciphertext.startsWith(ENCRYPTION_PREFIX)
+      ? ciphertext.slice(ENCRYPTION_PREFIX.length)
+      : ciphertext
+    const data = Buffer.from(encoded, 'base64')
     if (data.length < IV_LENGTH + TAG_LENGTH + 1) return ''
     const iv = data.subarray(0, IV_LENGTH)
     const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH)
@@ -51,6 +55,7 @@ export function decryptField(ciphertext: string): string {
 }
 
 function looksLikeEncryptedBlob(value: string): boolean {
+  if (value.startsWith(ENCRYPTION_PREFIX)) return true
   if (value.length < 28) return false
   try {
     const data = Buffer.from(value, 'base64')
@@ -58,6 +63,10 @@ function looksLikeEncryptedBlob(value: string): boolean {
   } catch {
     return false
   }
+}
+
+export function isEncryptedField(value: string): boolean {
+  return looksLikeEncryptedBlob(value)
 }
 
 /** Decrypt values encrypted at rest; return legacy plaintext rows unchanged. */
