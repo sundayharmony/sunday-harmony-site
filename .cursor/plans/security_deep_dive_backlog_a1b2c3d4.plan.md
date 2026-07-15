@@ -19,7 +19,7 @@ todos:
     status: completed
   - id: area-06-api-authz
     content: "P1 — API authorization audit (IDOR, role gaps, middleware/API split)"
-    status: pending
+    status: in_progress
   - id: area-07-rate-limits
     content: "P1 — Rate limiting durability (Upstash vs memory fallback)"
     status: pending
@@ -95,7 +95,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 03 Service-role / secrets | done | 2026-07-14 | [fix plan](security_area_03_secrets_hygiene_fix_plan.md) | shipped; rotation deferred |
 | 04 Password crypto | done | 2026-07-14 | [fix plan](security_area_04_password_crypto_fix_plan.md) | shipped; legacy auto-upgrade |
 | 05 CSP + XSS | done | 2026-07-14 | [fix plan](security_area_05_csp_xss_fix_plan.md) | production verified |
-| 06 API authz | pending | — | — | — |
+| 06 API authz | plan-ready | 2026-07-14 | [fix plan](security_area_06_api_authz_fix_plan.md) | — |
 | 07 Rate limits | pending | — | — | — |
 | 08 Credit encryption | pending | — | — | — |
 | 09 Uploads | pending | — | — | — |
