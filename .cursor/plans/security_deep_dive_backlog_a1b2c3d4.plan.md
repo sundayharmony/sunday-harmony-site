@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: area-07-rate-limits
     content: "P1 — Rate limiting durability (Upstash vs memory fallback)"
-    status: pending
+    status: in_progress
   - id: area-08-credit-encryption
     content: "P1 — Credit-funding sensitive data (encryption coverage, admin decrypt UX)"
     status: pending
@@ -96,7 +96,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 04 Password crypto | done | 2026-07-14 | [fix plan](security_area_04_password_crypto_fix_plan.md) | shipped; legacy auto-upgrade |
 | 05 CSP + XSS | done | 2026-07-14 | [fix plan](security_area_05_csp_xss_fix_plan.md) | production verified |
 | 06 API authz | done | 2026-07-14 | [fix plan](security_area_06_api_authz_fix_plan.md) | shipped; signed upload metadata + shared client auth |
-| 07 Rate limits | pending | — | — | — |
+| 07 Rate limits | plan-ready | 2026-07-14 | [fix plan](security_area_07_rate_limits_fix_plan.md) | — |
 | 08 Credit encryption | pending | — | — | — |
 | 09 Uploads | pending | — | — | — |
 | 10 Stripe / billing | pending | — | — | — |
