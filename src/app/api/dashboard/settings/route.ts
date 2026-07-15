@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireClientSession } from '@/lib/client-auth'
 import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,13 +53,8 @@ export async function PUT(request: NextRequest) {
 
     // Rate limit: 5 password change attempts per 15 minutes per IP
     const ip = getClientIp(request)
-    const rl = rateLimit(`settings-password:${ip}`, 5, 15 * 60 * 1000)
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rl = await rateLimitDurable(`settings-password:${ip}`, 5, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const body = await request.json()
     const { currentPassword, newPassword } = body

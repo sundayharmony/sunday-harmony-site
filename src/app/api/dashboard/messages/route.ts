@@ -9,6 +9,7 @@ import {
   sendHtmlMailNonBlocking,
 } from '@/lib/smtp-mail'
 import { requireClientSession, getClientIdFromSession } from '@/lib/client-auth'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,13 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await requireClientSession()
   if (session instanceof NextResponse) return session
+
+  const rl = await rateLimitDurable(
+    `dashboard-message:${session.user.id}`,
+    30,
+    15 * 60 * 1000
+  )
+  if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
   const clientId = getClientIdFromSession(session)
   const { text } = await request.json()

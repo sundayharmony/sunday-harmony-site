@@ -6,6 +6,7 @@ import {
   getCreditFundingMessages,
 } from '@/lib/credit-funding-db'
 import { getAdminNotifyEmail, sendHtmlMailNonBlocking, escHtml, sanitizeEmailSubjectPart, getPublicSiteUrl } from '@/lib/smtp-mail'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,12 @@ export async function POST(req: NextRequest) {
     if (!access.ok) return access.response
 
     const { session, application } = access
+    const rl = await rateLimitDurable(
+      `dashboard-credit-funding-message:${session.user.id}`,
+      30,
+      15 * 60 * 1000
+    )
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const { text } = await req.json()
     if (!text?.trim()) {

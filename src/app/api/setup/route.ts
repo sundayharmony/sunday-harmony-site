@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { seedAdmin } from '@/lib/db'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,13 +20,8 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 3 attempts per 15 minutes per IP
     const ip = getClientIp(req)
-    const rl = rateLimit(`setup:${ip}`, 3, 15 * 60 * 1000)
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Too many attempts. Please try again later.' },
-        { status: 429 }
-      )
-    }
+    const rl = await rateLimitDurable(`setup:${ip}`, 3, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const setupToken = process.env.SETUP_TOKEN
     if (!setupToken) {

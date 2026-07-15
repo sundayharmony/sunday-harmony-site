@@ -4,22 +4,22 @@ overview: "Upstash Redis is configured in production, so the durable limiter is 
 todos:
   - id: memory-holdouts
     content: "Migrate settings password-change and setup routes from in-memory rateLimit to rateLimitDurable"
-    status: pending
+    status: completed
   - id: missing-coverage
     content: "Add rate limits to invite validation, CSP report, and dashboard message/upload routes"
-    status: pending
+    status: completed
   - id: fail-mode
     content: "Log loudly (once per instance) when the durable limiter degrades to memory in production"
-    status: pending
+    status: completed
   - id: tests
     content: "Add focused tests for limiter fallback behavior and route coverage"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 07 — Deep dive + fix plan
 
-**Status:** plan-ready (awaiting permission to implement)
+**Status:** implemented and verified
 **Priority:** P1
 **Scope:** Rate limiting durability across `src/lib/rate-limit*.ts` and all API routes.
 
@@ -76,7 +76,18 @@ When Upstash is unreachable or returns an error, `rateLimitDurable` falls back t
 
 ## Success Criteria
 
-- [ ] No security-sensitive route uses the in-memory limiter directly.
-- [ ] All public unauthenticated POST/GET abuse surfaces have durable rate limits.
-- [ ] Redis degradation is visible in production logs.
-- [ ] Focused tests pass; typecheck passes.
+- [x] No security-sensitive route uses the in-memory limiter directly.
+- [x] All public unauthenticated POST/GET abuse surfaces have durable rate limits.
+- [x] Redis degradation is visible in production logs.
+- [x] Focused tests pass; typecheck passes.
+
+---
+
+## Implementation Notes
+
+- `dashboard/settings` password changes and token-gated setup now use `rateLimitDurable` with standard `Retry-After` responses.
+- Public invite validation and CSP report intake now have per-IP durable limits. CSP report over-limit responses stay `204` to avoid noisy browser/reporting behavior.
+- Dashboard message sends and credit-funding applicant document uploads now have per-user durable limits.
+- `rateLimitDurable` still falls back to memory on missing/unavailable Upstash to preserve availability, but production now logs one warning per instance for missing config and one for failed Redis calls.
+- The in-memory limiter cleanup timer is `unref`'d so focused tests and short-lived Node processes can exit cleanly.
+- Focused Area 07 test: 3 passed. `npm run typecheck` and `npm run build` passed. Build retained pre-existing image/useMemo warnings in credit-funding UI files.

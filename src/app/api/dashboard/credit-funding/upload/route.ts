@@ -12,6 +12,7 @@ import {
   DOCUMENT_LABELS,
   isDocumentType,
 } from '@/lib/credit-funding-types'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -22,6 +23,12 @@ export async function POST(req: NextRequest) {
     if (!access.ok) return access.response
 
     const { session, application } = access
+    const rl = await rateLimitDurable(
+      `dashboard-credit-funding-upload:${session.user.id}`,
+      20,
+      15 * 60 * 1000
+    )
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const formData = await req.formData()
     const documentType = formData.get('documentType') as string

@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
+import { getClientIp } from '@/lib/rate-limit'
+import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    const ip = getClientIp(req)
+    const rl = await rateLimitDurable(`credit-funding-invite:${ip}`, 30, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
     const token = new URL(req.url).searchParams.get('token')?.trim()
     if (!token) {
       return NextResponse.json({ error: 'Invitation token is required' }, { status: 400 })
