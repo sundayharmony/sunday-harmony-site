@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getPublishedCaseStudies } from '@/lib/db'
+import { getCaseStudyPdfRoute } from '@/lib/client-case-studies-storage'
 
 export const revalidate = 60
 
@@ -9,7 +10,7 @@ export async function GET() {
     const payload = studies.map((s) => ({
       id: s.id,
       title: s.title,
-      pdf_url: s.file_url,
+      pdf_url: getCaseStudyPdfRoute(s.id),
       updated_at: s.updated_at,
     }))
     return NextResponse.json(payload)

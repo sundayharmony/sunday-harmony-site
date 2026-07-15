@@ -34,6 +34,27 @@ export function verifyApplicationInviteToken(token: string): { applicationId: st
   return { applicationId, expiresAtMs }
 }
 
+export function inviteTokenMatchesStoredExpiry(
+  verified: { expiresAtMs: number },
+  storedExpiresAt?: string | null
+): boolean {
+  if (!storedExpiresAt) return true
+  const storedMs = new Date(storedExpiresAt).getTime()
+  return Number.isFinite(storedMs) && Math.abs(storedMs - verified.expiresAtMs) <= 1000
+}
+
+export function maskInviteEmail(email: string): string {
+  const [local, domain] = email.trim().split('@')
+  if (!local || !domain) return ''
+  const first = local.slice(0, 1)
+  const last = local.length > 2 ? local.slice(-1) : ''
+  return `${first}${'*'.repeat(Math.max(local.length - 2, 2))}${last}@${domain}`
+}
+
+export function firstNameFromInviteName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || ''
+}
+
 export function buildApplicationInviteUrl(applicationId: string, expiresAtMs: number): string {
   const site = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sundayharmony.com').replace(/\/$/, '')
   const token = createApplicationInviteToken(applicationId, expiresAtMs)

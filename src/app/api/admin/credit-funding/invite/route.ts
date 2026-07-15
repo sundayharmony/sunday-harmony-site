@@ -12,7 +12,6 @@ import { sendCreditFundingApplicationInviteEmail } from '@/lib/credit-funding-ap
 import {
   APPLICATION_INVITE_TTL_MS,
   buildApplicationInviteUrl,
-  verifyApplicationInviteToken,
 } from '@/lib/credit-funding-invite'
 
 export const dynamic = 'force-dynamic'

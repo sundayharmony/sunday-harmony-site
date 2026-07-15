@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import PublicPageLayout from '@/components/layout/PublicPageLayout'
 import CaseStudiesViewer from '@/components/case-studies/CaseStudiesViewer'
 import { getPublishedCaseStudies } from '@/lib/db'
+import { getCaseStudyPdfRoute } from '@/lib/client-case-studies-storage'
 
 export const metadata: Metadata = {
   title: 'Case Studies | Sunday Harmony',
@@ -16,7 +17,7 @@ export default async function CaseStudiesPage() {
   const initialStudies = studies.map((s) => ({
     id: s.id,
     title: s.title,
-    pdf_url: s.file_url,
+    pdf_url: getCaseStudyPdfRoute(s.id),
     updated_at: s.updated_at,
   }))
 

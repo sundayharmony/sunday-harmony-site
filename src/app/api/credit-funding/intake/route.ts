@@ -35,7 +35,7 @@ import {
   verifyUploadSession,
   type TrustedStagedFileMetadata,
 } from '@/lib/credit-funding-upload-session'
-import { verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
+import { inviteTokenMatchesStoredExpiry, verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 import {
   getAdminNotifyEmail,
@@ -43,6 +43,7 @@ import {
   sendHtmlMailNonBlocking,
   staffPortalEmailHtml,
 } from '@/lib/smtp-mail'
+import { hasHoneypotValue } from '@/lib/honeypot'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -81,6 +82,9 @@ export async function POST(req: NextRequest) {
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const formData = await req.formData()
+    if (hasHoneypotValue(formData)) {
+      return NextResponse.json({ error: 'Unable to process submission' }, { status: 400 })
+    }
 
     const rawPayload: Record<string, unknown> = {}
     for (const [key, value] of formData.entries()) {
@@ -149,6 +153,9 @@ export async function POST(req: NextRequest) {
 
       const invitedApp = await getCreditFundingApplicationById(verified.applicationId)
       if (!invitedApp || invitedApp.status !== 'invitation_pending') {
+        return NextResponse.json({ error: 'This application link is no longer valid.' }, { status: 403 })
+      }
+      if (!inviteTokenMatchesStoredExpiry(verified, invitedApp.invite_expires_at)) {
         return NextResponse.json({ error: 'This application link is no longer valid.' }, { status: 403 })
       }
       if (invitedApp.email.toLowerCase() !== payload.email.trim().toLowerCase()) {

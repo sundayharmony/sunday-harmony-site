@@ -4,28 +4,28 @@ overview: "The public surface is relatively small and previous areas already har
 todos:
   - id: case-study-public-lifecycle
     content: "Make public case-study PDF exposure revocable, preferably private bucket plus app-minted signed read URLs"
-    status: pending
+    status: completed
   - id: invite-token-hygiene
     content: "Add invite token revocation/single-use semantics and reduce PII returned by public invite validation"
-    status: pending
+    status: completed
   - id: public-bot-defense
     content: "Add honeypot or lightweight bot challenge to contact and credit-funding public entry points"
-    status: pending
+    status: completed
   - id: public-referrer-policy
     content: "Prevent invite token leakage through referrers on the credit-funding invite flow"
-    status: pending
+    status: completed
   - id: csp-inline-followup
     content: "Plan a CSP nonce/hash migration to remove script-src unsafe-inline after public-surface changes settle"
-    status: pending
+    status: deferred
   - id: tests
     content: "Add focused public-surface tests for invite redaction/revocation, case-study access lifecycle, and bot-field rejection"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 11 - Deep Dive + Fix Plan
 
-**Status:** plan-ready (awaiting implement)
+**Status:** implemented and verified
 **Priority:** P2
 **Scope:** Public pages and unauthenticated APIs: case studies, contact, credit-funding invite/intake/upload session, CSP report, setup, password reset, Stripe webhook, and public content headers.
 
@@ -115,12 +115,30 @@ The global CSP includes `script-src 'unsafe-inline'`. No current public XSS sink
 
 ## Acceptance criteria
 
-- [ ] Unpublished/replaced case-study PDFs are no longer fetchable through old public URLs, or object deletion/rotation is enforced and documented.
-- [ ] A regenerated or consumed credit-funding invite link invalidates older tokens.
-- [ ] Public invite validation no longer returns full phone/email by default.
-- [ ] `/credit-funding` invite pages do not leak full invite URLs through referrers.
-- [ ] Contact and credit-funding public forms reject bot honeypot submissions.
-- [ ] Focused tests, full unit tests, typecheck, and build pass.
+- [x] Unpublished/replaced case-study PDFs are no longer fetchable through old public URLs once `20260715200719_private_case_study_delivery.sql` is applied.
+- [x] A regenerated or consumed credit-funding invite link invalidates older tokens.
+- [x] Public invite validation no longer returns full phone/email by default.
+- [x] `/credit-funding` invite pages do not leak full invite URLs through referrers.
+- [x] Contact and credit-funding public forms reject bot honeypot submissions.
+- [x] Focused tests, full unit tests, typecheck, and build pass.
+
+---
+
+## Implementation notes
+
+- Case studies now use `/api/case-studies/:id/pdf`, which checks `published` and redirects to a short-lived Supabase signed URL.
+- Migration `20260715200719_private_case_study_delivery.sql` makes `client-case-studies` private, drops the public storage SELECT policy, and rewrites legacy public `file_url` values to the app route.
+- Invite validation returns `firstName`, `maskedEmail`, and `expiresAt` only; intake still requires the submitted email to match the invited address.
+- Invite tokens must match the current stored `invite_expires_at`, so resending an invitation supersedes older links; completed invitations remain invalid because status changes away from `invitation_pending`.
+- Contact and credit-funding intake share a honeypot helper and reject filled hidden fields server-side.
+- CSP nonce/hash migration remains deferred to a dedicated follow-up because removing `unsafe-inline` is broader than the public-surface lifecycle fixes.
+
+## Verification
+
+- `npx tsx --test src/lib/__tests__/public-surfaces-security.test.ts`
+- `npm run test:unit`
+- `npm run typecheck`
+- `npm run build` (passes with existing `<img>` optimization warnings outside this change)
 
 ---
 

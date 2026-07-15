@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: 'Credit & Funding | Sunday Harmony',
   description:
     'Apply for credit repair and funding assistance with Sunday Harmony. Secure multi-step intake for personal and business funding goals.',
+  referrer: 'no-referrer',
 }
 
 export default function CreditFundingPage() {

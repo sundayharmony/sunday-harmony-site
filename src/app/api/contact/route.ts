@@ -4,6 +4,7 @@ import { createLead, logActivity } from '@/lib/db'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { getClientIp } from '@/lib/rate-limit'
 import { getAdminNotifyEmail, escHtml, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
+import { hasHoneypotValue } from '@/lib/honeypot'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +18,10 @@ export async function POST(req: NextRequest) {
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const body = await req.json()
+    if (hasHoneypotValue(body)) {
+      return NextResponse.json({ error: 'Unable to process submission' }, { status: 400 })
+    }
+
     const { firstName, lastName, email, phone, business, service, message } = body
 
     // Input length validation Ã¢ÂÂ prevent oversized payloads

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import {
-  getCaseStudyPublicUrl,
+  getCaseStudyPdfRoute,
   isValidCaseStudyStoragePath,
   removeCaseStudyByStoragePath,
   validateCaseStudyPdf,
@@ -62,17 +62,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: verification.error }, { status: 400 })
     }
 
-    const publicUrl = getCaseStudyPublicUrl(storagePath)
-    if (!publicUrl) {
-      return NextResponse.json({ error: 'Could not resolve public URL' }, { status: 500 })
-    }
-
     uploadedStoragePath = storagePath
     const uploadedBy = session.user.name || session.user.email || 'Admin'
 
     const record = await insertCaseStudy({
       title,
-      file_url: publicUrl,
+      file_url: '',
       storage_path: storagePath,
       file_size: verification.fileSize,
       published,
@@ -85,8 +80,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save case study record' }, { status: 500 })
     }
 
+    const recordWithRoute = await updateCaseStudy(record.id, {
+      file_url: getCaseStudyPdfRoute(record.id),
+    })
+
     uploadedStoragePath = null
-    return NextResponse.json(record, { status: 201 })
+    return NextResponse.json(recordWithRoute || record, { status: 201 })
   } catch (err) {
     console.error('POST /api/admin/case-studies error:', err)
     if (uploadedStoragePath) {
@@ -151,13 +150,8 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: verification.error }, { status: 400 })
       }
 
-      const publicUrl = getCaseStudyPublicUrl(storagePath)
-      if (!publicUrl) {
-        return NextResponse.json({ error: 'Could not resolve public URL' }, { status: 500 })
-      }
-
       updates.storage_path = storagePath
-      updates.file_url = publicUrl
+      updates.file_url = getCaseStudyPdfRoute(id)
       updates.file_size = verification.fileSize
       newStoragePath = storagePath
     }

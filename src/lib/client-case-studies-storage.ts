@@ -22,6 +22,26 @@ export function getCaseStudyPublicUrl(objectPath: string): string | null {
   return pub?.publicUrl || null
 }
 
+export function getCaseStudyPdfRoute(id: string): string {
+  return `/api/case-studies/${encodeURIComponent(id)}/pdf`
+}
+
+export async function getCaseStudySignedUrl(
+  storagePath: string,
+  expiresInSeconds = 10 * 60
+): Promise<string | null> {
+  if (!isValidCaseStudyStoragePath(storagePath)) return null
+  const { data, error } = await getSupabase()
+    .storage
+    .from(CLIENT_CASE_STUDIES_BUCKET)
+    .createSignedUrl(storagePath, expiresInSeconds)
+  if (error || !data?.signedUrl) {
+    console.error('Case study signed URL error:', error)
+    return null
+  }
+  return data.signedUrl
+}
+
 const CASE_STUDY_UPLOAD_PATH_RE = /^uploads\/[0-9a-f-]{36}_[a-zA-Z0-9._-]+$/
 
 export function isValidCaseStudyStoragePath(storagePath: string): boolean {

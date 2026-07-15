@@ -99,6 +99,7 @@ interface FormState {
   consent: ConsentData
   typedSignature: string
   signatureDate: string
+  companyWebsite: string
 }
 
 function validateBusinessFields(bp: BusinessProfile, errors: Record<string, string>) {
@@ -145,6 +146,7 @@ const initialState: FormState = {
   consent: { accurateInfo: false, authorizeReview: false, agreeTerms: false },
   typedSignature: '',
   signatureDate: new Date().toISOString().slice(0, 10),
+  companyWebsite: '',
 }
 
 export default function CreditFundingForm() {
@@ -164,7 +166,15 @@ export default function CreditFundingForm() {
   const [submitError, setSubmitError] = useState('')
   const stagedUploads = useStagedDocumentUploads()
 
-  const stepFlow = useMemo(() => getStepFlow(form), [form.ownsBusiness, form.fundingUse, form.creditProfile])
+  const stepFlow = useMemo(
+    () =>
+      getStepFlow({
+        ownsBusiness: form.ownsBusiness,
+        fundingUse: form.fundingUse,
+        creditProfile: form.creditProfile,
+      }),
+    [form.ownsBusiness, form.fundingUse, form.creditProfile]
+  )
   const currentStepId = stepFlow[Math.min(step, stepFlow.length - 1)] ?? 'personal'
   const stepStripItems = useMemo(
     () =>
@@ -203,14 +213,10 @@ export default function CreditFundingForm() {
         if (cancelled) return
 
         setInviteToken(inviteTokenFromUrl)
-        setInviteEmailLocked(true)
-        setInviteBanner(`You're completing an application invited by the Sunday Harmony team.`)
-        setForm((prev) => ({
-          ...prev,
-          fullName: data.fullName || prev.fullName,
-          email: data.email || prev.email,
-          phone: data.phone || prev.phone,
-        }))
+        setInviteEmailLocked(false)
+        const greeting = data.firstName ? `Hi ${data.firstName}, ` : ''
+        const masked = data.maskedEmail ? ` for ${data.maskedEmail}` : ''
+        setInviteBanner(`${greeting}you're completing an application invited by the Sunday Harmony team${masked}.`)
       } catch {
         if (!cancelled) setSubmitError('Could not load your invitation. Please contact Sunday Harmony.')
       } finally {
@@ -368,6 +374,7 @@ export default function CreditFundingForm() {
       fd.append('consent', JSON.stringify(form.consent))
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
+      fd.append('companyWebsite', form.companyWebsite)
       fd.append('uploadSessionId', session.sessionId)
       fd.append('uploadSessionToken', session.uploadToken)
       fd.append('stagedFiles', JSON.stringify(stagedFiles))
@@ -443,6 +450,18 @@ export default function CreditFundingForm() {
       </div>
 
       <div className="p-6 sm:p-8">
+        <div className="hidden" aria-hidden="true">
+          <label htmlFor={fid('companyWebsite')}>Company website</label>
+          <input
+            id={fid('companyWebsite')}
+            name="companyWebsite"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            value={form.companyWebsite}
+            onChange={(e) => update('companyWebsite', e.target.value)}
+          />
+        </div>
         {/* Step 1 */}
         {currentStepId === 'personal' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

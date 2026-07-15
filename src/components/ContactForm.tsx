@@ -12,11 +12,12 @@ interface FormData {
   business: string
   service: string
   message: string
+  companyWebsite: string
 }
 
 export default function ContactForm() {
   const [form, setForm] = useState<FormData>({
-    firstName: '', lastName: '', email: '', phone: '', business: '', service: '', message: '',
+    firstName: '', lastName: '', email: '', phone: '', business: '', service: '', message: '', companyWebsite: '',
   })
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -118,6 +119,18 @@ export default function ContactForm() {
               </div>
             ) : (
               <form onSubmit={handleSubmit}>
+                <div className="hidden" aria-hidden="true">
+                  <label htmlFor="contact-company-website">Company website</label>
+                  <input
+                    id="contact-company-website"
+                    name="companyWebsite"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={form.companyWebsite}
+                    onChange={(e) => update('companyWebsite', e.target.value)}
+                  />
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
                   <div>
                     <label htmlFor="contact-first-name" className="block text-xs font-semibold text-brand-muted mb-1.5 tracking-wide">
