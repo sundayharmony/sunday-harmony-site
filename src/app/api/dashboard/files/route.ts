@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getClientIdFromSession, requireClientSession } from '@/lib/client-auth'
 import {
   removeClientFileByPublicUrlIfOurs,
-  resolveClientFileStoragePath,
+  resolveClientFileStoragePathForClient,
   uploadClientFileToVault,
   withSignedClientFileUrls,
 } from '@/lib/client-files-storage'
@@ -143,7 +143,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: name, file_url, file_type' }, { status: 400 })
     }
 
-    if (!resolveClientFileStoragePath(file_url)) {
+    const ownedStoragePath = resolveClientFileStoragePathForClient(file_url, clientId)
+    if (!ownedStoragePath) {
       return NextResponse.json(
         { error: 'Files must be uploaded through the secure upload form.' },
         { status: 400 }
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
     const fileRecord = await createFileRecord({
       client_id: clientId,
       name,
-      file_url,
+      file_url: ownedStoragePath,
       file_size: file_size || 0,
       file_type,
       category: category || '',

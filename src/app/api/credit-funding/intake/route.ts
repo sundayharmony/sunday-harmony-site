@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
 
   let createdApplicationId: string | null = null
   let wasInvitedFlow = false
+  let verifiedUploadSessionId: string | null = null
 
   try {
     if (!assertHttpsSubmission(req)) {
@@ -102,6 +103,7 @@ export async function POST(req: NextRequest) {
       if (!verifyUploadSession(uploadSessionId, uploadSessionToken)) {
         return NextResponse.json({ error: 'Invalid upload session' }, { status: 403 })
       }
+      verifiedUploadSessionId = uploadSessionId
       try {
         const submitted = JSON.parse(String(formData.get('stagedFiles') || '[]')) as unknown
         const trusted = parseTrustedStagedFileSubmission(
@@ -232,10 +234,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (uploadSessionId) {
-      await removeStagedCreditFundingSession(uploadSessionId)
-    }
-
     logActivity({
       action: 'application_submitted',
       entity_type: 'credit_funding_application',
@@ -338,6 +336,14 @@ export async function POST(req: NextRequest) {
     }
     logApiRouteError(req, 'credit-funding/intake', error)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
+  } finally {
+    if (verifiedUploadSessionId) {
+      try {
+        await removeStagedCreditFundingSession(verifiedUploadSessionId)
+      } catch (cleanupError) {
+        console.error('Credit-funding staging session cleanup failed:', cleanupError)
+      }
+    }
   }
 }
 

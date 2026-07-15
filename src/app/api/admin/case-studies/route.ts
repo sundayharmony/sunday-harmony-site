@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import {
-  caseStudyObjectExists,
   getCaseStudyPublicUrl,
   isValidCaseStudyStoragePath,
   removeCaseStudyByStoragePath,
   validateCaseStudyPdf,
+  verifyCaseStudyObject,
 } from '@/lib/client-case-studies-storage'
 import {
   deleteCaseStudy,
@@ -56,9 +56,10 @@ export async function POST(request: NextRequest) {
 
     const published = body.published !== false
 
-    const exists = await caseStudyObjectExists(storagePath)
-    if (!exists) {
-      return NextResponse.json({ error: 'Uploaded file not found in storage' }, { status: 400 })
+    const verification = await verifyCaseStudyObject(storagePath, file_size)
+    if (!verification.ok) {
+      await removeCaseStudyByStoragePath(storagePath)
+      return NextResponse.json({ error: verification.error }, { status: 400 })
     }
 
     const publicUrl = getCaseStudyPublicUrl(storagePath)
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
       title,
       file_url: publicUrl,
       storage_path: storagePath,
-      file_size,
+      file_size: verification.fileSize,
       published,
       uploaded_by_name: uploadedBy,
     })
@@ -144,9 +145,10 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: pdfCheck.error }, { status: 400 })
       }
 
-      const exists = await caseStudyObjectExists(storagePath)
-      if (!exists) {
-        return NextResponse.json({ error: 'Uploaded file not found in storage' }, { status: 400 })
+      const verification = await verifyCaseStudyObject(storagePath, file_size)
+      if (!verification.ok) {
+        await removeCaseStudyByStoragePath(storagePath)
+        return NextResponse.json({ error: verification.error }, { status: 400 })
       }
 
       const publicUrl = getCaseStudyPublicUrl(storagePath)
@@ -156,7 +158,7 @@ export async function PATCH(request: NextRequest) {
 
       updates.storage_path = storagePath
       updates.file_url = publicUrl
-      updates.file_size = file_size
+      updates.file_size = verification.fileSize
       newStoragePath = storagePath
     }
 

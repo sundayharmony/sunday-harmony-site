@@ -3,6 +3,10 @@ import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { proxyDisputeLettersStream } from '@/lib/dispute-letters/api-client'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { updateDisputeSessionStatus } from '@/lib/dispute-letters/db'
+import {
+  removeDisputeReportObject,
+  verifyDisputeReportObject,
+} from '@/lib/dispute-letters-storage'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -21,10 +25,20 @@ export async function POST(request: NextRequest, { params }: Params) {
   try {
     const body = await request.json()
     const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : ''
-    const fileName = typeof body.fileName === 'string' ? body.fileName.trim() : ''
 
-    if (!storagePath) {
-      return NextResponse.json({ error: 'storagePath is required' }, { status: 400 })
+    if (!storagePath || storagePath !== access.session.storage_path) {
+      return NextResponse.json({ error: 'Invalid report storage path' }, { status: 400 })
+    }
+
+    const verification = await verifyDisputeReportObject({
+      storagePath,
+      sessionId: id,
+      originalFileName: access.session.file_name,
+    })
+    if (!verification.ok) {
+      await removeDisputeReportObject(storagePath)
+      await updateDisputeSessionStatus(id, 'failed', verification.error)
+      return NextResponse.json({ error: verification.error }, { status: 400 })
     }
 
     await updateDisputeSessionStatus(id, 'analyzing')
@@ -32,7 +46,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     return proxyDisputeLettersStream('/internal/analyze/stream', {
       session_id: id,
       storage_path: storagePath,
-      file_name: fileName,
+      file_name: access.session.file_name,
     })
   } catch (err) {
     console.error('POST analyze/stream error:', err)

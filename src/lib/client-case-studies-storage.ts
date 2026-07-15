@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { CLIENT_CASE_STUDIES_BUCKET, CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
-import { effectiveContentType, extensionFromName } from '@/lib/storage-utils'
+import { effectiveContentType, scanPdfBuffer } from '@/lib/storage-utils'
 import { getSupabase } from '@/lib/supabase'
 
 export { CLIENT_CASE_STUDIES_BUCKET, CASE_STUDY_PDF_MAX_BYTES } from '@/lib/case-study-constants'
@@ -63,19 +63,35 @@ export async function createCaseStudySignedUploadUrl(params: {
   }
 }
 
-export async function caseStudyObjectExists(storagePath: string): Promise<boolean> {
-  if (!isValidCaseStudyStoragePath(storagePath)) return false
+export async function verifyCaseStudyObject(
+  storagePath: string,
+  expectedSize: number
+): Promise<{ ok: true; fileSize: number } | { ok: false; error: string }> {
+  if (!isValidCaseStudyStoragePath(storagePath)) {
+    return { ok: false, error: 'Invalid storagePath' }
+  }
   const { data, error } = await getSupabase()
     .storage.from(CLIENT_CASE_STUDIES_BUCKET)
     .download(storagePath)
   if (error) {
     if (error.message?.toLowerCase().includes('not found') || (error as { statusCode?: string }).statusCode === '404') {
-      return false
+      return { ok: false, error: 'Uploaded file not found in storage' }
     }
-    console.error('Case study storage download probe error:', error)
-    return false
+    console.error('Case study storage verification error:', error)
+    return { ok: false, error: 'Could not verify uploaded file' }
   }
-  return Boolean(data)
+  if (!data) return { ok: false, error: 'Uploaded file not found in storage' }
+
+  const buffer = Buffer.from(await data.arrayBuffer())
+  const validation = validateCaseStudyPdf(PDF_MIME, buffer.length)
+  if (!validation.ok) return validation
+  if (buffer.length !== expectedSize) {
+    return { ok: false, error: 'Uploaded file size does not match the signed upload request' }
+  }
+
+  const scan = scanPdfBuffer(buffer)
+  if (!scan.ok) return { ok: false, error: scan.reason }
+  return { ok: true, fileSize: buffer.length }
 }
 
 export function validateCaseStudyPdf(contentType: string, sizeBytes: number): { ok: true } | { ok: false; error: string } {
@@ -105,6 +121,8 @@ export async function uploadCaseStudyPdf(params: {
   const effective = effectiveContentType(contentType, originalFileName)
   const v = validateCaseStudyPdf(effective, buffer.length)
   if (!v.ok) return { ok: false, error: v.error }
+  const scan = scanPdfBuffer(buffer)
+  if (!scan.ok) return { ok: false, error: scan.reason }
 
   const safe = sanitizeCaseStudyFileName(originalFileName)
   const objectPath = `uploads/${randomUUID()}_${safe}`

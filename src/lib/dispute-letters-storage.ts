@@ -1,5 +1,9 @@
 import { randomUUID } from 'crypto'
-import { effectiveContentType, extensionFromName } from '@/lib/storage-utils'
+import {
+  effectiveContentType,
+  extensionFromName,
+  hasSafeStoragePathSegments,
+} from '@/lib/storage-utils'
 import { getSupabase } from '@/lib/supabase'
 
 export const DISPUTE_LETTERS_BUCKET = 'dispute-letters'
@@ -37,21 +41,44 @@ export function buildDisputeReportObjectPath(sessionId: string, originalFileName
   return `sessions/${sessionId}/report/${sanitizeDisputeFileName(originalFileName)}`
 }
 
+export function isValidDisputeReportStoragePath(storagePath: string, sessionId: string): boolean {
+  return (
+    /^[0-9a-f-]{36}$/i.test(sessionId) &&
+    hasSafeStoragePathSegments(storagePath) &&
+    storagePath.startsWith(`sessions/${sessionId}/report/`) &&
+    storagePath.split('/').length === 4
+  )
+}
+
 export function scanDisputeFileBuffer(buffer: Buffer, mimeType: string): { ok: true } | { ok: false; reason: string } {
   if (buffer.length < 4) return { ok: false, reason: 'File too small or empty' }
   const normalizedMime = mimeType === 'image/jpg' ? 'image/jpeg' : mimeType
-  if (normalizedMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      normalizedMime === 'application/msword' ||
-      normalizedMime === 'text/plain') {
-    return { ok: true }
+  let contentMatches = normalizedMime === 'text/plain'
+  if (normalizedMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    contentMatches =
+      buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])) ||
+      buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x05, 0x06])) ||
+      buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x07, 0x08]))
+  } else if (normalizedMime === 'application/msword') {
+    contentMatches = buffer.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0]))
+  } else if (normalizedMime !== 'text/plain') {
+    const signature = MAGIC_SIGNATURES.find((entry) => entry.mime === normalizedMime)
+    contentMatches = Boolean(signature?.check(buffer))
   }
-  const sig = MAGIC_SIGNATURES.find((s) => s.mime === normalizedMime)
-  if (sig && !sig.check(buffer)) {
+
+  if (!contentMatches) {
     return { ok: false, reason: 'File content does not match declared type' }
   }
+
   const mzIndex = buffer.indexOf(Buffer.from('MZ'))
   if (mzIndex >= 0 && mzIndex < buffer.length - 64) {
-    return { ok: false, reason: 'Executable content detected' }
+    const peOffset = buffer.readUInt32LE(mzIndex + 0x3c)
+    if (peOffset > 0 && peOffset < buffer.length - 4) {
+      const peSignature = buffer.subarray(peOffset, peOffset + 4).toString()
+      if (peSignature === 'PE\0\0') {
+        return { ok: false, reason: 'Executable content detected' }
+      }
+    }
   }
   return { ok: true }
 }
@@ -81,6 +108,12 @@ export function validateDisputeReportFile(
   let effective = effectiveContentType(contentType, originalFileName)
   if (!ALLOWED_MIME.has(effective) && byExt[ext]) {
     effective = byExt[ext]
+  }
+  const extensionMime = byExt[ext]
+  const normalizedEffective = effective === 'image/jpg' ? 'image/jpeg' : effective
+  const normalizedExtension = extensionMime === 'image/jpg' ? 'image/jpeg' : extensionMime
+  if (extensionMime && normalizedEffective !== normalizedExtension) {
+    return { ok: false, error: 'File extension does not match the declared content type' }
   }
   if (!ALLOWED_MIME.has(effective)) {
     return { ok: false, error: 'Unsupported file type. Use HTML, PDF, TXT, Word, PNG, or JPEG.' }
@@ -146,6 +179,36 @@ export async function downloadDisputeLetterBytes(storagePath: string): Promise<B
   }
   const ab = await data.arrayBuffer()
   return Buffer.from(ab)
+}
+
+export async function verifyDisputeReportObject(params: {
+  storagePath: string
+  sessionId: string
+  originalFileName: string
+}): Promise<{ ok: true; buffer: Buffer; mimeType: string } | { ok: false; error: string }> {
+  if (!isValidDisputeReportStoragePath(params.storagePath, params.sessionId)) {
+    return { ok: false, error: 'Invalid report storage path' }
+  }
+
+  const buffer = await downloadDisputeLetterBytes(params.storagePath)
+  if (!buffer) return { ok: false, error: 'Uploaded report not found' }
+
+  const validation = validateDisputeReportFile(
+    'application/octet-stream',
+    buffer.length,
+    params.originalFileName
+  )
+  if (!validation.ok) return validation
+
+  const scan = scanDisputeFileBuffer(buffer, validation.effectiveMime)
+  if (!scan.ok) return { ok: false, error: scan.reason }
+  return { ok: true, buffer, mimeType: validation.effectiveMime }
+}
+
+export async function removeDisputeReportObject(storagePath: string): Promise<void> {
+  if (!storagePath) return
+  const { error } = await getSupabase().storage.from(DISPUTE_LETTERS_BUCKET).remove([storagePath])
+  if (error) console.error('Dispute report remove error:', error)
 }
 
 export function newDisputeSessionId(): string {

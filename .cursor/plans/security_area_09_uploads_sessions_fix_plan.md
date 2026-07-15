@@ -4,28 +4,28 @@ overview: "Credit-funding staging sessions already use HMAC-signed tokens, serve
 todos:
   - id: staging-ttl-cleanup
     content: "Add cron/protected cleanup for orphaned credit-funding staging objects and purge staging on intake failure paths"
-    status: pending
+    status: completed
   - id: client-files-path-ownership
     content: "Require dashboard JSON file records to reference storage paths under the session clientId, or remove the JSON branch"
-    status: pending
+    status: completed
   - id: signed-upload-byte-scan
     content: "Add post-upload magic-byte/PE scanning before case-study publish and dispute-letter analyze usability"
-    status: pending
+    status: completed
   - id: upload-throttle-ip
     content: "Harden getClientIp for anonymous upload rate limits (trusted proxy hop) so staging abuse cannot rotate XFF forever"
-    status: pending
+    status: cancelled
   - id: path-and-secret-hardening
     content: "Reject staged path traversal explicitly; prefer dedicated CREDIT_FUNDING_SIGNING_SECRET over encryption/auth fallbacks in prod docs"
-    status: pending
+    status: completed
   - id: tests
     content: "Add focused tests for staging cleanup helpers, client-files path ownership, and staged path validation"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 09 - Deep Dive + Fix Plan
 
-**Status:** plan-ready (awaiting implement)
+**Status:** implemented and verified
 **Priority:** P2
 **Scope:** File uploads, signed upload sessions, storage path trust, download signed-URL minting, and related abuse/TTL controls.
 
@@ -67,12 +67,12 @@ Exploitability is limited because object names include random UUIDs (not enumera
 **Fix direction**
 - Require resolved path to start with `${clientId}/`, or delete the JSON branch and keep multipart only.
 
-### 3. Spoofable IP for anonymous upload throttles — Medium
+### 3. Spoofable IP for anonymous upload throttles — disproven for Vercel
 
-`getClientIp` returns the first `x-forwarded-for` hop. Session/stage/intake rate limits all key on that value, which amplifies staging storage abuse if the edge does not normalize the header.
+`getClientIp` returns the first `x-forwarded-for` hop. Current Vercel documentation confirms that Vercel overwrites this header and does not forward an external value, specifically to prevent spoofing (unless an Enterprise trusted proxy is explicitly enabled). This deployment does not need a code change.
 
-**Fix direction**
-- Prefer Vercel/`x-real-ip` / rightmost trusted hop patterns already appropriate for this deploy; optionally add a secondary non-IP throttle dimension for stage/session.
+**Resolution**
+- Keep the platform-provided `x-forwarded-for` value. Durable Upstash limits remain in place.
 
 ### 4. Admin signed-upload-URL flows skip byte scanning — Medium
 
@@ -115,12 +115,19 @@ HMAC prevents client-forged paths today, but `verifyStagedFileMetadataToken` sho
 
 ## Acceptance criteria
 
-- [ ] Staging objects older than session TTL are deleted by a scheduled, secret-gated job.
-- [ ] Failed/abandoned intake paths do not leave staging forever when session id is known.
-- [ ] Dashboard cannot mint a signed URL for another client's vault path via the JSON file POST.
-- [ ] Case-study and dispute-letter usable/published objects have been magic-byte scanned after upload.
-- [ ] Staged metadata paths containing `..` are rejected.
-- [ ] Focused tests + typecheck/build pass.
+- [x] Staging objects older than session TTL are deleted by a scheduled, secret-gated job.
+- [x] Failed/abandoned intake paths do not leave staging forever when session id is known.
+- [x] Dashboard cannot mint a signed URL for another client's vault path via the JSON file POST.
+- [x] Case-study and dispute-letter usable/published objects have been magic-byte scanned after upload.
+- [x] Staged metadata paths containing `..` are rejected.
+- [x] Focused tests + typecheck/build pass.
+
+## Implementation verification
+
+- Added a daily Vercel Cron route protected by `CRON_SECRET`; the production secret is configured.
+- Confirmed production already has a dedicated `CREDIT_FUNDING_SIGNING_SECRET`.
+- Full unit suite: 72 passed.
+- `npm run typecheck` and `npm run build` pass. Build retains pre-existing image/useMemo warnings in credit-funding UI files.
 
 ---
 

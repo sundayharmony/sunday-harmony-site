@@ -11,8 +11,9 @@ import {
   isDocumentType,
   type DocumentType,
 } from '@/lib/credit-funding-types'
+import { hasSafeStoragePathSegments } from '@/lib/storage-utils'
 
-const UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000
+export const UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000
 const STAGED_FILE_TOKEN_KIND = 'credit-funding-staged-file'
 
 export type TrustedStagedFileMetadata = {
@@ -112,6 +113,7 @@ export function verifyStagedFileMetadataToken(
     Date.now() > decoded.exp ||
     !isDocumentType(decoded.documentType) ||
     typeof decoded.storagePath !== 'string' ||
+    !hasSafeStoragePathSegments(decoded.storagePath) ||
     !decoded.storagePath.startsWith(
       `staging/${sessionId}/${decoded.documentType}/`
     ) ||

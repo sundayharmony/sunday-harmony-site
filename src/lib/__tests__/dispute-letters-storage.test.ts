@@ -30,6 +30,11 @@ describe('validateDisputeReportFile', () => {
     assert.equal(r.ok, true)
     if (r.ok) assert.equal(r.effectiveMime, 'text/plain')
   })
+
+  it('rejects a declared type that conflicts with the file extension', () => {
+    const r = validateDisputeReportFile('image/png', 500, 'report.txt')
+    assert.equal(r.ok, false)
+  })
 })
 
 describe('disputeLettersZipDownloadName', () => {

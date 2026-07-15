@@ -124,6 +124,15 @@ export function resolveClientFileStoragePath(fileUrl: string): string | null {
   return null
 }
 
+export function resolveClientFileStoragePathForClient(
+  fileUrl: string,
+  clientId: string
+): string | null {
+  const objectPath = resolveClientFileStoragePath(fileUrl)
+  if (!objectPath || !clientId || !objectPath.startsWith(`${clientId}/`)) return null
+  return objectPath
+}
+
 export async function getClientFileSignedUrl(objectPath: string, expiresInSec = SIGNED_URL_TTL_SEC): Promise<string | null> {
   if (!objectPath) return null
   const { data, error } = await getSupabase().storage

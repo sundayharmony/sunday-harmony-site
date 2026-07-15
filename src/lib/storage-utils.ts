@@ -12,3 +12,30 @@ export function effectiveContentType(contentType: string, originalFileName: stri
   if (ext === 'txt') return 'text/plain'
   return ct || 'application/octet-stream'
 }
+
+export function scanPdfBuffer(buffer: Buffer): { ok: true } | { ok: false; reason: string } {
+  if (buffer.length < 5) return { ok: false, reason: 'File too small or empty' }
+  if (buffer.subarray(0, 5).toString() !== '%PDF-') {
+    return { ok: false, reason: 'File content does not match declared PDF type' }
+  }
+
+  const mzIndex = buffer.indexOf(Buffer.from('MZ'))
+  if (mzIndex >= 0 && mzIndex < buffer.length - 64) {
+    const peOffset = buffer.readUInt32LE(mzIndex + 0x3c)
+    if (peOffset > 0 && peOffset < buffer.length - 4) {
+      const peSignature = buffer.subarray(peOffset, peOffset + 4).toString()
+      if (peSignature === 'PE\0\0') {
+        return { ok: false, reason: 'Executable content detected' }
+      }
+    }
+  }
+
+  return { ok: true }
+}
+
+export function hasSafeStoragePathSegments(storagePath: string): boolean {
+  if (!storagePath || storagePath.includes('\\')) return false
+  return storagePath
+    .split('/')
+    .every((segment) => segment.length > 0 && segment !== '.' && segment !== '..')
+}

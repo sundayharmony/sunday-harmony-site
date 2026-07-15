@@ -3,8 +3,10 @@ import { getSupabase } from '@/lib/supabase'
 import type { DocumentType, StorageDocumentType } from '@/lib/credit-funding-types'
 import {
   createStagedFileMetadataToken,
+  UPLOAD_SESSION_TTL_MS,
   type TrustedStagedFileMetadata,
 } from '@/lib/credit-funding-upload-session'
+import { hasSafeStoragePathSegments } from '@/lib/storage-utils'
 
 import { CREDIT_FUNDING_MAX_BYTES } from '@/lib/credit-funding-types'
 
@@ -113,7 +115,11 @@ export function isValidUploadSessionId(sessionId: string): boolean {
 }
 
 export function isStagedPathForSession(storagePath: string, sessionId: string): boolean {
-  return storagePath.startsWith(`${STAGING_PREFIX}/${sessionId}/`)
+  return (
+    isValidUploadSessionId(sessionId) &&
+    hasSafeStoragePathSegments(storagePath) &&
+    storagePath.startsWith(`${STAGING_PREFIX}/${sessionId}/`)
+  )
 }
 
 export async function stageCreditFundingDocument(params: {
@@ -202,21 +208,99 @@ export async function finalizeStagedCreditFundingDocument(params: {
 
 export async function removeStagedCreditFundingSession(sessionId: string): Promise<void> {
   if (!isValidUploadSessionId(sessionId)) return
-  const supabase = getSupabase()
   const base = `${STAGING_PREFIX}/${sessionId}`
-  const { data: docTypes } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(base)
-  if (!docTypes?.length) return
+  const paths = (await collectStorageFiles(base)).map((file) => file.path)
+  await removeStoragePaths(paths)
+}
 
-  const paths: string[] = []
-  for (const docFolder of docTypes) {
-    const { data: files } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).list(`${base}/${docFolder.name}`)
-    for (const f of files || []) {
-      paths.push(`${base}/${docFolder.name}/${f.name}`)
+type StorageEntry = {
+  name: string
+  metadata?: Record<string, unknown> | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+type StorageFile = StorageEntry & { path: string }
+
+async function listAllStorageEntries(prefix: string): Promise<StorageEntry[]> {
+  const bucket = getSupabase().storage.from(CREDIT_FUNDING_BUCKET)
+  const entries: StorageEntry[] = []
+  const limit = 1000
+
+  for (let offset = 0; ; offset += limit) {
+    const { data, error } = await bucket.list(prefix, {
+      limit,
+      offset,
+      sortBy: { column: 'name', order: 'asc' },
+    })
+    if (error) throw new Error(`Could not list ${prefix}: ${error.message}`)
+    const page = (data || []) as StorageEntry[]
+    entries.push(...page)
+    if (page.length < limit) break
+  }
+
+  return entries
+}
+
+async function collectStorageFiles(prefix: string, depth = 0): Promise<StorageFile[]> {
+  if (depth > 4) throw new Error(`Unexpected storage nesting under ${prefix}`)
+  const entries = await listAllStorageEntries(prefix)
+  const files: StorageFile[] = []
+
+  for (const entry of entries) {
+    const path = `${prefix}/${entry.name}`
+    if (entry.metadata) {
+      files.push({ ...entry, path })
+    } else {
+      files.push(...(await collectStorageFiles(path, depth + 1)))
     }
   }
 
-  if (paths.length) {
-    await supabase.storage.from(CREDIT_FUNDING_BUCKET).remove(paths)
+  return files
+}
+
+async function removeStoragePaths(paths: string[]): Promise<void> {
+  const bucket = getSupabase().storage.from(CREDIT_FUNDING_BUCKET)
+  for (let index = 0; index < paths.length; index += 1000) {
+    const { error } = await bucket.remove(paths.slice(index, index + 1000))
+    if (error) throw new Error(`Could not remove staged files: ${error.message}`)
+  }
+}
+
+export function isExpiredStagedStorageObject(
+  entry: Pick<StorageEntry, 'created_at' | 'updated_at'>,
+  cutoffMs: number
+): boolean {
+  const timestamp = entry.created_at || entry.updated_at
+  if (!timestamp) return false
+  const createdAtMs = Date.parse(timestamp)
+  return Number.isFinite(createdAtMs) && createdAtMs < cutoffMs
+}
+
+export async function cleanupExpiredStagedCreditFundingFiles(
+  nowMs = Date.now()
+): Promise<{ scannedSessions: number; scannedFiles: number; deletedFiles: number }> {
+  const sessionEntries = await listAllStorageEntries(STAGING_PREFIX)
+  const sessionFolders = sessionEntries.filter(
+    (entry) => !entry.metadata && isValidUploadSessionId(entry.name)
+  )
+  const cutoffMs = nowMs - UPLOAD_SESSION_TTL_MS
+  const expiredPaths: string[] = []
+  let scannedFiles = 0
+
+  for (const session of sessionFolders) {
+    const files = await collectStorageFiles(`${STAGING_PREFIX}/${session.name}`)
+    scannedFiles += files.length
+    for (const file of files) {
+      if (isExpiredStagedStorageObject(file, cutoffMs)) expiredPaths.push(file.path)
+    }
+  }
+
+  await removeStoragePaths(expiredPaths)
+  return {
+    scannedSessions: sessionFolders.length,
+    scannedFiles,
+    deletedFiles: expiredPaths.length,
   }
 }
 
