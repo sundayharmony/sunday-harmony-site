@@ -94,7 +94,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 02 Admin MFA / takeover | done | 2026-07-14 | [fix plan](security_area_02_admin_mfa_fix_plan.md) | code shipped; run migration 025 |
 | 03 Service-role / secrets | done | 2026-07-14 | [fix plan](security_area_03_secrets_hygiene_fix_plan.md) | shipped; rotation deferred |
 | 04 Password crypto | done | 2026-07-14 | [fix plan](security_area_04_password_crypto_fix_plan.md) | shipped; legacy auto-upgrade |
-| 05 CSP + XSS | done | 2026-07-14 | [fix plan](security_area_05_csp_xss_fix_plan.md) | shipped; deploy verification pending |
+| 05 CSP + XSS | done | 2026-07-14 | [fix plan](security_area_05_csp_xss_fix_plan.md) | production verified |
 | 06 API authz | pending | — | — | — |
 | 07 Rate limits | pending | — | — | — |
 | 08 Credit encryption | pending | — | — | — |

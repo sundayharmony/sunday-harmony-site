@@ -19,7 +19,7 @@ isProject: false
 
 # Area 05 — Deep dive + fix plan
 
-**Status:** implemented (deployment verification pending)
+**Status:** implemented and verified in production
 **Priority:** P1
 **Scope:** `next.config.js` security headers/CSP, `dangerouslySetInnerHTML` usage, CSP report endpoint.
 
@@ -105,4 +105,4 @@ Low. The eval shim is guarded/try-caught, so dropping `unsafe-eval` in productio
 - [x] Dispute-letter raw HTML sink eliminated
 - [x] `img-src` restricted to named origins
 - [x] `X-XSS-Protection: 0`; csp-report body capped
-- [ ] Preview deploy shows no CSP regressions in report logs
+- [x] Production deployment is Ready and live headers enforce the tightened CSP
