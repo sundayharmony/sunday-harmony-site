@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireClientSession } from '@/lib/client-auth'
 import { getNotifications, markNotificationRead, markAllNotificationsRead, getNotificationById } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { id: string }
-    const userId = user.id
+    const session = await requireClientSession()
+    if (session instanceof NextResponse) return session
+    const userId = session.user.id
 
     const notifications = await getNotifications(userId)
     return NextResponse.json(notifications, { status: 200 })
@@ -26,14 +20,9 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { id: string }
-    const userId = user.id
+    const session = await requireClientSession()
+    if (session instanceof NextResponse) return session
+    const userId = session.user.id
 
     const body = await request.json()
     const { id, all } = body

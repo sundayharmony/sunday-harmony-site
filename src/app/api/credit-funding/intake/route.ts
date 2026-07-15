@@ -26,13 +26,15 @@ import {
 import { getIdempotentResponse, setIdempotentResponse } from '@/lib/idempotency'
 import {
   finalizeStagedCreditFundingDocument,
-  isStagedPathForSession,
   isValidUploadSessionId,
   removeStagedCreditFundingSession,
-  type StagedCreditFundingFile,
   uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
-import { verifyUploadSession } from '@/lib/credit-funding-upload-session'
+import {
+  parseTrustedStagedFileSubmission,
+  verifyUploadSession,
+  type TrustedStagedFileMetadata,
+} from '@/lib/credit-funding-upload-session'
 import { verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 import {
@@ -92,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     const uploadSessionId = String(formData.get('uploadSessionId') || '').trim()
     const uploadSessionToken = String(formData.get('uploadSessionToken') || '').trim()
-    let stagedFiles: StagedCreditFundingFile[] = []
+    let stagedFiles: TrustedStagedFileMetadata[] = []
     if (uploadSessionId) {
       if (!isValidUploadSessionId(uploadSessionId)) {
         return NextResponse.json({ error: 'Invalid upload session' }, { status: 400 })
@@ -101,22 +103,23 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid upload session' }, { status: 403 })
       }
       try {
-        stagedFiles = JSON.parse(String(formData.get('stagedFiles') || '[]')) as StagedCreditFundingFile[]
+        const submitted = JSON.parse(String(formData.get('stagedFiles') || '[]')) as unknown
+        const trusted = parseTrustedStagedFileSubmission(
+          uploadSessionId,
+          submitted,
+          ALL_DOC_TYPES.length
+        )
+        if (!trusted) {
+          return NextResponse.json({ error: 'Invalid staged file metadata' }, { status: 400 })
+        }
+        stagedFiles = trusted
       } catch {
-        return NextResponse.json({ error: 'Invalid staged file payload' }, { status: 400 })
-      }
-      if (!Array.isArray(stagedFiles)) {
         return NextResponse.json({ error: 'Invalid staged file payload' }, { status: 400 })
       }
       for (const docType of REQUIRED_DOCS) {
         if (!stagedFiles.some((f) => f.documentType === docType)) {
           const label = docType.replace(/_/g, ' ')
           return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
-        }
-      }
-      for (const staged of stagedFiles) {
-        if (!isStagedPathForSession(staged.storagePath, uploadSessionId)) {
-          return NextResponse.json({ error: 'Invalid staged file reference' }, { status: 400 })
         }
       }
     } else {

@@ -5,7 +5,7 @@ import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { assertHttpsSubmission } from '@/lib/credit-funding-validation'
 import { stageCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { verifyUploadSession } from '@/lib/credit-funding-upload-session'
-import { DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
+import { isDocumentType } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -34,14 +34,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid upload session' }, { status: 403 })
     }
 
-    if (!DOCUMENT_TYPES.includes(documentType as DocumentType)) {
+    if (!isDocumentType(documentType)) {
       return NextResponse.json({ error: 'Invalid document type' }, { status: 400 })
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const upload = await stageCreditFundingDocument({
       sessionId,
-      documentType: documentType as DocumentType,
+      documentType,
       buffer,
       contentType: file.type,
       originalFileName: file.name,

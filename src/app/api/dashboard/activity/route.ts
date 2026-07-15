@@ -1,24 +1,19 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { resolveClientActivityAccess } from '@/lib/dashboard-activity-auth'
+import { getClientIdFromSession, requireClientSession } from '@/lib/client-auth'
 import { getSupabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  const access = resolveClientActivityAccess(session)
-
-  if (!access.ok) {
-    return NextResponse.json({ error: access.error }, { status: access.status })
-  }
+  const session = await requireClientSession()
+  if (session instanceof NextResponse) return session
+  const clientId = getClientIdFromSession(session)
 
   try {
     const { data, error } = await getSupabase()
       .from('activity_log')
-      .select('*')
-      .eq('entity_id', access.clientId)
+      .select('id, action, entity_type, details, created_at')
+      .eq('entity_id', clientId)
       .order('created_at', { ascending: false })
       .limit(30)
 

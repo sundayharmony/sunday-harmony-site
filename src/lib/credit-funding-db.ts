@@ -736,14 +736,17 @@ export async function linkApplicationToUser(applicationId: string, userId: strin
   const updates: Record<string, string | null> = { user_id: userId }
   if (clientId) updates.client_id = clientId
 
-  const { error } = await getSupabase()
+  const { data, error } = await getSupabase()
     .from('credit_funding_applications')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', applicationId)
+    .is('user_id', null)
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     console.error('linkApplicationToUser error:', error)
     return false
   }
-  return true
+  return Boolean(data)
 }

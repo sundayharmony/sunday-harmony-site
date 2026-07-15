@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getClientIdFromSession, requireClientSession } from '@/lib/client-auth'
 import { getClientById } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
 import { normalizeStripeInvoice } from '@/lib/stripe-invoice-utils'
@@ -10,20 +9,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const user = session.user as { role?: string; clientId?: string }
-  if (user.role !== 'client') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const clientId = user.clientId
-  if (!clientId) {
-    return NextResponse.json({ error: 'No client profile linked' }, { status: 404 })
-  }
+  const session = await requireClientSession()
+  if (session instanceof NextResponse) return session
+  const clientId = getClientIdFromSession(session)
 
   const client = await getClientById(clientId)
   if (!client) {

@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto'
 import { getSupabase } from '@/lib/supabase'
-import type { StorageDocumentType } from '@/lib/credit-funding-types'
+import type { DocumentType, StorageDocumentType } from '@/lib/credit-funding-types'
+import {
+  createStagedFileMetadataToken,
+  type TrustedStagedFileMetadata,
+} from '@/lib/credit-funding-upload-session'
 
 import { CREDIT_FUNDING_MAX_BYTES } from '@/lib/credit-funding-types'
 
@@ -98,14 +102,8 @@ export function validateCreditFundingFile(
   return { ok: true, mime: normalized }
 }
 
-export interface StagedCreditFundingFile {
-  documentType: StorageDocumentType
-  storagePath: string
-  file_name: string
-  file_size: number
-  file_type: string
-  mime_type: string
-  scan_status: 'clean' | 'rejected'
+export interface StagedCreditFundingFile extends TrustedStagedFileMetadata {
+  metadataToken: string
 }
 
 const STAGING_PREFIX = 'staging'
@@ -120,7 +118,7 @@ export function isStagedPathForSession(storagePath: string, sessionId: string): 
 
 export async function stageCreditFundingDocument(params: {
   sessionId: string
-  documentType: StorageDocumentType
+  documentType: DocumentType
   buffer: Buffer
   contentType: string
   originalFileName: string
@@ -151,23 +149,27 @@ export async function stageCreditFundingDocument(params: {
   }
 
   const displayName = sanitizeStorageFileName(originalFileName).replace(/_/g, ' ')
+  const metadata: TrustedStagedFileMetadata = {
+    documentType,
+    storagePath: objectPath,
+    file_size: buffer.length,
+    file_type: extensionFromName(originalFileName),
+    mime_type: v.mime,
+    file_name: displayName.slice(0, 300),
+    scan_status: 'clean',
+  }
   return {
     ok: true,
     data: {
-      documentType,
-      storagePath: objectPath,
-      file_size: buffer.length,
-      file_type: extensionFromName(originalFileName),
-      mime_type: v.mime,
-      file_name: displayName.slice(0, 300),
-      scan_status: 'clean',
+      ...metadata,
+      metadataToken: createStagedFileMetadataToken(sessionId, metadata),
     },
   }
 }
 
 export async function finalizeStagedCreditFundingDocument(params: {
   applicationUuid: string
-  staged: StagedCreditFundingFile
+  staged: TrustedStagedFileMetadata
   sessionId: string
 }): Promise<{ ok: true; data: UploadCreditFundingDocResult } | { ok: false; error: string }> {
   const { applicationUuid, staged, sessionId } = params

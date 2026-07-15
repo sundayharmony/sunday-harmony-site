@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getCreditManagers } from '@/lib/db'
 import { getCreditFundingApplications } from '@/lib/credit-funding-db'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   sendCreditFundingSubmissionEmail,
   sendCreditFundingExpertNotificationEmail,
@@ -12,10 +11,8 @@ import { decryptFieldOrLegacy } from '@/lib/field-encryption'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || (session.user.role !== 'admin' && session.user.role !== 'credit_manager')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = await requireCreditFundingStaffSession()
+  if (session instanceof NextResponse) return session
 
   try {
     const body = await req.json().catch(() => ({}))

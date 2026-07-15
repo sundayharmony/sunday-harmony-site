@@ -5,8 +5,10 @@ import { authOptions } from '@/lib/auth'
 import {
   getCreditFundingApplicationByEmail,
   getCreditFundingApplicationByUserId,
+  linkApplicationToUser,
 } from '@/lib/credit-funding-db'
 import type { CreditFundingApplication } from '@/lib/credit-funding-types'
+import { isStaffRole } from '@/lib/stripe-admin-auth'
 
 export type ApplicantSessionResult =
   | { ok: true; session: Session; application: CreditFundingApplication }
@@ -18,7 +20,7 @@ export async function requireApplicantCreditFundingAccess(): Promise<ApplicantSe
   if (!session?.user?.email) {
     return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
-  if (session.user.role === 'admin') {
+  if (isStaffRole(session.user.role)) {
     return { ok: false, response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
@@ -26,7 +28,9 @@ export async function requireApplicantCreditFundingAccess(): Promise<ApplicantSe
   const email = session.user.email.trim().toLowerCase()
 
   const byUser = await getCreditFundingApplicationByUserId(userId)
-  const application = byUser || (await getCreditFundingApplicationByEmail(email))
+  if (byUser) return { ok: true, session, application: byUser }
+
+  const application = await getCreditFundingApplicationByEmail(email)
   if (!application) {
     return {
       ok: false,
@@ -35,13 +39,35 @@ export async function requireApplicantCreditFundingAccess(): Promise<ApplicantSe
   }
 
   const emailMatch = application.email.trim().toLowerCase() === email
-  const userMatch = Boolean(application.user_id && application.user_id === userId)
-  if (!emailMatch && !userMatch) {
+  if (!emailMatch || application.user_id) {
     return {
       ok: false,
       response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
     }
   }
 
-  return { ok: true, session, application }
+  const linked = await linkApplicationToUser(
+    application.id,
+    userId,
+    session.user.clientId || application.client_id || undefined
+  )
+  if (!linked) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: 'Application account link changed; please try again.' },
+        { status: 409 }
+      ),
+    }
+  }
+
+  return {
+    ok: true,
+    session,
+    application: {
+      ...application,
+      user_id: userId,
+      client_id: session.user.clientId || application.client_id,
+    },
+  }
 }

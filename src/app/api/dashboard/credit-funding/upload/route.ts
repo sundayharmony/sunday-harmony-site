@@ -8,8 +8,10 @@ import {
 } from '@/lib/credit-funding-db'
 import { uploadCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { getAdminNotifyEmail, sendHtmlMailNonBlocking, escHtml, sanitizeEmailSubjectPart } from '@/lib/smtp-mail'
-import type { DocumentType } from '@/lib/credit-funding-types'
-import { DOCUMENT_LABELS } from '@/lib/credit-funding-types'
+import {
+  DOCUMENT_LABELS,
+  isDocumentType,
+} from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -29,11 +31,14 @@ export async function POST(req: NextRequest) {
     if (!documentType || !(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: 'Document type and file are required' }, { status: 400 })
     }
+    if (!isDocumentType(documentType)) {
+      return NextResponse.json({ error: 'Invalid document type' }, { status: 400 })
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const upload = await uploadCreditFundingDocument({
       applicationUuid: application.id,
-      documentType: documentType as DocumentType,
+      documentType,
       buffer,
       contentType: file.type,
       originalFileName: file.name,
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     await createUploadedDocument({
       application_uuid: application.id,
-      document_type: documentType as DocumentType,
+      document_type: documentType,
       file_name: upload.data.displayName,
       file_type: upload.data.file_type,
       file_size: upload.data.file_size,
@@ -67,10 +72,10 @@ export async function POST(req: NextRequest) {
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),
       subject: sanitizeEmailSubjectPart(
-        `Document uploaded — ${DOCUMENT_LABELS[documentType as DocumentType] || documentType}`,
+        `Document uploaded — ${DOCUMENT_LABELS[documentType] || documentType}`,
         200
       ),
-      html: `<p>${escHtml(session.user.name || application.full_name)} uploaded ${escHtml(DOCUMENT_LABELS[documentType as DocumentType] || documentType)} for application ${escHtml(application.application_id)}.</p>`,
+      html: `<p>${escHtml(session.user.name || application.full_name)} uploaded ${escHtml(DOCUMENT_LABELS[documentType] || documentType)} for application ${escHtml(application.application_id)}.</p>`,
       logLabel: 'cf-doc-upload-admin',
     })
 

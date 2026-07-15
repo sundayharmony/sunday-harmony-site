@@ -67,6 +67,10 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number]
 export type StaffDocumentType = (typeof STAFF_DOCUMENT_TYPES)[number]
 export type StorageDocumentType = DocumentType | StaffDocumentType
 
+export function isDocumentType(value: unknown): value is DocumentType {
+  return typeof value === 'string' && DOCUMENT_TYPES.includes(value as DocumentType)
+}
+
 export const APPLICATION_STATUSES = [
   'invitation_pending',
   'submitted',

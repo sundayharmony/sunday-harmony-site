@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireClientSession } from '@/lib/client-auth'
 import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -8,13 +7,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { id: string; email?: string; name?: string }
+    const session = await requireClientSession()
+    if (session instanceof NextResponse) return session
+    const user = session.user
     const userId = user.id
 
     // Try by ID first, fall back to email lookup
@@ -50,13 +45,9 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = session.user as { id: string; email?: string }
+    const session = await requireClientSession()
+    if (session instanceof NextResponse) return session
+    const user = session.user
     const userId = user.id
 
     // Rate limit: 5 password change attempts per 15 minutes per IP

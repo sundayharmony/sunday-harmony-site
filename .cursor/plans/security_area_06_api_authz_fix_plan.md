@@ -4,25 +4,25 @@ overview: "The API audit found no broad public data exposure or obvious client-t
 todos:
   - id: staff-mfa-gap
     content: "Replace raw getServerSession in admin credit-funding notification route with MFA-enforcing staff helper"
-    status: pending
+    status: completed
   - id: staged-upload-metadata
     content: "Stop trusting client-supplied staged-file metadata/scan_status during credit-funding intake"
-    status: pending
+    status: completed
   - id: applicant-binding
     content: "Harden applicant credit-funding access: staff exclusion + one-time user_id binding"
-    status: pending
+    status: completed
   - id: client-helper-refactor
     content: "Migrate duplicated dashboard auth checks to requireClientSession"
-    status: pending
+    status: completed
   - id: tests
     content: "Add focused authz tests for MFA gap, staged metadata, document type validation, and client helper behavior"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 06 — Deep dive + fix plan
 
-**Status:** plan-ready (awaiting permission to implement)
+**Status:** implemented and verified
 **Priority:** P1
 **Scope:** API authorization and IDOR risks across `src/app/api/**`.
 
@@ -190,8 +190,20 @@ It is filtered by client ID, so this is not IDOR. But full activity rows may inc
 
 ## Success Criteria
 
-- [ ] Every `/api/admin/credit-funding/**` route uses the MFA-aware staff helper where staff access is required.
-- [ ] No staged credit-funding finalization trusts browser-supplied `scan_status`.
-- [ ] Applicant dashboard access is never granted to staff and binds unclaimed applications to the current user.
-- [ ] Dashboard client routes consistently use `requireClientSession`.
-- [ ] ID ownership checks remain in place for file/approval/notification/document mutations.
+- [x] Every `/api/admin/credit-funding/**` route uses the MFA-aware staff helper where staff access is required.
+- [x] No staged credit-funding finalization trusts browser-supplied `scan_status`.
+- [x] Applicant dashboard access is never granted to staff and binds unclaimed applications to the current user.
+- [x] Dashboard client routes consistently use `requireClientSession`.
+- [x] ID ownership checks remain in place for file/approval/notification/document mutations.
+
+---
+
+## Implementation Notes
+
+- Staged upload metadata is authenticated with an expiring HMAC token bound to the upload session, document type, storage path, file metadata, and server-owned clean scan result.
+- Applicant document types now pass through a shared runtime allowlist guard before reaching storage or database code.
+- Email fallback can claim only an unbound application; the database update is conditional on `user_id IS NULL` to prevent concurrent or later reassignment.
+- General dashboard routes now share one client-role/client-ID policy. Existing file, approval, and notification ownership checks remain in place.
+- Activity responses expose only `id`, `action`, `entity_type`, `details`, and `created_at`.
+- Focused Area 06 tests: 10 passed. `npm run typecheck` and `npm run build` also passed.
+- A stronger signed claim or verified-email requirement remains a future account-lifecycle enhancement if self-service account creation is introduced.
