@@ -34,7 +34,7 @@ todos:
     status: completed
   - id: area-11-public-surfaces
     content: "P2 — Public surfaces (invite tokens, case studies, contact/intake)"
-    status: pending
+    status: in_progress
   - id: area-12-setup-ops
     content: "P2 — Setup endpoint, admin seed, operational lockdown"
     status: pending
@@ -100,7 +100,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 08 Credit encryption | done | 2026-07-15 | [fix plan](security_area_08_credit_encryption_fix_plan.md) | shipped; audited reveal + text encryption |
 | 09 Uploads | done | 2026-07-15 | [fix plan](security_area_09_uploads_sessions_fix_plan.md) | shipped; staging cron + post-upload scanning |
 | 10 Stripe / billing | done | 2026-07-15 | [fix plan](security_area_10_stripe_billing_fix_plan.md) | shipped; MFA billing auth + webhook retry safety |
-| 11 Public surfaces | pending | — | — | — |
+| 11 Public surfaces | plan-ready | 2026-07-15 | [fix plan](security_area_11_public_surfaces_fix_plan.md) | awaiting implement |
 | 12 Setup / ops | pending | — | — | — |
 
 Statuses: `pending` → `diving` → `plan-ready` → `implementing` → `done` | `deferred`
