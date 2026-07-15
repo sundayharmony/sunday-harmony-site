@@ -37,7 +37,7 @@ todos:
     status: completed
   - id: area-12-setup-ops
     content: "P2 — Setup endpoint, admin seed, operational lockdown"
-    status: pending
+    status: in_progress
 isProject: false
 ---
 
@@ -101,7 +101,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 09 Uploads | done | 2026-07-15 | [fix plan](security_area_09_uploads_sessions_fix_plan.md) | shipped; staging cron + post-upload scanning |
 | 10 Stripe / billing | done | 2026-07-15 | [fix plan](security_area_10_stripe_billing_fix_plan.md) | shipped; MFA billing auth + webhook retry safety |
 | 11 Public surfaces | done | 2026-07-15 | [fix plan](security_area_11_public_surfaces_fix_plan.md) | shipped; private case-study delivery + invite/bot/referrer hardening |
-| 12 Setup / ops | pending | — | — | — |
+| 12 Setup / ops | plan-ready | 2026-07-15 | [fix plan](security_area_12_setup_ops_fix_plan.md) | awaiting implement; prod bootstrap already disabled |
 
 Statuses: `pending` → `diving` → `plan-ready` → `implementing` → `done` | `deferred`
 
