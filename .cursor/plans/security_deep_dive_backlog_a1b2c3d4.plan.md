@@ -38,6 +38,9 @@ todos:
   - id: area-12-setup-ops
     content: "P2 — Setup endpoint, admin seed, operational lockdown"
     status: completed
+  - id: area-13-followups
+    content: "Residual follow-ups: dep vulns, migration 026, MFA enrollment, CSP nonce, rotation"
+    status: in_progress
 isProject: false
 ---
 
@@ -84,6 +87,12 @@ Do not combine areas in one pass unless you explicitly allow it.
 | **11** | Public surfaces | Invite token PII, published PDFs, spam/abuse | invite route, case studies, contact |
 | **12** | Setup / seed / ops lockdown | Token-gated setup, `seedAdmin` on authorize | `api/setup`, `seedAdmin` in auth |
 
+### P2/P1 — residual follow-ups
+
+| # | Area | Why it matters | Entry points |
+|---|------|----------------|--------------|
+| **13** | Residual follow-ups | 7 Dependabot alerts (2 high), migration 026 unapplied, credit_manager MFA, deferred CSP + rotation | `package.json`, `supabase-migration-026-*.sql`, `next.config.js`, `src/middleware.ts` |
+
 ---
 
 ## Status tracker
@@ -102,6 +111,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 10 Stripe / billing | done | 2026-07-15 | [fix plan](security_area_10_stripe_billing_fix_plan.md) | shipped; MFA billing auth + webhook retry safety |
 | 11 Public surfaces | done | 2026-07-15 | [fix plan](security_area_11_public_surfaces_fix_plan.md) | shipped; private case-study delivery + invite/bot/referrer hardening |
 | 12 Setup / ops | done | 2026-07-15 | [fix plan](security_area_12_setup_ops_fix_plan.md) | shipped; timing-safe ops secrets + honest setup seed reporting |
+| 13 Residual follow-ups | plan-ready | 2026-07-15 | [fix plan](security_area_13_followups_fix_plan.md) | awaiting implement; migrations 025 + case-study delivery verified applied |
 
 Statuses: `pending` → `diving` → `plan-ready` → `implementing` → `done` | `deferred`
 
