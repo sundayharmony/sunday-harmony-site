@@ -84,11 +84,9 @@ export default function DisputeLettersResultPage() {
         </div>
         <div className="rounded-xl border border-brand-border bg-white p-6 overflow-auto shadow-sm min-h-[400px]">
           {active ? (
-            active.html ? (
-              <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: active.html }} />
-            ) : (
-              <div className="whitespace-pre-wrap text-sm text-brand-text">{active.plain_text || active.markdown}</div>
-            )
+            <div className="whitespace-pre-wrap text-sm leading-7 text-brand-text">
+              {active.plain_text || active.markdown}
+            </div>
           ) : (
             <p className="text-brand-dim">No letters yet.</p>
           )}

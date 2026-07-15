@@ -1,25 +1,25 @@
 ---
 name: "Area 05 Fix Plan — CSP Tightening + XSS Sinks"
-overview: "CSP allows unsafe-inline and unsafe-eval scripts, which neuters it against injected scripts. The dispute-letters admin page renders API-provided HTML unsanitized. Plan: drop unsafe-eval in production, sanitize the dispute-letter HTML sink, tighten img-src, and fix the deprecated X-XSS-Protection header. Implement only after approval."
+overview: "CSP allowed unsafe-inline and unsafe-eval scripts, and the dispute-letters admin page rendered API-provided HTML. Implemented: production drops unsafe-eval, the raw HTML sink was eliminated, img-src is restricted, and deprecated/unbounded header handling was fixed."
 todos:
   - id: drop-unsafe-eval
     content: "Environment-aware CSP: remove unsafe-eval from script-src in production"
-    status: pending
+    status: completed
   - id: sanitize-letters
-    content: "Sanitize dispute-letter HTML before dangerouslySetInnerHTML"
-    status: pending
+    content: "Eliminate dispute-letter raw HTML rendering and use React-escaped plain text"
+    status: completed
   - id: tighten-img-src
     content: "Restrict img-src from https: wildcard to a named list"
-    status: pending
+    status: completed
   - id: header-fixes
     content: "Set X-XSS-Protection: 0 (deprecated header) + cap csp-report body"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 05 — Deep dive + fix plan
 
-**Status:** plan-ready (awaiting permission to implement)
+**Status:** implemented (deployment verification pending)
 **Priority:** P1
 **Scope:** `next.config.js` security headers/CSP, `dangerouslySetInnerHTML` usage, CSP report endpoint.
 
@@ -74,10 +74,9 @@ Modern guidance (OWASP/MDN) is to set `0` — the legacy XSS auditor it toggles 
 - Include `'unsafe-eval'` in `script-src` **only when `NODE_ENV !== 'production'`**.
 - Verify on a Vercel preview deploy + watch `/api/csp-report` logs for regressions before considering it done.
 
-### Step 2 — Sanitize the dispute-letter sink
+### Step 2 — Eliminate the dispute-letter sink
 
-- Add a small allowlist sanitizer (letters only need `p`, `strong`, `br` and the `class` attribute with `letter-*` values) in `src/lib/dispute-letters/` and run `active.html` through it before `dangerouslySetInnerHTML`.
-- No new dependency needed for this narrow shape; DOMPurify remains the fallback option if letters ever need richer HTML.
+- The preview now renders the API's `plain_text` (with markdown as fallback) as a normal React child. React escapes all content, `dangerouslySetInnerHTML` is gone, and no sanitizer dependency or custom HTML parser is needed.
 
 ### Step 3 — Tighten `img-src`
 
@@ -96,14 +95,14 @@ Modern guidance (OWASP/MDN) is to set `0` — the legacy XSS auditor it toggles 
 
 ### Risk
 
-Low. The eval shim is guarded/try-caught, so dropping `unsafe-eval` in production is safe for supported browsers; preview-deploy verification plus CSP reporting catches surprises. The sanitizer is additive on a single admin page.
+Low. The eval shim is guarded/try-caught, so dropping `unsafe-eval` in production is safe for supported browsers; deployment verification plus CSP reporting catches surprises. The letter preview trades rich HTML formatting for a safe text presentation while preserving whitespace.
 
 ---
 
 ## Success criteria
 
-- [ ] Production CSP has no `unsafe-eval`; dev still works (HMR)
-- [ ] Dispute-letter HTML passes through an allowlist sanitizer
-- [ ] `img-src` restricted to named origins
-- [ ] `X-XSS-Protection: 0`; csp-report body capped
+- [x] Production CSP has no `unsafe-eval`; dev retains it for HMR
+- [x] Dispute-letter raw HTML sink eliminated
+- [x] `img-src` restricted to named origins
+- [x] `X-XSS-Protection: 0`; csp-report body capped
 - [ ] Preview deploy shows no CSP regressions in report logs
