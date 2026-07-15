@@ -28,7 +28,7 @@ todos:
     status: completed
   - id: area-09-uploads
     content: "P2 — File upload & signed-session hardening"
-    status: pending
+    status: in_progress
   - id: area-10-stripe
     content: "P2 — Stripe webhook/billing authorization review"
     status: pending
@@ -98,7 +98,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 06 API authz | done | 2026-07-14 | [fix plan](security_area_06_api_authz_fix_plan.md) | shipped; signed upload metadata + shared client auth |
 | 07 Rate limits | done | 2026-07-14 | [fix plan](security_area_07_rate_limits_fix_plan.md) | shipped; durable limits expanded |
 | 08 Credit encryption | done | 2026-07-15 | [fix plan](security_area_08_credit_encryption_fix_plan.md) | shipped; audited reveal + text encryption |
-| 09 Uploads | pending | — | — | — |
+| 09 Uploads | plan-ready | 2026-07-15 | [fix plan](security_area_09_uploads_sessions_fix_plan.md) | awaiting implement |
 | 10 Stripe / billing | pending | — | — | — |
 | 11 Public surfaces | pending | — | — | — |
 | 12 Setup / ops | pending | — | — | — |
