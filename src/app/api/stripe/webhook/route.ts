@@ -7,10 +7,13 @@ import {
   getClientByStripeCustomerId,
   getClientByStripeSubscriptionId,
   releaseStripeWebhookEvent,
-  updateClient,
 } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
-import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
+import {
+  applySubscriptionToClient,
+  updateClientForStripeSync,
+} from '@/lib/stripe-subscription-sync'
+import { SUBSCRIPTION_EXPAND } from '@/lib/stripe-subscription-validation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,6 +38,9 @@ function subscriptionIdFromInvoice(invoice: Stripe.Invoice): string | undefined 
 async function handleSubscriptionEvent(subscription: Stripe.Subscription): Promise<void> {
   const stripeSubscriptionId = subscription.id
   const stripeCustomerId = String(subscription.customer)
+  const currentSubscription = await getStripe().subscriptions.retrieve(stripeSubscriptionId, {
+    expand: [...SUBSCRIPTION_EXPAND],
+  })
   const client =
     (await getClientByStripeSubscriptionId(stripeSubscriptionId)) ||
     (await getClientByStripeCustomerId(stripeCustomerId)) ||
@@ -43,7 +49,7 @@ async function handleSubscriptionEvent(subscription: Stripe.Subscription): Promi
       : undefined)
 
   if (client) {
-    await applySubscriptionToClient(client.id, subscription)
+    await applySubscriptionToClient(client.id, currentSubscription)
   }
 }
 
@@ -79,7 +85,7 @@ export async function POST(req: NextRequest) {
     if (event.type === 'checkout.session.completed') {
       const checkoutSession = event.data.object as Stripe.Checkout.Session
       if (checkoutSession.mode === 'subscription') {
-        const clientIdMeta = checkoutSession.metadata?.client_id || checkoutSession.client_reference_id
+        const clientIdMeta = checkoutSession.metadata?.client_id
         const subRaw = checkoutSession.subscription
         const subscriptionId = typeof subRaw === 'string' ? subRaw : subRaw?.id
 
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
       const subscription = event.data.object as Stripe.Subscription
       const client = await getClientByStripeSubscriptionId(subscription.id)
       if (client) {
-        await updateClient(client.id, {
+        await updateClientForStripeSync(client.id, {
           stripe_subscription_id: '',
           billing_status: 'not_started',
           next_billing_date: undefined,
@@ -119,7 +125,7 @@ export async function POST(req: NextRequest) {
       const setupIntent = event.data.object as Stripe.SetupIntent
       const clientId = setupIntent.metadata?.client_id
       if (clientId && setupIntent.customer) {
-        await updateClient(clientId, {
+        await updateClientForStripeSync(clientId, {
           stripe_customer_id: String(setupIntent.customer),
         })
       }
@@ -137,7 +143,7 @@ export async function POST(req: NextRequest) {
         }
         const paidAtRaw = invoice.status_transitions?.paid_at
         const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null
-        await updateClient(client.id, {
+        await updateClientForStripeSync(client.id, {
           is_potential: false,
           last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
         })
@@ -154,7 +160,7 @@ export async function POST(req: NextRequest) {
           const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
           await applySubscriptionToClient(client.id, subscription)
         } else {
-          await updateClient(client.id, {
+          await updateClientForStripeSync(client.id, {
             billing_status:
               event.type === 'invoice.payment_action_required' ? 'unpaid' : 'past_due',
           })
@@ -166,7 +172,7 @@ export async function POST(req: NextRequest) {
       const subscription = event.data.object as Stripe.Subscription
       const client = await getClientByStripeSubscriptionId(subscription.id)
       if (client && subscription.status === 'trialing') {
-        await updateClient(client.id, { billing_status: 'trial' })
+        await updateClientForStripeSync(client.id, { billing_status: 'trial' })
       }
     }
   } catch (err) {

@@ -278,15 +278,47 @@ export async function getClientById(id: string): Promise<Client | undefined> {
 }
 
 export async function getClientByStripeCustomerId(stripeCustomerId: string): Promise<Client | undefined> {
-  const { data, error } = await getSupabase().from('clients').select('*').eq('stripe_customer_id', stripeCustomerId).single()
-  if (error) return undefined
-  return data
+  const matches = await getClientsByStripeCustomerId(stripeCustomerId)
+  if (matches.length > 1) {
+    throw new Error(`Multiple clients share Stripe customer id ${stripeCustomerId}`)
+  }
+  return matches[0]
 }
 
 export async function getClientByStripeSubscriptionId(stripeSubscriptionId: string): Promise<Client | undefined> {
-  const { data, error } = await getSupabase().from('clients').select('*').eq('stripe_subscription_id', stripeSubscriptionId).single()
-  if (error) return undefined
-  return data
+  const matches = await getClientsByStripeSubscriptionId(stripeSubscriptionId)
+  if (matches.length > 1) {
+    throw new Error(`Multiple clients share Stripe subscription id ${stripeSubscriptionId}`)
+  }
+  return matches[0]
+}
+
+export async function getClientsByStripeCustomerId(stripeCustomerId: string): Promise<Client[]> {
+  if (!stripeCustomerId?.trim()) return []
+  const { data, error } = await getSupabase()
+    .from('clients')
+    .select('*')
+    .eq('stripe_customer_id', stripeCustomerId)
+    .limit(2)
+  if (error) {
+    console.error('getClientsByStripeCustomerId error:', error)
+    throw error
+  }
+  return data || []
+}
+
+export async function getClientsByStripeSubscriptionId(stripeSubscriptionId: string): Promise<Client[]> {
+  if (!stripeSubscriptionId?.trim()) return []
+  const { data, error } = await getSupabase()
+    .from('clients')
+    .select('*')
+    .eq('stripe_subscription_id', stripeSubscriptionId)
+    .limit(2)
+  if (error) {
+    console.error('getClientsByStripeSubscriptionId error:', error)
+    throw error
+  }
+  return data || []
 }
 
 export async function createClient(clientData: Omit<Client, 'id' | 'created_at' | 'updated_at'>): Promise<Client | null> {

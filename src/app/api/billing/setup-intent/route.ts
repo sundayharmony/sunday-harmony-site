@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeBillingClient } from '@/lib/billing-access'
+import { enforceBillingRateLimit } from '@/lib/billing-rate-limit'
 import { createSetupIntentForClient } from '@/lib/billing-service'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
@@ -10,6 +11,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const auth = await authorizeBillingClient(typeof body.clientId === 'string' ? body.clientId : undefined)
   if (auth instanceof NextResponse) return auth
+  const limited = await enforceBillingRateLimit(auth, {
+    operation: 'setup-intent',
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  })
+  if (limited) return limited
 
   const result = await withStripeHandler(() => createSetupIntentForClient(auth.clientId))
   if (result instanceof NextResponse) return result

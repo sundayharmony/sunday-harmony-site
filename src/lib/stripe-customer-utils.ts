@@ -1,5 +1,5 @@
 import { getStripe } from '@/lib/stripe'
-import { getClientById, updateClient } from '@/lib/db'
+import { getClientById, getClientsByStripeCustomerId, updateClient } from '@/lib/db'
 
 function escapeEmailForStripeSearch(email: string): string {
   return email.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
@@ -42,8 +42,13 @@ export async function ensureStripeCustomerForClient(
       limit: 1,
     })
     if (search.data.length > 0) {
-      stripeCustomerId = search.data[0].id
-      outcome = 'linked'
+      const candidateId = search.data[0].id
+      const linkedClients = await getClientsByStripeCustomerId(candidateId)
+      const linkedToAnotherClient = linkedClients.some((row) => row.id !== clientId)
+      if (!linkedToAnotherClient) {
+        stripeCustomerId = candidateId
+        outcome = 'linked'
+      }
     }
   } catch (err) {
     console.warn('Stripe customer search failed, creating new customer:', err)

@@ -4,28 +4,28 @@ overview: "The Stripe integration already verifies webhook signatures, dedupes e
 todos:
   - id: billing-admin-mfa
     content: "Require MFA-verified admin sessions in authorizeBillingClient before any admin billing mutation or payment-method access"
-    status: pending
+    status: completed
   - id: webhook-write-failures
     content: "Make webhook client updates fail loudly so Stripe retries instead of permanently claiming failed events"
-    status: pending
+    status: completed
   - id: billing-rate-limits
     content: "Add durable per-client/session limits to setup-intent, save-card, and payment-methods routes"
-    status: pending
+    status: completed
   - id: stripe-customer-uniqueness
     content: "Prevent cross-tenant Stripe customer/subscription linkage with code checks and non-empty unique indexes"
-    status: pending
+    status: completed
   - id: stale-event-and-error-hardening
     content: "Refetch or guard subscription events, sanitize Stripe error responses, and trim dead checkout trust paths"
-    status: pending
+    status: completed
   - id: tests
     content: "Add focused billing auth, webhook retry, customer-linkage, and rate-limit tests"
-    status: pending
+    status: completed
 isProject: false
 ---
 
 # Area 10 - Deep Dive + Fix Plan
 
-**Status:** plan-ready (awaiting implement)
+**Status:** implemented and verified
 **Priority:** P2
 **Scope:** Stripe webhook handling, billing route authorization, customer/subscription mapping, payment-method operations, and subscription state synchronization.
 
@@ -137,14 +137,22 @@ Hosted checkout routes are retired, but the webhook still falls back to `checkou
 
 ## Acceptance criteria
 
-- [ ] Admin billing routes reject non-MFA admin sessions.
-- [ ] Webhook client update failures release the event claim and return 500.
-- [ ] Billing setup/payment-method routes have durable per-client/session limits.
-- [ ] A Stripe customer/subscription id cannot be assigned to multiple clients.
-- [ ] Email search never adopts a customer already linked to a different client row.
-- [ ] Subscription create/update events are not applied from stale embedded payloads.
-- [ ] Stripe 500 responses do not expose raw internal messages.
-- [ ] Focused tests, full unit tests, typecheck, and build pass.
+- [x] Admin billing routes reject non-MFA admin sessions.
+- [x] Webhook client update failures release the event claim and return 500.
+- [x] Billing setup/payment-method routes have durable per-client/session limits.
+- [x] A Stripe customer/subscription id cannot be assigned to multiple clients.
+- [x] Email search never adopts a customer already linked to a different client row.
+- [x] Subscription create/update events are not applied from stale embedded payloads.
+- [x] Stripe 500 responses do not expose raw internal messages.
+- [x] Focused tests, full unit tests, typecheck, and build pass.
+
+## Implementation verification
+
+- Added `supabase-migration-026-stripe-billing-uniqueness.sql` for non-empty unique Stripe customer/subscription ids.
+- Removed the retired checkout `client_reference_id` fallback and re-fetch subscription create/update events from Stripe.
+- SetupIntent creation now omits `payment_method_types` to preserve Stripe dynamic payment method behavior.
+- Focused billing security tests passed; full unit suite passed: 78 tests.
+- `npm run typecheck` and `npm run build` passed. Build retains pre-existing credit-funding image/useMemo warnings.
 
 ---
 

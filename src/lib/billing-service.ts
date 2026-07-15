@@ -107,7 +107,6 @@ export async function createSetupIntentForClient(
 
   const intent = await getStripe().setupIntents.create({
     customer: ensured.stripe_customer_id,
-    payment_method_types: ['card'],
     metadata: { client_id: clientId },
   })
 

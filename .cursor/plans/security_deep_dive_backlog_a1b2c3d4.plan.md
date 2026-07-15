@@ -31,7 +31,7 @@ todos:
     status: completed
   - id: area-10-stripe
     content: "P2 — Stripe webhook/billing authorization review"
-    status: in_progress
+    status: completed
   - id: area-11-public-surfaces
     content: "P2 — Public surfaces (invite tokens, case studies, contact/intake)"
     status: pending
@@ -99,7 +99,7 @@ Do not combine areas in one pass unless you explicitly allow it.
 | 07 Rate limits | done | 2026-07-14 | [fix plan](security_area_07_rate_limits_fix_plan.md) | shipped; durable limits expanded |
 | 08 Credit encryption | done | 2026-07-15 | [fix plan](security_area_08_credit_encryption_fix_plan.md) | shipped; audited reveal + text encryption |
 | 09 Uploads | done | 2026-07-15 | [fix plan](security_area_09_uploads_sessions_fix_plan.md) | shipped; staging cron + post-upload scanning |
-| 10 Stripe / billing | plan-ready | 2026-07-15 | [fix plan](security_area_10_stripe_billing_fix_plan.md) | awaiting implement |
+| 10 Stripe / billing | done | 2026-07-15 | [fix plan](security_area_10_stripe_billing_fix_plan.md) | shipped; MFA billing auth + webhook retry safety |
 | 11 Public surfaces | pending | — | — | — |
 | 12 Setup / ops | pending | — | — | — |
 

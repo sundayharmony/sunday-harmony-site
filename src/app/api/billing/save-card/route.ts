@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeBillingClient } from '@/lib/billing-access'
+import { enforceBillingRateLimit } from '@/lib/billing-rate-limit'
 import { logBillingActivity, savePaymentMethodForClient } from '@/lib/billing-service'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
@@ -13,6 +14,12 @@ export async function POST(req: NextRequest) {
   if (auth.isAdmin) {
     return NextResponse.json({ error: 'Only clients can save cards from the dashboard.' }, { status: 403 })
   }
+  const limited = await enforceBillingRateLimit(auth, {
+    operation: 'save-card',
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (limited) return limited
 
   const paymentMethodId = typeof body.paymentMethodId === 'string' ? body.paymentMethodId.trim() : ''
   if (!paymentMethodId) {

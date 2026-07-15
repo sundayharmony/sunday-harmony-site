@@ -21,6 +21,9 @@ export async function authorizeBillingClient(
   const actorEmail = session.user.email || 'user'
 
   if (session.user.role === 'admin') {
+    if (!session.user.mfaVerified) {
+      return NextResponse.json({ error: 'MFA verification required' }, { status: 403 })
+    }
     const clientId = requestedClientId?.trim()
     if (!clientId) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 })

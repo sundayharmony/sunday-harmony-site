@@ -2,6 +2,8 @@ import type Stripe from 'stripe'
 
 type StripeErrorLike = { type?: string; message?: string; code?: string }
 
+const GENERIC_BILLING_ERROR = 'Billing service error. Please try again shortly.'
+
 export function mapStripeError(err: unknown): { error: string; status: number } {
   if (err && typeof err === 'object' && 'type' in err) {
     const stripeErr = err as StripeErrorLike
@@ -17,11 +19,13 @@ export function mapStripeError(err: unknown): { error: string; status: number } 
       case 'StripeRateLimitError':
         return { error: 'Too many requests. Please try again shortly.', status: 429 }
       default:
-        return { error: message, status: 500 }
+        console.error('Unhandled Stripe error:', stripeErr)
+        return { error: GENERIC_BILLING_ERROR, status: 500 }
     }
   }
   if (err instanceof Error) {
-    return { error: err.message, status: 500 }
+    console.error('Billing service error:', err)
+    return { error: GENERIC_BILLING_ERROR, status: 500 }
   }
   return { error: 'Something went wrong', status: 500 }
 }

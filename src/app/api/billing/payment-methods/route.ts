@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeBillingClient } from '@/lib/billing-access'
+import { enforceBillingRateLimit } from '@/lib/billing-rate-limit'
 import {
   detachPaymentMethod,
   listPaymentMethods,
@@ -15,6 +16,12 @@ export async function GET(req: NextRequest) {
   const clientId = new URL(req.url).searchParams.get('clientId')?.trim() || undefined
   const auth = await authorizeBillingClient(clientId)
   if (auth instanceof NextResponse) return auth
+  const limited = await enforceBillingRateLimit(auth, {
+    operation: 'payment-methods-list',
+    limit: 30,
+    windowMs: 60 * 1000,
+  })
+  if (limited) return limited
 
   const result = await withStripeHandler(() => listPaymentMethods(auth.clientId))
   if (result instanceof NextResponse) return result
@@ -29,6 +36,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const auth = await authorizeBillingClient(typeof body.clientId === 'string' ? body.clientId : undefined)
   if (auth instanceof NextResponse) return auth
+  const limited = await enforceBillingRateLimit(auth, {
+    operation: 'payment-method-default',
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (limited) return limited
 
   const paymentMethodId = typeof body.paymentMethodId === 'string' ? body.paymentMethodId.trim() : ''
   if (!paymentMethodId) {
@@ -51,6 +64,12 @@ export async function DELETE(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const auth = await authorizeBillingClient(typeof body.clientId === 'string' ? body.clientId : undefined)
   if (auth instanceof NextResponse) return auth
+  const limited = await enforceBillingRateLimit(auth, {
+    operation: 'payment-method-delete',
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (limited) return limited
 
   const paymentMethodId = typeof body.paymentMethodId === 'string' ? body.paymentMethodId.trim() : ''
   if (!paymentMethodId) {

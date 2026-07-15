@@ -1,7 +1,18 @@
 import type Stripe from 'stripe'
-import { updateClient } from '@/lib/db'
+import { updateClient, type Client } from '@/lib/db'
 import { getTierFromPriceId, monthlyPriceFromStripeUnitAmount } from '@/lib/stripe-catalog'
 import { toBillingStatus } from '@/lib/stripe-billing-status'
+
+export async function updateClientForStripeSync(
+  clientId: string,
+  updates: Partial<Omit<Client, 'id' | 'created_at'>>
+): Promise<Client> {
+  const updated = await updateClient(clientId, updates)
+  if (!updated) {
+    throw new Error(`Failed to persist Stripe billing state for client ${clientId}`)
+  }
+  return updated
+}
 
 export function subscriptionPeriodEndIso(subscription: Stripe.Subscription): string | undefined {
   const end = (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
@@ -18,7 +29,7 @@ export async function applySubscriptionToClient(
   const tier = priceId ? getTierFromPriceId(priceId) : undefined
   const monthly = monthlyPriceFromStripeUnitAmount(item?.price?.unit_amount)
 
-  await updateClient(clientId, {
+  await updateClientForStripeSync(clientId, {
     stripe_subscription_id: subscription.id,
     stripe_customer_id: String(subscription.customer),
     billing_status: toBillingStatus(subscription.status),
