@@ -10,6 +10,11 @@ import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 
 const REDACTED = '••••••••'
 
+/** Drop blank ciphertexts so PostgREST does not reject inserts when optional columns are missing. */
+function optionalEncryptedColumns(columns: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(columns).filter(([, value]) => Boolean(value)))
+}
+
 export function encryptFreeTextForDb(value: string | undefined | null): string | undefined {
   if (value === undefined) return undefined
   const trimmed = value?.trim() || ''
@@ -126,8 +131,11 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
     provider_password_encrypted: encryptField(payload.providerPassword),
     experian_email_encrypted: encryptField(payload.experianEmail),
     experian_password_encrypted: encryptField(payload.experianPassword),
-    cfpb_email_encrypted: encryptField(payload.cfpbEmail),
-    cfpb_password_encrypted: encryptField(payload.cfpbPassword),
+    // Omit blank CFPB columns so inserts work if migration 023 is not applied yet.
+    ...optionalEncryptedColumns({
+      cfpb_email_encrypted: encryptField(payload.cfpbEmail),
+      cfpb_password_encrypted: encryptField(payload.cfpbPassword),
+    }),
     credit_goals: payload.creditGoals,
     primary_credit_goals_text: encryptFieldIfPresent(payload.primaryCreditGoalsText),
     funding_amount: payload.fundingAmount,
@@ -189,8 +197,11 @@ export function buildPartialEncryptedApplicationRow(
     provider_password_encrypted: keepSecret(payload.providerPassword, existing?.provider_password_encrypted),
     experian_email_encrypted: keepSecret(payload.experianEmail, existing?.experian_email_encrypted),
     experian_password_encrypted: keepSecret(payload.experianPassword, existing?.experian_password_encrypted),
-    cfpb_email_encrypted: keepSecret(payload.cfpbEmail, existing?.cfpb_email_encrypted),
-    cfpb_password_encrypted: keepSecret(payload.cfpbPassword, existing?.cfpb_password_encrypted),
+    // Omit blank CFPB columns so drafts work if migration 023 is not applied yet.
+    ...optionalEncryptedColumns({
+      cfpb_email_encrypted: keepSecret(payload.cfpbEmail, existing?.cfpb_email_encrypted),
+      cfpb_password_encrypted: keepSecret(payload.cfpbPassword, existing?.cfpb_password_encrypted),
+    }),
     credit_goals: payload.creditGoals || [],
     primary_credit_goals_text: payload.primaryCreditGoalsText.trim()
       ? encryptFieldIfPresent(payload.primaryCreditGoalsText)

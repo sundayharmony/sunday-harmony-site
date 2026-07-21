@@ -169,6 +169,11 @@ export async function createStaffDraftApplication(params: {
 
   if (error) {
     console.error('createStaffDraftApplication error:', error)
+    if (error.code === 'PGRST204' || /schema cache|column/i.test(error.message || '')) {
+      console.error(
+        'Hint: credit_funding_applications is missing a column the app expects. Apply supabase-migration-023-credit-funding-cfpb.sql (and any later migrations).'
+      )
+    }
     return null
   }
 
