@@ -7,15 +7,21 @@ import {
   getBlockingIncompleteApplicationByEmail,
 } from '@/lib/credit-funding-db'
 import { formatApplicationListItemForAdmin } from '@/lib/credit-funding-admin'
-import { decryptApplicationSensitiveFields } from '@/lib/credit-funding-sensitive-fields'
+import { formatDraftForStaffEditor } from '@/lib/credit-funding-sensitive-fields'
 import {
   parseIntakePayload,
   validateDraftPayload,
 } from '@/lib/credit-funding-validation'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { isUuid } from '@/lib/uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+const NO_STORE = {
+  'Cache-Control': 'private, no-store',
+  'Referrer-Policy': 'no-referrer',
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +36,12 @@ export async function POST(req: NextRequest) {
     const payload = parseIntakePayload(body)
     const validationError = validateDraftPayload(payload)
     if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 })
+      return NextResponse.json({ error: validationError }, { status: 400, headers: NO_STORE })
+    }
+
+    const clientIdRaw = typeof body.client_id === 'string' ? body.client_id.trim() : ''
+    if (clientIdRaw && !isUuid(clientIdRaw)) {
+      return NextResponse.json({ error: 'Invalid client_id' }, { status: 400, headers: NO_STORE })
     }
 
     const blocking = await getBlockingIncompleteApplicationByEmail(payload.email)
@@ -44,18 +55,18 @@ export async function POST(req: NextRequest) {
           existingId: blocking.id,
           existingStatus: blocking.status,
         },
-        { status: 409 }
+        { status: 409, headers: NO_STORE }
       )
     }
 
     const app = await createStaffDraftApplication({
       payload,
       staffEmail,
-      clientId: typeof body.client_id === 'string' ? body.client_id : undefined,
+      clientId: clientIdRaw || undefined,
     })
 
     if (!app) {
-      return NextResponse.json({ error: 'Failed to create draft application' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create draft application' }, { status: 500, headers: NO_STORE })
     }
 
     logActivity({
@@ -69,9 +80,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         ...formatApplicationListItemForAdmin(app),
-        draft: decryptApplicationSensitiveFields(app),
+        draft: formatDraftForStaffEditor(app),
       },
-      { status: 201 }
+      { status: 201, headers: NO_STORE }
     )
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding/drafts POST', error)

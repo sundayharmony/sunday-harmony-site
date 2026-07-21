@@ -190,15 +190,15 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
         if (data.draft) {
           setForm(mapDraftToForm(data.draft))
           setSecretsOnFile({
-            ssnSet: Boolean(data.draft.ssn),
-            dateOfBirthSet: Boolean(data.draft.date_of_birth),
-            providerUsernameSet: Boolean(data.draft.provider_username),
-            providerPasswordSet: Boolean(data.draft.provider_password),
-            experianEmailSet: Boolean(data.draft.experian_email),
-            experianPasswordSet: Boolean(data.draft.experian_password),
-            cfpbEmailSet: Boolean(data.draft.cfpb_email),
-            cfpbPasswordSet: Boolean(data.draft.cfpb_password),
-            typedSignatureSet: Boolean(data.draft.typed_signature),
+            ssnSet: Boolean(data.draft.ssnSet),
+            dateOfBirthSet: Boolean(data.draft.dateOfBirthSet),
+            providerUsernameSet: Boolean(data.draft.providerUsernameSet),
+            providerPasswordSet: Boolean(data.draft.providerPasswordSet),
+            experianEmailSet: Boolean(data.draft.experianEmailSet),
+            experianPasswordSet: Boolean(data.draft.experianPasswordSet),
+            cfpbEmailSet: Boolean(data.draft.cfpbEmailSet),
+            cfpbPasswordSet: Boolean(data.draft.cfpbPasswordSet),
+            typedSignatureSet: Boolean(data.draft.typedSignatureSet),
           })
         }
       } catch (err) {
@@ -271,6 +271,19 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
       setStatus(data.status || 'draft')
       setEditable(true)
       if (data.draft) setForm(mapDraftToForm(data.draft))
+      if (data.draft) {
+        setSecretsOnFile({
+          ssnSet: Boolean(data.draft.ssnSet),
+          dateOfBirthSet: Boolean(data.draft.dateOfBirthSet),
+          providerUsernameSet: Boolean(data.draft.providerUsernameSet),
+          providerPasswordSet: Boolean(data.draft.providerPasswordSet),
+          experianEmailSet: Boolean(data.draft.experianEmailSet),
+          experianPasswordSet: Boolean(data.draft.experianPasswordSet),
+          cfpbEmailSet: Boolean(data.draft.cfpbEmailSet),
+          cfpbPasswordSet: Boolean(data.draft.cfpbPasswordSet),
+          typedSignatureSet: Boolean(data.draft.typedSignatureSet),
+        })
+      }
       onSaved(data.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -313,6 +326,19 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
         setStatus('draft')
         setEditable(true)
         if (data.draft) setForm(mapDraftToForm(data.draft))
+        if (data.draft) {
+          setSecretsOnFile({
+            ssnSet: Boolean(data.draft.ssnSet),
+            dateOfBirthSet: Boolean(data.draft.dateOfBirthSet),
+            providerUsernameSet: Boolean(data.draft.providerUsernameSet),
+            providerPasswordSet: Boolean(data.draft.providerPasswordSet),
+            experianEmailSet: Boolean(data.draft.experianEmailSet),
+            experianPasswordSet: Boolean(data.draft.experianPasswordSet),
+            cfpbEmailSet: Boolean(data.draft.cfpbEmailSet),
+            cfpbPasswordSet: Boolean(data.draft.cfpbPasswordSet),
+            typedSignatureSet: Boolean(data.draft.typedSignatureSet),
+          })
+        }
         onSaved(currentId)
       }
     } catch (err) {

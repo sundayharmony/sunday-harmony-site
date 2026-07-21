@@ -273,9 +273,16 @@ export function mergeIntakePayloadWithExistingSecrets(
     creditProfile: Object.keys(payload.creditProfile || {}).length
       ? payload.creditProfile
       : decrypted.credit_profile || {},
-    businessProfile: Object.keys(payload.businessProfile || {}).length
-      ? payload.businessProfile
-      : (decrypted.business_profile as BusinessProfile) || {},
+    businessProfile: (() => {
+      const submitted = payload.businessProfile || {}
+      const existingBp = (decrypted.business_profile as BusinessProfile) || {}
+      if (!Object.keys(submitted).length) return existingBp
+      return {
+        ...existingBp,
+        ...submitted,
+        ein: submitted.ein?.trim() ? submitted.ein : existingBp.ein,
+      }
+    })(),
   }
 }
 
@@ -298,22 +305,27 @@ export function buildInvitePrefillFromApplication(app: CreditFundingApplication)
     ),
   }
 
+  const creditProfile = { ...(decrypted.credit_profile || {}) }
+  delete creditProfile.monthlyGrossIncome
+  delete creditProfile.annualIncome
+
+  const businessProfile = { ...((decrypted.business_profile as BusinessProfile) || {}) }
+  const einSet = Boolean(businessProfile.ein)
+  delete businessProfile.ein
+
   return {
     fullName: app.full_name,
+    // Invitee already received mail at this address; needed to lock the matching email on submit.
     email: app.email,
     phone: isPlaceholder(decrypted.phone) ? '' : decrypted.phone,
     address: isPlaceholder(decrypted.address) ? '' : decrypted.address,
     city: isPlaceholder(decrypted.city) ? '' : decrypted.city,
     state: isPlaceholder(decrypted.state) ? '' : decrypted.state,
     zipCode: isPlaceholder(decrypted.zip_code) ? '' : decrypted.zip_code,
-    dateOfBirth: secretSetFlags.dateOfBirthSet ? decrypted.date_of_birth : '',
     selectedCreditProvider:
       app.selected_credit_provider && app.selected_credit_provider !== 'Pending'
         ? app.selected_credit_provider
         : '',
-    providerUsername: secretSetFlags.providerUsernameSet ? decrypted.provider_username : '',
-    experianEmail: secretSetFlags.experianEmailSet ? decrypted.experian_email : '',
-    cfpbEmail: secretSetFlags.cfpbEmailSet ? decrypted.cfpb_email : '',
     primaryCreditGoalsText: decrypted.primary_credit_goals_text || '',
     creditGoals: app.credit_goals || [],
     fundingAmount: app.funding_amount || '',
@@ -322,15 +334,20 @@ export function buildInvitePrefillFromApplication(app: CreditFundingApplication)
     businessName: app.business_name || '',
     fundingTimeframe: app.funding_timeframe || '',
     goalsNotes: decrypted.goals_notes || '',
-    creditProfile: decrypted.credit_profile || {},
-    businessProfile: (decrypted.business_profile as BusinessProfile) || {},
+    creditProfile,
+    businessProfile,
+    einSet,
     consent: app.consent_data || { accurateInfo: false, authorizeReview: false, agreeTerms: false },
     signatureDate: app.signature_date || new Date().toISOString().slice(0, 10),
     ...secretSetFlags,
-    // Never return secret plaintext passwords / SSN in invite prefill
+    // High-sensitivity fields: presence flags only — never plaintext over the public invite API
+    dateOfBirth: '',
     ssn: '',
+    providerUsername: '',
     providerPassword: '',
+    experianEmail: '',
     experianPassword: '',
+    cfpbEmail: '',
     cfpbPassword: '',
     typedSignature: '',
   }
@@ -463,5 +480,36 @@ export function redactApplicationSecretsForDefaultAdmin(app: CreditFundingApplic
           ein: operational.business_profile.ein ? REDACTED : '',
         }
       : operational.business_profile,
+  }
+}
+
+/** Draft editor payload: operational fields readable; secrets are redacted with presence flags. */
+export function formatDraftForStaffEditor(app: CreditFundingApplication) {
+  const redacted = redactApplicationSecretsForDefaultAdmin(app)
+  return {
+    ...redacted,
+    ssnSet: Boolean(app.ssn_encrypted && decryptField(app.ssn_encrypted || '')),
+    dateOfBirthSet: Boolean(app.date_of_birth_encrypted && decryptField(app.date_of_birth_encrypted || '')),
+    providerUsernameSet: Boolean(app.provider_username_encrypted && decryptField(app.provider_username_encrypted || '')),
+    providerPasswordSet: Boolean(app.provider_password_encrypted && decryptField(app.provider_password_encrypted || '')),
+    experianEmailSet: Boolean(app.experian_email_encrypted && decryptField(app.experian_email_encrypted || '')),
+    experianPasswordSet: Boolean(app.experian_password_encrypted && decryptField(app.experian_password_encrypted || '')),
+    cfpbEmailSet: Boolean(app.cfpb_email_encrypted && decryptField(app.cfpb_email_encrypted || '')),
+    cfpbPasswordSet: Boolean(app.cfpb_password_encrypted && decryptField(app.cfpb_password_encrypted || '')),
+    typedSignatureSet: Boolean(
+      app.typed_signature &&
+        decryptFieldOrLegacy(app.typed_signature) &&
+        decryptFieldOrLegacy(app.typed_signature) !== 'Pending'
+    ),
+    // Clear redacted placeholder strings so the editor does not treat masks as editable values
+    date_of_birth: '',
+    ssn: '',
+    provider_username: '',
+    provider_password: '',
+    experian_email: '',
+    experian_password: '',
+    cfpb_email: '',
+    cfpb_password: '',
+    typed_signature: '',
   }
 }

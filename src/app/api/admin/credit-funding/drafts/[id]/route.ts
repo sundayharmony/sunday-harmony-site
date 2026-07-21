@@ -12,7 +12,7 @@ import {
 } from '@/lib/credit-funding-db'
 import { formatApplicationListItemForAdmin } from '@/lib/credit-funding-admin'
 import {
-  decryptApplicationSensitiveFields,
+  formatDraftForStaffEditor,
   mergeIntakePayloadWithExistingSecrets,
   type InviteSecretSetFlags,
 } from '@/lib/credit-funding-sensitive-fields'
@@ -28,11 +28,17 @@ import {
 } from '@/lib/credit-funding-invite'
 import { sendCreditFundingApplicationInviteEmail } from '@/lib/credit-funding-applicant-onboarding'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { isUuid } from '@/lib/uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 type Params = { params: Promise<{ id: string }> }
+
+const NO_STORE = {
+  'Cache-Control': 'private, no-store',
+  'Referrer-Policy': 'no-referrer',
+}
 
 function parseKeepFlags(body: Record<string, unknown>): Partial<InviteSecretSetFlags> {
   const flag = (key: string) => body[key] === true || body[key] === 'true'
@@ -49,21 +55,27 @@ function parseKeepFlags(body: Record<string, unknown>): Partial<InviteSecretSetF
   }
 }
 
+function draftJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE })
+}
+
 export async function GET(req: NextRequest, { params }: Params) {
   try {
     const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const { id } = await params
+    if (!isUuid(id)) return draftJson({ error: 'Invalid draft id' }, 400)
+
     const app = await getCreditFundingApplicationById(id)
     if (!app || (app.status !== 'draft' && !(app.status === 'invitation_pending' && app.draft_source === 'staff_manual'))) {
-      return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+      return draftJson({ error: 'Draft not found' }, 404)
     }
 
     const docs = await getDocumentsByApplicationUuid(app.id)
-    return NextResponse.json({
+    return draftJson({
       ...formatApplicationListItemForAdmin(app),
-      draft: decryptApplicationSensitiveFields(app),
+      draft: formatDraftForStaffEditor(app),
       documents: docs.map((d) => ({
         id: d.id,
         document_type: d.document_type,
@@ -85,12 +97,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (session instanceof NextResponse) return session
 
     const staffEmail = session.user.email || 'admin'
+    const rl = await rateLimitDurable(`cf-draft-save:${staffEmail}`, 60, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
     const { id } = await params
+    if (!isUuid(id)) return draftJson({ error: 'Invalid draft id' }, 400)
+
     const existing = await getCreditFundingApplicationById(id)
     if (!existing || existing.status !== 'draft') {
-      return NextResponse.json(
+      return draftJson(
         { error: 'Only open drafts can be edited. Cancel the client finish link to resume editing.' },
-        { status: 400 }
+        400
       )
     }
 
@@ -100,14 +117,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const validationError = validateDraftPayload(payload)
     if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 })
+      return draftJson({ error: validationError }, 400)
     }
 
     const updated = await updateStaffDraftApplication(id, payload)
     if (!updated) {
-      return NextResponse.json(
+      return draftJson(
         { error: 'Failed to save draft. Another open application may already use this email.' },
-        { status: 409 }
+        409
       )
     }
 
@@ -119,9 +136,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       details: `Updated staff draft ${updated.application_id}`,
     })
 
-    return NextResponse.json({
+    return draftJson({
       ...formatApplicationListItemForAdmin(updated),
-      draft: decryptApplicationSensitiveFields(updated),
+      draft: formatDraftForStaffEditor(updated),
       editable: true,
     })
   } catch (error) {
@@ -137,6 +154,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const staffEmail = session.user.email || 'admin'
     const { id } = await params
+    if (!isUuid(id)) return draftJson({ error: 'Invalid draft id' }, 400)
+
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
     const action = String(body.action || '').trim()
 
@@ -145,28 +164,28 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const existing = await getCreditFundingApplicationById(id)
     if (!existing) {
-      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+      return draftJson({ error: 'Application not found' }, 404)
     }
 
     if (action === 'finalize') {
       if (existing.status !== 'draft') {
-        return NextResponse.json({ error: 'Only open drafts can be finalized' }, { status: 400 })
+        return draftJson({ error: 'Only open drafts can be finalized' }, 400)
       }
 
       let payload = parseIntakePayload(body)
       payload = mergeIntakePayloadWithExistingSecrets(payload, existing, parseKeepFlags(body))
       const validationError = validateIntakePayload(payload)
       if (validationError) {
-        return NextResponse.json({ error: validationError }, { status: 400 })
+        return draftJson({ error: validationError }, 400)
       }
 
       const docs = await getDocumentsByApplicationUuid(id)
       const hasPhotoId = docs.some((d) => d.document_type === 'photo_id' && d.scan_status !== 'rejected')
       const hasMailProof = docs.some((d) => d.document_type === 'mail_proof' && d.scan_status !== 'rejected')
       if (!hasPhotoId || !hasMailProof) {
-        return NextResponse.json(
+        return draftJson(
           { error: 'Required documents missing: photo ID and mail proof must be uploaded before finalize.' },
-          { status: 400 }
+          400
         )
       }
 
@@ -181,7 +200,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         staffEmail
       )
       if (!finalized) {
-        return NextResponse.json({ error: 'Failed to finalize draft' }, { status: 500 })
+        return draftJson({ error: 'Failed to finalize draft' }, 500)
       }
 
       await runCreditFundingSubmissionSideEffects({
@@ -191,7 +210,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         activityDetails: `Staff finalized draft application: ${finalized.application_id}`,
       })
 
-      return NextResponse.json({
+      return draftJson({
         success: true,
         applicationId: finalized.application_id,
         id: finalized.id,
@@ -201,10 +220,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (action === 'send-finish-link') {
       if (existing.status !== 'draft') {
-        return NextResponse.json({ error: 'Only open drafts can send a finish link' }, { status: 400 })
+        return draftJson({ error: 'Only open drafts can send a finish link' }, 400)
       }
       if (!existing.email || !existing.full_name) {
-        return NextResponse.json({ error: 'Draft needs a name and email before sending' }, { status: 400 })
+        return draftJson({ error: 'Draft needs a name and email before sending' }, 400)
       }
 
       const personalMessage =
@@ -217,7 +236,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         staffEmail
       )
       if (!updated) {
-        return NextResponse.json({ error: 'Failed to convert draft for client finish' }, { status: 500 })
+        return draftJson({ error: 'Failed to convert draft for client finish' }, 500)
       }
 
       await sendCreditFundingApplicationInviteEmail({
@@ -238,25 +257,24 @@ export async function POST(req: NextRequest, { params }: Params) {
         details: `Sent finish link for draft ${updated.application_id} to ${updated.email}`,
       })
 
-      return NextResponse.json({
+      return draftJson({
         success: true,
         ...formatApplicationListItemForAdmin(updated),
-        inviteUrl: buildApplicationInviteUrl(updated.id, inviteExpiresAt.getTime()),
         expiresAt: inviteExpiresAt.toISOString(),
       })
     }
 
     if (action === 'cancel-finish-link') {
       if (existing.status !== 'invitation_pending' || existing.draft_source !== 'staff_manual') {
-        return NextResponse.json(
+        return draftJson(
           { error: 'Only staff-draft invitations can be cancelled back to draft' },
-          { status: 400 }
+          400
         )
       }
 
       const restored = await cancelInvitationBackToDraft(id, staffEmail)
       if (!restored) {
-        return NextResponse.json({ error: 'Failed to cancel finish link' }, { status: 500 })
+        return draftJson({ error: 'Failed to cancel finish link' }, 500)
       }
 
       logActivity({
@@ -267,14 +285,14 @@ export async function POST(req: NextRequest, { params }: Params) {
         details: `Cancelled finish link; restored draft ${restored.application_id}`,
       })
 
-      return NextResponse.json({
+      return draftJson({
         ...formatApplicationListItemForAdmin(restored),
-        draft: decryptApplicationSensitiveFields(restored),
+        draft: formatDraftForStaffEditor(restored),
         editable: true,
       })
     }
 
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+    return draftJson({ error: 'Unknown action' }, 400)
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding/drafts/[id] POST', error)
     return NextResponse.json({ error: 'Draft action failed' }, { status: 500 })

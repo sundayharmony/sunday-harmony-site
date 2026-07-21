@@ -106,6 +106,26 @@ describe('Area 06 API authorization hardening', () => {
     assert.doesNotMatch(source, /getServerSession/)
   })
 
+  it('keeps staff draft routes behind MFA-aware staff auth with durable rate limits', () => {
+    const createRoute = readFileSync('src/app/api/admin/credit-funding/drafts/route.ts', 'utf8')
+    const draftRoute = readFileSync('src/app/api/admin/credit-funding/drafts/[id]/route.ts', 'utf8')
+    const docsRoute = readFileSync(
+      'src/app/api/admin/credit-funding/drafts/[id]/documents/route.ts',
+      'utf8'
+    )
+
+    for (const source of [createRoute, draftRoute, docsRoute]) {
+      assert.match(source, /requireCreditFundingStaffSession/)
+      assert.match(source, /rateLimitDurable/)
+      assert.doesNotMatch(source, /getServerSession\(/)
+    }
+
+    assert.match(createRoute, /formatDraftForStaffEditor/)
+    assert.match(draftRoute, /formatDraftForStaffEditor/)
+    assert.doesNotMatch(createRoute, /decryptApplicationSensitiveFields/)
+    assert.doesNotMatch(draftRoute, /decryptApplicationSensitiveFields/)
+  })
+
   it('blocks staff applicant access and claims only unbound applications', () => {
     const accessSource = readFileSync(
       'src/lib/credit-funding-dashboard-auth.ts',

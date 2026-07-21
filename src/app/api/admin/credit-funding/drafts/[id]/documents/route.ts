@@ -9,6 +9,7 @@ import {
 import { uploadCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { isDocumentType } from '@/lib/credit-funding-types'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { isUuid } from '@/lib/uuid'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const { id } = await params
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid draft id' }, { status: 400 })
+    }
+
     const app = await getCreditFundingApplicationById(id)
     if (!app || app.status !== 'draft') {
       return NextResponse.json({ error: 'Documents can only be uploaded to open drafts' }, { status: 400 })
@@ -74,7 +79,25 @@ export async function POST(req: NextRequest, { params }: Params) {
       details: `Uploaded ${documentType} to draft ${app.application_id}`,
     })
 
-    return NextResponse.json({ success: true, document: doc })
+    return NextResponse.json(
+      {
+        success: true,
+        document: doc
+          ? {
+              id: doc.id,
+              document_type: doc.document_type,
+              file_name: doc.file_name,
+              file_size: doc.file_size,
+              scan_status: doc.scan_status,
+            }
+          : null,
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, no-store',
+        },
+      }
+    )
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding/drafts/[id]/documents POST', error)
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
