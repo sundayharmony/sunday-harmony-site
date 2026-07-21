@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
-import { logActivity, getUserByEmail, createNotification, getCreditManagers } from '@/lib/db'
-import { upsertLeadFromCreditIntake, ensureClientFromCreditApplication } from '@/lib/crm-db'
+import { getUserByEmail } from '@/lib/db'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
-import {
-  ensurePortalUserForCreditApplication,
-  sendCreditFundingSubmissionEmail,
-  sendCreditFundingExpertNotificationEmail,
-} from '@/lib/credit-funding-applicant-onboarding'
 import {
   parseIntakePayload,
   validateIntakePayload,
@@ -17,12 +11,17 @@ import {
 import {
   createCreditFundingApplication,
   createUploadedDocument,
-  linkApplicationToUser,
   completeInvitedCreditFundingApplication,
   getCreditFundingApplicationById,
+  getDocumentsByApplicationUuid,
   deleteCreditFundingApplication,
   updateCreditFundingApplicationStatus,
 } from '@/lib/credit-funding-db'
+import { runCreditFundingSubmissionSideEffects } from '@/lib/credit-funding-finalize'
+import {
+  mergeIntakePayloadWithExistingSecrets,
+  type InviteSecretSetFlags,
+} from '@/lib/credit-funding-sensitive-fields'
 import { getIdempotentResponse, setIdempotentResponse } from '@/lib/idempotency'
 import {
   finalizeStagedCreditFundingDocument,
@@ -37,12 +36,6 @@ import {
 } from '@/lib/credit-funding-upload-session'
 import { inviteTokenMatchesStoredExpiry, verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
-import {
-  getAdminNotifyEmail,
-  sanitizeEmailSubjectPart,
-  sendHtmlMailNonBlocking,
-  staffPortalEmailHtml,
-} from '@/lib/smtp-mail'
 import { hasHoneypotValue } from '@/lib/honeypot'
 
 export const dynamic = 'force-dynamic'
@@ -57,6 +50,24 @@ const DOC_FIELD_MAP: Partial<Record<DocumentType, string>> = {
   proof_of_address: 'proofOfAddress',
   selfie_with_id: 'selfieWithId',
   mail_proof: 'mailProof',
+}
+
+function parseKeepSecretFlags(raw: Record<string, unknown>): Partial<InviteSecretSetFlags> {
+  const flag = (key: string) => {
+    const v = raw[key]
+    return v === true || v === 'true' || v === '1'
+  }
+  return {
+    ssnSet: flag('ssnSet'),
+    dateOfBirthSet: flag('dateOfBirthSet'),
+    providerUsernameSet: flag('providerUsernameSet'),
+    providerPasswordSet: flag('providerPasswordSet'),
+    experianEmailSet: flag('experianEmailSet'),
+    experianPasswordSet: flag('experianPasswordSet'),
+    cfpbEmailSet: flag('cfpbEmailSet'),
+    cfpbPasswordSet: flag('cfpbPasswordSet'),
+    typedSignatureSet: flag('typedSignatureSet'),
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -91,11 +102,8 @@ export async function POST(req: NextRequest) {
       if (typeof value === 'string') rawPayload[key] = value
     }
 
-    const payload = parseIntakePayload(rawPayload)
-    const validationError = validateIntakePayload(payload)
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 })
-    }
+    let payload = parseIntakePayload(rawPayload)
+    const keepFlags = parseKeepSecretFlags(rawPayload)
 
     const uploadSessionId = String(formData.get('uploadSessionId') || '').trim()
     const uploadSessionToken = String(formData.get('uploadSessionToken') || '').trim()
@@ -122,27 +130,13 @@ export async function POST(req: NextRequest) {
       } catch {
         return NextResponse.json({ error: 'Invalid staged file payload' }, { status: 400 })
       }
-      for (const docType of REQUIRED_DOCS) {
-        if (!stagedFiles.some((f) => f.documentType === docType)) {
-          const label = docType.replace(/_/g, ' ')
-          return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
-        }
-      }
-    } else {
-      for (const docType of REQUIRED_DOCS) {
-        const fieldName = DOC_FIELD_MAP[docType] || docType
-        const file = formData.get(fieldName)
-        if (!(file instanceof File) || file.size === 0) {
-          const label = docType.replace(/_/g, ' ')
-          return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
-        }
-      }
     }
 
     const existingUser = await getUserByEmail(payload.email)
     const inviteToken = String(formData.get('inviteToken') || '').trim()
 
-    let application: Awaited<ReturnType<typeof createCreditFundingApplication>> | null = null
+    let invitedApp: Awaited<ReturnType<typeof getCreditFundingApplicationById>> | null = null
+    let existingDocTypes = new Set<string>()
 
     if (inviteToken) {
       wasInvitedFlow = true
@@ -151,7 +145,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'This application link has expired or is invalid.' }, { status: 403 })
       }
 
-      const invitedApp = await getCreditFundingApplicationById(verified.applicationId)
+      invitedApp = await getCreditFundingApplicationById(verified.applicationId)
       if (!invitedApp || invitedApp.status !== 'invitation_pending') {
         return NextResponse.json({ error: 'This application link is no longer valid.' }, { status: 403 })
       }
@@ -165,7 +159,41 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      application = await completeInvitedCreditFundingApplication(verified.applicationId, payload, {
+      const existingDocs = await getDocumentsByApplicationUuid(invitedApp.id)
+      existingDocTypes = new Set(
+        existingDocs.filter((d) => d.scan_status !== 'rejected').map((d) => d.document_type)
+      )
+
+      payload = mergeIntakePayloadWithExistingSecrets(payload, invitedApp, keepFlags)
+    }
+
+    const validationError = validateIntakePayload(payload)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
+    for (const docType of REQUIRED_DOCS) {
+      const inStaged = stagedFiles.some((f) => f.documentType === docType)
+      const inExisting = existingDocTypes.has(docType)
+      if (uploadSessionId) {
+        if (!inStaged && !inExisting) {
+          const label = docType.replace(/_/g, ' ')
+          return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
+        }
+      } else if (!inExisting) {
+        const fieldName = DOC_FIELD_MAP[docType] || docType
+        const file = formData.get(fieldName)
+        if (!(file instanceof File) || file.size === 0) {
+          const label = docType.replace(/_/g, ' ')
+          return NextResponse.json({ error: `Required document missing: ${label}` }, { status: 400 })
+        }
+      }
+    }
+
+    let application: Awaited<ReturnType<typeof createCreditFundingApplication>> | null = null
+
+    if (inviteToken && invitedApp) {
+      application = await completeInvitedCreditFundingApplication(invitedApp.id, payload, {
         userId: existingUser?.id,
         clientId: invitedApp.client_id || existingUser?.client_id || undefined,
       })
@@ -181,10 +209,6 @@ export async function POST(req: NextRequest) {
     }
 
     createdApplicationId = application.id
-
-    if (existingUser && !application.user_id) {
-      await linkApplicationToUser(application.id, existingUser.id, existingUser.client_id || undefined)
-    }
 
     if (uploadSessionId && stagedFiles.length > 0) {
       for (const staged of stagedFiles) {
@@ -241,90 +265,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    logActivity({
-      action: 'application_submitted',
-      entity_type: 'credit_funding_application',
-      entity_id: application.id,
-      actor_email: payload.email,
-      details: `Credit & Funding intake submitted: ${application.application_id}`,
+    await runCreditFundingSubmissionSideEffects({
+      application,
+      payload,
     })
-
-    await upsertLeadFromCreditIntake({
-      email: payload.email,
-      fullName: payload.fullName,
-      phone: payload.phone,
-      businessName: payload.businessProfile.legalName || payload.businessName,
-      creditGoals: payload.creditGoals,
-      fundingUse: payload.fundingUse,
-      applicationUuid: application.id,
-      clientId: existingUser?.client_id || undefined,
-    })
-
-    const client = await ensureClientFromCreditApplication(application)
-    const appWithClient = client
-      ? { ...application, client_id: client.id }
-      : application
-
-    const portal = await ensurePortalUserForCreditApplication(appWithClient)
-    const linkedUser = portal ? await getUserByEmail(payload.email) : existingUser
-
-    if (linkedUser) {
-      await createNotification({
-        user_id: linkedUser.id,
-        title: 'Application Received',
-        message: `Your Credit & Funding application ${application.application_id} has been submitted.`,
-        type: 'info',
-        link: '/dashboard/credit-funding',
-      })
-    }
-
-    try {
-      await sendCreditFundingSubmissionEmail({
-        to: payload.email,
-        fullName: payload.fullName,
-        applicationId: application.application_id,
-        setupCode: portal?.setupCode,
-      })
-    } catch (err) {
-      console.error('Failed to send credit funding confirmation email:', err)
-    }
-
-    sendHtmlMailNonBlocking({
-      to: getAdminNotifyEmail(),
-      subject: sanitizeEmailSubjectPart(`New Credit & Funding Application — ${payload.fullName}`, 200),
-      html: staffPortalEmailHtml({
-        heading: 'New Credit & Funding Application',
-        bodyParagraphs: [
-          `Application ID: ${application.application_id}`,
-          `Name: ${payload.fullName}`,
-          `Email: ${payload.email}`,
-          `Phone: ${payload.phone}`,
-          `Provider: ${payload.selectedCreditProvider}`,
-          `Funding: ${payload.fundingAmount} (${payload.fundingUse})`,
-        ],
-        pathWithQuery: `/admin/credit-funding?id=${application.id}`,
-      }),
-      logLabel: 'credit-funding-admin-alert',
-    })
-
-    const creditExperts = await getCreditManagers()
-    for (const expert of creditExperts) {
-      try {
-        await sendCreditFundingExpertNotificationEmail({
-          to: expert.email,
-          expertName: expert.name,
-          applicantName: payload.fullName,
-          applicantEmail: payload.email,
-          applicantPhone: payload.phone,
-          applicationId: application.application_id,
-          fundingAmount: payload.fundingAmount,
-          fundingUse: payload.fundingUse,
-          creditProvider: payload.selectedCreditProvider,
-        })
-      } catch (err) {
-        console.error(`Failed to send expert notification to ${expert.email}:`, err)
-      }
-    }
 
     const successBody = {
       success: true,

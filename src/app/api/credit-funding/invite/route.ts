@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
-import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
+import { getCreditFundingApplicationById, getDocumentsByApplicationUuid } from '@/lib/credit-funding-db'
 import {
   firstNameFromInviteName,
   inviteTokenMatchesStoredExpiry,
   maskInviteEmail,
   verifyApplicationInviteToken,
 } from '@/lib/credit-funding-invite'
+import { buildInvitePrefillFromApplication } from '@/lib/credit-funding-sensitive-fields'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 
@@ -45,11 +46,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'This invitation link has expired. Contact Sunday Harmony for a new link.' }, { status: 403 })
     }
 
+    const prefill = buildInvitePrefillFromApplication(app)
+    const hasStaffDraftData = app.draft_source === 'staff_manual'
+    const existingDocs = hasStaffDraftData
+      ? (await getDocumentsByApplicationUuid(app.id))
+          .filter((d) => d.scan_status !== 'rejected')
+          .map((d) => d.document_type)
+      : []
+
     return NextResponse.json(
       {
         firstName: firstNameFromInviteName(app.full_name),
         maskedEmail: maskInviteEmail(app.email),
         expiresAt: new Date(verified.expiresAtMs).toISOString(),
+        hasPrefill: hasStaffDraftData,
+        existingDocumentTypes: existingDocs,
+        ...(hasStaffDraftData ? { prefill } : {}),
       },
       {
         headers: {

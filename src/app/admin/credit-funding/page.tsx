@@ -7,6 +7,7 @@ import AdminApplicationWorkflow, {
   type WorkflowStepPayload,
 } from '@/components/credit-funding/AdminApplicationWorkflow'
 import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
+import StaffDraftEditor from '@/components/credit-funding/StaffDraftEditor'
 import {
   APPLICATION_STATUSES,
   DOCUMENT_LABELS,
@@ -27,6 +28,7 @@ interface ApplicationListItem {
   service_type?: string
   status: string
   assigned_specialist?: string
+  draft_source?: string | null
   created_at: string
   updated_at: string
 }
@@ -172,6 +174,8 @@ function CreditFundingAdminContent() {
   const [docReqLabel, setDocReqLabel] = useState('')
   const [listPanelOpen, setListPanelOpen] = useState(true)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showDraftEditor, setShowDraftEditor] = useState(false)
+  const [draftEditorId, setDraftEditorId] = useState<string | null>(null)
   const [inviteForm, setInviteForm] = useState({
     full_name: '',
     email: '',
@@ -184,6 +188,16 @@ function CreditFundingAdminContent() {
   const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
 
   const selectApplication = (id: string) => {
+    const listed = applications.find((a) => a.id === id)
+    if (listed?.status === 'draft' || (listed?.status === 'invitation_pending' && listed.draft_source === 'staff_manual')) {
+      setSelected(null)
+      setDraftEditorId(id)
+      setShowDraftEditor(true)
+      if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+        setListPanelOpen(false)
+      }
+      return
+    }
     loadDetail(id)
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
       setListPanelOpen(false)
@@ -632,6 +646,19 @@ function CreditFundingAdminContent() {
           <button
             type="button"
             onClick={() => {
+              setDraftEditorId(null)
+              setShowDraftEditor(true)
+              setSelected(null)
+              setInviteNotice('')
+              setError('')
+            }}
+            className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg hover:opacity-90"
+          >
+            New Draft Application
+          </button>
+          <button
+            type="button"
+            onClick={() => {
               setShowInviteModal(true)
               setInviteNotice('')
               setError('')
@@ -648,6 +675,47 @@ function CreditFundingAdminContent() {
 
       <CreditExpertsPanel />
 
+      {showDraftEditor && (
+        <div className="mb-6">
+          <StaffDraftEditor
+            draftId={draftEditorId}
+            onClose={() => {
+              setShowDraftEditor(false)
+              setDraftEditorId(null)
+            }}
+            onSaved={(id) => {
+              setDraftEditorId(id)
+              setLoading(true)
+              void (async () => {
+                try {
+                  const params = new URLSearchParams()
+                  if (statusFilter !== 'all') params.set('status', statusFilter)
+                  const r = await fetch(`/api/admin/credit-funding?${params}`)
+                  if (r.ok) setApplications(await r.json())
+                } finally {
+                  setLoading(false)
+                }
+              })()
+            }}
+            onFinalized={(id) => {
+              setShowDraftEditor(false)
+              setDraftEditorId(null)
+              void (async () => {
+                try {
+                  const params = new URLSearchParams()
+                  if (statusFilter !== 'all') params.set('status', statusFilter)
+                  const r = await fetch(`/api/admin/credit-funding?${params}`)
+                  if (r.ok) setApplications(await r.json())
+                } catch {
+                  /* ignore */
+                }
+                selectApplication(id)
+                setInviteNotice('Draft finalized and submitted into the normal pipeline.')
+              })()
+            }}
+          />
+        </div>
+      )}
       {inviteNotice && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">{inviteNotice}</div>
       )}
@@ -751,7 +819,15 @@ function CreditFundingAdminContent() {
                   >
                     <td className="p-2 font-mono">{app.application_id}</td>
                     <td className="p-2">{app.full_name}</td>
-                    <td className="p-2"><StatusBadge status={app.status} /></td>
+                    <td className="p-2">
+                      <StatusBadge status={app.status} />
+                      {app.status === 'draft' && (
+                        <span className="block text-[10px] text-brand-muted mt-0.5">Saved · incomplete</span>
+                      )}
+                      {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
+                        <span className="block text-[10px] text-brand-muted mt-0.5">Client finishing draft</span>
+                      )}
+                    </td>
                     <td className="p-2 text-brand-dim">{app.assigned_specialist || '—'}</td>
                     <td className="p-2 text-brand-dim">{new Date(app.updated_at).toLocaleDateString()}</td>
                   </tr>

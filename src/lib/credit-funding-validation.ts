@@ -208,6 +208,32 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   return null
 }
 
+/** Staff draft saves only require identity for lookup; everything else is optional until finalize. */
+export function validateDraftPayload(payload: IntakeFormPayload): string | null {
+  if (!payload.fullName.trim()) return 'Full legal name is required'
+  if (!payload.email || !EMAIL_RE.test(payload.email)) return 'Valid email address is required'
+  if (payload.ssn && !isValidSsn(payload.ssn)) return 'SSN must be a valid 9-digit number when provided'
+  if (payload.email && payload.email.length > 254) return 'Email is too long'
+  if (payload.state && !US_STATE_RE.test(payload.state)) return 'State must be a 2-letter code when provided'
+  if (payload.zipCode && !ZIP_RE.test(payload.zipCode)) return 'ZIP code is invalid'
+  if (payload.phone && payload.phone.replace(/\D/g, '').length > 0 && payload.phone.replace(/\D/g, '').length < 10) {
+    return 'Phone number must have at least 10 digits when provided'
+  }
+  if (
+    payload.selectedCreditProvider &&
+    !CREDIT_PROVIDERS.includes(payload.selectedCreditProvider as typeof CREDIT_PROVIDERS[number])
+  ) {
+    return 'Invalid credit monitoring provider'
+  }
+  if (
+    payload.fundingTimeframe &&
+    !FUNDING_TIMEFRAMES.includes(payload.fundingTimeframe as typeof FUNDING_TIMEFRAMES[number])
+  ) {
+    return 'Invalid funding timeframe'
+  }
+  return null
+}
+
 export function buildFundingGoalsSummary(payload: IntakeFormPayload): string {
   const parts = [
     payload.fundingAmount && `Amount: ${payload.fundingAmount}`,

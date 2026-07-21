@@ -145,6 +145,197 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
   }
 }
 
+/** Partial encrypt for staff drafts — empty required columns use empty encrypted strings / placeholders. */
+export function buildPartialEncryptedApplicationRow(
+  payload: IntakeFormPayload,
+  options?: { preserveSecretsFrom?: CreditFundingApplication | null }
+): Record<string, unknown> {
+  const existing = options?.preserveSecretsFrom
+  const keepSecret = (submitted: string, existingCipher?: string | null) => {
+    if (submitted.trim()) return encryptField(submitted)
+    if (existingCipher) return existingCipher
+    return ''
+  }
+
+  const phone = payload.phone.trim()
+    ? encryptField(payload.phone)
+    : existing?.phone || encryptField('')
+  const address = payload.address.trim()
+    ? encryptField(payload.address)
+    : existing?.address || encryptField('')
+  const city = payload.city.trim()
+    ? encryptField(payload.city)
+    : existing?.city || encryptField('')
+  const state = payload.state.trim()
+    ? encryptField(payload.state)
+    : existing?.state || encryptField('')
+  const zip = payload.zipCode.trim()
+    ? encryptField(payload.zipCode)
+    : existing?.zip_code || encryptField('')
+
+  return {
+    full_name: payload.fullName.trim(),
+    email: payload.email.trim().toLowerCase(),
+    date_of_birth_encrypted: keepSecret(payload.dateOfBirth, existing?.date_of_birth_encrypted),
+    ssn_encrypted: keepSecret(payload.ssn, existing?.ssn_encrypted),
+    phone,
+    address,
+    city,
+    state,
+    zip_code: zip,
+    credit_profile: encryptCreditProfileForDb(payload.creditProfile || {}),
+    selected_credit_provider: payload.selectedCreditProvider || existing?.selected_credit_provider || 'Pending',
+    provider_username_encrypted: keepSecret(payload.providerUsername, existing?.provider_username_encrypted),
+    provider_password_encrypted: keepSecret(payload.providerPassword, existing?.provider_password_encrypted),
+    experian_email_encrypted: keepSecret(payload.experianEmail, existing?.experian_email_encrypted),
+    experian_password_encrypted: keepSecret(payload.experianPassword, existing?.experian_password_encrypted),
+    cfpb_email_encrypted: keepSecret(payload.cfpbEmail, existing?.cfpb_email_encrypted),
+    cfpb_password_encrypted: keepSecret(payload.cfpbPassword, existing?.cfpb_password_encrypted),
+    credit_goals: payload.creditGoals || [],
+    primary_credit_goals_text: payload.primaryCreditGoalsText.trim()
+      ? encryptFieldIfPresent(payload.primaryCreditGoalsText)
+      : existing?.primary_credit_goals_text || '',
+    funding_amount: payload.fundingAmount || existing?.funding_amount || null,
+    funding_use: payload.fundingUse || existing?.funding_use || null,
+    owns_business: payload.ownsBusiness,
+    business_name: payload.businessProfile.legalName || payload.businessName || existing?.business_name || null,
+    funding_timeframe: payload.fundingTimeframe || existing?.funding_timeframe || null,
+    goals_notes: payload.goalsNotes.trim()
+      ? encryptFieldIfPresent(payload.goalsNotes)
+      : existing?.goals_notes || null,
+    consent_data: payload.consent || existing?.consent_data || {},
+    typed_signature: payload.typedSignature.trim()
+      ? encryptField(payload.typedSignature)
+      : existing?.typed_signature || encryptField(''),
+    signature_date: payload.signatureDate || existing?.signature_date || new Date().toISOString().slice(0, 10),
+    business_profile: Object.keys(payload.businessProfile || {}).length
+      ? serializeBusinessProfileForDb(payload.businessProfile)
+      : existing?.business_profile || {},
+  }
+}
+
+export type InviteSecretSetFlags = {
+  ssnSet: boolean
+  dateOfBirthSet: boolean
+  providerUsernameSet: boolean
+  providerPasswordSet: boolean
+  experianEmailSet: boolean
+  experianPasswordSet: boolean
+  cfpbEmailSet: boolean
+  cfpbPasswordSet: boolean
+  typedSignatureSet: boolean
+}
+
+/** Merge client-submitted secrets with values already stored on a draft/invitation row. */
+export function mergeIntakePayloadWithExistingSecrets(
+  payload: IntakeFormPayload,
+  existing: CreditFundingApplication,
+  keepFlags?: Partial<InviteSecretSetFlags>
+): IntakeFormPayload {
+  const decrypted = decryptApplicationSensitiveFields(existing)
+  const keep = (submitted: string, existingValue: string | undefined, flag?: boolean) => {
+    if (submitted.trim()) return submitted
+    if (flag === false) return ''
+    return existingValue || ''
+  }
+
+  return {
+    ...payload,
+    dateOfBirth: keep(payload.dateOfBirth, decrypted.date_of_birth, keepFlags?.dateOfBirthSet),
+    ssn: keep(payload.ssn, decrypted.ssn, keepFlags?.ssnSet),
+    phone: payload.phone.trim() || decrypted.phone || '',
+    address: payload.address.trim() || decrypted.address || '',
+    city: payload.city.trim() || decrypted.city || '',
+    state: payload.state.trim() || decrypted.state || '',
+    zipCode: payload.zipCode.trim() || decrypted.zip_code || '',
+    selectedCreditProvider:
+      payload.selectedCreditProvider && payload.selectedCreditProvider !== 'Pending'
+        ? payload.selectedCreditProvider
+        : existing.selected_credit_provider !== 'Pending'
+          ? existing.selected_credit_provider
+          : payload.selectedCreditProvider,
+    providerUsername: keep(payload.providerUsername, decrypted.provider_username, keepFlags?.providerUsernameSet),
+    providerPassword: keep(payload.providerPassword, decrypted.provider_password, keepFlags?.providerPasswordSet),
+    experianEmail: keep(payload.experianEmail, decrypted.experian_email, keepFlags?.experianEmailSet),
+    experianPassword: keep(payload.experianPassword, decrypted.experian_password, keepFlags?.experianPasswordSet),
+    cfpbEmail: keep(payload.cfpbEmail, decrypted.cfpb_email, keepFlags?.cfpbEmailSet),
+    cfpbPassword: keep(payload.cfpbPassword, decrypted.cfpb_password, keepFlags?.cfpbPasswordSet),
+    typedSignature: keep(payload.typedSignature, decrypted.typed_signature, keepFlags?.typedSignatureSet),
+    signatureDate: payload.signatureDate.trim() || existing.signature_date || '',
+    primaryCreditGoalsText:
+      payload.primaryCreditGoalsText.trim() || decrypted.primary_credit_goals_text || '',
+    goalsNotes: payload.goalsNotes.trim() || decrypted.goals_notes || '',
+    fundingAmount: payload.fundingAmount || existing.funding_amount || '',
+    fundingUse: payload.fundingUse || existing.funding_use || '',
+    fundingTimeframe: payload.fundingTimeframe || existing.funding_timeframe || '',
+    businessName: payload.businessName || existing.business_name || '',
+    creditGoals: payload.creditGoals.length ? payload.creditGoals : existing.credit_goals || [],
+    creditProfile: Object.keys(payload.creditProfile || {}).length
+      ? payload.creditProfile
+      : decrypted.credit_profile || {},
+    businessProfile: Object.keys(payload.businessProfile || {}).length
+      ? payload.businessProfile
+      : (decrypted.business_profile as BusinessProfile) || {},
+  }
+}
+
+export function buildInvitePrefillFromApplication(app: CreditFundingApplication) {
+  const decrypted = decryptApplicationSensitiveFields(app)
+  const isPlaceholder = (value: string | undefined | null) =>
+    !value || value === 'Pending' || value === 'XX' || value === '00000'
+
+  const secretSetFlags: InviteSecretSetFlags = {
+    ssnSet: Boolean(app.ssn_encrypted && decryptField(app.ssn_encrypted || '')),
+    dateOfBirthSet: Boolean(app.date_of_birth_encrypted && decryptField(app.date_of_birth_encrypted || '')),
+    providerUsernameSet: Boolean(app.provider_username_encrypted && decryptField(app.provider_username_encrypted || '')),
+    providerPasswordSet: Boolean(app.provider_password_encrypted && decryptField(app.provider_password_encrypted || '')),
+    experianEmailSet: Boolean(app.experian_email_encrypted && decryptField(app.experian_email_encrypted || '')),
+    experianPasswordSet: Boolean(app.experian_password_encrypted && decryptField(app.experian_password_encrypted || '')),
+    cfpbEmailSet: Boolean(app.cfpb_email_encrypted && decryptField(app.cfpb_email_encrypted || '')),
+    cfpbPasswordSet: Boolean(app.cfpb_password_encrypted && decryptField(app.cfpb_password_encrypted || '')),
+    typedSignatureSet: Boolean(
+      app.typed_signature && decryptFieldOrLegacy(app.typed_signature) && decryptFieldOrLegacy(app.typed_signature) !== 'Pending'
+    ),
+  }
+
+  return {
+    fullName: app.full_name,
+    email: app.email,
+    phone: isPlaceholder(decrypted.phone) ? '' : decrypted.phone,
+    address: isPlaceholder(decrypted.address) ? '' : decrypted.address,
+    city: isPlaceholder(decrypted.city) ? '' : decrypted.city,
+    state: isPlaceholder(decrypted.state) ? '' : decrypted.state,
+    zipCode: isPlaceholder(decrypted.zip_code) ? '' : decrypted.zip_code,
+    dateOfBirth: secretSetFlags.dateOfBirthSet ? decrypted.date_of_birth : '',
+    selectedCreditProvider:
+      app.selected_credit_provider && app.selected_credit_provider !== 'Pending'
+        ? app.selected_credit_provider
+        : '',
+    providerUsername: secretSetFlags.providerUsernameSet ? decrypted.provider_username : '',
+    experianEmail: secretSetFlags.experianEmailSet ? decrypted.experian_email : '',
+    cfpbEmail: secretSetFlags.cfpbEmailSet ? decrypted.cfpb_email : '',
+    primaryCreditGoalsText: decrypted.primary_credit_goals_text || '',
+    creditGoals: app.credit_goals || [],
+    fundingAmount: app.funding_amount || '',
+    fundingUse: app.funding_use || '',
+    ownsBusiness: Boolean(app.owns_business),
+    businessName: app.business_name || '',
+    fundingTimeframe: app.funding_timeframe || '',
+    goalsNotes: decrypted.goals_notes || '',
+    creditProfile: decrypted.credit_profile || {},
+    businessProfile: (decrypted.business_profile as BusinessProfile) || {},
+    consent: app.consent_data || { accurateInfo: false, authorizeReview: false, agreeTerms: false },
+    signatureDate: app.signature_date || new Date().toISOString().slice(0, 10),
+    ...secretSetFlags,
+    // Never return secret plaintext passwords / SSN in invite prefill
+    ssn: '',
+    providerPassword: '',
+    experianPassword: '',
+    cfpbPassword: '',
+    typedSignature: '',
+  }
+}
+
 export function buildEncryptedInvitationRow(params: {
   fullName: string
   email: string

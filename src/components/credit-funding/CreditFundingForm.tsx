@@ -157,6 +157,18 @@ export default function CreditFundingForm() {
   const [inviteEmailLocked, setInviteEmailLocked] = useState(false)
   const [inviteBanner, setInviteBanner] = useState('')
   const [inviteLoading, setInviteLoading] = useState(Boolean(inviteTokenFromUrl))
+  const [secretsOnFile, setSecretsOnFile] = useState({
+    ssnSet: false,
+    dateOfBirthSet: false,
+    providerUsernameSet: false,
+    providerPasswordSet: false,
+    experianEmailSet: false,
+    experianPasswordSet: false,
+    cfpbEmailSet: false,
+    cfpbPasswordSet: false,
+    typedSignatureSet: false,
+  })
+  const [docsOnFile, setDocsOnFile] = useState<string[]>([])
   const [form, setForm] = useState<FormState>(initialState)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -213,10 +225,59 @@ export default function CreditFundingForm() {
         if (cancelled) return
 
         setInviteToken(inviteTokenFromUrl)
-        setInviteEmailLocked(false)
+        setInviteEmailLocked(Boolean(data.hasPrefill && data.prefill?.email))
         const greeting = data.firstName ? `Hi ${data.firstName}, ` : ''
         const masked = data.maskedEmail ? ` for ${data.maskedEmail}` : ''
-        setInviteBanner(`${greeting}you're completing an application invited by the Sunday Harmony team${masked}.`)
+        setInviteBanner(
+          data.hasPrefill
+            ? `${greeting}Sunday Harmony started your application${masked}. Review the details, finish anything missing, and submit.`
+            : `${greeting}you're completing an application invited by the Sunday Harmony team${masked}.`
+        )
+
+        if (data.hasPrefill && data.prefill) {
+          const p = data.prefill
+          setSecretsOnFile({
+            ssnSet: Boolean(p.ssnSet),
+            dateOfBirthSet: Boolean(p.dateOfBirthSet),
+            providerUsernameSet: Boolean(p.providerUsernameSet),
+            providerPasswordSet: Boolean(p.providerPasswordSet),
+            experianEmailSet: Boolean(p.experianEmailSet),
+            experianPasswordSet: Boolean(p.experianPasswordSet),
+            cfpbEmailSet: Boolean(p.cfpbEmailSet),
+            cfpbPasswordSet: Boolean(p.cfpbPasswordSet),
+            typedSignatureSet: Boolean(p.typedSignatureSet),
+          })
+          if (Array.isArray(data.existingDocumentTypes)) {
+            setDocsOnFile(data.existingDocumentTypes)
+          }
+          setForm((prev) => ({
+            ...prev,
+            fullName: p.fullName || prev.fullName,
+            email: p.email || prev.email,
+            phone: p.phone || prev.phone,
+            address: p.address || prev.address,
+            city: p.city || prev.city,
+            state: p.state || prev.state,
+            zipCode: p.zipCode || prev.zipCode,
+            dateOfBirth: p.dateOfBirth || prev.dateOfBirth,
+            selectedCreditProvider: p.selectedCreditProvider || prev.selectedCreditProvider,
+            providerUsername: p.providerUsername || prev.providerUsername,
+            experianEmail: p.experianEmail || prev.experianEmail,
+            cfpbEmail: p.cfpbEmail || prev.cfpbEmail,
+            primaryCreditGoalsText: p.primaryCreditGoalsText || prev.primaryCreditGoalsText,
+            creditGoals: Array.isArray(p.creditGoals) && p.creditGoals.length ? p.creditGoals : prev.creditGoals,
+            fundingAmount: p.fundingAmount || prev.fundingAmount,
+            fundingUse: p.fundingUse || prev.fundingUse,
+            ownsBusiness: typeof p.ownsBusiness === 'boolean' ? p.ownsBusiness : prev.ownsBusiness,
+            businessName: p.businessName || prev.businessName,
+            fundingTimeframe: p.fundingTimeframe || prev.fundingTimeframe,
+            goalsNotes: p.goalsNotes || prev.goalsNotes,
+            creditProfile: p.creditProfile && typeof p.creditProfile === 'object' ? p.creditProfile : prev.creditProfile,
+            businessProfile:
+              p.businessProfile && typeof p.businessProfile === 'object' ? p.businessProfile : prev.businessProfile,
+            signatureDate: p.signatureDate || prev.signatureDate,
+          }))
+        }
       } catch {
         if (!cancelled) setSubmitError('Could not load your invitation. Please contact Sunday Harmony.')
       } finally {
@@ -254,8 +315,8 @@ export default function CreditFundingForm() {
     const e: Record<string, string> = {}
     if (stepId === 'personal') {
       if (!form.fullName.trim()) e.fullName = 'Required'
-      if (!form.dateOfBirth) e.dateOfBirth = 'Required'
-      if (!isValidSsn(form.ssn)) e.ssn = 'Enter a valid 9-digit Social Security Number'
+      if (!form.dateOfBirth && !secretsOnFile.dateOfBirthSet) e.dateOfBirth = 'Required'
+      if (!secretsOnFile.ssnSet && !isValidSsn(form.ssn)) e.ssn = 'Enter a valid 9-digit Social Security Number'
       if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required'
       if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 10) e.phone = 'Valid phone required'
       if (!form.address.trim()) e.address = 'Required'
@@ -264,24 +325,39 @@ export default function CreditFundingForm() {
       if (!form.zipCode.trim() || !/^\d{5}(-\d{4})?$/.test(form.zipCode)) e.zipCode = 'Valid ZIP required'
     }
     if (stepId === 'identity') {
+      const requiredMissing = REQUIRED_IDENTITY_TYPES.filter(
+        (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
+      )
       if (stagedUploads.hasUploadInProgress()) {
         e.documents = 'Please wait for uploads to finish'
-      } else if (!stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES)) {
+      } else if (requiredMissing.length > 0 && !stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES.filter((t) => !docsOnFile.includes(t)))) {
         e.documents = 'Upload all required identity documents before continuing'
       }
     }
     if (stepId === 'monitoring') {
       if (!form.selectedCreditProvider) e.selectedCreditProvider = 'Select a provider'
-      if (!form.providerUsername.trim()) e.providerUsername = 'Required'
-      if (!form.providerPassword || form.providerPassword.length < 4) e.providerPassword = 'Required'
-      if (!form.experianEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.experianEmail)) {
+      if (!form.providerUsername.trim() && !secretsOnFile.providerUsernameSet) e.providerUsername = 'Required'
+      if ((!form.providerPassword || form.providerPassword.length < 4) && !secretsOnFile.providerPasswordSet) {
+        e.providerPassword = 'Required'
+      }
+      if (
+        !secretsOnFile.experianEmailSet &&
+        (!form.experianEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.experianEmail))
+      ) {
         e.experianEmail = 'Valid Experian.com email required'
       }
-      if (!form.experianPassword || form.experianPassword.length < 4) e.experianPassword = 'Required'
-      if (!form.cfpbEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.cfpbEmail)) {
+      if ((!form.experianPassword || form.experianPassword.length < 4) && !secretsOnFile.experianPasswordSet) {
+        e.experianPassword = 'Required'
+      }
+      if (
+        !secretsOnFile.cfpbEmailSet &&
+        (!form.cfpbEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.cfpbEmail))
+      ) {
         e.cfpbEmail = 'Valid CFPB portal email required'
       }
-      if (!form.cfpbPassword || form.cfpbPassword.length < 4) e.cfpbPassword = 'Required'
+      if ((!form.cfpbPassword || form.cfpbPassword.length < 4) && !secretsOnFile.cfpbPasswordSet) {
+        e.cfpbPassword = 'Required'
+      }
     }
     if (stepId === 'goals') {
       if (!form.primaryCreditGoalsText.trim() && form.creditGoals.length === 0) {
@@ -304,9 +380,12 @@ export default function CreditFundingForm() {
       if (!form.consent.accurateInfo) e.consent = 'All consent items are required'
       if (!form.consent.authorizeReview) e.consent = 'All consent items are required'
       if (!form.consent.agreeTerms) e.consent = 'All consent items are required'
-      if (!form.typedSignature.trim()) e.typedSignature = 'Signature required'
+      if (!form.typedSignature.trim() && !secretsOnFile.typedSignatureSet) e.typedSignature = 'Signature required'
       if (!form.signatureDate) e.signatureDate = 'Date required'
-      if (!stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES)) {
+      const missingRequired = REQUIRED_IDENTITY_TYPES.filter(
+        (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
+      )
+      if (missingRequired.length > 0) {
         e.documents = 'Required identity documents are missing — return to Identity Documents'
       }
     }
@@ -328,15 +407,20 @@ export default function CreditFundingForm() {
     setSubmitError('')
     setUploadProgress(10)
 
-    const session = stagedUploads.getSession()
-    const stagedFiles = stagedUploads.getStagedFiles()
-    if (!session) {
-      setSubmitError('Secure upload session expired. Return to Identity Documents and re-upload your files.')
+    const missingRequired = REQUIRED_IDENTITY_TYPES.filter(
+      (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
+    )
+    if (missingRequired.length > 0) {
+      setSubmitError('Required identity documents are missing.')
       setSubmitting(false)
       return
     }
-    if (!stagedUploads.isRequiredUploaded(REQUIRED_IDENTITY_TYPES)) {
-      setSubmitError('Required identity documents are missing.')
+
+    const needsStaging = stagedUploads.getStagedFiles().length > 0 || missingRequired.length > 0
+    const session = stagedUploads.getSession()
+    const stagedFiles = stagedUploads.getStagedFiles()
+    if (needsStaging && !session) {
+      setSubmitError('Secure upload session expired. Return to Identity Documents and re-upload your files.')
       setSubmitting(false)
       return
     }
@@ -375,9 +459,14 @@ export default function CreditFundingForm() {
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
       fd.append('companyWebsite', form.companyWebsite)
-      fd.append('uploadSessionId', session.sessionId)
-      fd.append('uploadSessionToken', session.uploadToken)
-      fd.append('stagedFiles', JSON.stringify(stagedFiles))
+      for (const [key, value] of Object.entries(secretsOnFile)) {
+        fd.append(key, String(value))
+      }
+      if (session) {
+        fd.append('uploadSessionId', session.sessionId)
+        fd.append('uploadSessionToken', session.uploadToken)
+        fd.append('stagedFiles', JSON.stringify(stagedFiles))
+      }
       if (inviteToken) {
         fd.append('inviteToken', inviteToken)
       }

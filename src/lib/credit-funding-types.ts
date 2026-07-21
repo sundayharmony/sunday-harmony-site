@@ -72,6 +72,7 @@ export function isDocumentType(value: unknown): value is DocumentType {
 }
 
 export const APPLICATION_STATUSES = [
+  'draft',
   'invitation_pending',
   'submitted',
   'documents_pending',
@@ -87,6 +88,7 @@ export const APPLICATION_STATUSES = [
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  draft: 'Draft',
   invitation_pending: 'Invitation Sent',
   submitted: 'Submitted',
   documents_pending: 'Documents Pending',
@@ -114,6 +116,7 @@ export const STATUS_WORKFLOW_ORDER: ApplicationStatus[] = [
 export const TERMINAL_STATUSES: ApplicationStatus[] = ['declined', 'archived', 'completed']
 
 export const STATUS_DESCRIPTIONS: Record<ApplicationStatus, string> = {
+  draft: 'Staff-entered draft — incomplete. Save and return later, finalize, or email the client to finish.',
   invitation_pending: 'Application link sent — waiting for the client to complete the intake form.',
   submitted: 'Application received — review intake and confirm all required documents are on file.',
   documents_pending: 'Waiting on documents from the applicant — request missing files below.',
@@ -384,6 +387,8 @@ export interface CreditFundingApplication {
   lead_id?: string | null
   invite_expires_at?: string | null
   invite_personal_message?: string | null
+  created_by_staff_email?: string | null
+  draft_source?: string | null
   business_profile?: BusinessProfile
   funding_scores?: FundingScores
   created_at: string

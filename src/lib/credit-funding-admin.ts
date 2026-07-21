@@ -25,6 +25,8 @@ export function formatApplicationListItemForAdmin(app: CreditFundingApplication)
     selected_credit_provider: decrypted.selected_credit_provider,
     status: decrypted.status,
     assigned_specialist: decrypted.assigned_specialist,
+    draft_source: decrypted.draft_source || null,
+    created_by_staff_email: decrypted.created_by_staff_email || null,
     created_at: decrypted.created_at,
     updated_at: decrypted.updated_at,
   }

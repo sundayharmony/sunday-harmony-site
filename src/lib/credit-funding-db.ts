@@ -17,6 +17,7 @@ import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
 import {
   buildEncryptedApplicationRow,
   buildEncryptedInvitationRow,
+  buildPartialEncryptedApplicationRow,
   decryptFreeTextForView,
   encryptFreeTextForDb,
 } from '@/lib/credit-funding-sensitive-fields'
@@ -51,6 +52,8 @@ const CREDIT_FUNDING_LIST_SELECT = [
   'funding_use',
   'invite_expires_at',
   'invite_personal_message',
+  'draft_source',
+  'created_by_staff_email',
   'created_at',
   'updated_at',
 ].join(', ')
@@ -109,6 +112,233 @@ export async function getPendingInvitationByEmail(email: string): Promise<Credit
 
   if (error) return undefined
   return data as CreditFundingApplication | undefined
+}
+
+export async function getOpenStaffDraftByEmail(email: string): Promise<CreditFundingApplication | undefined> {
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .select('*')
+    .ilike('email', email.trim())
+    .eq('status', 'draft')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return undefined
+  return data as CreditFundingApplication | undefined
+}
+
+/** Pending invite or open staff draft for the same email. */
+export async function getBlockingIncompleteApplicationByEmail(
+  email: string
+): Promise<CreditFundingApplication | undefined> {
+  const pending = await getPendingInvitationByEmail(email)
+  if (pending) return pending
+  return getOpenStaffDraftByEmail(email)
+}
+
+export async function createStaffDraftApplication(params: {
+  payload: IntakeFormPayload
+  staffEmail: string
+  clientId?: string
+}): Promise<CreditFundingApplication | null> {
+  const blocking = await getBlockingIncompleteApplicationByEmail(params.payload.email)
+  if (blocking) return null
+
+  const applicationId = generateApplicationId()
+  const encrypted = buildPartialEncryptedApplicationRow(params.payload)
+  const fundingGoals = buildFundingGoalsSummary(params.payload)
+
+  const row: Record<string, unknown> = {
+    application_id: applicationId,
+    ...encrypted,
+    funding_goals: fundingGoals,
+    status: 'draft' as ApplicationStatus,
+    service_type: 'credit_and_funding',
+    credit_funding_client_status: 'intake_started',
+    client_id: params.clientId || null,
+    created_by_staff_email: params.staffEmail,
+    draft_source: 'staff_manual',
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .insert(row)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('createStaffDraftApplication error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'draft',
+    staff_email: params.staffEmail,
+    notes: 'Staff draft application created',
+  })
+
+  return app
+}
+
+export async function updateStaffDraftApplication(
+  id: string,
+  payload: IntakeFormPayload
+): Promise<CreditFundingApplication | null> {
+  const existing = await getCreditFundingApplicationById(id)
+  if (!existing || existing.status !== 'draft') return null
+
+  if (payload.email.trim().toLowerCase() !== existing.email.toLowerCase()) {
+    const blocking = await getBlockingIncompleteApplicationByEmail(payload.email)
+    if (blocking && blocking.id !== id) return null
+  }
+
+  const encrypted = buildPartialEncryptedApplicationRow(payload, { preserveSecretsFrom: existing })
+  const fundingGoals = buildFundingGoalsSummary(payload)
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update({
+      ...encrypted,
+      funding_goals: fundingGoals,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('status', 'draft')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('updateStaffDraftApplication error:', error)
+    return null
+  }
+  return data as CreditFundingApplication
+}
+
+export async function finalizeStaffDraftApplication(
+  id: string,
+  payload: IntakeFormPayload,
+  link?: { userId?: string; clientId?: string },
+  staffEmail?: string
+): Promise<CreditFundingApplication | null> {
+  const existing = await getCreditFundingApplicationById(id)
+  if (!existing || existing.status !== 'draft') return null
+
+  const fundingGoals = buildFundingGoalsSummary(payload)
+  const encrypted = buildEncryptedApplicationRow(payload, {
+    userId: link?.userId,
+    clientId: link?.clientId || existing.client_id || undefined,
+  })
+
+  const row = {
+    ...encrypted,
+    funding_goals: fundingGoals,
+    status: 'submitted' as ApplicationStatus,
+    service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
+    lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
+    credit_funding_client_status: 'intake_completed',
+    invite_expires_at: null,
+    invite_personal_message: null,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update(row)
+    .eq('id', id)
+    .eq('status', 'draft')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('finalizeStaffDraftApplication error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'submitted',
+    staff_email: staffEmail || null,
+    notes: 'Staff finalized draft application',
+  })
+
+  return app
+}
+
+export async function convertDraftToInvitationPending(
+  id: string,
+  inviteExpiresAt: Date,
+  personalMessage?: string,
+  staffEmail?: string
+): Promise<CreditFundingApplication | null> {
+  const updates: Record<string, unknown> = {
+    status: 'invitation_pending',
+    invite_expires_at: inviteExpiresAt.toISOString(),
+    credit_funding_client_status: 'intake_started',
+    updated_at: new Date().toISOString(),
+  }
+  if (personalMessage !== undefined) {
+    updates.invite_personal_message = encryptFreeTextForDb(personalMessage) || null
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update(updates)
+    .eq('id', id)
+    .eq('status', 'draft')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('convertDraftToInvitationPending error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'invitation_pending',
+    staff_email: staffEmail || null,
+    notes: 'Finish link emailed to client from staff draft',
+  })
+
+  return app
+}
+
+export async function cancelInvitationBackToDraft(
+  id: string,
+  staffEmail?: string
+): Promise<CreditFundingApplication | null> {
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update({
+      status: 'draft',
+      invite_expires_at: null,
+      invite_personal_message: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('status', 'invitation_pending')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('cancelInvitationBackToDraft error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'draft',
+    staff_email: staffEmail || null,
+    notes: 'Client finish link cancelled — returned to staff draft',
+  })
+
+  return app
 }
 
 export async function createInvitedCreditFundingApplication(params: {
