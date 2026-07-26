@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import { EmptyState } from '@/components/dispute-letters/EmptyState'
 import { ScoreCard } from '@/components/dispute-letters/ScoreCard'
@@ -57,7 +58,7 @@ export default function DisputeHealthPage() {
     return <p className="text-brand-dim">Loading health summary…</p>
   }
 
-  const { credit_health: h, consumer_name, report_date } = data
+  const { credit_health: h, consumer_name, report_date, credit_intelligence: intel } = data
   const selectedCount = tradelines.filter((t) => t.selected).length
 
   return (
@@ -65,7 +66,7 @@ export default function DisputeHealthPage() {
       <DisputeLettersStepStrip sessionId={sessionId} />
 
       <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-brand-text">Credit Health Snapshot</h2>
+        <h2 className="text-xl font-semibold text-brand-text">Credit Intelligence Snapshot</h2>
         <p className="mt-1 text-sm text-brand-dim">
           {consumer_name || 'Consumer'}
           {report_date ? ` · Report date ${report_date}` : ''} · {sourceLabel(data.source)}
@@ -85,7 +86,15 @@ export default function DisputeHealthPage() {
         <StatCard label="High priority" value={h.high_priority_count} hint="Dispute first" />
       </div>
 
-      {(h.repair_summary || h.recommended_actions.length > 0) && (
+      {intel && (
+        <CreditIntelligenceDashboard
+          intelligence={intel}
+          sessionId={sessionId}
+          showDisputeCta={false}
+        />
+      )}
+
+      {!intel && (h.repair_summary || h.recommended_actions.length > 0) && (
         <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-brand-text">Repair plan</h3>
           {h.repair_summary && <p className="mt-2 text-sm text-brand-text">{h.repair_summary}</p>}
@@ -101,7 +110,7 @@ export default function DisputeHealthPage() {
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-brand-text">Priority queue</h3>
+          <h3 className="text-lg font-semibold text-brand-text">Priority dispute queue</h3>
           <p className="text-sm text-brand-dim">{selectedCount} selected for dispute</p>
         </div>
 

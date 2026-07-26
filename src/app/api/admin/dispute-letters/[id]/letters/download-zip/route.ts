@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
 import { getDisputeSession } from '@/lib/dispute-letters/db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(_request: NextRequest, { params }: Params) {
-  const session = await requireAdminSession()
+  const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
 
   const { id } = await params

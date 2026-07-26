@@ -102,6 +102,30 @@ export async function fetchDisputeHealth(sessionId: string) {
   return res.json() as Promise<ReportHealth>
 }
 
+export async function fetchDisputeSessionsForApplication(applicationUuid: string) {
+  const res = await fetch(
+    `/api/admin/dispute-letters/by-application?applicationUuid=${encodeURIComponent(applicationUuid)}`
+  )
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{ sessions: import('@/lib/dispute-letters/types').DisputeSessionListItem[] }>
+}
+
+export async function rebuildDisputeIntelligence(
+  sessionId: string,
+  fundingContext?: import('@/lib/dispute-letters/types').FundingContextPayload
+) {
+  const res = await fetch(`/api/admin/dispute-letters/${sessionId}/intelligence`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ funding_context: fundingContext || null }),
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{
+    session_id: string
+    credit_intelligence: import('@/lib/dispute-letters/types').CreditIntelligenceReport
+  }>
+}
+
 export async function patchDisputeTradelines(sessionId: string, tradelines: Tradeline[]) {
   const res = await fetch(`/api/admin/dispute-letters/${sessionId}/tradelines`, {
     method: 'PATCH',

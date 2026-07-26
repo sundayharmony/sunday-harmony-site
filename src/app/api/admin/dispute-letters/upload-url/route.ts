@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   createDisputeLetterSignedUploadUrl,
   newDisputeSessionId,
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
-  const session = await requireAdminSession()
+  const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
 
   const email = session.user?.email
@@ -21,6 +21,10 @@ export async function POST(request: NextRequest) {
     const fileName = typeof body.fileName === 'string' ? body.fileName.trim() : ''
     const contentType = typeof body.contentType === 'string' ? body.contentType.trim() : ''
     const fileSize = typeof body.fileSize === 'number' ? body.fileSize : Number(body.fileSize)
+    const applicationUuid =
+      typeof body.applicationUuid === 'string' && body.applicationUuid.trim()
+        ? body.applicationUuid.trim()
+        : null
 
     if (!fileName) {
       return NextResponse.json({ error: 'fileName is required' }, { status: 400 })
@@ -46,6 +50,7 @@ export async function POST(request: NextRequest) {
       adminUserId: email,
       storagePath: upload.data.path,
       fileName,
+      applicationUuid,
     })
 
     if (!created.ok) {

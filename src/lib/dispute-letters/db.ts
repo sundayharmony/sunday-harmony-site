@@ -1,5 +1,10 @@
 import { getSupabase } from '@/lib/supabase'
-import type { DisputeSessionListItem, DisputeSessionStatus, ParsedReport } from '@/lib/dispute-letters/types'
+import type {
+  CreditIntelligenceReport,
+  DisputeSessionListItem,
+  DisputeSessionStatus,
+  ParsedReport,
+} from '@/lib/dispute-letters/types'
 
 export async function listDisputeSessions(adminUserId: string): Promise<DisputeSessionListItem[]> {
   const { data, error } = await getSupabase()
@@ -11,6 +16,23 @@ export async function listDisputeSessions(adminUserId: string): Promise<DisputeS
 
   if (error) {
     console.error('listDisputeSessions error:', error)
+    return []
+  }
+  return (data || []) as DisputeSessionListItem[]
+}
+
+export async function listDisputeSessionsForApplication(
+  applicationUuid: string
+): Promise<DisputeSessionListItem[]> {
+  const { data, error } = await getSupabase()
+    .from('dispute_sessions')
+    .select('*')
+    .eq('application_uuid', applicationUuid)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (error) {
+    console.error('listDisputeSessionsForApplication error:', error)
     return []
   }
   return (data || []) as DisputeSessionListItem[]
@@ -34,27 +56,49 @@ export async function getDisputeSession(
   return (data as DisputeSessionListItem) || null
 }
 
+export async function getDisputeSessionById(
+  sessionId: string
+): Promise<DisputeSessionListItem | null> {
+  const { data, error } = await getSupabase()
+    .from('dispute_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getDisputeSessionById error:', error)
+    return null
+  }
+  return (data as DisputeSessionListItem) || null
+}
+
 export async function createDisputeSession(params: {
   id: string
   adminUserId: string
   storagePath: string
   fileName: string
+  applicationUuid?: string | null
 }): Promise<
   { ok: true; data: DisputeSessionListItem } | { ok: false; error: string }
 > {
   const now = new Date().toISOString()
+  const row: Record<string, unknown> = {
+    id: params.id,
+    admin_user_id: params.adminUserId,
+    status: 'uploaded',
+    storage_path: params.storagePath,
+    file_name: params.fileName,
+    file_type: '',
+    created_at: now,
+    updated_at: now,
+  }
+  if (params.applicationUuid) {
+    row.application_uuid = params.applicationUuid
+  }
+
   const { data, error } = await getSupabase()
     .from('dispute_sessions')
-    .insert({
-      id: params.id,
-      admin_user_id: params.adminUserId,
-      status: 'uploaded',
-      storage_path: params.storagePath,
-      file_name: params.fileName,
-      file_type: '',
-      created_at: now,
-      updated_at: now,
-    })
+    .insert(row)
     .select('*')
     .single()
 
@@ -92,7 +136,35 @@ export async function updateDisputeSessionReport(
     updated_at: new Date().toISOString(),
   }
   if (fileType) payload.file_type = fileType
+  if (report.credit_intelligence) {
+    payload.intelligence_json = report.credit_intelligence
+  }
 
   const { error } = await getSupabase().from('dispute_sessions').update(payload).eq('id', sessionId)
   if (error) console.error('updateDisputeSessionReport error:', error)
+}
+
+export async function updateDisputeSessionIntelligence(
+  sessionId: string,
+  intelligence: CreditIntelligenceReport
+): Promise<void> {
+  const { data: existing } = await getSupabase()
+    .from('dispute_sessions')
+    .select('report_json')
+    .eq('id', sessionId)
+    .maybeSingle()
+
+  const reportJson = (existing?.report_json as ParsedReport | null) || null
+  const nextReport = reportJson
+    ? { ...reportJson, credit_intelligence: intelligence }
+    : null
+
+  const payload: Record<string, unknown> = {
+    intelligence_json: intelligence,
+    updated_at: new Date().toISOString(),
+  }
+  if (nextReport) payload.report_json = nextReport
+
+  const { error } = await getSupabase().from('dispute_sessions').update(payload).eq('id', sessionId)
+  if (error) console.error('updateDisputeSessionIntelligence error:', error)
 }

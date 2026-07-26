@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.parsers.base import parse_document_fallback
 from app.services.credit_health import apply_high_priority_selection, build_health_summary
+from app.services.credit_intelligence import build_credit_intelligence
 from app.services.cursor_client import agent_prompt, result_text
 
 ANALYZE_PROMPT = """You are a credit report analyst with access to federal consumer credit law references in this project.
@@ -23,6 +24,7 @@ ANALYZE_PROMPT = """You are a credit report analyst with access to federal consu
 Before analyzing, read these files in the project:
 - knowledge/fcra/key-sections.md
 - knowledge/citations.yaml
+- knowledge/credit-intelligence/factor-framework.md
 - .cursor/skills/credit-letter-legal/SKILL.md
 
 Analyze the credit report text below. Extract ONLY information visible in the report. Do NOT invent accounts.
@@ -34,23 +36,31 @@ CLEAN CREDIT PROFILE PRIORITY (critical):
 - In suggested_dispute_reason, lead with deletion language for obsolete/closed negatives (FCRA §611).
 - Tag legal_flags with "closed_account", "closed_derogatory", and/or "obsolete_negative" when applicable.
 
+CREDIT INTELLIGENCE EXTRACTION (critical for utilization / age / funding readiness):
+- Extract credit_limit, high_credit, date_opened, date_of_first_delinquency, last_reported, payment_history, monthly_payment whenever visible.
+- For hard inquiries, still create tradeline-like rows with account_type containing "Inquiry".
+- For public records (bankruptcy, judgment, lien), include them as tradelines with clear account_type/status.
+
 For each tradeline, provide:
-- Factual fields (creditor, account numbers per bureau, status, balance, etc.)
-- analysis_notes: brief summary of potential issues (inaccuracies, collections, disputed status, closed negatives, etc.)
+- Factual fields (creditor, account numbers per bureau, status, balance, limits, dates, etc.)
+- analysis_notes: brief summary of potential issues (inaccuracies, collections, disputed status, closed negatives, utilization concerns, etc.)
 - suggested_dispute_reason: FCRA-grounded dispute reason citing applicable law (e.g. FCRA §611); for closed/obsolete negatives, explicitly ask for deletion
 - dispute_bureaus: which bureaus to send dispute letters to (subset of bureaus reporting)
 - dispute_furnisher: true if a furnisher letter is recommended
-- legal_flags: array of tags like "collection", "charge_off", "already_disputed", "balance_mismatch", "late_payment_error", "closed_account", "closed_derogatory", "obsolete_negative"
+- legal_flags: array of tags like "collection", "charge_off", "already_disputed", "balance_mismatch", "late_payment_error", "closed_account", "closed_derogatory", "obsolete_negative", "high_utilization"
 
 Return ONLY valid JSON (no markdown fences, no prose outside JSON) matching this schema:
 {{
-  "analysis_summary": "overall report summary emphasizing clean-profile removal targets",
+  "analysis_summary": "overall report summary covering strengths, weaknesses, and clean-profile removal targets",
   "reference": "report reference number if present",
   "report_date": "report date if present",
   "consumer": {{"name": "", "dob": "", "ssn_last4": "", "addresses": []}},
   "tradelines": [{{
     "creditor": "", "account_tu": "", "account_exp": "", "account_eqf": "",
     "account_type": "", "status": "", "balance": "", "past_due": "", "remarks": "",
+    "credit_limit": "", "high_credit": "", "date_opened": "",
+    "date_of_first_delinquency": "", "last_reported": "",
+    "payment_history": "", "monthly_payment": "",
     "bureaus": ["TUC"|"EXP"|"EQF"], "is_collection": false,
     "analysis_notes": "", "suggested_dispute_reason": "",
     "dispute_bureaus": ["TUC"|"EXP"|"EQF"], "dispute_furnisher": true,
@@ -203,6 +213,13 @@ def _dict_to_report(
                 balance=item.get("balance", ""),
                 past_due=item.get("past_due", ""),
                 remarks=item.get("remarks", ""),
+                credit_limit=item.get("credit_limit", ""),
+                high_credit=item.get("high_credit", ""),
+                date_opened=item.get("date_opened", ""),
+                date_of_first_delinquency=item.get("date_of_first_delinquency", ""),
+                last_reported=item.get("last_reported", ""),
+                payment_history=item.get("payment_history", ""),
+                monthly_payment=item.get("monthly_payment", ""),
                 bureaus=bureaus,
                 is_collection=bool(item.get("is_collection"))
                 or "collection" in (item.get("account_type") or "").lower(),
@@ -246,7 +263,9 @@ def _valid_bureaus(codes: list) -> list[BureauCode]:
 
 def _finalize_report(report: ParsedReport, agent_health: dict | None = None) -> ParsedReport:
     report.credit_health = build_health_summary(report, agent_health)
-    return apply_high_priority_selection(report)
+    report = apply_high_priority_selection(report)
+    report.credit_intelligence = build_credit_intelligence(report)
+    return report
 
 
 def _apply_fallback(doc: ExtractedDocument, reason: str) -> ParsedReport:

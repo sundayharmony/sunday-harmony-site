@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { proxyDisputeLettersStream } from '@/lib/dispute-letters/api-client'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
@@ -10,7 +10,7 @@ export const maxDuration = 300
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, { params }: Params) {
-  const session = await requireAdminSession()
+  const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
 
   const { id } = await params

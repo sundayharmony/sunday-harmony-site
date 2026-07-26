@@ -17,6 +17,94 @@ export interface CreditHealthSummary {
   recommended_actions: string[]
 }
 
+export interface FactorAnalysis {
+  factor: string
+  weight_hint: number
+  summary: string
+  score_band: string
+  findings: Record<string, unknown>[]
+  metrics: Record<string, unknown>
+  strengths: string[]
+  weaknesses: string[]
+  recommendations: string[]
+}
+
+export interface OverallCreditHealth {
+  band: string
+  narrative: string
+  strengths: string[]
+  weaknesses: string[]
+  risk_factors: string[]
+  improvement_priorities: string[]
+  average_score: number | null
+}
+
+export interface FundingReadinessAssessment {
+  level: string
+  score_0_to_100: number
+  summary: string
+  blockers: string[]
+  supportive_signals: string[]
+  practical_steps: string[]
+}
+
+export interface Recommendation {
+  id: string
+  title: string
+  category: string
+  rationale: string
+  estimated_impact: number
+  confidence: number
+  priority_score: number
+  suggested_actions: string[]
+  related_tradeline_ids: string[]
+  legal_basis: string
+}
+
+export interface AccountDisputeInsight {
+  tradeline_id: string
+  creditor: string
+  category: string
+  repair_priority: RepairPriority | string
+  dispute_recommended: boolean
+  rationale: string
+  suggested_dispute_reason?: string
+  supporting_facts?: Record<string, unknown>
+  legal_citations?: string[]
+}
+
+export interface CreditIntelligenceReport {
+  version: string
+  analyzed_at: string
+  report_date: string
+  consumer_name: string
+  factors: FactorAnalysis[]
+  overall: OverallCreditHealth
+  funding_readiness: FundingReadinessAssessment
+  recommendations: Recommendation[]
+  account_dispute_insights: AccountDisputeInsight[]
+  recommended_next_steps: string[]
+  disclaimer: string
+}
+
+export interface FundingContextPayload {
+  credit_goals?: string[]
+  funding_goals?: string
+  funding_amount?: string
+  funding_timeframe?: string
+  monthly_income?: string
+  annual_income?: string
+  annual_revenue?: string
+  business_year_established?: string
+  self_reported_score?: string
+  self_reported_collections?: boolean
+  self_reported_charge_offs?: boolean
+  self_reported_bankruptcy?: boolean
+  self_reported_late_payments?: boolean
+  self_reported_inquiries?: string
+  document_types?: string[]
+}
+
 export interface ConsumerInfo {
   name: string
   dob: string
@@ -35,6 +123,13 @@ export interface Tradeline {
   balance: string
   past_due: string
   remarks: string
+  credit_limit?: string
+  high_credit?: string
+  date_opened?: string
+  date_of_first_delinquency?: string
+  last_reported?: string
+  payment_history?: string
+  monthly_payment?: string
   bureaus: BureauCode[]
   is_collection: boolean
   selected: boolean
@@ -54,6 +149,7 @@ export interface ParsedReport {
   report_date: string
   analysis_summary: string
   credit_health: CreditHealthSummary
+  credit_intelligence?: CreditIntelligenceReport | null
   consumer: ConsumerInfo
   tradelines: Tradeline[]
   subscribers: { name: string; address_lines: string[]; phone: string }[]
@@ -65,6 +161,7 @@ export interface ParsedReport {
 export interface ReportHealth {
   session_id: string
   credit_health: CreditHealthSummary
+  credit_intelligence?: CreditIntelligenceReport | null
   tradelines_by_priority: Tradeline[]
   consumer_name: string
   report_date: string
@@ -112,6 +209,8 @@ export interface DisputeSessionListItem {
   file_type: string
   report_json: ParsedReport | null
   error_message: string | null
+  application_uuid?: string | null
+  intelligence_json?: CreditIntelligenceReport | null
   created_at: string
   updated_at: string
 }
@@ -133,8 +232,24 @@ export const PRIORITY_ORDER: Record<RepairPriority, number> = {
   none: 3,
 }
 
+export const FACTOR_LABELS: Record<string, string> = {
+  payment_history: 'Payment History',
+  revolving_utilization: 'Revolving Utilization',
+  installment_loans: 'Installment Loans',
+  collections: 'Collections',
+  charge_offs: 'Charge-Offs',
+  hard_inquiries: 'Hard Inquiries',
+  public_records: 'Public Records',
+  credit_mix: 'Credit Mix',
+  account_age: 'Account Age',
+}
+
 export function sourceLabel(source: string) {
   if (source === 'cursor_agent') return 'AI analyzed'
   if (source === 'fallback_parser') return 'Local parse'
   return source
+}
+
+export function impactPercent(value: number) {
+  return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
 }

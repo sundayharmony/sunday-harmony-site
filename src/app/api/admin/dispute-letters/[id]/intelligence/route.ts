@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
+import { updateDisputeSessionIntelligence } from '@/lib/dispute-letters/db'
+import type { CreditIntelligenceReport, FundingContextPayload } from '@/lib/dispute-letters/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 type Params = { params: Promise<{ id: string }> }
 
+/** Rebuild Credit Intelligence with optional funding/intake context. */
 export async function POST(request: NextRequest, { params }: Params) {
   const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
@@ -17,14 +20,23 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!access.ok) return access.response
 
   try {
-    const body = await request.json()
-    const data = await disputeLettersJson('/internal/disputes/plan', {
+    const body = (await request.json().catch(() => ({}))) as {
+      funding_context?: FundingContextPayload
+    }
+    const data = await disputeLettersJson(`/internal/reports/${id}/intelligence`, {
       method: 'POST',
-      body: JSON.stringify({ ...body, session_id: id }),
+      body: JSON.stringify({
+        session_id: id,
+        funding_context: body.funding_context || null,
+      }),
     })
+    const intelligence = data.credit_intelligence as CreditIntelligenceReport | undefined
+    if (intelligence) {
+      await updateDisputeSessionIntelligence(id, intelligence)
+    }
     return NextResponse.json(data)
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to build plan'
+    const message = err instanceof Error ? err.message : 'Failed to rebuild intelligence'
     return NextResponse.json({ error: message }, { status: 502 })
   }
 }

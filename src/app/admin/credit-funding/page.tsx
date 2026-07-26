@@ -7,6 +7,7 @@ import AdminApplicationWorkflow, {
   type WorkflowStepPayload,
 } from '@/components/credit-funding/AdminApplicationWorkflow'
 import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
+import CreditIntelligencePanel from '@/components/credit-funding/CreditIntelligencePanel'
 import StaffDraftEditor from '@/components/credit-funding/StaffDraftEditor'
 import {
   APPLICATION_STATUSES,
@@ -162,7 +163,7 @@ function CreditFundingAdminContent() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'funding' | 'messages'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'funding' | 'messages'>('overview')
   const [newMsg, setNewMsg] = useState('')
   const [editFields, setEditFields] = useState({
     assigned_specialist: '',
@@ -953,7 +954,7 @@ function CreditFundingAdminContent() {
               )}
 
               <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
-                {(['overview', 'intake', 'funding', 'messages'] as const).map((tab) => (
+                {(['overview', 'intake', 'intelligence', 'funding', 'messages'] as const).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -962,7 +963,7 @@ function CreditFundingAdminContent() {
                       activeTab === tab ? 'border-accent text-brand-text' : 'border-transparent text-brand-dim'
                     }`}
                   >
-                    {tab}
+                    {tab === 'intelligence' ? 'Credit Intelligence' : tab}
                   </button>
                 ))}
               </div>
@@ -1182,6 +1183,29 @@ function CreditFundingAdminContent() {
                     <DetailField label="Signature Date" value={selected.signature_date} />
                   </DetailSection>
                 </div>
+              )}
+
+              {activeTab === 'intelligence' && selected && (
+                <CreditIntelligencePanel
+                  applicationId={selected.id}
+                  fundingContext={{
+                    credit_goals: selected.credit_goals || [],
+                    funding_goals: selected.funding_goals || '',
+                    funding_amount: selected.funding_amount || '',
+                    funding_timeframe: selected.funding_timeframe || '',
+                    monthly_income: String(selected.credit_profile?.monthlyGrossIncome || ''),
+                    annual_income: String(selected.credit_profile?.annualIncome || ''),
+                    annual_revenue: String(selected.business_profile?.annualRevenue || ''),
+                    business_year_established: String(selected.business_profile?.yearEstablished || ''),
+                    self_reported_score: String(selected.credit_profile?.creditScore || ''),
+                    self_reported_collections: Boolean(selected.credit_profile?.collections),
+                    self_reported_charge_offs: Boolean(selected.credit_profile?.chargeOffs),
+                    self_reported_bankruptcy: Boolean(selected.credit_profile?.bankruptcy),
+                    self_reported_late_payments: Boolean(selected.credit_profile?.latePayments24Months),
+                    self_reported_inquiries: String(selected.credit_profile?.inquiries || ''),
+                    document_types: documents.map((d) => d.document_type),
+                  }}
+                />
               )}
 
               {activeTab === 'funding' && (

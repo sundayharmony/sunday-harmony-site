@@ -21,7 +21,11 @@ def _current_and_prior_addresses(consumer: ConsumerInfo) -> tuple[str, list[str]
     return addresses[0], addresses[1:]
 
 
-def build_letter_prompt(plan: LetterPlan, consumer: ConsumerInfo) -> str:
+def build_letter_prompt(
+    plan: LetterPlan,
+    consumer: ConsumerInfo,
+    intelligence_notes: list[str] | None = None,
+) -> str:
     items_block = "\n".join(
         f"- Creditor: {it.creditor}; Account: {it.account_number}; Bureau: {it.bureau}; "
         f"Status: {it.status}; Balance: {it.balance}; Reason: {it.dispute_reason}"
@@ -41,14 +45,23 @@ def build_letter_prompt(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             "and written confirmation of the outcome"
         )
     )
+    intel_block = ""
+    if intelligence_notes:
+        intel_block = (
+            "\n\nCREDIT INTELLIGENCE CONTEXT (use only facts that match the disputed items; "
+            "do not invent dates or balances):\n"
+            + "\n".join(f"- {n}" for n in intelligence_notes[:20])
+        )
 
     return f"""Draft a formal FCRA dispute letter for a {letter_kind}.
 
 Before writing, read:
 - knowledge/fcra/key-sections.md
 - knowledge/citations.yaml
+- knowledge/credit-intelligence/factor-framework.md
 
 Apply the credit-letter-legal skill conventions. Use dual citations (e.g. {plan.statute}).
+Cite legal provisions only when supported by the facts of these accounts.
 
 Recipient:
 {plan.recipient_name}
@@ -63,11 +76,13 @@ Addresses (first is current; any others are prior addresses on file):
 
 Disputed items:
 {items_block}
+{intel_block}
 
 CLEAN-PROFILE PRIORITY:
 - Lead with (and emphasize deletion of) collections, charge-offs, and closed/paid accounts that still show late history or other negatives — these do not help a clean credit profile.
 - For those accounts, the primary ask is DELETE the tradeline if unverifiable; correction is only the fallback.
 - Do not soft-pedal closed negatives as mere status tweaks.
+- Tailor Basis of Dispute language to each account's specific facts (dates, balances, status inconsistencies, possible obsolescence).
 
 FORMAT — match a polished mailed business letter (like a finished Experian dispute PDF):
 
@@ -116,13 +131,50 @@ Rules:
 - Do NOT use markdown headers (#), numbered lists, or italic *emphasis*. Only **bold** on creditor name lines.
 - Use "● " for bullets under Additional Addresses and Statutory Requirements.
 - Do NOT invent facts not provided (balances, statuses, addresses, account numbers).
+- Do NOT guarantee deletion or score improvement.
 - Output ONLY the letter body (no code fences, no commentary).
 """
 
 
-async def generate_letter_async(plan: LetterPlan, consumer: ConsumerInfo) -> str:
+def _intelligence_notes_for_plan(plan: LetterPlan, report) -> list[str]:
+    intel = getattr(report, "credit_intelligence", None)
+    if not intel:
+        return []
+    insights = getattr(intel, "account_dispute_insights", None) or []
+    if isinstance(intel, dict):
+        insights = intel.get("account_dispute_insights") or []
+    by_id = {
+        (i.get("tradeline_id") if isinstance(i, dict) else getattr(i, "tradeline_id", "")): i
+        for i in insights
+    }
+    notes: list[str] = []
+    for item in plan.items:
+        insight = by_id.get(item.tradeline_id)
+        if not insight:
+            continue
+        if isinstance(insight, dict):
+            rationale = insight.get("rationale") or ""
+            cites = insight.get("legal_citations") or []
+            facts = insight.get("supporting_facts") or {}
+        else:
+            rationale = getattr(insight, "rationale", "")
+            cites = getattr(insight, "legal_citations", []) or []
+            facts = getattr(insight, "supporting_facts", {}) or {}
+        bits = [f"{item.creditor}: {rationale}"]
+        if facts.get("date_of_first_delinquency"):
+            bits.append(f"DOFD={facts['date_of_first_delinquency']}")
+        if facts.get("last_reported"):
+            bits.append(f"last_reported={facts['last_reported']}")
+        if cites:
+            bits.append("cites: " + "; ".join(cites[:3]))
+        notes.append(" | ".join(bits))
+    return notes
+
+
+async def generate_letter_async(plan: LetterPlan, consumer: ConsumerInfo, report=None) -> str:
     api_key = os.environ.get("CURSOR_API_KEY", "").strip()
-    prompt = build_letter_prompt(plan, consumer)
+    notes = _intelligence_notes_for_plan(plan, report) if report is not None else []
+    prompt = build_letter_prompt(plan, consumer, intelligence_notes=notes or None)
     if api_key:
         try:
             return normalize_letter_source(await _generate_via_sdk_async(prompt))
@@ -141,9 +193,10 @@ async def _generate_via_sdk_async(prompt: str) -> str:
     return text
 
 
-def generate_letter(plan: LetterPlan, consumer: ConsumerInfo) -> str:
+def generate_letter(plan: LetterPlan, consumer: ConsumerInfo, report=None) -> str:
     api_key = os.environ.get("CURSOR_API_KEY", "").strip()
-    prompt = build_letter_prompt(plan, consumer)
+    notes = _intelligence_notes_for_plan(plan, report) if report is not None else []
+    prompt = build_letter_prompt(plan, consumer, intelligence_notes=notes or None)
     if api_key:
         try:
             return normalize_letter_source(_generate_via_sdk(prompt, api_key))

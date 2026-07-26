@@ -34,12 +34,14 @@ from app.models import (
     DisputePlanRequest,
     GenerateLettersRequest,
     GeneratedLetter,
+    IntelligenceRequest,
     LetterPlanResponse,
     ReportHealthResponse,
     ReportSessionResponse,
     TradelineUpdateRequest,
 )
 from app.services.credit_health import build_health_summary, sort_by_priority
+from app.services.credit_intelligence import build_credit_intelligence
 from app.services.cursor_client import bridge_manager
 from app.services.letter_generator import generate_letter_async, save_letter_file
 from app.services.letter_formatter import finalize_letter, letter_to_docx, letter_to_html
@@ -153,7 +155,7 @@ async def analyze_stream(
             temp_path = write_temp_report(body.storage_path, ext)
             doc = ingest_file(temp_path)
 
-            yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Building your credit health summary…'})}\n\n"
+            yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Running Credit Intelligence analysis…'})}\n\n"
             report = await analyze_report_async(doc, allow_fallback=True)
             update_session_report(body.session_id, report, file_type=doc.file_type)
 
@@ -178,14 +180,36 @@ def get_report_health(session_id: str, _: None = Depends(verify_internal_secret)
         raise HTTPException(404, "Session not found")
     _, _, report = row
     health = report.credit_health or build_health_summary(report)
+    intelligence = report.credit_intelligence or build_credit_intelligence(report)
+    if report.credit_intelligence is None:
+        report.credit_intelligence = intelligence
+        update_session_report(session_id, report)
     return ReportHealthResponse(
         session_id=session_id,
         credit_health=health,
+        credit_intelligence=intelligence,
         tradelines_by_priority=sort_by_priority(report.tradelines),
         consumer_name=report.consumer.name,
         report_date=report.report_date,
         source=report.source,
     )
+
+
+@app.post("/internal/reports/{session_id}/intelligence")
+def rebuild_intelligence(
+    session_id: str,
+    body: IntelligenceRequest,
+    _: None = Depends(verify_internal_secret),
+) -> dict:
+    row = get_session(session_id)
+    if not row:
+        raise HTTPException(404, "Session not found")
+    _, _, report = row
+    intelligence = build_credit_intelligence(report, funding=body.funding_context)
+    report.credit_intelligence = intelligence
+    if not update_session_report(session_id, report):
+        raise HTTPException(404, "Session not found")
+    return {"session_id": session_id, "credit_intelligence": intelligence.model_dump()}
 
 
 @app.get("/internal/reports/{session_id}", response_model=ReportSessionResponse)
@@ -251,7 +275,7 @@ async def generate_letters_stream(
             if plan.missing_address:
                 yield f"data: {json.dumps({'status': 'skipped', 'plan_id': plan.id, 'reason': 'missing_address'})}\n\n"
                 continue
-            md = await generate_letter_async(plan, report.consumer)
+            md = await generate_letter_async(plan, report.consumer, report)
             path = save_letter_file(body.session_id, plan, md)
             title = f"{plan.recipient_name} — {len(plan.items)} item(s)"
             storage_prefix = f"sessions/{body.session_id}/letters"
@@ -287,7 +311,7 @@ def generate_letters(body: GenerateLettersRequest, _: None = Depends(verify_inte
             continue
         import asyncio
 
-        md = asyncio.run(generate_letter_async(plan, report.consumer))
+        md = asyncio.run(generate_letter_async(plan, report.consumer, report))
         path = save_letter_file(body.session_id, plan, md)
         title = f"{plan.recipient_name} — {len(plan.items)} item(s)"
         letter_id = save_letter(body.session_id, plan.id, title, md, str(path))

@@ -33,6 +33,7 @@ const allNavItems = [
 
 const creditManagerHrefs = new Set([
   '/admin/credit-funding',
+  '/admin/dispute-letters',
   '/admin/team-messages',
   '/admin/settings',
 ])

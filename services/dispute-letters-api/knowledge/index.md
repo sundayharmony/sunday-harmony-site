@@ -2,6 +2,8 @@
 
 Human-readable routing guide from letter scenario to applicable statutes. See [citations.yaml](citations.yaml) for structured lookup.
 
+Credit Intelligence factor framing: [credit-intelligence/factor-framework.md](credit-intelligence/factor-framework.md)
+
 ---
 
 ## Credit Bureau Dispute

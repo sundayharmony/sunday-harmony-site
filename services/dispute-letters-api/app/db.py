@@ -55,6 +55,8 @@ def update_session_report(session_id: str, report: ParsedReport, *, file_type: s
     }
     if file_type:
         payload["file_type"] = file_type
+    if report.credit_intelligence is not None:
+        payload["intelligence_json"] = report.credit_intelligence.model_dump()
     result = client.table("dispute_sessions").update(payload).eq("id", session_id).execute()
     return bool(result.data)
 
