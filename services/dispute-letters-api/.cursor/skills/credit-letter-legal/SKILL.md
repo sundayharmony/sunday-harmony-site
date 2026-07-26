@@ -44,8 +44,18 @@ Source provenance: `knowledge/sources.json`
 2. Read key-sections.md for that statute
 3. Map consumer facts to statutory duties in citations.yaml
 4. Draft letter citing specific sections and deadlines
-5. Add disclaimer that letter is not legal advice
+5. User reviews and sends (no legal-advice disclaimer inside the mailed body)
 ```
+
+## Letter layout (print-ready)
+
+Match a formal mailed dispute letter:
+
+- Date, ALL-CAPS consumer name, consumer address, recipient block, `Re:` line, `Dear Sir or Madam:`
+- Title Case sections: `Consumer Identification`, `Disputed Tradelines`, `Statutory Reinvestigation Requirements`, `Requested Outcome`
+- Per tradeline: bold creditor name, then `Account Number` / `Reported Status` / `Reported Balance` / `Basis of Dispute`
+- Use `●` bullets for additional addresses and statutory duty lists
+- Close with `Respectfully,` and the consumer name
 
 ## Limitations
 
