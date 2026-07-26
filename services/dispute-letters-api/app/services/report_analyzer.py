@@ -27,17 +27,24 @@ Before analyzing, read these files in the project:
 
 Analyze the credit report text below. Extract ONLY information visible in the report. Do NOT invent accounts.
 
+CLEAN CREDIT PROFILE PRIORITY (critical):
+- Prioritize items that should be REMOVED to clean the profile: collections, charge-offs, and closed/paid accounts that still show late payments, delinquencies, or other negatives.
+- Closed or paid accounts with negative history are high-value dispute targets — request deletion, not cosmetic fixes.
+- Do NOT prioritize healthy open accounts in good standing (those help the profile).
+- In suggested_dispute_reason, lead with deletion language for obsolete/closed negatives (FCRA §611).
+- Tag legal_flags with "closed_account", "closed_derogatory", and/or "obsolete_negative" when applicable.
+
 For each tradeline, provide:
 - Factual fields (creditor, account numbers per bureau, status, balance, etc.)
-- analysis_notes: brief summary of potential issues (inaccuracies, collections, disputed status, etc.)
-- suggested_dispute_reason: FCRA-grounded dispute reason citing applicable law (e.g. FCRA §611)
+- analysis_notes: brief summary of potential issues (inaccuracies, collections, disputed status, closed negatives, etc.)
+- suggested_dispute_reason: FCRA-grounded dispute reason citing applicable law (e.g. FCRA §611); for closed/obsolete negatives, explicitly ask for deletion
 - dispute_bureaus: which bureaus to send dispute letters to (subset of bureaus reporting)
 - dispute_furnisher: true if a furnisher letter is recommended
-- legal_flags: array of tags like "collection", "already_disputed", "balance_mismatch", "late_payment_error"
+- legal_flags: array of tags like "collection", "charge_off", "already_disputed", "balance_mismatch", "late_payment_error", "closed_account", "closed_derogatory", "obsolete_negative"
 
 Return ONLY valid JSON (no markdown fences, no prose outside JSON) matching this schema:
 {{
-  "analysis_summary": "overall report summary",
+  "analysis_summary": "overall report summary emphasizing clean-profile removal targets",
   "reference": "report reference number if present",
   "report_date": "report date if present",
   "consumer": {{"name": "", "dob": "", "ssn_last4": "", "addresses": []}},
@@ -52,7 +59,7 @@ Return ONLY valid JSON (no markdown fences, no prose outside JSON) matching this
   "subscribers": [{{"name": "", "address_lines": [], "phone": ""}}],
   "credit_health": {{
     "scores": {{"tuc": null, "exp": null, "eqf": null}},
-    "repair_summary": "brief credit repair overview",
+    "repair_summary": "brief overview focused on deleting closed/obsolete negatives first",
     "recommended_actions": ["action 1", "action 2"]
   }}
 }}

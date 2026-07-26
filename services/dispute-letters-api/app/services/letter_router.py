@@ -8,6 +8,7 @@ from difflib import SequenceMatcher
 from app.config import BUREAU_ADDRESSES_PATH
 from app.models import DisputePlanRequest, LetterItem, LetterPlan, LetterPlanResponse, ParsedReport, Tradeline
 from app.parsers.identityiq import lookup_subscriber
+from app.services.credit_health import is_clean_profile_removal_target, removal_sort_key
 
 
 def build_plan(session_id: str, report: ParsedReport, request: DisputePlanRequest) -> LetterPlanResponse:
@@ -23,6 +24,9 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
             reason = _resolve_reason(tl, tl.dispute_reason)
             if reason:
                 selected.append((tl, reason))
+
+    # Closed / obsolete negatives first so letters lead with clean-profile removals
+    selected.sort(key=lambda pair: removal_sort_key(pair[0]))
 
     bureau_addrs = json.loads(BUREAU_ADDRESSES_PATH.read_text(encoding="utf-8"))
     plans: list[LetterPlan] = []
@@ -46,7 +50,7 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
                     bureau=bureau_code,
                     status=tl.status,
                     balance=tl.balance,
-                    dispute_reason=reason,
+                    dispute_reason=_prefer_deletion_reason(tl, reason),
                 )
             )
         if items:
@@ -83,7 +87,7 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
                 bureau=",".join(tl.bureaus),
                 status=tl.status,
                 balance=tl.balance,
-                dispute_reason=reason,
+                dispute_reason=_prefer_deletion_reason(tl, reason),
             )
             for tl, reason in group
         ]
@@ -108,6 +112,22 @@ def _resolve_reason(tl: Tradeline, selection_reason: str) -> str:
         or tl.dispute_reason.strip()
         or tl.suggested_dispute_reason.strip()
     )
+
+
+def _prefer_deletion_reason(tl: Tradeline, reason: str) -> str:
+    """Ensure closed/obsolete negatives ask for deletion, not only field correction."""
+    text = (reason or "").strip()
+    if not is_clean_profile_removal_target(tl):
+        return text
+    lower = text.lower()
+    if "delet" in lower or "remov" in lower:
+        return text
+    suffix = (
+        " Because this account is closed, paid, or otherwise not useful to a clean credit profile, "
+        "I specifically request deletion of the entire tradeline if it cannot be verified as accurate "
+        "and complete."
+    )
+    return f"{text.rstrip('.')}." + suffix if text else suffix.strip()
 
 
 def _normalize_creditor(name: str) -> str:

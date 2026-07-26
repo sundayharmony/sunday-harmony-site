@@ -57,6 +57,16 @@ Match a formal mailed dispute letter:
 - Use `●` bullets for additional addresses and statutory duty lists
 - Close with `Respectfully,` and the consumer name
 
+## Clean-profile priority
+
+Prioritize **deletion** of items that do not help a clean credit profile:
+
+1. Collections and charge-offs
+2. Closed / paid accounts that still show late history or other negatives
+3. Other unverifiable negatives
+
+Do **not** prioritize healthy open accounts in good standing. In dispute reasons and Requested Outcome, lead with delete-if-unverifiable; correction is the fallback.
+
 ## Limitations
 
 - **Not legal advice.** User reviews and sends at their own discretion.
