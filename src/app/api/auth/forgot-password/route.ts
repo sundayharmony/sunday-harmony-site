@@ -4,7 +4,7 @@ import { getUserByEmail } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
-import { escHtml, isEmailConfigured, sendEmail } from '@/lib/smtp-mail'
+import { escHtml, getPublicSiteUrl, isEmailConfigured, sendEmail } from '@/lib/smtp-mail'
 import { hashVerificationToken } from '@/lib/verification-token'
 
 export const dynamic = 'force-dynamic'
@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (isEmailConfigured()) {
+      const siteUrl = getPublicSiteUrl()
+      const resetUrl = `${siteUrl}/reset-password?email=${encodeURIComponent(normalizedEmail)}`
       await sendEmail({
         to: normalizedEmail,
         subject: 'Your Password Reset Code — Sunday Harmony',
@@ -56,12 +58,17 @@ export async function POST(req: NextRequest) {
               Password Reset Code
             </h2>
             <p>Hi ${escHtml(user.name || 'there')},</p>
-            <p>We received a request to reset your password. Use the code below on the website to set a new password:</p>
+            <p>We received a request to reset your password. Enter this code on the <strong>Reset password</strong> page (not the two-factor / authenticator page):</p>
             <div style="text-align:center;margin:30px 0">
               <div style="background:#f5f0e6;border:2px solid #c9a96e;border-radius:12px;padding:20px 40px;display:inline-block">
                 <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#333">${code}</span>
               </div>
             </div>
+            <p style="text-align:center;margin:24px 0">
+              <a href="${escHtml(resetUrl)}" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
+                Enter code &amp; new password
+              </a>
+            </p>
             <p style="font-size:13px;color:#666">This code expires in 15 minutes. If you didn&rsquo;t request this, you can safely ignore this email.</p>
             <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
               &mdash; Sunday Harmony

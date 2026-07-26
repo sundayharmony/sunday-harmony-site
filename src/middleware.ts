@@ -11,7 +11,12 @@ import { isStaffRole } from '@/lib/staff-roles'
 /** Public routes where a logged-in client is sent to the dashboard instead. */
 const CLIENT_HOME_PATHS = new Set(['/', '/login', '/forgot-password', '/reset-password'])
 
-const MFA_ALLOWED_PREFIXES = ['/login', '/api/auth']
+/**
+ * Paths staff may use while MFA is still incomplete.
+ * Must include password recovery — otherwise a pending MFA cookie traps users on
+ * /login/mfa and they cannot enter an emailed reset code on /reset-password.
+ */
+const MFA_INCOMPLETE_ALLOWED = new Set(['/login', '/forgot-password', '/reset-password'])
 
 /** Credit managers may only access these admin page prefixes (after MFA). */
 const CREDIT_MANAGER_ADMIN_PATHS = [
@@ -30,10 +35,10 @@ function creditManagerAllowed(path: string): boolean {
   )
 }
 
-function mfaPathAllowed(path: string): boolean {
-  return MFA_ALLOWED_PREFIXES.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
-  )
+function mfaIncompletePathAllowed(path: string): boolean {
+  if (MFA_INCOMPLETE_ALLOWED.has(path)) return true
+  if (path === '/login/mfa' || path.startsWith('/login/mfa/')) return true
+  return false
 }
 
 export async function middleware(req: NextRequest) {
@@ -42,23 +47,14 @@ export async function middleware(req: NextRequest) {
   const role = token?.role as string | undefined
   const staff = isStaffRole(role)
   const mfaVerified = Boolean(token?.mfaVerified)
-  const mfaPending = Boolean(token?.mfaPending)
   const mfaEnrollmentRequired = Boolean(token?.mfaEnrollmentRequired)
 
-  // Staff must finish MFA / enrollment before any protected surface
-  if (token && staff && !mfaVerified) {
-    if (mfaEnrollmentRequired && !path.startsWith('/login/mfa')) {
-      return NextResponse.redirect(new URL('/login/mfa/setup', req.url))
-    }
-    if (mfaPending && path !== '/login/mfa' && !path.startsWith('/login/mfa/')) {
-      return NextResponse.redirect(new URL('/login/mfa', req.url))
-    }
-    if (!mfaPathAllowed(path) && !path.startsWith('/login/mfa')) {
-      if (mfaEnrollmentRequired) {
-        return NextResponse.redirect(new URL('/login/mfa/setup', req.url))
-      }
-      return NextResponse.redirect(new URL('/login/mfa', req.url))
-    }
+  // Staff must finish MFA / enrollment before any protected surface.
+  // Do not trap them out of login or password-reset — that made emailed codes unusable.
+  if (token && staff && !mfaVerified && !mfaIncompletePathAllowed(path)) {
+    return NextResponse.redirect(
+      new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
+    )
   }
 
   if (role === 'client' && CLIENT_HOME_PATHS.has(path)) {

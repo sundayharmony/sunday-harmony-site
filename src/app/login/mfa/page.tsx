@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, Suspense, useEffect, useState } from 'react'
-import { signIn, useSession } from 'next-auth/react'
+import { signIn, signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import AuthPageShell from '@/components/auth/AuthPageShell'
 import AuthInput from '@/components/auth/AuthInput'
@@ -30,6 +30,11 @@ function MfaVerifyForm() {
     }
   }, [status, session, router])
 
+  const leaveMfa = async (href: string) => {
+    await signOut({ redirect: false })
+    router.replace(href)
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
@@ -50,7 +55,7 @@ function MfaVerifyForm() {
     })
 
     if (result?.error) {
-      setError('Invalid authenticator or backup code')
+      setError('Invalid authenticator or backup code. Password-reset emails use a different page.')
       setLoading(false)
       return
     }
@@ -72,12 +77,7 @@ function MfaVerifyForm() {
   }
 
   return (
-    <AuthPageShell
-      title="Two-factor authentication"
-      subtitle="Enter the 6-digit code from your authenticator app"
-      backHref="/login"
-      backLabel="← Back to sign in"
-    >
+    <AuthPageShell title="Two-factor authentication" subtitle="Enter the 6-digit code from your authenticator app">
       {error && (
         <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-brand-red">
           {error}
@@ -96,7 +96,7 @@ function MfaVerifyForm() {
           required
         />
         <p className="text-[11px] text-brand-dim mb-4 -mt-2">
-          You can also enter a one-time backup code.
+          Use your authenticator app or a backup code — not the code from a password-reset email.
         </p>
         <button
           type="submit"
@@ -106,6 +106,43 @@ function MfaVerifyForm() {
           {loading ? 'Verifying…' : 'Verify'}
         </button>
       </form>
+      <div className="mt-6 space-y-3 text-center">
+        <button
+          type="button"
+          onClick={() => leaveMfa('/login')}
+          className="text-xs text-brand-dim hover:text-accent transition-colors"
+        >
+          ← Back to sign in
+        </button>
+        <p className="text-[11px] text-brand-dim">
+          Need a new password?{' '}
+          <button
+            type="button"
+            onClick={() => leaveMfa('/forgot-password')}
+            className="text-accent hover:underline"
+          >
+            Reset password
+          </button>
+          {' '}(emailed codes go there, not here).
+        </p>
+        <p className="text-[11px] text-brand-dim">
+          Already have a reset code?{' '}
+          <button
+            type="button"
+            onClick={() =>
+              leaveMfa(
+                session?.user?.email
+                  ? `/reset-password?email=${encodeURIComponent(session.user.email)}`
+                  : '/reset-password'
+              )
+            }
+            className="text-accent hover:underline"
+          >
+            Enter it here
+          </button>
+          .
+        </p>
+      </div>
     </AuthPageShell>
   )
 }
