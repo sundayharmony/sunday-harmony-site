@@ -32,6 +32,7 @@ interface ApplicationData {
   assigned_specialist?: string
   client_notes?: string
   next_steps?: string
+  is_business_owner?: boolean
   funding_scores?: {
     revenue_score?: number | null
     funding_readiness?: number | null
@@ -257,7 +258,11 @@ export default function ClientCreditFundingPage() {
       </div>
 
       <div className="mb-6">
-        <CreditFundingStatusTracker currentStatus={application.status} history={history} />
+        <CreditFundingStatusTracker
+          currentStatus={application.status}
+          history={history}
+          isBusinessOwner={Boolean(application.is_business_owner)}
+        />
       </div>
 
       {application.next_steps && (

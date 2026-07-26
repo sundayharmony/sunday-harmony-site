@@ -7,6 +7,7 @@ import { buildWorkflowSteps, type WorkflowHistoryItem } from '@/lib/credit-fundi
 import { getCreditFundingFileValidationError, defaultDocumentDisplayTitle } from '@/lib/credit-funding-types'
 import {
   APPLICATION_STATUSES,
+  BUSINESS_OWNER_WORKFLOW_STATUSES,
   STATUS_ACTION_HINTS,
   STATUS_DESCRIPTIONS,
   STATUS_LABELS,
@@ -41,6 +42,7 @@ interface Props {
   onStatusChange: (payload: WorkflowStepPayload) => Promise<boolean>
   saving?: boolean
   pendingDocCount?: number
+  isBusinessOwner?: boolean
 }
 
 export default function AdminApplicationWorkflow({
@@ -51,6 +53,7 @@ export default function AdminApplicationWorkflow({
   onStatusChange,
   saving = false,
   pendingDocCount = 0,
+  isBusinessOwner = false,
 }: Props) {
   const [manualStatus, setManualStatus] = useState(currentStatus)
   const [attachments, setAttachments] = useState<WorkflowAttachment[]>([])
@@ -62,12 +65,21 @@ export default function AdminApplicationWorkflow({
     setManualStatus(currentStatus)
   }, [currentStatus])
 
-  const steps = buildWorkflowSteps(currentStatus, history)
-  const nextStatus = getNextWorkflowStatus(currentStatus)
-  const prevStatus = getPreviousWorkflowStatus(currentStatus)
+  const steps = buildWorkflowSteps(currentStatus, history, isBusinessOwner)
+  const nextStatus = getNextWorkflowStatus(currentStatus, isBusinessOwner)
+  const prevStatus = getPreviousWorkflowStatus(currentStatus, isBusinessOwner)
   const terminal = isTerminalStatus(currentStatus)
-  const inWorkflow = isInWorkflow(currentStatus)
+  const inWorkflow = isInWorkflow(currentStatus, isBusinessOwner)
   const currentHistory = history.find((h) => h.status === currentStatus)
+  const manualStatuses = APPLICATION_STATUSES.filter(
+    (s) =>
+      isBusinessOwner ||
+      !BUSINESS_OWNER_WORKFLOW_STATUSES.includes(s) ||
+      s === currentStatus
+  )
+  const canMarkCompleted =
+    currentStatus === 'approved' ||
+    (!isBusinessOwner && currentStatus === 'credit_analysis_complete')
 
   const buildPayload = (status: ApplicationStatus, notes?: string): WorkflowStepPayload => ({
     status,
@@ -116,7 +128,7 @@ export default function AdminApplicationWorkflow({
 
   const handleManualApply = () => {
     if (manualStatus === currentStatus) return
-    const distance = getWorkflowStepDistance(currentStatus, manualStatus)
+    const distance = getWorkflowStepDistance(currentStatus, manualStatus, isBusinessOwner)
     if (distance > 1 || isTerminalStatus(manualStatus)) {
       const label = STATUS_LABELS[manualStatus]
       if (!window.confirm(`Set status to "${label}"? The client will be notified if notification is enabled.`)) return
@@ -154,7 +166,9 @@ export default function AdminApplicationWorkflow({
   }
 
   const advanceLabel = nextStatus
-    ? STATUS_ACTION_HINTS[currentStatus] || `Advance to ${STATUS_LABELS[nextStatus]}`
+    ? (currentStatus === 'credit_analysis_complete' && isBusinessOwner
+        ? 'Start funding review'
+        : STATUS_ACTION_HINTS[currentStatus] || `Advance to ${STATUS_LABELS[nextStatus]}`)
     : null
 
   const hasStepContent = Boolean(statusNotes.trim()) || attachments.length > 0
@@ -296,7 +310,7 @@ export default function AdminApplicationWorkflow({
         )}
 
         <div className="mt-4 pt-4 border-t border-brand-border flex flex-wrap gap-2">
-          {currentStatus === 'approved' && (
+          {canMarkCompleted && (
             <button
               type="button"
               disabled={saving}
@@ -342,7 +356,7 @@ export default function AdminApplicationWorkflow({
               disabled={saving}
               onChange={(e) => setManualStatus(e.target.value as ApplicationStatus)}
             >
-              {APPLICATION_STATUSES.map((s) => (
+              {manualStatuses.map((s) => (
                 <option key={s} value={s}>{STATUS_LABELS[s]}</option>
               ))}
             </select>

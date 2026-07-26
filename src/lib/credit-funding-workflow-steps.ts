@@ -1,7 +1,7 @@
 import {
   STATUS_LABELS,
-  STATUS_WORKFLOW_ORDER,
-  isTerminalStatus,
+  getWorkflowOrder,
+  resolveWorkflowDisplayStatus,
   type ApplicationStatus,
 } from '@/lib/credit-funding-types'
 
@@ -22,21 +22,34 @@ export interface WorkflowStepState {
 
 export function buildWorkflowSteps(
   currentStatus: ApplicationStatus,
-  history: WorkflowHistoryItem[] = []
+  history: WorkflowHistoryItem[] = [],
+  isBusinessOwner = true
 ): WorkflowStepState[] {
-  const terminal = isTerminalStatus(currentStatus)
-  const reachedIndex = terminal
-    ? STATUS_WORKFLOW_ORDER.length
-    : Math.max(0, STATUS_WORKFLOW_ORDER.indexOf(currentStatus))
+  const order = getWorkflowOrder(isBusinessOwner)
+  const displayStatus = resolveWorkflowDisplayStatus(currentStatus, isBusinessOwner)
 
-  const stepStatuses = terminal
-    ? [...STATUS_WORKFLOW_ORDER, currentStatus]
-    : STATUS_WORKFLOW_ORDER
+  // declined/archived are outside the linear path — append so the strip shows the outcome
+  const stepStatuses =
+    currentStatus === 'declined' || currentStatus === 'archived'
+      ? [...order, currentStatus]
+      : order
+
+  let currentIndex: number
+  if (currentStatus === 'declined' || currentStatus === 'archived') {
+    currentIndex = stepStatuses.length - 1
+  } else if (currentStatus === 'completed') {
+    currentIndex = order.includes('completed') ? order.indexOf('completed') : order.length - 1
+  } else {
+    currentIndex = Math.max(0, order.indexOf(displayStatus))
+  }
+
+  // Non-business completed: short path is fully done with no "Completed" step
+  const nonBusinessCompleted = currentStatus === 'completed' && !order.includes('completed')
 
   return stepStatuses.map((status, i) => {
     const historyEntry = history.find((h) => h.status === status)
-    const isComplete = terminal ? i < stepStatuses.length - 1 : i < reachedIndex
-    const isCurrent = status === currentStatus
+    const isComplete = nonBusinessCompleted ? true : i < currentIndex
+    const isCurrent = nonBusinessCompleted ? false : i === currentIndex
     const isUpcoming = !isComplete && !isCurrent
 
     return {

@@ -9,7 +9,7 @@ import {
   syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
-import { documentDisplayLabel, isStaffSharedDocument } from '@/lib/credit-funding-types'
+import { documentDisplayLabel, isStaffSharedDocument, requiresBusinessSection } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,6 +81,11 @@ export async function GET() {
         client_notes: application.client_notes,
         next_steps: application.next_steps,
         funding_scores: application.funding_scores,
+        is_business_owner: requiresBusinessSection(
+          Boolean(application.owns_business),
+          application.funding_use || '',
+          application.credit_profile
+        ),
         created_at: application.created_at,
         updated_at: application.updated_at,
       },

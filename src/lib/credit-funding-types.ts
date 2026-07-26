@@ -102,11 +102,19 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   archived: 'Archived',
 }
 
+/** Linear progress steps. `documents_pending` is a side status (doc requests) — not a numbered step. */
 export const STATUS_WORKFLOW_ORDER: ApplicationStatus[] = [
   'submitted',
-  'documents_pending',
   'under_review',
   'credit_analysis_complete',
+  'funding_review',
+  'additional_information_requested',
+  'approved',
+  'completed',
+]
+
+/** Funding / close-out steps shown only for business-owner applications. */
+export const BUSINESS_OWNER_WORKFLOW_STATUSES: ApplicationStatus[] = [
   'funding_review',
   'additional_information_requested',
   'approved',
@@ -131,7 +139,7 @@ export const STATUS_DESCRIPTIONS: Record<ApplicationStatus, string> = {
 }
 
 export const STATUS_ACTION_HINTS: Partial<Record<ApplicationStatus, string>> = {
-  submitted: 'Request documents',
+  submitted: 'Begin review',
   documents_pending: 'Begin review',
   under_review: 'Mark credit analysis complete',
   credit_analysis_complete: 'Start funding review',
@@ -140,38 +148,70 @@ export const STATUS_ACTION_HINTS: Partial<Record<ApplicationStatus, string>> = {
   approved: 'Mark completed',
 }
 
+export function getWorkflowOrder(isBusinessOwner = true): ApplicationStatus[] {
+  if (isBusinessOwner) return STATUS_WORKFLOW_ORDER
+  return STATUS_WORKFLOW_ORDER.filter((s) => !BUSINESS_OWNER_WORKFLOW_STATUSES.includes(s))
+}
+
 export function isTerminalStatus(status: ApplicationStatus): boolean {
   return TERMINAL_STATUSES.includes(status)
 }
 
-export function isInWorkflow(status: ApplicationStatus): boolean {
-  return STATUS_WORKFLOW_ORDER.includes(status)
+export function isInWorkflow(status: ApplicationStatus, isBusinessOwner = true): boolean {
+  if (status === 'documents_pending') return true
+  return getWorkflowOrder(isBusinessOwner).includes(status)
 }
 
-export function getWorkflowIndex(status: ApplicationStatus): number {
-  return STATUS_WORKFLOW_ORDER.indexOf(status)
+export function getWorkflowIndex(status: ApplicationStatus, isBusinessOwner = true): number {
+  return getWorkflowOrder(isBusinessOwner).indexOf(status)
 }
 
-export function getNextWorkflowStatus(status: ApplicationStatus): ApplicationStatus | null {
+export function getNextWorkflowStatus(
+  status: ApplicationStatus,
+  isBusinessOwner = true
+): ApplicationStatus | null {
   if (isTerminalStatus(status)) return null
-  const idx = getWorkflowIndex(status)
-  if (idx < 0) return STATUS_WORKFLOW_ORDER[0] ?? null
-  if (idx >= STATUS_WORKFLOW_ORDER.length - 1) return null
-  return STATUS_WORKFLOW_ORDER[idx + 1]
+  if (status === 'documents_pending') return 'under_review'
+  const order = getWorkflowOrder(isBusinessOwner)
+  const idx = order.indexOf(status)
+  if (idx < 0) return null
+  if (idx >= order.length - 1) return null
+  return order[idx + 1]
 }
 
-export function getPreviousWorkflowStatus(status: ApplicationStatus): ApplicationStatus | null {
+export function getPreviousWorkflowStatus(
+  status: ApplicationStatus,
+  isBusinessOwner = true
+): ApplicationStatus | null {
   if (isTerminalStatus(status)) return null
-  const idx = getWorkflowIndex(status)
+  if (status === 'documents_pending') return 'submitted'
+  const order = getWorkflowOrder(isBusinessOwner)
+  const idx = order.indexOf(status)
   if (idx <= 0) return null
-  return STATUS_WORKFLOW_ORDER[idx - 1]
+  return order[idx - 1]
 }
 
-export function getWorkflowStepDistance(from: ApplicationStatus, to: ApplicationStatus): number {
-  const fromIdx = getWorkflowIndex(from)
-  const toIdx = getWorkflowIndex(to)
+export function getWorkflowStepDistance(
+  from: ApplicationStatus,
+  to: ApplicationStatus,
+  isBusinessOwner = true
+): number {
+  const fromIdx = getWorkflowIndex(from === 'documents_pending' ? 'submitted' : from, isBusinessOwner)
+  const toIdx = getWorkflowIndex(to === 'documents_pending' ? 'submitted' : to, isBusinessOwner)
   if (fromIdx < 0 || toIdx < 0) return Math.abs(fromIdx - toIdx) || 99
   return Math.abs(toIdx - fromIdx)
+}
+
+/** Map side / out-of-path statuses onto the visible progress strip. */
+export function resolveWorkflowDisplayStatus(
+  status: ApplicationStatus,
+  isBusinessOwner = true
+): ApplicationStatus {
+  if (status === 'documents_pending') return 'submitted'
+  if (!isBusinessOwner && BUSINESS_OWNER_WORKFLOW_STATUSES.includes(status)) {
+    return 'credit_analysis_complete'
+  }
+  return status
 }
 
 export const ENTITY_TYPES = [

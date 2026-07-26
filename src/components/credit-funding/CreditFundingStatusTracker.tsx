@@ -8,10 +8,15 @@ import type { ApplicationStatus } from '@/lib/credit-funding-types'
 interface Props {
   currentStatus: ApplicationStatus
   history?: WorkflowHistoryItem[]
+  isBusinessOwner?: boolean
 }
 
-export default function CreditFundingStatusTracker({ currentStatus, history = [] }: Props) {
-  const steps = buildWorkflowSteps(currentStatus, history)
+export default function CreditFundingStatusTracker({
+  currentStatus,
+  history = [],
+  isBusinessOwner = false,
+}: Props) {
+  const steps = buildWorkflowSteps(currentStatus, history, isBusinessOwner)
 
   return (
     <div className="bg-white border border-brand-border rounded-xl p-5">
