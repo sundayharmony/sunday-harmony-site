@@ -38,6 +38,7 @@ export default function CreditIntelligencePanel({
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [intelligence, setIntelligence] = useState<CreditIntelligenceReport | null>(null)
 
   const load = useCallback(async () => {
@@ -70,10 +71,12 @@ export default function CreditIntelligencePanel({
     setActiveId(id)
     const s = sessions.find((x) => x.id === id)
     setIntelligence(s ? intelligenceFromSession(s) : null)
+    setSuccess('')
   }
 
   async function onFile(file: File) {
     setError('')
+    setSuccess('')
     if (file.size > DISPUTE_LETTER_MAX_MB * 1024 * 1024) {
       setError(`File too large (max ${DISPUTE_LETTER_MAX_MB} MB)`)
       return
@@ -107,7 +110,6 @@ export default function CreditIntelligencePanel({
         if (typeof evt.message === 'string') setStatus(evt.message)
       })
 
-      // Merge funding/intake context into intelligence
       setStatus('Merging funding application context…')
       try {
         const rebuilt = await rebuildDisputeIntelligence(sessionId, fundingContext)
@@ -131,12 +133,90 @@ export default function CreditIntelligencePanel({
     if (!activeId) return
     setBusy(true)
     setError('')
+    setSuccess('')
     try {
       const rebuilt = await rebuildDisputeIntelligence(activeId, fundingContext)
       setIntelligence(rebuilt.credit_intelligence)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to refresh intelligence')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function downloadPdf() {
+    if (!activeId) return
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    setStatus('Generating PDF…')
+    try {
+      const res = await fetch(`/api/admin/dispute-letters/${activeId}/intelligence/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funding_context: fundingContext }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to generate PDF')
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || 'Credit-Analysis.pdf'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setSuccess('PDF downloaded.')
+      setStatus('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to download PDF')
+      setStatus('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function sendPdfToClient() {
+    if (!activeId) return
+    const confirmed = window.confirm(
+      'Share this Credit Profile Analysis PDF to the client portal and email the client?'
+    )
+    if (!confirmed) return
+
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    setStatus('Generating and sending PDF…')
+    try {
+      const res = await fetch(`/api/admin/credit-funding/${applicationId}/send-intelligence-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeId,
+          notifyEmail: true,
+          funding_context: fundingContext,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send PDF')
+      }
+      setSuccess(
+        data.emailed
+          ? `PDF shared to portal and emailed (${data.fileName || 'Credit Analysis'}).`
+          : `PDF shared to portal (${data.fileName || 'Credit Analysis'}).`
+      )
+      setStatus('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send PDF')
+      setStatus('')
     } finally {
       setBusy(false)
     }
@@ -175,6 +255,7 @@ export default function CreditIntelligencePanel({
 
         {busy && status && <div className="mt-3"><ProgressPanel status={status} /></div>}
         {error && <p className="mt-3 text-sm text-brand-red">{error}</p>}
+        {success && <p className="mt-3 text-sm text-emerald-700">{success}</p>}
       </div>
 
       {sessions.length > 0 && (
@@ -203,6 +284,26 @@ export default function CreditIntelligencePanel({
             >
               {intelligence ? 'Refresh with funding context' : 'Generate Credit Intelligence'}
             </button>
+          )}
+          {activeId && intelligence && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void downloadPdf()}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Download PDF
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void sendPdfToClient()}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Send to client
+              </button>
+            </>
           )}
           {activeId && (
             <Link
