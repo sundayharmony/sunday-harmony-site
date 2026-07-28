@@ -1,10 +1,11 @@
 import {
   buildCreditIntelligencePdfBuffer,
+  displayClientName,
 } from '@/lib/credit-intelligence-pdf'
 import type { CreditIntelligenceReport } from '@/lib/dispute-letters/types'
 
 export function creditIntelligencePdfFilename(report: CreditIntelligenceReport): string {
-  const rawName = (report.consumer_name || 'Client').trim() || 'Client'
+  const rawName = displayClientName(report.consumer_name, 'Client')
   const safeName =
     rawName
       .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '')
