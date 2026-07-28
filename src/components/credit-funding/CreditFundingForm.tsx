@@ -179,6 +179,18 @@ export default function CreditFundingForm() {
   const [applicationId, setApplicationId] = useState('')
   const [submitError, setSubmitError] = useState('')
   const stagedUploads = useStagedDocumentUploads()
+  const [fundingDetailsOpen, setFundingDetailsOpen] = useState(false)
+  const seekingFunding = isSeekingFunding(form.creditGoals, form.fundingUse)
+  const showFundingFields =
+    seekingFunding || fundingDetailsOpen || Boolean(form.fundingAmount) || Boolean(form.fundingTimeframe)
+  const monitoringCredentialsStarted = Boolean(
+    form.providerUsername ||
+      form.providerPassword ||
+      form.experianEmail ||
+      form.experianPassword ||
+      form.cfpbEmail ||
+      form.cfpbPassword
+  )
 
   const stepFlow = useMemo(
     () =>

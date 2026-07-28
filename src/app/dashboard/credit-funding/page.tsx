@@ -229,31 +229,50 @@ export default function ClientCreditFundingPage() {
           </div>
         </div>
 
-        {(scores?.revenue_score != null || scores?.estimated_range) && (
+        {(scores?.revenue_score != null ||
+          scores?.funding_readiness != null ||
+          scores?.credit_readiness != null ||
+          scores?.estimated_range ||
+          scores?.specialist_notes) && (
           <div className="bg-white border border-brand-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-brand-text mb-3">Funding Indicators</h3>
-            <div className="grid grid-cols-3 gap-3 text-center mb-3">
-              {[
-                ['Revenue', scores?.revenue_score],
-                ['Funding Ready', scores?.funding_readiness],
-                ['Credit Ready', scores?.credit_readiness],
-              ].map(([label, val]) => (
-                <div key={label as string} className="p-2 bg-neutral-50 rounded-lg">
-                  <p className="text-lg font-bold text-accent">{val ?? '—'}</p>
-                  <p className="text-[10px] text-brand-dim uppercase">{label}</p>
+            <h3 className="text-sm font-bold text-brand-text mb-1">Staff funding assessment</h3>
+            <p className="text-xs text-brand-dim mb-3">Scores from your specialist (0–100 scale)</p>
+            {(scores?.revenue_score != null ||
+              scores?.funding_readiness != null ||
+              scores?.credit_readiness != null ||
+              scores?.estimated_range) && (
+              <>
+                <div className="grid grid-cols-3 gap-3 text-center mb-3">
+                  {[
+                    ['Revenue (0–100)', scores?.revenue_score],
+                    ['Funding readiness', scores?.funding_readiness],
+                    ['Credit readiness', scores?.credit_readiness],
+                  ].map(([label, val]) => (
+                    <div key={label as string} className="p-2 bg-neutral-50 rounded-lg">
+                      <p className="text-lg font-bold text-accent">{val ?? '—'}</p>
+                      <p className="text-[10px] text-brand-dim uppercase leading-tight">{label}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            {scores?.estimated_range && (
-              <p className="text-sm text-brand-muted">
-                <span className="font-semibold">Est. Range:</span> {scores.estimated_range}
-              </p>
+                {scores?.estimated_range && (
+                  <p className="text-sm text-brand-muted">
+                    <span className="font-semibold">Est. Range:</span> {scores.estimated_range}
+                  </p>
+                )}
+                {scores?.recommended_programs?.length ? (
+                  <p className="text-xs text-brand-dim mt-2">
+                    Programs: {scores.recommended_programs.join(', ')}
+                  </p>
+                ) : null}
+              </>
             )}
-            {scores?.recommended_programs?.length ? (
-              <p className="text-xs text-brand-dim mt-2">
-                Programs: {scores.recommended_programs.join(', ')}
-              </p>
-            ) : null}
+            {scores?.specialist_notes &&
+              scores?.revenue_score == null &&
+              scores?.funding_readiness == null &&
+              scores?.credit_readiness == null &&
+              !scores?.estimated_range && (
+                <p className="text-sm text-brand-muted whitespace-pre-wrap">{scores.specialist_notes}</p>
+              )}
           </div>
         )}
       </div>

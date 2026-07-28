@@ -1,5 +1,5 @@
 import {
-  STATUS_LABELS,
+  STATUS_STRIP_LABELS,
   getWorkflowOrder,
   resolveWorkflowDisplayStatus,
   type ApplicationStatus,
@@ -43,17 +43,15 @@ export function buildWorkflowSteps(
     currentIndex = Math.max(0, order.indexOf(displayStatus))
   }
 
-  const nonBusinessCompleted = false
-
   return stepStatuses.map((status, i) => {
     const historyEntry = history.find((h) => h.status === status)
-    const isComplete = nonBusinessCompleted ? true : i < currentIndex
-    const isCurrent = nonBusinessCompleted ? false : i === currentIndex
+    const isComplete = i < currentIndex
+    const isCurrent = i === currentIndex
     const isUpcoming = !isComplete && !isCurrent
 
     return {
       status,
-      label: STATUS_LABELS[status] || status,
+      label: STATUS_STRIP_LABELS[status] || status,
       isComplete,
       isCurrent,
       isUpcoming,

@@ -5,9 +5,9 @@ import type { FundingScores } from '@/lib/credit-funding-types'
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
 
 const SCORE_FIELDS = [
-  { key: 'revenue_score' as const, label: 'Revenue score' },
-  { key: 'funding_readiness' as const, label: 'Funding readiness' },
-  { key: 'credit_readiness' as const, label: 'Credit readiness' },
+  { key: 'revenue_score' as const, label: 'Revenue score (0–100)' },
+  { key: 'funding_readiness' as const, label: 'Staff funding readiness (0–100)' },
+  { key: 'credit_readiness' as const, label: 'Staff credit readiness (0–100)' },
 ]
 
 export default function StaffFundingScoresEditor({
@@ -21,20 +21,20 @@ export default function StaffFundingScoresEditor({
   onChange: (next: FundingScores) => void
   onSave: () => void | Promise<void>
   saving?: boolean
-  /** Optional line from Credit Intelligence funding readiness for context */
+  /** Optional advisory line from Credit Intelligence for context */
   engineHint?: string | null
 }) {
   return (
     <div className="rounded-xl border border-brand-border bg-white px-4 py-5 space-y-4">
       <div>
-        <h3 className="text-sm font-bold text-brand-text">Staff funding assessment</h3>
+        <h3 className="text-sm font-bold text-brand-text">Staff assessment</h3>
         <p className="mt-1 text-sm text-brand-muted">
-          Record readiness scores, estimated range, and program recommendations for the client portal.
-          These sit alongside the Credit Intelligence analysis — not a separate workflow.
+          Scores and recommendations shown on the client portal. Separate from report analysis above.
         </p>
         {engineHint ? (
           <p className="mt-2 text-xs text-brand-dim">
-            Engine funding readiness: <span className="font-semibold text-brand-text">{engineHint}</span>
+            Report funding readiness (advisory):{' '}
+            <span className="font-semibold text-brand-text">{engineHint}</span>
           </p>
         ) : null}
       </div>
@@ -102,7 +102,7 @@ export default function StaffFundingScoresEditor({
         onClick={() => void onSave()}
         className="px-4 py-2 bg-brand-text text-white text-sm font-semibold rounded-lg disabled:opacity-50"
       >
-        {saving ? 'Saving…' : 'Save funding scores'}
+        {saving ? 'Saving…' : 'Save staff assessment'}
       </button>
     </div>
   )

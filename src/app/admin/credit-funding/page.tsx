@@ -8,6 +8,7 @@ import AdminApplicationWorkflow, {
 } from '@/components/credit-funding/AdminApplicationWorkflow'
 import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
 import CreditIntelligencePanel from '@/components/credit-funding/CreditIntelligencePanel'
+import StaffFundingScoresEditor from '@/components/credit-funding/StaffFundingScoresEditor'
 import StaffDraftEditor from '@/components/credit-funding/StaffDraftEditor'
 import {
   APPLICATION_STATUSES,
@@ -163,7 +164,7 @@ function CreditFundingAdminContent() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'messages'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'funding' | 'messages'>('overview')
   const [newMsg, setNewMsg] = useState('')
   const [editFields, setEditFields] = useState({
     assigned_specialist: '',
@@ -674,9 +675,9 @@ function CreditFundingAdminContent() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-brand-text">Credit Intelligence</h1>
+          <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding</h1>
           <p className="text-sm text-brand-muted mt-1">
-            Applications, report analysis, dispute letters, funding scores, and client messaging
+            Applications, credit analysis, and funding assessments
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -848,7 +849,14 @@ function CreditFundingAdminContent() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((app) => (
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-sm text-brand-dim text-center">
+                      {loading ? 'Loading…' : 'No applications match this search.'}
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((app) => (
                   <tr
                     key={app.id}
                     onClick={() => selectApplication(app.id)}
@@ -868,7 +876,8 @@ function CreditFundingAdminContent() {
                     <td className="p-2 text-brand-dim">{app.assigned_specialist || '—'}</td>
                     <td className="p-2 text-brand-dim">{new Date(app.updated_at).toLocaleDateString()}</td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -980,16 +989,24 @@ function CreditFundingAdminContent() {
               )}
 
               <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
-                {(['overview', 'intake', 'intelligence', 'messages'] as const).map((tab) => (
+                {(
+                  [
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'intake', label: 'Intake' },
+                    { id: 'intelligence', label: 'Analysis' },
+                    { id: 'funding', label: 'Funding' },
+                    { id: 'messages', label: 'Messages' },
+                  ] as const
+                ).map((tab) => (
                   <button
-                    key={tab}
+                    key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-3 py-2 text-xs font-semibold capitalize border-b-2 -mb-px transition-colors ${
-                      activeTab === tab ? 'border-accent text-brand-text' : 'border-transparent text-brand-dim'
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ${
+                      activeTab === tab.id ? 'border-accent text-brand-text' : 'border-transparent text-brand-dim'
                     }`}
                   >
-                    {tab === 'intelligence' ? 'Analysis' : tab}
+                    {tab.label}
                   </button>
                 ))}
               </div>
@@ -1007,24 +1024,24 @@ function CreditFundingAdminContent() {
                   {showFundingSummary && selected.funding_scores && (
                     <div className="mb-5 p-4 bg-green-50/50 rounded-xl border border-green-200/80">
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <h4 className="text-sm font-bold">Funding Recommendations</h4>
+                        <h4 className="text-sm font-bold">Staff assessment summary</h4>
                         <button
                           type="button"
-                          onClick={() => setActiveTab('intelligence')}
+                          onClick={() => setActiveTab('funding')}
                           className="text-xs font-semibold text-accent hover:underline"
                         >
-                          Edit in Analysis →
+                          Edit in Funding →
                         </button>
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-center mb-3">
                         {[
-                          ['Revenue', selected.funding_scores.revenue_score],
-                          ['Funding Ready', selected.funding_scores.funding_readiness],
-                          ['Credit Ready', selected.funding_scores.credit_readiness],
+                          ['Revenue (0–100)', selected.funding_scores.revenue_score],
+                          ['Staff funding readiness', selected.funding_scores.funding_readiness],
+                          ['Staff credit readiness', selected.funding_scores.credit_readiness],
                         ].map(([label, val]) => (
                           <div key={label as string} className="p-2 bg-white rounded-lg border border-brand-border">
                             <p className="text-lg font-bold text-accent">{val ?? '—'}</p>
-                            <p className="text-[10px] text-brand-dim uppercase">{label}</p>
+                            <p className="text-[10px] text-brand-dim uppercase leading-tight">{label}</p>
                           </div>
                         ))}
                       </div>
@@ -1044,15 +1061,15 @@ function CreditFundingAdminContent() {
                   {!showFundingSummary && (
                     <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-dashed border-brand-border bg-neutral-50 px-4 py-3">
                       <p className="text-sm text-brand-muted">
-                        Analyze reports and save staff funding scores in{' '}
-                        <span className="font-semibold text-brand-text">Analysis</span>.
+                        Run credit analysis in <span className="font-semibold text-brand-text">Analysis</span>, then
+                        save staff scores in <span className="font-semibold text-brand-text">Funding</span>.
                       </p>
                       <button
                         type="button"
-                        onClick={() => setActiveTab('intelligence')}
+                        onClick={() => setActiveTab('funding')}
                         className="shrink-0 text-xs font-semibold text-accent hover:underline"
                       >
-                        Open →
+                        Open Funding →
                       </button>
                     </div>
                   )}
@@ -1256,13 +1273,18 @@ function CreditFundingAdminContent() {
                     self_reported_inquiries: String(selected.credit_profile?.inquiries || ''),
                     document_types: documents.map((d) => d.document_type),
                   }}
-                  fundingScores={fundingScores}
-                  onFundingScoresChange={setFundingScores}
-                  onSaveFundingScores={() => patchApplication({ funding_scores: fundingScores })}
-                  savingFundingScores={saving}
                   initialView={intelligenceDeepLink.initialView}
                   initialLetterStep={intelligenceDeepLink.initialLetterStep}
                   initialSessionId={intelligenceDeepLink.initialSessionId}
+                />
+              )}
+
+              {activeTab === 'funding' && selected && (
+                <StaffFundingScoresEditor
+                  fundingScores={fundingScores}
+                  onChange={setFundingScores}
+                  onSave={() => patchApplication({ funding_scores: fundingScores })}
+                  saving={saving}
                 />
               )}
 

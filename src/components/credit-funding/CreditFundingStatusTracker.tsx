@@ -9,17 +9,13 @@ interface Props {
   currentStatus: ApplicationStatus
   history?: WorkflowHistoryItem[]
   needsFunding?: boolean
-  /** @deprecated Use needsFunding */
-  isBusinessOwner?: boolean
 }
 
 export default function CreditFundingStatusTracker({
   currentStatus,
   history = [],
-  needsFunding: needsFundingProp,
-  isBusinessOwner,
+  needsFunding = false,
 }: Props) {
-  const needsFunding = needsFundingProp ?? isBusinessOwner ?? false
   const steps = buildWorkflowSteps(currentStatus, history, needsFunding)
 
   return (

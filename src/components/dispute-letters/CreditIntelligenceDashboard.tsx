@@ -85,11 +85,16 @@ export default function CreditIntelligenceDashboard({
   sessionId,
   showDisputeCta = true,
   onOpenDisputeWorkflow,
+  fundingBlockTitle = 'Funding readiness',
+  fundingBlockSubtitle,
 }: {
   intelligence: CreditIntelligenceReport
   sessionId?: string
   showDisputeCta?: boolean
   onOpenDisputeWorkflow?: () => void
+  /** Override title when embedded in Credit & Funding (advisory vs staff scores). */
+  fundingBlockTitle?: string
+  fundingBlockSubtitle?: string
 }) {
   const overall = intelligence.overall
   const funding = intelligence.funding_readiness
@@ -142,7 +147,12 @@ export default function CreditIntelligenceDashboard({
 
       <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h4 className="text-sm font-bold text-sky-950">Funding readiness</h4>
+          <div>
+            <h4 className="text-sm font-bold text-sky-950">{fundingBlockTitle}</h4>
+            {fundingBlockSubtitle ? (
+              <p className="mt-0.5 text-xs text-sky-800">{fundingBlockSubtitle}</p>
+            ) : null}
+          </div>
           <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${bandClass(funding.level)}`}>
             {funding.level} · {funding.score_0_to_100}/100
           </span>

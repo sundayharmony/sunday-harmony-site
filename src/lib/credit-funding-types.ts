@@ -102,6 +102,22 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   archived: 'Archived',
 }
 
+/** Compact labels for workflow progress strips (full STATUS_LABELS stay on badges/descriptions). */
+export const STATUS_STRIP_LABELS: Record<ApplicationStatus, string> = {
+  draft: 'Draft',
+  invitation_pending: 'Invite sent',
+  submitted: 'Submitted',
+  documents_pending: 'Docs pending',
+  under_review: 'Under review',
+  credit_analysis_complete: 'Credit analysis',
+  funding_review: 'Funding review',
+  additional_information_requested: 'More info',
+  approved: 'Approved',
+  declined: 'Declined',
+  completed: 'Completed',
+  archived: 'Archived',
+}
+
 /** Linear progress steps. Side statuses (documents_pending, additional_information_requested) are not numbered steps. */
 export const STATUS_WORKFLOW_ORDER: ApplicationStatus[] = [
   'submitted',

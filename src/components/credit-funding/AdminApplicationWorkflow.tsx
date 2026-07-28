@@ -45,8 +45,6 @@ interface Props {
   pendingDocCount?: number
   /** When true, include funding_review → approved on the linear path. */
   needsFunding?: boolean
-  /** @deprecated Use needsFunding */
-  isBusinessOwner?: boolean
 }
 
 export default function AdminApplicationWorkflow({
@@ -57,10 +55,8 @@ export default function AdminApplicationWorkflow({
   onStatusChange,
   saving = false,
   pendingDocCount = 0,
-  needsFunding: needsFundingProp,
-  isBusinessOwner,
+  needsFunding = false,
 }: Props) {
-  const needsFunding = needsFundingProp ?? isBusinessOwner ?? false
   const [manualStatus, setManualStatus] = useState(currentStatus)
   const [attachments, setAttachments] = useState<WorkflowAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState('')
@@ -180,18 +176,18 @@ export default function AdminApplicationWorkflow({
   const hasStepContent = Boolean(statusNotes.trim()) || attachments.length > 0
 
   return (
-    <div className="mb-5 bg-white border border-brand-border rounded-xl p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div className="mb-4 bg-white border border-brand-border rounded-xl p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div>
-          <h3 className="text-sm font-bold text-brand-text">Application Workflow</h3>
-          <p className="text-xs text-brand-dim mt-0.5">Move the case forward step by step</p>
+          <h3 className="text-sm font-bold text-brand-text">Workflow</h3>
+          <p className="text-xs text-brand-dim mt-0.5">Advance the case step by step</p>
         </div>
         <StatusBadge status={currentStatus} />
       </div>
 
-      <WorkflowStepStrip steps={steps} layout="horizontal" />
+      <WorkflowStepStrip steps={steps} layout="vertical" />
 
-      <div className="mt-4 p-4 bg-neutral-50 rounded-lg border border-brand-border">
+      <div className="mt-3 p-3 bg-neutral-50 rounded-lg border border-brand-border">
         <p className="text-sm font-semibold text-brand-text">
           {STATUS_LABELS[currentStatus]}
           {pendingDocCount > 0 && (

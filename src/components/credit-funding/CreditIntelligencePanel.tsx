@@ -5,7 +5,6 @@ import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditInte
 import CreditProgressPanel from '@/components/dispute-letters/CreditProgressPanel'
 import DisputeLettersWorkflow from '@/components/dispute-letters/DisputeLettersWorkflow'
 import { ProgressPanel } from '@/components/dispute-letters/ProgressPanel'
-import StaffFundingScoresEditor from '@/components/credit-funding/StaffFundingScoresEditor'
 import { DISPUTE_LETTER_MAX_MB } from '@/lib/dispute-letters-storage'
 import {
   fetchDisputeSessionsForApplication,
@@ -23,7 +22,6 @@ import type {
   DisputeSessionListItem,
   FundingContextPayload,
 } from '@/lib/dispute-letters/types'
-import type { FundingScores } from '@/lib/credit-funding-types'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceReport | null {
@@ -45,20 +43,12 @@ type PanelView = 'analysis' | 'letters'
 export default function CreditIntelligencePanel({
   applicationId,
   fundingContext,
-  fundingScores,
-  onFundingScoresChange,
-  onSaveFundingScores,
-  savingFundingScores,
   initialView = 'analysis',
   initialLetterStep = 'health',
   initialSessionId = null,
 }: {
   applicationId: string
   fundingContext: FundingContextPayload
-  fundingScores: FundingScores
-  onFundingScoresChange: (next: FundingScores) => void
-  onSaveFundingScores: () => void | Promise<void>
-  savingFundingScores?: boolean
   initialView?: PanelView
   initialLetterStep?: DisputeLetterStep
   initialSessionId?: string | null
@@ -295,16 +285,15 @@ export default function CreditIntelligencePanel({
   }
 
   if (loading) {
-    return <p className="text-sm text-brand-dim">Loading Credit Intelligence…</p>
+    return <p className="text-sm text-brand-dim">Loading credit analysis…</p>
   }
 
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-brand-border bg-white p-4">
-        <h3 className="text-base font-bold text-brand-text">Credit Intelligence</h3>
+        <h3 className="text-base font-bold text-brand-text">Credit analysis</h3>
         <p className="mt-1 text-sm text-brand-muted">
-          Analyze the client&apos;s reports, track progress over time, then record staff funding scores for
-          the portal — one continuous workflow.
+          Upload reports, review the profile analysis, and prepare dispute letters. Staff funding scores live on the Funding tab.
         </p>
 
         <label className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-border bg-neutral-50 px-4 py-8 cursor-pointer hover:bg-neutral-100 transition-colors">
@@ -404,41 +393,43 @@ export default function CreditIntelligencePanel({
               </div>
             )}
             {activeId && view === 'analysis' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void refreshWithFundingContext()}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
-              >
-                {intelligence ? 'Refresh with funding context' : 'Generate Credit Intelligence'}
-              </button>
-            )}
-            {activeId && intelligence && view === 'analysis' && (
-              <>
+              <div className="flex flex-wrap gap-2 items-center">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => void downloadPdf()}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+                  onClick={() => void refreshWithFundingContext()}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-text text-white hover:bg-neutral-800 disabled:opacity-50"
                 >
-                  Download PDF
+                  {intelligence ? 'Refresh analysis' : 'Generate analysis'}
                 </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void sendPdfToClient()}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50"
-                >
-                  Send to client
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openLetters('health')}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
-                >
-                  Prepare dispute letters
-                </button>
-              </>
+                {intelligence && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void downloadPdf()}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      Download PDF
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void sendPdfToClient()}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      Send to client
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openLetters('health')}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
+                    >
+                      Prepare letters
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -462,32 +453,17 @@ export default function CreditIntelligencePanel({
               intelligence={intelligence}
               sessionId={activeId || undefined}
               onOpenDisputeWorkflow={() => openLetters('health')}
+              fundingBlockTitle="Report funding readiness (advisory)"
+              fundingBlockSubtitle="Generated from the credit report — does not replace staff assessment on the Funding tab."
             />
           ) : (
             <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 p-8 text-center">
               <p className="text-sm font-semibold text-brand-text">No credit analysis yet</p>
               <p className="mt-1 text-sm text-brand-dim">
                 Upload this client&apos;s credit report to generate a full profile analysis and dispute plan.
-                You can still save staff funding scores below.
               </p>
             </div>
           )}
-
-          <StaffFundingScoresEditor
-            fundingScores={fundingScores}
-            onChange={onFundingScoresChange}
-            onSave={onSaveFundingScores}
-            saving={savingFundingScores}
-            engineHint={
-              intelligence?.funding_readiness
-                ? `${intelligence.funding_readiness.level.replace(/_/g, ' ')}${
-                    intelligence.funding_readiness.score_0_to_100 != null
-                      ? ` · ${intelligence.funding_readiness.score_0_to_100}/100`
-                      : ''
-                  }`
-                : null
-            }
-          />
         </>
       )}
     </div>

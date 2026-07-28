@@ -127,7 +127,7 @@ describe('buildWorkflowSteps', () => {
     const steps = buildWorkflowSteps('under_review', [], false)
     assert.deepEqual(
       steps.map((s) => s.label),
-      ['Submitted', 'Under Review', 'Credit Analysis Complete', 'Completed']
+      ['Submitted', 'Under review', 'Credit analysis', 'Completed']
     )
     assert.equal(steps[1].isCurrent, true)
   })
