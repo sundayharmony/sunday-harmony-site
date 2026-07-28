@@ -23,14 +23,17 @@ export async function POST(request: NextRequest, { params }: Params) {
     const body = (await request.json().catch(() => ({}))) as {
       funding_context?: FundingContextPayload
     }
-    const data = await disputeLettersJson(`/internal/reports/${id}/intelligence`, {
+    const data = await disputeLettersJson<{
+      session_id: string
+      credit_intelligence?: CreditIntelligenceReport
+    }>(`/internal/reports/${id}/intelligence`, {
       method: 'POST',
       body: JSON.stringify({
         session_id: id,
         funding_context: body.funding_context || null,
       }),
     })
-    const intelligence = data.credit_intelligence as CreditIntelligenceReport | undefined
+    const intelligence = data.credit_intelligence
     if (intelligence) {
       await updateDisputeSessionIntelligence(id, intelligence)
     }
