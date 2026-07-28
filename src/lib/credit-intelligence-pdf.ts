@@ -1,5 +1,4 @@
-import React from 'react'
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import PDFDocument from 'pdfkit'
 import {
   FACTOR_LABELS,
   type CreditIntelligenceReport,
@@ -7,176 +6,14 @@ import {
   type Recommendation,
 } from '@/lib/dispute-letters/types'
 
-const colors = {
+const COLORS = {
   text: '#1a1a1a',
   muted: '#5c5c5c',
   dim: '#8a8a8a',
-  border: '#e5e2dc',
   accent: '#b8943f',
-  accentSoft: '#f0ebe3',
-  white: '#ffffff',
+  border: '#e5e2dc',
   softBg: '#faf9f7',
 }
-
-const styles = StyleSheet.create({
-  page: {
-    paddingTop: 40,
-    paddingBottom: 48,
-    paddingHorizontal: 40,
-    fontFamily: 'Helvetica',
-    fontSize: 10,
-    color: colors.text,
-    backgroundColor: colors.white,
-  },
-  headerBar: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.accent,
-    paddingBottom: 12,
-    marginBottom: 18,
-  },
-  brand: {
-    fontSize: 16,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.accent,
-    letterSpacing: 0.5,
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
-    marginTop: 6,
-    color: colors.text,
-  },
-  meta: {
-    marginTop: 6,
-    color: colors.muted,
-    fontSize: 9,
-  },
-  bandRow: {
-    marginTop: 14,
-    marginBottom: 10,
-  },
-  bandPill: {
-    backgroundColor: colors.accentSoft,
-    color: colors.accent,
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    textTransform: 'uppercase',
-    alignSelf: 'flex-start',
-  },
-  narrative: {
-    color: colors.muted,
-    lineHeight: 1.45,
-    marginBottom: 14,
-  },
-  section: {
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.text,
-    marginBottom: 8,
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  twoCol: {
-    flexDirection: 'row',
-  },
-  col: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  colLast: {
-    flex: 1,
-    paddingLeft: 8,
-  },
-  listItem: {
-    marginBottom: 4,
-    color: colors.muted,
-    lineHeight: 1.35,
-  },
-  card: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 4,
-    padding: 10,
-    marginBottom: 8,
-    backgroundColor: colors.softBg,
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  cardTitle: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
-    color: colors.text,
-    flex: 1,
-    paddingRight: 8,
-  },
-  cardBand: {
-    fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
-    color: colors.accent,
-    textTransform: 'uppercase',
-  },
-  cardBody: {
-    color: colors.muted,
-    lineHeight: 1.35,
-  },
-  recBlock: {
-    marginBottom: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  recTitle: {
-    fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
-    marginBottom: 3,
-  },
-  recMeta: {
-    fontSize: 8,
-    color: colors.dim,
-    marginBottom: 3,
-  },
-  stepItem: {
-    marginBottom: 4,
-    color: colors.muted,
-  },
-  footer: {
-    marginTop: 18,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  disclaimer: {
-    fontSize: 8,
-    color: colors.dim,
-    lineHeight: 1.4,
-  },
-  pageNumber: {
-    position: 'absolute',
-    bottom: 24,
-    left: 40,
-    right: 40,
-    fontSize: 8,
-    color: colors.dim,
-    textAlign: 'center',
-  },
-  boldLabel: {
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 4,
-  },
-  spacedBlock: {
-    marginTop: 8,
-  },
-})
 
 function asText(value: unknown, fallback = ''): string {
   if (value == null) return fallback
@@ -212,79 +49,149 @@ function impactPct(value: unknown) {
   return `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`
 }
 
-function bulletList(items: string[], limit = 8) {
-  const list = asTextList(items).slice(0, limit)
-  if (!list.length) {
-    return React.createElement(Text, { style: styles.listItem }, 'None noted.')
+type Doc = PDFKit.PDFDocument
+
+function ensureSpace(doc: Doc, needed: number) {
+  const bottom = doc.page.height - doc.page.margins.bottom
+  if (doc.y + needed > bottom) {
+    doc.addPage()
   }
-  return React.createElement(
-    View,
-    null,
-    ...list.map((item, index) =>
-      React.createElement(
-        Text,
-        { key: `${index}-${item.slice(0, 24)}`, style: styles.listItem },
-        `- ${item}`
-      )
-    )
-  )
 }
 
-function factorBlock(factor: FactorAnalysis, index: number) {
+function drawSectionTitle(doc: Doc, title: string) {
+  ensureSpace(doc, 28)
+  doc.moveDown(0.6)
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(11)
+    .fillColor(COLORS.text)
+    .text(title)
+  const y = doc.y + 2
+  doc
+    .moveTo(doc.page.margins.left, y)
+    .lineTo(doc.page.width - doc.page.margins.right, y)
+    .strokeColor(COLORS.border)
+    .lineWidth(1)
+    .stroke()
+  doc.moveDown(0.5)
+}
+
+function drawBullets(doc: Doc, items: string[], limit = 8) {
+  const list = asTextList(items).slice(0, limit)
+  doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
+  if (!list.length) {
+    ensureSpace(doc, 16)
+    doc.text('None noted.')
+    return
+  }
+  for (const item of list) {
+    ensureSpace(doc, 16)
+    doc.text(`- ${item}`, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right })
+  }
+}
+
+function drawCard(doc: Doc, title: string, body: string, meta?: string) {
+  ensureSpace(doc, 54)
+  const left = doc.page.margins.left
+  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
+  const startY = doc.y
+
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text)
+  const titleHeight = doc.heightOfString(title, { width: width - 16 })
+  doc.font('Helvetica').fontSize(10)
+  const bodyHeight = body ? doc.heightOfString(body, { width: width - 16 }) : 0
+  const metaHeight = meta ? 12 : 0
+  const boxHeight = 16 + titleHeight + metaHeight + bodyHeight + 10
+
+  doc
+    .roundedRect(left, startY, width, boxHeight, 4)
+    .fillAndStroke(COLORS.softBg, COLORS.border)
+
+  let cursor = startY + 8
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor(COLORS.text)
+    .text(title, left + 8, cursor, { width: width - 16 })
+  cursor = doc.y + 2
+  if (meta) {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .fillColor(COLORS.accent)
+      .text(meta, left + 8, cursor, { width: width - 16 })
+    cursor = doc.y + 2
+  }
+  if (body) {
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(COLORS.muted)
+      .text(body, left + 8, cursor, { width: width - 16 })
+  }
+  doc.y = startY + boxHeight + 8
+  doc.x = left
+}
+
+function drawFactor(doc: Doc, factor: FactorAnalysis) {
   const label = asText(FACTOR_LABELS[factor.factor] || factor.factor, 'Factor')
-  return React.createElement(
-    View,
-    { key: `${asText(factor.factor, 'factor')}-${index}`, style: styles.card, wrap: false },
-    React.createElement(
-      View,
-      { style: styles.cardTitleRow },
-      React.createElement(Text, { style: styles.cardTitle }, label),
-      React.createElement(Text, { style: styles.cardBand }, formatBand(factor.score_band))
-    ),
-    React.createElement(Text, { style: styles.cardBody }, asText(factor.summary))
-  )
+  drawCard(doc, label, asText(factor.summary), formatBand(factor.score_band).toUpperCase())
 }
 
-function recommendationBlock(rec: Recommendation, index: number) {
-  const actions = asTextList(rec.suggested_actions).slice(0, 4)
-  return React.createElement(
-    View,
-    { key: `${asText(rec.id, 'rec')}-${index}`, style: styles.recBlock, wrap: false },
-    React.createElement(Text, { style: styles.recTitle }, asText(rec.title, 'Recommendation')),
-    React.createElement(
-      Text,
-      { style: styles.recMeta },
+function drawRecommendation(doc: Doc, rec: Recommendation) {
+  ensureSpace(doc, 60)
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor(COLORS.text)
+    .text(asText(rec.title, 'Recommendation'))
+  doc
+    .font('Helvetica')
+    .fontSize(8)
+    .fillColor(COLORS.dim)
+    .text(
       `Impact ${impactPct(rec.estimated_impact)} / Confidence ${impactPct(rec.confidence)}`
-    ),
-    React.createElement(Text, { style: styles.cardBody }, asText(rec.rationale)),
-    ...actions.map((action, actionIndex) =>
-      React.createElement(
-        Text,
-        { key: `${actionIndex}-${action.slice(0, 24)}`, style: styles.listItem },
-        `- ${action}`
-      )
     )
-  )
+  doc
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor(COLORS.muted)
+    .text(asText(rec.rationale))
+  for (const action of asTextList(rec.suggested_actions).slice(0, 4)) {
+    ensureSpace(doc, 14)
+    doc.text(`- ${action}`)
+  }
+  doc.moveDown(0.4)
+  const y = doc.y
+  doc
+    .moveTo(doc.page.margins.left, y)
+    .lineTo(doc.page.width - doc.page.margins.right, y)
+    .strokeColor(COLORS.border)
+    .lineWidth(0.5)
+    .stroke()
+  doc.moveDown(0.5)
 }
 
-/**
- * Built with React.createElement only (no JSX) so Next's automatic JSX runtime
- * cannot inject react/jsx-runtime elements into @react-pdf's reconciler.
- * That mismatch is what produced production React error #31 on PDF download.
- */
-export function CreditIntelligencePdfDocument({
-  report,
-}: {
+/** Render Credit Intelligence as a PDF buffer using PDFKit (no React). */
+export async function buildCreditIntelligencePdfBuffer(
   report: CreditIntelligenceReport
-}) {
+): Promise<Buffer> {
   const overall = report.overall
   const funding = report.funding_readiness
+  const consumerName = asText(report.consumer_name, 'Client')
   const strengths = asTextList(overall?.strengths)
   const weaknesses = [...asTextList(overall?.weaknesses), ...asTextList(overall?.risk_factors)]
-  const consumerName = asText(report.consumer_name, 'Client')
   const narrative = asText(overall?.narrative)
   const averageScore =
     typeof overall?.average_score === 'number' ? overall.average_score : null
+  const blockers = asTextList(funding?.blockers)
+  const supportive = asTextList(funding?.supportive_signals)
+  const practical = asTextList(funding?.practical_steps)
+  const nextSteps = asTextList(report.recommended_next_steps)
+  const factors = Array.isArray(report.factors) ? report.factors : []
+  const recommendations = Array.isArray(report.recommendations)
+    ? report.recommendations.slice(0, 10)
+    : []
 
   const metaParts = [
     consumerName,
@@ -295,164 +202,209 @@ export function CreditIntelligencePdfDocument({
   const bandLabel = formatBand(overall?.band)
   const scoreSuffix = averageScore != null ? `  /  ~${averageScore}` : ''
 
-  const blockers = asTextList(funding?.blockers)
-  const supportive = asTextList(funding?.supportive_signals)
-  const practical = asTextList(funding?.practical_steps)
-  const nextSteps = asTextList(report.recommended_next_steps)
-  const factors = Array.isArray(report.factors) ? report.factors : []
-  const recommendations = Array.isArray(report.recommendations)
-    ? report.recommendations.slice(0, 10)
-    : []
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: 'LETTER',
+      bufferPages: true,
+      margins: { top: 48, bottom: 52, left: 48, right: 48 },
+      info: {
+        Title: `Credit Profile Analysis - ${consumerName}`,
+        Author: 'Sunday Harmony',
+        Subject: 'Credit Profile Analysis',
+        Creator: 'Sunday Harmony Credit Intelligence',
+      },
+    })
 
-  const children: React.ReactNode[] = [
-    React.createElement(
-      View,
-      { key: 'header', style: styles.headerBar },
-      React.createElement(Text, { style: styles.brand }, 'Sunday Harmony'),
-      React.createElement(Text, { style: styles.title }, 'Credit Profile Analysis'),
-      React.createElement(Text, { style: styles.meta }, metaParts.join('  |  '))
-    ),
-    React.createElement(
-      View,
-      { key: 'band', style: styles.bandRow },
-      React.createElement(Text, { style: styles.bandPill }, `${bandLabel}${scoreSuffix}`)
-    ),
-  ]
+    const chunks: Buffer[] = []
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
 
-  if (narrative) {
-    children.push(React.createElement(Text, { key: 'narrative', style: styles.narrative }, narrative))
-  }
+    const pageWidth = () => doc.page.width - doc.page.margins.left - doc.page.margins.right
 
-  children.push(
-    React.createElement(
-      View,
-      { key: 'strengths-risks', style: styles.section },
-      React.createElement(Text, { style: styles.sectionTitle }, 'Strengths & Risks'),
-      React.createElement(
-        View,
-        { style: styles.twoCol },
-        React.createElement(
-          View,
-          { style: styles.col },
-          React.createElement(Text, { style: styles.boldLabel }, 'Strengths'),
-          bulletList(strengths)
-        ),
-        React.createElement(
-          View,
-          { style: styles.colLast },
-          React.createElement(Text, { style: styles.boldLabel }, 'Weaknesses & risks'),
-          bulletList(weaknesses)
-        )
-      )
-    ),
-    React.createElement(
-      View,
-      { key: 'funding', style: styles.section },
-      React.createElement(Text, { style: styles.sectionTitle }, 'Funding Readiness'),
-      React.createElement(
-        View,
-        { style: styles.card, wrap: false },
-        React.createElement(
-          View,
-          { style: styles.cardTitleRow },
-          React.createElement(
-            Text,
-            { style: styles.cardTitle },
-            `${formatBand(funding?.level)} / ${asText(funding?.score_0_to_100, '0')}/100`
-          )
-        ),
-        React.createElement(Text, { style: styles.cardBody }, asText(funding?.summary))
-      ),
-      React.createElement(
-        View,
-        { style: styles.twoCol },
-        React.createElement(
-          View,
-          { style: styles.col },
-          React.createElement(Text, { style: styles.boldLabel }, 'Blockers'),
-          bulletList(blockers.length ? blockers : ['None flagged from available data.'])
-        ),
-        React.createElement(
-          View,
-          { style: styles.colLast },
-          React.createElement(Text, { style: styles.boldLabel }, 'Supportive signals'),
-          bulletList(
-            supportive.length
-              ? supportive
-              : ['Limited supportive signals in current extract.']
-          )
-        )
-      ),
-      practical.length
-        ? React.createElement(
-            View,
-            { style: styles.spacedBlock },
-            React.createElement(Text, { style: styles.boldLabel }, 'Practical next steps'),
-            bulletList(practical, 6)
-          )
-        : null
-    ),
-    React.createElement(
-      View,
-      { key: 'factors', style: styles.section },
-      React.createElement(Text, { style: styles.sectionTitle }, 'Factor Analysis'),
-      ...factors.map((factor, index) => factorBlock(factor, index))
-    ),
-    React.createElement(
-      View,
-      { key: 'recs', style: styles.section },
-      React.createElement(Text, { style: styles.sectionTitle }, 'Prioritized Recommendations'),
-      ...recommendations.map((rec, index) => recommendationBlock(rec, index))
+    // Header
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(16)
+      .fillColor(COLORS.accent)
+      .text('Sunday Harmony')
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(18)
+      .fillColor(COLORS.text)
+      .text('Credit Profile Analysis')
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor(COLORS.muted)
+      .text(metaParts.join('  |  '))
+
+    const headerLineY = doc.y + 6
+    doc
+      .moveTo(doc.page.margins.left, headerLineY)
+      .lineTo(doc.page.width - doc.page.margins.right, headerLineY)
+      .strokeColor(COLORS.accent)
+      .lineWidth(2)
+      .stroke()
+    doc.y = headerLineY + 14
+
+    // Band pill
+    const pill = `${bandLabel}${scoreSuffix}`.toUpperCase()
+    doc.font('Helvetica-Bold').fontSize(9)
+    const pillWidth = Math.min(pageWidth(), doc.widthOfString(pill) + 16)
+    const pillHeight = 16
+    doc
+      .roundedRect(doc.page.margins.left, doc.y, pillWidth, pillHeight, 3)
+      .fill('#f0ebe3')
+    doc
+      .fillColor(COLORS.accent)
+      .text(pill, doc.page.margins.left + 8, doc.y + 4, { width: pillWidth - 16, lineBreak: false })
+    doc.y += pillHeight + 10
+    doc.x = doc.page.margins.left
+
+    if (narrative) {
+      doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted).text(narrative, {
+        width: pageWidth(),
+        lineGap: 2,
+      })
+      doc.moveDown(0.4)
+    }
+
+    // Strengths & Risks
+    drawSectionTitle(doc, 'Strengths & Risks')
+    const colGap = 16
+    const colWidth = (pageWidth() - colGap) / 2
+    const leftX = doc.page.margins.left
+    const rightX = leftX + colWidth + colGap
+    const topY = doc.y
+
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Strengths', leftX, topY, {
+      width: colWidth,
+    })
+    const leftAfterTitle = doc.y
+    doc.text('Weaknesses & risks', rightX, topY, { width: colWidth })
+    const rightAfterTitle = doc.y
+
+    doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
+    let leftY = Math.max(leftAfterTitle, rightAfterTitle) + 4
+    let rightY = leftY
+
+    const leftItems = strengths.length ? strengths.slice(0, 8) : ['None noted.']
+    const rightItems = weaknesses.length ? weaknesses.slice(0, 8) : ['None noted.']
+
+    for (const item of leftItems) {
+      doc.text(`- ${item}`, leftX, leftY, { width: colWidth })
+      leftY = doc.y + 2
+    }
+    for (const item of rightItems) {
+      doc.text(`- ${item}`, rightX, rightY, { width: colWidth })
+      rightY = doc.y + 2
+    }
+    doc.y = Math.max(leftY, rightY) + 6
+    doc.x = leftX
+
+    // Funding readiness
+    drawSectionTitle(doc, 'Funding Readiness')
+    drawCard(
+      doc,
+      `${formatBand(funding?.level)} / ${asText(funding?.score_0_to_100, '0')}/100`,
+      asText(funding?.summary)
     )
-  )
 
-  if (nextSteps.length) {
-    children.push(
-      React.createElement(
-        View,
-        { key: 'next-steps', style: styles.section },
-        React.createElement(Text, { style: styles.sectionTitle }, 'Recommended Next Steps'),
-        ...nextSteps.map((step, index) =>
-          React.createElement(
-            Text,
-            { key: `${index}-${step.slice(0, 24)}`, style: styles.stepItem },
-            `${index + 1}. ${step}`
-          )
-        )
-      )
-    )
-  }
+    const fundTop = doc.y
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Blockers', leftX, fundTop, {
+      width: colWidth,
+    })
+    const blockersTitleY = doc.y
+    doc.text('Supportive signals', rightX, fundTop, { width: colWidth })
+    const signalsTitleY = doc.y
+    let bY = Math.max(blockersTitleY, signalsTitleY) + 4
+    let sY = bY
+    doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
+    const blockerItems = blockers.length ? blockers.slice(0, 8) : ['None flagged from available data.']
+    const signalItems = supportive.length
+      ? supportive.slice(0, 8)
+      : ['Limited supportive signals in current extract.']
+    for (const item of blockerItems) {
+      doc.text(`- ${item}`, leftX, bY, { width: colWidth })
+      bY = doc.y + 2
+    }
+    for (const item of signalItems) {
+      doc.text(`- ${item}`, rightX, sY, { width: colWidth })
+      sY = doc.y + 2
+    }
+    doc.y = Math.max(bY, sY) + 6
+    doc.x = leftX
 
-  children.push(
-    React.createElement(
-      View,
-      { key: 'footer', style: styles.footer },
-      React.createElement(
-        Text,
-        { style: styles.disclaimer },
+    if (practical.length) {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Practical next steps')
+      drawBullets(doc, practical, 6)
+    }
+
+    // Factors
+    drawSectionTitle(doc, 'Factor Analysis')
+    for (const factor of factors) {
+      drawFactor(doc, factor)
+    }
+
+    // Recommendations
+    drawSectionTitle(doc, 'Prioritized Recommendations')
+    if (!recommendations.length) {
+      doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted).text('No recommendations generated.')
+    } else {
+      for (const rec of recommendations) {
+        drawRecommendation(doc, rec)
+      }
+    }
+
+    if (nextSteps.length) {
+      drawSectionTitle(doc, 'Recommended Next Steps')
+      doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
+      nextSteps.forEach((step, index) => {
+        ensureSpace(doc, 16)
+        doc.text(`${index + 1}. ${step}`)
+      })
+    }
+
+    // Disclaimer
+    ensureSpace(doc, 40)
+    doc.moveDown(0.8)
+    const discY = doc.y
+    doc
+      .moveTo(doc.page.margins.left, discY)
+      .lineTo(doc.page.width - doc.page.margins.right, discY)
+      .strokeColor(COLORS.border)
+      .lineWidth(1)
+      .stroke()
+    doc.moveDown(0.5)
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor(COLORS.dim)
+      .text(
         asText(
           report.disclaimer,
           'Educational analysis only. Not a credit score calculation, credit counseling substitute, or legal advice. Does not guarantee score changes, deletions, or financing approval.'
-        )
+        ),
+        { width: pageWidth(), lineGap: 1.5 }
       )
-    ),
-    React.createElement(Text, {
-      key: 'page-number',
-      style: styles.pageNumber,
-      fixed: true,
-      render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
-        `Page ${pageNumber} of ${totalPages}`,
-    })
-  )
 
-  return React.createElement(
-    Document,
-    {
-      title: `Credit Profile Analysis - ${consumerName}`,
-      author: 'Sunday Harmony',
-      subject: 'Credit Profile Analysis',
-      creator: 'Sunday Harmony Credit Intelligence',
-    },
-    React.createElement(Page, { size: 'LETTER', style: styles.page }, ...children)
-  )
+    // Simple page numbers via outline after end is hard with PDFKit stream;
+    // stamp current page count in footer on each page switch.
+    const range = doc.bufferedPageRange()
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i)
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor(COLORS.dim)
+        .text(`Page ${i + 1} of ${range.count}`, doc.page.margins.left, doc.page.height - 36, {
+          width: pageWidth(),
+          align: 'center',
+          lineBreak: false,
+        })
+    }
+
+    doc.end()
+  })
 }
