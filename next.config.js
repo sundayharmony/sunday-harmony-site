@@ -35,6 +35,10 @@ const csp = buildContentSecurityPolicy()
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  serverExternalPackages: [
+    'pdfkit',
+    'fontkit',
+  ],
   async headers() {
     return [
       {

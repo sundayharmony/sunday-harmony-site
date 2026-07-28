@@ -1,3 +1,5 @@
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { writeFileSync } from 'fs'
 import type { CreditIntelligenceReport } from '../dispute-letters/types'
 import {
@@ -44,9 +46,9 @@ const sample: CreditIntelligenceReport = {
     average_score: 645,
   },
   funding_readiness: {
-    level: 'developing',
-    score_0_to_100: 48,
-    summary: 'Funding readiness indicator: developing (48/100).',
+    level: 'limited',
+    score_0_to_100: 32,
+    summary: 'Funding readiness indicator: limited (32/100).',
     blockers: ['Open collections are a common underwriting red flag.'],
     supportive_signals: ['Inquiry activity appears limited.'],
     practical_steps: [
@@ -87,8 +89,9 @@ async function main() {
   if (buf.length < 1000) {
     throw new Error(`PDF too small: ${buf.length}`)
   }
-  writeFileSync(`/tmp/${name}`, buf)
-  console.log(JSON.stringify({ ok: true, filename: name, bytes: buf.length }))
+  const out = join(tmpdir(), name)
+  writeFileSync(out, buf)
+  console.log(JSON.stringify({ ok: true, filename: name, bytes: buf.length, out }))
 }
 
 main().catch((err) => {
