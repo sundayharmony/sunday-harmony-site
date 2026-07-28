@@ -60,7 +60,7 @@ function sampleApplication(): CreditFundingApplication {
     funding_goals: 'Funding goal',
     primary_credit_goals_text: encryptField('Remove inaccurate trade lines'),
     funding_amount: '$25,000',
-    funding_use: 'Working Capital',
+    funding_use: 'Business',
     owns_business: true,
     business_name: 'Jane LLC',
     funding_timeframe: '30 Days',

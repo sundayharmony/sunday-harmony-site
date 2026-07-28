@@ -23,10 +23,10 @@ export interface WorkflowStepState {
 export function buildWorkflowSteps(
   currentStatus: ApplicationStatus,
   history: WorkflowHistoryItem[] = [],
-  isBusinessOwner = true
+  needsFunding = true
 ): WorkflowStepState[] {
-  const order = getWorkflowOrder(isBusinessOwner)
-  const displayStatus = resolveWorkflowDisplayStatus(currentStatus, isBusinessOwner)
+  const order = getWorkflowOrder(needsFunding)
+  const displayStatus = resolveWorkflowDisplayStatus(currentStatus, needsFunding)
 
   // declined/archived are outside the linear path — append so the strip shows the outcome
   const stepStatuses =
@@ -43,8 +43,7 @@ export function buildWorkflowSteps(
     currentIndex = Math.max(0, order.indexOf(displayStatus))
   }
 
-  // Non-business completed: short path is fully done with no "Completed" step
-  const nonBusinessCompleted = currentStatus === 'completed' && !order.includes('completed')
+  const nonBusinessCompleted = false
 
   return stepStatuses.map((status, i) => {
     const historyEntry = history.find((h) => h.status === status)

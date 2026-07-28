@@ -14,6 +14,7 @@ import {
 } from './db'
 import {
   deriveLeadTypeFromIntake,
+  deriveIntakeClassification,
   mapApplicationStatusToCfClientStatus,
   type LeadType,
   type CreditFundingClientStatus,
@@ -365,7 +366,13 @@ export async function getCrmReportMetrics(): Promise<CrmReportMetrics> {
         a.service_type === 'credit_repair'
     ).length,
     funding_apps: applications.filter(
-      (a) => a.service_type === 'business_funding' || a.service_type === 'credit_and_funding'
+      (a) =>
+        a.service_type === 'business_funding' ||
+        a.service_type === 'credit_and_funding' ||
+        a.service_type === 'personal_funding' ||
+        (a.lead_type as LeadType | undefined) === 'personal_funding_lead' ||
+        (a.lead_type as LeadType | undefined) === 'business_funding_lead' ||
+        (a.lead_type as LeadType | undefined) === 'credit_repair_funding'
     ).length,
     business_funding_apps: applications.filter((a) => a.service_type === 'business_funding').length,
     consultations_scheduled: meetings.filter((m) => m.meeting_type === 'consultation' && m.status === 'scheduled')
@@ -735,4 +742,4 @@ export async function updateMeeting(
   return data as ClientMeeting
 }
 
-export { deriveLeadTypeFromIntake, mapApplicationStatusToCfClientStatus }
+export { deriveLeadTypeFromIntake, mapApplicationStatusToCfClientStatus, deriveIntakeClassification }

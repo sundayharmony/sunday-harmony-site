@@ -7,7 +7,7 @@ import { buildWorkflowSteps, type WorkflowHistoryItem } from '@/lib/credit-fundi
 import { getCreditFundingFileValidationError, defaultDocumentDisplayTitle } from '@/lib/credit-funding-types'
 import {
   APPLICATION_STATUSES,
-  BUSINESS_OWNER_WORKFLOW_STATUSES,
+  FUNDING_WORKFLOW_ONLY_STATUSES,
   STATUS_ACTION_HINTS,
   STATUS_DESCRIPTIONS,
   STATUS_LABELS,
@@ -15,6 +15,7 @@ import {
   getPreviousWorkflowStatus,
   getWorkflowStepDistance,
   isInWorkflow,
+  isSideWorkflowStatus,
   isTerminalStatus,
   type ApplicationStatus,
 } from '@/lib/credit-funding-types'
@@ -42,6 +43,9 @@ interface Props {
   onStatusChange: (payload: WorkflowStepPayload) => Promise<boolean>
   saving?: boolean
   pendingDocCount?: number
+  /** When true, include funding_review → approved on the linear path. */
+  needsFunding?: boolean
+  /** @deprecated Use needsFunding */
   isBusinessOwner?: boolean
 }
 
@@ -53,8 +57,10 @@ export default function AdminApplicationWorkflow({
   onStatusChange,
   saving = false,
   pendingDocCount = 0,
-  isBusinessOwner = false,
+  needsFunding: needsFundingProp,
+  isBusinessOwner,
 }: Props) {
+  const needsFunding = needsFundingProp ?? isBusinessOwner ?? false
   const [manualStatus, setManualStatus] = useState(currentStatus)
   const [attachments, setAttachments] = useState<WorkflowAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState('')
@@ -65,21 +71,19 @@ export default function AdminApplicationWorkflow({
     setManualStatus(currentStatus)
   }, [currentStatus])
 
-  const steps = buildWorkflowSteps(currentStatus, history, isBusinessOwner)
-  const nextStatus = getNextWorkflowStatus(currentStatus, isBusinessOwner)
-  const prevStatus = getPreviousWorkflowStatus(currentStatus, isBusinessOwner)
+  const steps = buildWorkflowSteps(currentStatus, history, needsFunding)
+  const nextStatus = getNextWorkflowStatus(currentStatus, needsFunding)
+  const prevStatus = getPreviousWorkflowStatus(currentStatus, needsFunding)
   const terminal = isTerminalStatus(currentStatus)
-  const inWorkflow = isInWorkflow(currentStatus, isBusinessOwner)
+  const inWorkflow = isInWorkflow(currentStatus, needsFunding)
   const currentHistory = history.find((h) => h.status === currentStatus)
-  const manualStatuses = APPLICATION_STATUSES.filter(
-    (s) =>
-      isBusinessOwner ||
-      !BUSINESS_OWNER_WORKFLOW_STATUSES.includes(s) ||
-      s === currentStatus
-  )
-  const canMarkCompleted =
-    currentStatus === 'approved' ||
-    (!isBusinessOwner && currentStatus === 'credit_analysis_complete')
+  const manualStatuses = APPLICATION_STATUSES.filter((s) => {
+    if (isSideWorkflowStatus(s)) return true
+    if (needsFunding) return true
+    if (FUNDING_WORKFLOW_ONLY_STATUSES.includes(s) && s !== currentStatus) return false
+    return true
+  })
+  const canMarkCompleted = currentStatus === 'approved'
 
   const buildPayload = (status: ApplicationStatus, notes?: string): WorkflowStepPayload => ({
     status,
@@ -128,7 +132,7 @@ export default function AdminApplicationWorkflow({
 
   const handleManualApply = () => {
     if (manualStatus === currentStatus) return
-    const distance = getWorkflowStepDistance(currentStatus, manualStatus, isBusinessOwner)
+    const distance = getWorkflowStepDistance(currentStatus, manualStatus, needsFunding)
     if (distance > 1 || isTerminalStatus(manualStatus)) {
       const label = STATUS_LABELS[manualStatus]
       if (!window.confirm(`Set status to "${label}"? The client will be notified if notification is enabled.`)) return
@@ -166,9 +170,11 @@ export default function AdminApplicationWorkflow({
   }
 
   const advanceLabel = nextStatus
-    ? (currentStatus === 'credit_analysis_complete' && isBusinessOwner
+    ? (currentStatus === 'credit_analysis_complete' && needsFunding
         ? 'Start funding review'
-        : STATUS_ACTION_HINTS[currentStatus] || `Advance to ${STATUS_LABELS[nextStatus]}`)
+        : currentStatus === 'credit_analysis_complete' && !needsFunding
+          ? 'Mark completed'
+          : STATUS_ACTION_HINTS[currentStatus] || `Advance to ${STATUS_LABELS[nextStatus]}`)
     : null
 
   const hasStepContent = Boolean(statusNotes.trim()) || attachments.length > 0

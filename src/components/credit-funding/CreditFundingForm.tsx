@@ -18,6 +18,8 @@ import {
   getCreditProviderLinkAction,
   getCreditProviderSignupLink,
   requiresBusinessSection,
+  isSeekingFunding,
+  FUNDING_USE_OPTIONS,
   type CreditProfile,
   type ConsentData,
   type BusinessProfile,
@@ -363,10 +365,15 @@ export default function CreditFundingForm() {
       if (!form.primaryCreditGoalsText.trim() && form.creditGoals.length === 0) {
         e.primaryCreditGoalsText = 'Describe your goals or select options below'
       }
-      if (!form.fundingAmount.trim()) e.fundingAmount = 'Required'
-      if (!form.fundingUse) e.fundingUse = 'Required'
+      const seeking = isSeekingFunding(form.creditGoals, form.fundingUse)
+      if (seeking) {
+        if (!form.fundingAmount.trim()) e.fundingAmount = 'Required'
+        if (!form.fundingUse || !(FUNDING_USE_OPTIONS as readonly string[]).includes(form.fundingUse)) {
+          e.fundingUse = 'Required'
+        }
+        if (!form.fundingTimeframe) e.fundingTimeframe = 'Required'
+      }
       if (form.ownsBusiness && !form.businessName.trim()) e.businessName = 'Required'
-      if (!form.fundingTimeframe) e.fundingTimeframe = 'Required'
     }
     if (stepId === 'business-info') {
       validateBusinessFields(form.businessProfile, e)
@@ -873,14 +880,18 @@ export default function CreditFundingForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className={labelClass} htmlFor={fid('fundingAmount')}>How much funding are you seeking? *</label>
+                <label className={labelClass} htmlFor={fid('fundingAmount')}>
+                  How much funding are you seeking?{isSeekingFunding(form.creditGoals, form.fundingUse) ? ' *' : ' (optional)'}
+                </label>
                 <input id={fid('fundingAmount')} name="fundingAmount" className={inputClass} placeholder="e.g. $50,000" value={form.fundingAmount} onChange={(e) => update('fundingAmount', e.target.value)} />
                 {errors.fundingAmount && <p className="text-xs text-brand-red mt-1">{errors.fundingAmount}</p>}
               </div>
               <div>
-                <label className={labelClass} htmlFor={fid('fundingUse')}>Personal or business use? *</label>
+                <label className={labelClass} htmlFor={fid('fundingUse')}>
+                  Personal or business use?{isSeekingFunding(form.creditGoals, form.fundingUse) || form.fundingUse ? ' *' : ' (optional)'}
+                </label>
                 <select id={fid('fundingUse')} name="fundingUse" className={inputClass} value={form.fundingUse} onChange={(e) => update('fundingUse', e.target.value)}>
-                  <option value="">Select</option>
+                  <option value="">Select / Not seeking funding</option>
                   <option value="Personal">Personal</option>
                   <option value="Business">Business</option>
                   <option value="Both">Both</option>
@@ -902,7 +913,9 @@ export default function CreditFundingForm() {
                 </div>
               )}
               <div className="sm:col-span-2">
-                <label className={labelClass} htmlFor={fid('fundingTimeframe')}>Timeframe for funding *</label>
+                <label className={labelClass} htmlFor={fid('fundingTimeframe')}>
+                  Timeframe for funding{isSeekingFunding(form.creditGoals, form.fundingUse) ? ' *' : ' (optional)'}
+                </label>
                 <select id={fid('fundingTimeframe')} name="fundingTimeframe" className={inputClass} value={form.fundingTimeframe} onChange={(e) => update('fundingTimeframe', e.target.value)}>
                   <option value="">Select timeframe</option>
                   {FUNDING_TIMEFRAMES.map((t) => (

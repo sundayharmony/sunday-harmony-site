@@ -144,6 +144,10 @@ export async function updateDisputeSessionReport(
   if (error) console.error('updateDisputeSessionReport error:', error)
 }
 
+/**
+ * Persist Credit Intelligence on the dispute session only.
+ * Never writes to credit_funding_applications.funding_scores (staff specialist scores).
+ */
 export async function updateDisputeSessionIntelligence(
   sessionId: string,
   intelligence: CreditIntelligenceReport

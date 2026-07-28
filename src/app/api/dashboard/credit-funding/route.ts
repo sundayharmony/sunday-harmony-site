@@ -9,7 +9,7 @@ import {
   syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
-import { documentDisplayLabel, isStaffSharedDocument, requiresBusinessSection } from '@/lib/credit-funding-types'
+import { documentDisplayLabel, isStaffSharedDocument, needsFundingWorkflow, requiresBusinessSection } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +85,10 @@ export async function GET() {
           Boolean(application.owns_business),
           application.funding_use || '',
           application.credit_profile
+        ),
+        needs_funding: needsFundingWorkflow(
+          application.credit_goals || [],
+          application.funding_use || ''
         ),
         created_at: application.created_at,
         updated_at: application.updated_at,

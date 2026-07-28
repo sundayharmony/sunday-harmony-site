@@ -4,6 +4,8 @@ import {
   FUNDING_TIMEFRAMES,
   ENTITY_TYPES,
   FUNDING_PURPOSE_OPTIONS,
+  FUNDING_USE_OPTIONS,
+  isSeekingFunding,
   requiresBusinessSection,
   type BusinessProfile,
   type CreditProfile,
@@ -176,12 +178,26 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   if (!payload.primaryCreditGoalsText && payload.creditGoals.length === 0) {
     return 'Please describe your credit goals or select at least one goal'
   }
-  if (!payload.fundingAmount) return 'Funding amount is required'
-  if (!payload.fundingUse) return 'Please specify personal or business funding use'
-  if (payload.ownsBusiness && !payload.businessName) return 'Business name is required when you own a business'
-  if (!FUNDING_TIMEFRAMES.includes(payload.fundingTimeframe as typeof FUNDING_TIMEFRAMES[number])) {
-    return 'Please select a funding timeframe'
+
+  const seekingFunding = isSeekingFunding(payload.creditGoals, payload.fundingUse)
+  if (seekingFunding) {
+    if (!payload.fundingAmount) return 'Funding amount is required'
+    if (!payload.fundingUse || !FUNDING_USE_OPTIONS.includes(payload.fundingUse as (typeof FUNDING_USE_OPTIONS)[number])) {
+      return 'Please specify personal or business funding use'
+    }
+    if (!FUNDING_TIMEFRAMES.includes(payload.fundingTimeframe as typeof FUNDING_TIMEFRAMES[number])) {
+      return 'Please select a funding timeframe'
+    }
+  } else if (payload.fundingUse && !FUNDING_USE_OPTIONS.includes(payload.fundingUse as (typeof FUNDING_USE_OPTIONS)[number])) {
+    return 'Invalid funding use'
+  } else if (
+    payload.fundingTimeframe &&
+    !FUNDING_TIMEFRAMES.includes(payload.fundingTimeframe as typeof FUNDING_TIMEFRAMES[number])
+  ) {
+    return 'Invalid funding timeframe'
   }
+
+  if (payload.ownsBusiness && !payload.businessName) return 'Business name is required when you own a business'
 
   if (requiresBusinessSection(payload.ownsBusiness, payload.fundingUse, payload.creditProfile)) {
     const bp = payload.businessProfile
@@ -230,6 +246,12 @@ export function validateDraftPayload(payload: IntakeFormPayload): string | null 
     !FUNDING_TIMEFRAMES.includes(payload.fundingTimeframe as typeof FUNDING_TIMEFRAMES[number])
   ) {
     return 'Invalid funding timeframe'
+  }
+  if (
+    payload.fundingUse &&
+    !FUNDING_USE_OPTIONS.includes(payload.fundingUse as (typeof FUNDING_USE_OPTIONS)[number])
+  ) {
+    return 'Invalid funding use'
   }
   return null
 }

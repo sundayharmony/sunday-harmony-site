@@ -41,6 +41,7 @@ export interface OverallCreditHealth {
 
 export interface FundingReadinessAssessment {
   level: string
+  /** Advisory engine score (0–100). Does not overwrite application FundingScores.funding_readiness. */
   score_0_to_100: number
   summary: string
   blockers: string[]

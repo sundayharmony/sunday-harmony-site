@@ -15,9 +15,8 @@ import {
   DOCUMENT_TYPES,
   STATUS_LABELS,
   documentDisplayLabel,
-  requiresBusinessSection,
+  needsFundingWorkflow,
   type ApplicationStatus,
-  type CreditProfile,
   type FundingScores,
 } from '@/lib/credit-funding-types'
 import { formatSsnFull } from '@/lib/ssn-utils'
@@ -572,11 +571,10 @@ function CreditFundingAdminContent() {
     selected?.status === 'additional_information_requested' ||
     selected?.status === 'submitted'
 
-  const selectedIsBusinessOwner = selected
-    ? requiresBusinessSection(
-        Boolean(selected.owns_business),
-        selected.funding_use || '',
-        selected.credit_profile as CreditProfile | undefined
+  const selectedNeedsFunding = selected
+    ? needsFundingWorkflow(
+        selected.credit_goals || [],
+        selected.funding_use || ''
       )
     : false
 
@@ -977,7 +975,7 @@ function CreditFundingAdminContent() {
                   onStatusChange={handleStatusChange}
                   saving={saving}
                   pendingDocCount={pendingDocCount}
-                  isBusinessOwner={selectedIsBusinessOwner}
+                  needsFunding={selectedNeedsFunding}
                 />
               )}
 

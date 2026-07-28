@@ -11,7 +11,9 @@ import type {
   StorageDocumentType,
   UploadedDocument,
 } from '@/lib/credit-funding-types'
-import { deriveServiceType, deriveLeadTypeFromIntake, isStaffSharedDocument } from '@/lib/credit-funding-types'
+import { isStaffSharedDocument } from '@/lib/credit-funding-types'
+import { deriveIntakeClassification } from '@/lib/credit-funding-classify'
+import { mapApplicationStatusToCfClientStatus } from '@/lib/crm-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import { buildFundingGoalsSummary } from '@/lib/credit-funding-validation'
 import {
@@ -66,13 +68,14 @@ export async function createCreditFundingApplication(
   const fundingGoals = buildFundingGoalsSummary(payload)
   const encrypted = buildEncryptedApplicationRow(payload, link)
 
+  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
   const row = {
     application_id: applicationId,
     ...encrypted,
     funding_goals: fundingGoals,
     status: 'submitted' as ApplicationStatus,
-    service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
-    lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
+    service_type: classification.serviceType,
+    lead_type: classification.leadType,
     credit_funding_client_status: 'intake_completed',
   }
 
@@ -236,13 +239,14 @@ export async function finalizeStaffDraftApplication(
     userId: link?.userId,
     clientId: link?.clientId || existing.client_id || undefined,
   })
+  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
 
   const row = {
     ...encrypted,
     funding_goals: fundingGoals,
     status: 'submitted' as ApplicationStatus,
-    service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
-    lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
+    service_type: classification.serviceType,
+    lead_type: classification.leadType,
     credit_funding_client_status: 'intake_completed',
     invite_expires_at: null,
     invite_personal_message: null,
@@ -434,13 +438,14 @@ export async function completeInvitedCreditFundingApplication(
 ): Promise<CreditFundingApplication | null> {
   const fundingGoals = buildFundingGoalsSummary(payload)
   const encrypted = buildEncryptedApplicationRow(payload, link)
+  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
 
   const row = {
     ...encrypted,
     funding_goals: fundingGoals,
     status: 'submitted' as ApplicationStatus,
-    service_type: deriveServiceType(payload.creditGoals, payload.fundingUse),
-    lead_type: deriveLeadTypeFromIntake(payload.creditGoals, payload.fundingUse),
+    service_type: classification.serviceType,
+    lead_type: classification.leadType,
     credit_funding_client_status: 'intake_completed',
     invite_expires_at: null,
     invite_personal_message: null,
@@ -706,6 +711,7 @@ export async function updateCreditFundingApplication(
     next_steps: string
     funding_scores: FundingScores
     service_type: string
+    credit_funding_client_status: string
     user_id: string | null
     client_id: string | null
   }>
@@ -735,12 +741,43 @@ export async function updateCreditFundingApplication(
   return data as CreditFundingApplication
 }
 
+/**
+ * Mirror application CF client status onto linked lead + client rows.
+ * Kept here (not crm-db) to avoid circular imports with credit-funding-db.
+ */
+export async function syncCfClientStatusFromApplication(
+  app: CreditFundingApplication
+): Promise<void> {
+  const cfStatus = mapApplicationStatusToCfClientStatus(app.status)
+  const now = new Date().toISOString()
+
+  if (app.lead_id) {
+    const { error } = await getSupabase()
+      .from('leads')
+      .update({ credit_funding_client_status: cfStatus, updated_at: now })
+      .eq('id', app.lead_id)
+    if (error) console.error('syncCfClientStatusFromApplication lead error:', error)
+  }
+
+  if (app.client_id) {
+    const { error } = await getSupabase()
+      .from('clients')
+      .update({ credit_funding_client_status: cfStatus, updated_at: now })
+      .eq('id', app.client_id)
+    if (error) console.error('syncCfClientStatusFromApplication client error:', error)
+  }
+}
+
 export async function updateCreditFundingApplicationStatus(
   id: string,
   status: ApplicationStatus,
   meta?: { staffEmail?: string; notes?: string }
 ): Promise<{ app: CreditFundingApplication; history: CreditFundingStatusHistory } | null> {
-  const updated = await updateCreditFundingApplication(id, { status })
+  const cfStatus = mapApplicationStatusToCfClientStatus(status)
+  const updated = await updateCreditFundingApplication(id, {
+    status,
+    credit_funding_client_status: cfStatus,
+  })
   if (!updated) return null
 
   const history = await createStatusHistory({
@@ -751,7 +788,13 @@ export async function updateCreditFundingApplicationStatus(
   })
   if (!history) return null
 
-  return { app: updated, history }
+  try {
+    await syncCfClientStatusFromApplication({ ...updated, status, credit_funding_client_status: cfStatus })
+  } catch (err) {
+    console.error('Failed to sync CRM credit_funding_client_status:', err)
+  }
+
+  return { app: { ...updated, status, credit_funding_client_status: cfStatus }, history }
 }
 
 export async function deleteCreditFundingApplication(id: string): Promise<boolean> {

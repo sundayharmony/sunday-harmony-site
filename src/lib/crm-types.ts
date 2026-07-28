@@ -29,6 +29,8 @@ export const CREDIT_FUNDING_CLIENT_STATUSES = [
   'recommendations_delivered',
   'active_client',
   'completed',
+  'declined',
+  'archived',
 ] as const
 export type CreditFundingClientStatus = (typeof CREDIT_FUNDING_CLIENT_STATUSES)[number]
 
@@ -79,6 +81,8 @@ export const CF_CLIENT_STATUS_LABELS: Record<CreditFundingClientStatus, string> 
   recommendations_delivered: 'Recommendations Delivered',
   active_client: 'Active Client',
   completed: 'Completed',
+  declined: 'Declined',
+  archived: 'Archived',
 }
 
 export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
@@ -88,25 +92,12 @@ export const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
   follow_up: 'Follow-Up',
 }
 
-export function deriveLeadTypeFromIntake(creditGoals: string[], fundingUse: string): LeadType {
-  const goals = creditGoals.map((g) => g.toLowerCase())
-  const hasCreditRepair = goals.some(
-    (g) => g.includes('credit repair') || g.includes('remove negative') || g.includes('increase credit score')
-  )
-  const hasPersonalFunding = goals.some((g) => g.includes('personal funding'))
-  const hasBusinessFunding = goals.some(
-    (g) => g.includes('business funding') || g.includes('business credit')
-  )
-  const isBusiness = fundingUse === 'Business' || fundingUse === 'Both'
-
-  if (hasCreditRepair && (hasPersonalFunding || hasBusinessFunding || isBusiness)) {
-    return 'credit_repair_funding'
-  }
-  if (hasCreditRepair) return 'credit_repair_lead'
-  if (hasBusinessFunding || isBusiness) return 'business_funding_lead'
-  if (hasPersonalFunding || fundingUse === 'Personal') return 'personal_funding_lead'
-  return 'credit_repair_funding'
-}
+export {
+  deriveLeadTypeFromIntake,
+  deriveIntakeClassification,
+  isSeekingFunding,
+  needsFundingWorkflow,
+} from '@/lib/credit-funding-classify'
 
 export function mapApplicationStatusToCfClientStatus(appStatus: string): CreditFundingClientStatus {
   const map: Record<string, CreditFundingClientStatus> = {
@@ -118,10 +109,10 @@ export function mapApplicationStatusToCfClientStatus(appStatus: string): CreditF
     credit_analysis_complete: 'credit_analysis',
     funding_review: 'funding_analysis',
     additional_information_requested: 'documents_pending',
-    approved: 'recommendations_delivered',
+    approved: 'active_client',
     completed: 'completed',
-    declined: 'under_review',
-    archived: 'completed',
+    declined: 'declined',
+    archived: 'archived',
   }
   return map[appStatus] || 'under_review'
 }

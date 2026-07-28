@@ -15,6 +15,10 @@ export function intelligenceFromDisputeSession(
   return session.intelligence_json || session.report_json?.credit_intelligence || null
 }
 
+/**
+ * Resolve or rebuild Credit Intelligence for a dispute session.
+ * Intelligence funding_readiness is advisory and must not overwrite staff FundingScores.
+ */
 export async function resolveCreditIntelligenceForSession(params: {
   sessionId: string
   fundingContext?: FundingContextPayload | null

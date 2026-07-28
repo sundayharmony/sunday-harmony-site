@@ -102,24 +102,24 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   archived: 'Archived',
 }
 
-/** Linear progress steps. `documents_pending` is a side status (doc requests) — not a numbered step. */
+/** Linear progress steps. Side statuses (documents_pending, additional_information_requested) are not numbered steps. */
 export const STATUS_WORKFLOW_ORDER: ApplicationStatus[] = [
   'submitted',
   'under_review',
   'credit_analysis_complete',
   'funding_review',
-  'additional_information_requested',
   'approved',
   'completed',
 ]
 
-/** Funding / close-out steps shown only for business-owner applications. */
-export const BUSINESS_OWNER_WORKFLOW_STATUSES: ApplicationStatus[] = [
+/** Steps only on the funding path (excluded for repair-only workflows). */
+export const FUNDING_WORKFLOW_ONLY_STATUSES: ApplicationStatus[] = [
   'funding_review',
-  'additional_information_requested',
   'approved',
-  'completed',
 ]
+
+/** @deprecated Use FUNDING_WORKFLOW_ONLY_STATUSES — kept for any lingering imports. */
+export const BUSINESS_OWNER_WORKFLOW_STATUSES = FUNDING_WORKFLOW_ONLY_STATUSES
 
 export const TERMINAL_STATUSES: ApplicationStatus[] = ['declined', 'archived', 'completed']
 
@@ -143,36 +143,44 @@ export const STATUS_ACTION_HINTS: Partial<Record<ApplicationStatus, string>> = {
   documents_pending: 'Begin review',
   under_review: 'Mark credit analysis complete',
   credit_analysis_complete: 'Start funding review',
-  funding_review: 'Request additional info',
+  funding_review: 'Approve application',
   additional_information_requested: 'Return to review',
   approved: 'Mark completed',
 }
 
-export function getWorkflowOrder(isBusinessOwner = true): ApplicationStatus[] {
-  if (isBusinessOwner) return STATUS_WORKFLOW_ORDER
-  return STATUS_WORKFLOW_ORDER.filter((s) => !BUSINESS_OWNER_WORKFLOW_STATUSES.includes(s))
+/** @param needsFunding When false, uses the short repair-only path (no funding_review / approved). */
+export function getWorkflowOrder(needsFunding = true): ApplicationStatus[] {
+  if (needsFunding) return STATUS_WORKFLOW_ORDER
+  return STATUS_WORKFLOW_ORDER.filter((s) => !FUNDING_WORKFLOW_ONLY_STATUSES.includes(s))
 }
 
 export function isTerminalStatus(status: ApplicationStatus): boolean {
   return TERMINAL_STATUSES.includes(status)
 }
 
-export function isInWorkflow(status: ApplicationStatus, isBusinessOwner = true): boolean {
-  if (status === 'documents_pending') return true
-  return getWorkflowOrder(isBusinessOwner).includes(status)
+export function isSideWorkflowStatus(status: ApplicationStatus): boolean {
+  return status === 'documents_pending' || status === 'additional_information_requested'
 }
 
-export function getWorkflowIndex(status: ApplicationStatus, isBusinessOwner = true): number {
-  return getWorkflowOrder(isBusinessOwner).indexOf(status)
+export function isInWorkflow(status: ApplicationStatus, needsFunding = true): boolean {
+  if (isSideWorkflowStatus(status)) return true
+  return getWorkflowOrder(needsFunding).includes(status)
+}
+
+export function getWorkflowIndex(status: ApplicationStatus, needsFunding = true): number {
+  return getWorkflowOrder(needsFunding).indexOf(status)
 }
 
 export function getNextWorkflowStatus(
   status: ApplicationStatus,
-  isBusinessOwner = true
+  needsFunding = true
 ): ApplicationStatus | null {
   if (isTerminalStatus(status)) return null
   if (status === 'documents_pending') return 'under_review'
-  const order = getWorkflowOrder(isBusinessOwner)
+  if (status === 'additional_information_requested') {
+    return needsFunding ? 'funding_review' : 'under_review'
+  }
+  const order = getWorkflowOrder(needsFunding)
   const idx = order.indexOf(status)
   if (idx < 0) return null
   if (idx >= order.length - 1) return null
@@ -181,11 +189,14 @@ export function getNextWorkflowStatus(
 
 export function getPreviousWorkflowStatus(
   status: ApplicationStatus,
-  isBusinessOwner = true
+  needsFunding = true
 ): ApplicationStatus | null {
   if (isTerminalStatus(status)) return null
   if (status === 'documents_pending') return 'submitted'
-  const order = getWorkflowOrder(isBusinessOwner)
+  if (status === 'additional_information_requested') {
+    return needsFunding ? 'funding_review' : 'under_review'
+  }
+  const order = getWorkflowOrder(needsFunding)
   const idx = order.indexOf(status)
   if (idx <= 0) return null
   return order[idx - 1]
@@ -194,10 +205,15 @@ export function getPreviousWorkflowStatus(
 export function getWorkflowStepDistance(
   from: ApplicationStatus,
   to: ApplicationStatus,
-  isBusinessOwner = true
+  needsFunding = true
 ): number {
-  const fromIdx = getWorkflowIndex(from === 'documents_pending' ? 'submitted' : from, isBusinessOwner)
-  const toIdx = getWorkflowIndex(to === 'documents_pending' ? 'submitted' : to, isBusinessOwner)
+  const normalize = (s: ApplicationStatus) => {
+    if (s === 'documents_pending') return 'submitted'
+    if (s === 'additional_information_requested') return needsFunding ? 'funding_review' : 'under_review'
+    return s
+  }
+  const fromIdx = getWorkflowIndex(normalize(from), needsFunding)
+  const toIdx = getWorkflowIndex(normalize(to), needsFunding)
   if (fromIdx < 0 || toIdx < 0) return Math.abs(fromIdx - toIdx) || 99
   return Math.abs(toIdx - fromIdx)
 }
@@ -205,10 +221,13 @@ export function getWorkflowStepDistance(
 /** Map side / out-of-path statuses onto the visible progress strip. */
 export function resolveWorkflowDisplayStatus(
   status: ApplicationStatus,
-  isBusinessOwner = true
+  needsFunding = true
 ): ApplicationStatus {
   if (status === 'documents_pending') return 'submitted'
-  if (!isBusinessOwner && BUSINESS_OWNER_WORKFLOW_STATUSES.includes(status)) {
+  if (status === 'additional_information_requested') {
+    return needsFunding ? 'funding_review' : 'under_review'
+  }
+  if (!needsFunding && FUNDING_WORKFLOW_ONLY_STATUSES.includes(status)) {
     return 'credit_analysis_complete'
   }
   return status
@@ -368,8 +387,14 @@ export interface BusinessProfile {
 }
 
 export interface FundingScores {
+  /** Specialist-entered revenue readiness (0–100). Portal displays these staff scores. */
   revenue_score?: number | null
+  /**
+   * Specialist funding readiness (0–100). Distinct from Credit Intelligence
+   * `funding_readiness.score_0_to_100`, which is advisory and never auto-overwrites this field.
+   */
   funding_readiness?: number | null
+  /** Specialist credit readiness (0–100). */
   credit_readiness?: number | null
   recommended_programs?: string[]
   estimated_range?: string
@@ -482,17 +507,17 @@ export interface CreditFundingDocumentRequest {
   fulfilled_at?: string | null
 }
 
-export function deriveServiceType(creditGoals: string[], fundingUse: string): string {
-  const hasBusiness = creditGoals.some((g) => g.includes('Business')) || fundingUse === 'Business' || fundingUse === 'Both'
-  const hasCredit = creditGoals.some((g) => g.includes('Credit') || g.includes('Repair') || g.includes('Score'))
-  if (hasBusiness && hasCredit) return 'credit_and_funding'
-  if (hasBusiness) return 'business_funding'
-  if (hasCredit) return 'credit_repair'
-  return 'credit_and_funding'
-}
-
 export function requiresBusinessSection(ownsBusiness: boolean, fundingUse: string, creditProfile?: CreditProfile): boolean {
   return ownsBusiness || fundingUse === 'Business' || fundingUse === 'Both' || creditProfile?.businessOwner === true
 }
 
-export { deriveLeadTypeFromIntake } from '@/lib/crm-types'
+export {
+  deriveIntakeClassification,
+  deriveServiceType,
+  deriveLeadTypeFromIntake,
+  isSeekingFunding,
+  needsFundingWorkflow,
+  FUNDING_USE_OPTIONS,
+  type FundingUse,
+  type ServiceType,
+} from '@/lib/credit-funding-classify'
