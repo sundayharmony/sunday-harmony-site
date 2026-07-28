@@ -14,7 +14,8 @@ After you finish work that changes the repo (code, config, migrations, scripts, 
 3. Never stage secrets (`.env`, `.env.*`, credentials, API keys) or unrelated local dumps.
 4. Write a concise commit message focused on why (1 sentence, imperative mood).
 5. Commit, then `git push` to the current branch (`git push -u origin HEAD` if no upstream).
-6. Confirm the commit hash and branch in your reply.
+6. If the work should go live on production, also merge into `main` and `git push -u origin main` (do not force-push).
+7. Confirm the commit hash and branch in your reply.
 
 ## Do not commit
 
