@@ -7,15 +7,41 @@ import {
 } from '@/lib/dispute-letters/types'
 
 const COLORS = {
-  text: '#1a1a1a',
+  text: '#0a0a0a',
   muted: '#5c5c5c',
   dim: '#8a8a8a',
   accent: '#b8943f',
+  accentSoft: '#f0ebe3',
   border: '#e5e2dc',
   softBg: '#faf9f7',
+  white: '#ffffff',
+  emerald: '#047857',
+  emeraldSoft: '#ecfdf5',
+  sky: '#075985',
+  skySoft: '#f0f9ff',
+  amber: '#92400e',
+  amberSoft: '#fffbeb',
+  red: '#991b1b',
+  redSoft: '#fef2f2',
+  neutralSoft: '#f5f5f5',
 }
 
-function asText(value: unknown, fallback = ''): string {
+type BandTone = {
+  fill: string
+  text: string
+}
+
+/** Strip aliases like "(also MIKE WEBB, ...)" for titles and filenames. */
+export function displayClientName(raw: unknown, fallback = 'Client'): string {
+  let name = asText(raw, fallback).trim()
+  if (!name) return fallback
+  name = name.replace(/\s*\((?:also|aka|a\.k\.a\.|also known as)\b[^)]*\)\s*/gi, ' ')
+  name = name.replace(/\s*[-–—]\s*(?:also|aka|a\.k\.a\.)\b.*$/i, ' ')
+  name = name.replace(/\s+/g, ' ').trim()
+  return name || fallback
+}
+
+export function asText(value: unknown, fallback = ''): string {
   if (value == null) return fallback
   if (typeof value === 'string') return value
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
@@ -49,7 +75,44 @@ function impactPct(value: unknown) {
   return `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`
 }
 
+/** Match CreditIntelligenceDashboard bandClass color mapping. */
+export function bandTone(band: unknown): BandTone {
+  const b = asText(band).toLowerCase().replace(/\s+/g, '_')
+  if (
+    b.includes('exceptional') ||
+    b.includes('very_good') ||
+    b === 'strong' ||
+    b.includes('strong')
+  ) {
+    return { fill: COLORS.emeraldSoft, text: COLORS.emerald }
+  }
+  if (b.includes('good') || b === 'moderate' || b.includes('moderate')) {
+    return { fill: COLORS.skySoft, text: COLORS.sky }
+  }
+  if (
+    b.includes('fair') ||
+    b.includes('mixed') ||
+    b.includes('developing') ||
+    b.includes('elevated')
+  ) {
+    return { fill: COLORS.amberSoft, text: COLORS.amber }
+  }
+  if (
+    b.includes('poor') ||
+    b.includes('weak') ||
+    b.includes('limited') ||
+    b.includes('severe')
+  ) {
+    return { fill: COLORS.redSoft, text: COLORS.red }
+  }
+  return { fill: COLORS.neutralSoft, text: COLORS.dim }
+}
+
 type Doc = PDFKit.PDFDocument
+
+function contentWidth(doc: Doc) {
+  return doc.page.width - doc.page.margins.left - doc.page.margins.right
+}
 
 function ensureSpace(doc: Doc, needed: number) {
   const bottom = doc.page.height - doc.page.margins.bottom
@@ -58,118 +121,212 @@ function ensureSpace(doc: Doc, needed: number) {
   }
 }
 
+function drawFooter(doc: Doc, pageNumber: number) {
+  const savedX = doc.x
+  const savedY = doc.y
+  const savedBottom = doc.page.margins.bottom
+  // Writing in the margin must not trigger PDFKit's auto page-break (infinite pageAdded loop)
+  doc.page.margins.bottom = 0
+  try {
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor(COLORS.dim)
+      .text(`Page ${pageNumber}`, doc.page.margins.left, doc.page.height - 36, {
+        width: contentWidth(doc),
+        align: 'center',
+        lineBreak: false,
+      })
+  } finally {
+    doc.page.margins.bottom = savedBottom
+    doc.x = savedX
+    doc.y = savedY
+  }
+}
+
 function drawSectionTitle(doc: Doc, title: string) {
-  ensureSpace(doc, 28)
-  doc.moveDown(0.6)
+  ensureSpace(doc, 32)
+  doc.moveDown(0.45)
+  doc.font('Helvetica-Bold').fontSize(12).fillColor(COLORS.text).text(title)
+  const y = doc.y + 3
+  doc
+    .moveTo(doc.page.margins.left, y)
+    .lineTo(doc.page.width - doc.page.margins.right, y)
+    .strokeColor(COLORS.accent)
+    .lineWidth(1.25)
+    .stroke()
+  doc.y = y + 10
+  doc.x = doc.page.margins.left
+}
+
+function drawPill(
+  doc: Doc,
+  label: string,
+  tone: BandTone,
+  x: number,
+  y: number,
+  opts?: { fontSize?: number; padX?: number; padY?: number }
+) {
+  const fontSize = opts?.fontSize ?? 9
+  const padX = opts?.padX ?? 10
+  const padY = opts?.padY ?? 4
+  doc.font('Helvetica-Bold').fontSize(fontSize)
+  const textW = doc.widthOfString(label)
+  const w = textW + padX * 2
+  const h = fontSize + padY * 2
+  doc.roundedRect(x, y, w, h, 4).fill(tone.fill)
+  doc
+    .fillColor(tone.text)
+    .text(label, x + padX, y + padY, { width: textW + 2, lineBreak: false })
+  return { width: w, height: h }
+}
+
+function drawTintedPanel(
+  doc: Doc,
+  x: number,
+  y: number,
+  width: number,
+  title: string,
+  items: string[],
+  tone: BandTone
+) {
+  const pad = 10
+  doc.font('Helvetica-Bold').fontSize(10)
+  const titleH = doc.heightOfString(title, { width: width - pad * 2 })
+  doc.font('Helvetica').fontSize(9)
+  const lines = items.length ? items : ['None noted.']
+  let bodyH = 0
+  for (const item of lines) {
+    bodyH += doc.heightOfString(`- ${item}`, { width: width - pad * 2 }) + 3
+  }
+  const boxH = pad + titleH + 6 + bodyH + pad
+
+  doc.roundedRect(x, y, width, boxH, 6).fillAndStroke(tone.fill, COLORS.border)
+  let cursor = y + pad
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor(tone.text)
+    .text(title, x + pad, cursor, { width: width - pad * 2 })
+  cursor = doc.y + 4
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.text)
+  for (const item of lines) {
+    doc.text(`- ${item}`, x + pad, cursor, { width: width - pad * 2 })
+    cursor = doc.y + 3
+  }
+  return boxH
+}
+
+function drawFactorCard(doc: Doc, factor: FactorAnalysis) {
+  const label = asText(FACTOR_LABELS[factor.factor] || factor.factor, 'Factor')
+  const band = formatBand(factor.score_band).toUpperCase() || 'UNKNOWN'
+  const tone = bandTone(factor.score_band)
+  const summary = asText(factor.summary)
+  const left = doc.page.margins.left
+  const width = contentWidth(doc)
+  const pad = 12
+
+  doc.font('Helvetica-Bold').fontSize(11)
+  const titleH = doc.heightOfString(label, { width: width - pad * 2 - 90 })
+  doc.font('Helvetica').fontSize(9.5)
+  const bodyH = summary ? doc.heightOfString(summary, { width: width - pad * 2 }) : 0
+  const boxH = pad + Math.max(titleH, 16) + 8 + bodyH + pad
+
+  ensureSpace(doc, boxH + 8)
+  const startY = doc.y
+
+  doc.roundedRect(left, startY, width, boxH, 6).fillAndStroke(COLORS.softBg, COLORS.border)
+  // Left accent bar by band
+  doc.rect(left, startY, 4, boxH).fill(tone.text)
+
   doc
     .font('Helvetica-Bold')
     .fontSize(11)
     .fillColor(COLORS.text)
-    .text(title)
-  const y = doc.y + 2
-  doc
-    .moveTo(doc.page.margins.left, y)
-    .lineTo(doc.page.width - doc.page.margins.right, y)
-    .strokeColor(COLORS.border)
-    .lineWidth(1)
-    .stroke()
-  doc.moveDown(0.5)
-}
+    .text(label, left + pad, startY + pad, { width: width - pad * 2 - 90 })
 
-function drawBullets(doc: Doc, items: string[], limit = 8) {
-  const list = asTextList(items).slice(0, limit)
-  doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
-  if (!list.length) {
-    ensureSpace(doc, 16)
-    doc.text('None noted.')
-    return
-  }
-  for (const item of list) {
-    ensureSpace(doc, 16)
-    doc.text(`- ${item}`, { width: doc.page.width - doc.page.margins.left - doc.page.margins.right })
-  }
-}
+  drawPill(doc, band, tone, left + width - pad - 78, startY + pad, {
+    fontSize: 8,
+    padX: 8,
+    padY: 3,
+  })
 
-function drawCard(doc: Doc, title: string, body: string, meta?: string) {
-  ensureSpace(doc, 54)
-  const left = doc.page.margins.left
-  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
-  const startY = doc.y
-
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text)
-  const titleHeight = doc.heightOfString(title, { width: width - 16 })
-  doc.font('Helvetica').fontSize(10)
-  const bodyHeight = body ? doc.heightOfString(body, { width: width - 16 }) : 0
-  const metaHeight = meta ? 12 : 0
-  const boxHeight = 16 + titleHeight + metaHeight + bodyHeight + 10
-
-  doc
-    .roundedRect(left, startY, width, boxHeight, 4)
-    .fillAndStroke(COLORS.softBg, COLORS.border)
-
-  let cursor = startY + 8
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(10)
-    .fillColor(COLORS.text)
-    .text(title, left + 8, cursor, { width: width - 16 })
-  cursor = doc.y + 2
-  if (meta) {
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(8)
-      .fillColor(COLORS.accent)
-      .text(meta, left + 8, cursor, { width: width - 16 })
-    cursor = doc.y + 2
-  }
-  if (body) {
+  if (summary) {
     doc
       .font('Helvetica')
-      .fontSize(10)
+      .fontSize(9.5)
       .fillColor(COLORS.muted)
-      .text(body, left + 8, cursor, { width: width - 16 })
+      .text(summary, left + pad, startY + pad + Math.max(titleH, 16) + 6, {
+        width: width - pad * 2,
+      })
   }
-  doc.y = startY + boxHeight + 8
+
+  doc.y = startY + boxH + 8
   doc.x = left
 }
 
-function drawFactor(doc: Doc, factor: FactorAnalysis) {
-  const label = asText(FACTOR_LABELS[factor.factor] || factor.factor, 'Factor')
-  drawCard(doc, label, asText(factor.summary), formatBand(factor.score_band).toUpperCase())
-}
-
 function drawRecommendation(doc: Doc, rec: Recommendation) {
-  ensureSpace(doc, 60)
+  const title = asText(rec.title, 'Recommendation')
+  const rationale = asText(rec.rationale)
+  const actions = asTextList(rec.suggested_actions).slice(0, 4)
+  const left = doc.page.margins.left
+  const width = contentWidth(doc)
+  const pad = 12
+
+  doc.font('Helvetica-Bold').fontSize(10.5)
+  const titleH = doc.heightOfString(title, { width: width - pad * 2 })
+  doc.font('Helvetica').fontSize(9)
+  const metaH = 16
+  const rationaleH = rationale ? doc.heightOfString(rationale, { width: width - pad * 2 }) : 0
+  let actionsH = 0
+  for (const a of actions) {
+    actionsH += doc.heightOfString(`- ${a}`, { width: width - pad * 2 }) + 2
+  }
+  const boxH = pad + titleH + 6 + metaH + rationaleH + (actionsH ? 6 + actionsH : 0) + pad
+
+  ensureSpace(doc, boxH + 8)
+  const startY = doc.y
+  doc.roundedRect(left, startY, width, boxH, 6).fillAndStroke(COLORS.white, COLORS.border)
+
+  let cursor = startY + pad
   doc
     .font('Helvetica-Bold')
-    .fontSize(10)
+    .fontSize(10.5)
     .fillColor(COLORS.text)
-    .text(asText(rec.title, 'Recommendation'))
-  doc
-    .font('Helvetica')
-    .fontSize(8)
-    .fillColor(COLORS.dim)
-    .text(
-      `Impact ${impactPct(rec.estimated_impact)} / Confidence ${impactPct(rec.confidence)}`
-    )
-  doc
-    .font('Helvetica')
-    .fontSize(10)
-    .fillColor(COLORS.muted)
-    .text(asText(rec.rationale))
-  for (const action of asTextList(rec.suggested_actions).slice(0, 4)) {
-    ensureSpace(doc, 14)
-    doc.text(`- ${action}`)
+    .text(title, left + pad, cursor, { width: width - pad * 2 })
+  cursor = doc.y + 6
+
+  const impactLabel = `Impact ${impactPct(rec.estimated_impact)}`
+  const confLabel = `Confidence ${impactPct(rec.confidence)}`
+  const impactPill = drawPill(doc, impactLabel, bandTone('good'), left + pad, cursor, {
+    fontSize: 8,
+    padX: 7,
+    padY: 3,
+  })
+  drawPill(doc, confLabel, { fill: COLORS.accentSoft, text: COLORS.accent }, left + pad + impactPill.width + 6, cursor, {
+    fontSize: 8,
+    padX: 7,
+    padY: 3,
+  })
+  cursor += impactPill.height + 6
+
+  if (rationale) {
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor(COLORS.muted)
+      .text(rationale, left + pad, cursor, { width: width - pad * 2 })
+    cursor = doc.y + 4
   }
-  doc.moveDown(0.4)
-  const y = doc.y
-  doc
-    .moveTo(doc.page.margins.left, y)
-    .lineTo(doc.page.width - doc.page.margins.right, y)
-    .strokeColor(COLORS.border)
-    .lineWidth(0.5)
-    .stroke()
-  doc.moveDown(0.5)
+
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.text)
+  for (const action of actions) {
+    doc.text(`- ${action}`, left + pad, cursor, { width: width - pad * 2 })
+    cursor = doc.y + 2
+  }
+
+  doc.y = startY + boxH + 8
+  doc.x = left
 }
 
 /** Render Credit Intelligence as a PDF buffer using PDFKit (no React). */
@@ -178,39 +335,45 @@ export async function buildCreditIntelligencePdfBuffer(
 ): Promise<Buffer> {
   const overall = report.overall
   const funding = report.funding_readiness
-  const consumerName = asText(report.consumer_name, 'Client')
-  const strengths = asTextList(overall?.strengths)
-  const weaknesses = [...asTextList(overall?.weaknesses), ...asTextList(overall?.risk_factors)]
+  const consumerName = displayClientName(report.consumer_name)
+  const strengths = asTextList(overall?.strengths).slice(0, 8)
+  const weaknesses = [...asTextList(overall?.weaknesses), ...asTextList(overall?.risk_factors)].slice(
+    0,
+    8
+  )
   const narrative = asText(overall?.narrative)
   const averageScore =
     typeof overall?.average_score === 'number' ? overall.average_score : null
-  const blockers = asTextList(funding?.blockers)
-  const supportive = asTextList(funding?.supportive_signals)
-  const practical = asTextList(funding?.practical_steps)
+  const blockers = asTextList(funding?.blockers).slice(0, 8)
+  const supportive = asTextList(funding?.supportive_signals).slice(0, 8)
+  const practical = asTextList(funding?.practical_steps).slice(0, 6)
   const nextSteps = asTextList(report.recommended_next_steps)
   const factors = Array.isArray(report.factors) ? report.factors : []
   const recommendations = Array.isArray(report.recommendations)
     ? report.recommendations.slice(0, 10)
     : []
 
-  const metaParts = [
-    consumerName,
+  const metaLine = [
     report.report_date ? `Report ${asText(report.report_date)}` : '',
     report.analyzed_at ? `Analyzed ${formatDateLabel(report.analyzed_at)}` : '',
-  ].filter(Boolean)
+  ]
+    .filter(Boolean)
+    .join('  ·  ')
 
   const bandLabel = formatBand(overall?.band)
-  const scoreSuffix = averageScore != null ? `  /  ~${averageScore}` : ''
+  const overallTone = bandTone(overall?.band)
+  const fundingTone = bandTone(funding?.level)
+  const heroPill = `${bandLabel}${averageScore != null ? `  ·  ~${averageScore}` : ''}`.toUpperCase()
 
   return new Promise<Buffer>((resolve, reject) => {
+    let pageNumber = 1
     const doc = new PDFDocument({
       size: 'LETTER',
-      bufferPages: true,
       margins: { top: 48, bottom: 52, left: 48, right: 48 },
       info: {
-        Title: `Credit Profile Analysis - ${consumerName}`,
+        Title: `${consumerName} — Credit Analysis`,
         Author: 'Sunday Harmony',
-        Subject: 'Credit Profile Analysis',
+        Subject: 'Credit Analysis',
         Creator: 'Sunday Harmony Credit Intelligence',
       },
     })
@@ -220,134 +383,149 @@ export async function buildCreditIntelligencePdfBuffer(
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    const pageWidth = () => doc.page.width - doc.page.margins.left - doc.page.margins.right
+    // Draw footer as pages are created — avoids blank trailing pages from switchToPage
+    drawFooter(doc, pageNumber)
+    doc.on('pageAdded', () => {
+      pageNumber += 1
+      drawFooter(doc, pageNumber)
+    })
 
-    // Header
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(16)
-      .fillColor(COLORS.accent)
-      .text('Sunday Harmony')
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(18)
-      .fillColor(COLORS.text)
-      .text('Credit Profile Analysis')
-    doc
-      .font('Helvetica')
-      .fontSize(9)
-      .fillColor(COLORS.muted)
-      .text(metaParts.join('  |  '))
+    const left = doc.page.margins.left
+    const width = contentWidth(doc)
 
-    const headerLineY = doc.y + 6
+    // —— Header ——
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.accent).text('Sunday Harmony')
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(COLORS.text).text('Credit Analysis')
+    doc.font('Helvetica-Bold').fontSize(13).fillColor(COLORS.text).text(consumerName)
+    if (metaLine) {
+      doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted).text(metaLine)
+    }
+
+    const headerLineY = doc.y + 8
     doc
-      .moveTo(doc.page.margins.left, headerLineY)
-      .lineTo(doc.page.width - doc.page.margins.right, headerLineY)
+      .moveTo(left, headerLineY)
+      .lineTo(left + width, headerLineY)
       .strokeColor(COLORS.accent)
-      .lineWidth(2)
+      .lineWidth(2.5)
       .stroke()
-    doc.y = headerLineY + 14
+    doc.y = headerLineY + 16
+    doc.x = left
 
-    // Band pill
-    const pill = `${bandLabel}${scoreSuffix}`.toUpperCase()
-    doc.font('Helvetica-Bold').fontSize(9)
-    const pillWidth = Math.min(pageWidth(), doc.widthOfString(pill) + 16)
-    const pillHeight = 16
-    doc
-      .roundedRect(doc.page.margins.left, doc.y, pillWidth, pillHeight, 3)
-      .fill('#f0ebe3')
-    doc
-      .fillColor(COLORS.accent)
-      .text(pill, doc.page.margins.left + 8, doc.y + 4, { width: pillWidth - 16, lineBreak: false })
-    doc.y += pillHeight + 10
-    doc.x = doc.page.margins.left
-
+    // —— Hero score card ——
+    ensureSpace(doc, 70)
+    const heroY = doc.y
+    const heroH = narrative ? 62 : 44
+    doc.roundedRect(left, heroY, width, heroH, 8).fillAndStroke(overallTone.fill, COLORS.border)
+    drawPill(doc, heroPill, overallTone, left + 14, heroY + 12, {
+      fontSize: 11,
+      padX: 12,
+      padY: 5,
+    })
     if (narrative) {
-      doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted).text(narrative, {
-        width: pageWidth(),
-        lineGap: 2,
-      })
-      doc.moveDown(0.4)
+      doc
+        .font('Helvetica')
+        .fontSize(9)
+        .fillColor(COLORS.muted)
+        .text(narrative, left + 14, heroY + 36, { width: width - 28, lineGap: 1 })
     }
+    doc.y = heroY + heroH + 14
+    doc.x = left
 
-    // Strengths & Risks
+    // —— Strengths & Risks ——
     drawSectionTitle(doc, 'Strengths & Risks')
-    const colGap = 16
-    const colWidth = (pageWidth() - colGap) / 2
-    const leftX = doc.page.margins.left
-    const rightX = leftX + colWidth + colGap
-    const topY = doc.y
-
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Strengths', leftX, topY, {
-      width: colWidth,
-    })
-    const leftAfterTitle = doc.y
-    doc.text('Weaknesses & risks', rightX, topY, { width: colWidth })
-    const rightAfterTitle = doc.y
-
-    doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
-    let leftY = Math.max(leftAfterTitle, rightAfterTitle) + 4
-    let rightY = leftY
-
-    const leftItems = strengths.length ? strengths.slice(0, 8) : ['None noted.']
-    const rightItems = weaknesses.length ? weaknesses.slice(0, 8) : ['None noted.']
-
-    for (const item of leftItems) {
-      doc.text(`- ${item}`, leftX, leftY, { width: colWidth })
-      leftY = doc.y + 2
-    }
-    for (const item of rightItems) {
-      doc.text(`- ${item}`, rightX, rightY, { width: colWidth })
-      rightY = doc.y + 2
-    }
-    doc.y = Math.max(leftY, rightY) + 6
-    doc.x = leftX
-
-    // Funding readiness
-    drawSectionTitle(doc, 'Funding Readiness')
-    drawCard(
+    const colGap = 12
+    const colW = (width - colGap) / 2
+    const panelY = doc.y
+    const leftH = drawTintedPanel(
       doc,
-      `${formatBand(funding?.level)} / ${asText(funding?.score_0_to_100, '0')}/100`,
-      asText(funding?.summary)
+      left,
+      panelY,
+      colW,
+      'Strengths',
+      strengths,
+      { fill: COLORS.emeraldSoft, text: COLORS.emerald }
     )
+    const rightH = drawTintedPanel(
+      doc,
+      left + colW + colGap,
+      panelY,
+      colW,
+      'Weaknesses & risks',
+      weaknesses,
+      { fill: COLORS.amberSoft, text: COLORS.amber }
+    )
+    doc.y = panelY + Math.max(leftH, rightH) + 10
+    doc.x = left
 
-    const fundTop = doc.y
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Blockers', leftX, fundTop, {
-      width: colWidth,
+    // —— Funding readiness ——
+    drawSectionTitle(doc, 'Funding Readiness')
+    const fundTitle = `${formatBand(funding?.level)}  ·  ${asText(funding?.score_0_to_100, '0')}/100`
+    const fundSummary = asText(funding?.summary)
+    doc.font('Helvetica-Bold').fontSize(11)
+    const fundTitleH = 22
+    doc.font('Helvetica').fontSize(9.5)
+    const fundBodyH = fundSummary
+      ? doc.heightOfString(fundSummary, { width: width - 28 })
+      : 0
+    const fundBoxH = 14 + fundTitleH + fundBodyH + 14
+    ensureSpace(doc, fundBoxH + 8)
+    const fundY = doc.y
+    doc.roundedRect(left, fundY, width, fundBoxH, 8).fillAndStroke(fundingTone.fill, COLORS.border)
+    drawPill(doc, fundTitle.toUpperCase(), fundingTone, left + 14, fundY + 12, {
+      fontSize: 9,
+      padX: 10,
+      padY: 4,
     })
-    const blockersTitleY = doc.y
-    doc.text('Supportive signals', rightX, fundTop, { width: colWidth })
-    const signalsTitleY = doc.y
-    let bY = Math.max(blockersTitleY, signalsTitleY) + 4
-    let sY = bY
-    doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
-    const blockerItems = blockers.length ? blockers.slice(0, 8) : ['None flagged from available data.']
-    const signalItems = supportive.length
-      ? supportive.slice(0, 8)
-      : ['Limited supportive signals in current extract.']
-    for (const item of blockerItems) {
-      doc.text(`- ${item}`, leftX, bY, { width: colWidth })
-      bY = doc.y + 2
+    if (fundSummary) {
+      doc
+        .font('Helvetica')
+        .fontSize(9.5)
+        .fillColor(COLORS.muted)
+        .text(fundSummary, left + 14, fundY + 12 + fundTitleH, { width: width - 28 })
     }
-    for (const item of signalItems) {
-      doc.text(`- ${item}`, rightX, sY, { width: colWidth })
-      sY = doc.y + 2
-    }
-    doc.y = Math.max(bY, sY) + 6
-    doc.x = leftX
+    doc.y = fundY + fundBoxH + 10
+    doc.x = left
+
+    const fundColY = doc.y
+    const blockH = drawTintedPanel(
+      doc,
+      left,
+      fundColY,
+      colW,
+      'Blockers',
+      blockers.length ? blockers : ['None flagged from available data.'],
+      { fill: COLORS.redSoft, text: COLORS.red }
+    )
+    const supportH = drawTintedPanel(
+      doc,
+      left + colW + colGap,
+      fundColY,
+      colW,
+      'Supportive signals',
+      supportive.length ? supportive : ['Limited supportive signals in current extract.'],
+      { fill: COLORS.skySoft, text: COLORS.sky }
+    )
+    doc.y = fundColY + Math.max(blockH, supportH) + 8
+    doc.x = left
 
     if (practical.length) {
+      ensureSpace(doc, 40)
       doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Practical next steps')
-      drawBullets(doc, practical, 6)
+      doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted)
+      for (const step of practical) {
+        ensureSpace(doc, 14)
+        doc.text(`- ${step}`, { width })
+      }
+      doc.moveDown(0.3)
     }
 
-    // Factors
+    // —— Factor analysis ——
     drawSectionTitle(doc, 'Factor Analysis')
     for (const factor of factors) {
-      drawFactor(doc, factor)
+      drawFactorCard(doc, factor)
     }
 
-    // Recommendations
+    // —— Recommendations ——
     drawSectionTitle(doc, 'Prioritized Recommendations')
     if (!recommendations.length) {
       doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted).text('No recommendations generated.')
@@ -359,24 +537,24 @@ export async function buildCreditIntelligencePdfBuffer(
 
     if (nextSteps.length) {
       drawSectionTitle(doc, 'Recommended Next Steps')
-      doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
+      doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
       nextSteps.forEach((step, index) => {
         ensureSpace(doc, 16)
-        doc.text(`${index + 1}. ${step}`)
+        doc.text(`${index + 1}. ${step}`, { width })
       })
     }
 
-    // Disclaimer
-    ensureSpace(doc, 40)
-    doc.moveDown(0.8)
+    // —— Disclaimer ——
+    ensureSpace(doc, 48)
+    doc.moveDown(0.6)
     const discY = doc.y
     doc
-      .moveTo(doc.page.margins.left, discY)
-      .lineTo(doc.page.width - doc.page.margins.right, discY)
+      .moveTo(left, discY)
+      .lineTo(left + width, discY)
       .strokeColor(COLORS.border)
       .lineWidth(1)
       .stroke()
-    doc.moveDown(0.5)
+    doc.y = discY + 8
     doc
       .font('Helvetica')
       .fontSize(8)
@@ -386,25 +564,16 @@ export async function buildCreditIntelligencePdfBuffer(
           report.disclaimer,
           'Educational analysis only. Not a credit score calculation, credit counseling substitute, or legal advice. Does not guarantee score changes, deletions, or financing approval.'
         ),
-        { width: pageWidth(), lineGap: 1.5 }
+        { width, lineGap: 1.5 }
       )
-
-    // Simple page numbers via outline after end is hard with PDFKit stream;
-    // stamp current page count in footer on each page switch.
-    const range = doc.bufferedPageRange()
-    for (let i = 0; i < range.count; i++) {
-      doc.switchToPage(range.start + i)
-      doc
-        .font('Helvetica')
-        .fontSize(8)
-        .fillColor(COLORS.dim)
-        .text(`Page ${i + 1} of ${range.count}`, doc.page.margins.left, doc.page.height - 36, {
-          width: pageWidth(),
-          align: 'center',
-          lineBreak: false,
-        })
-    }
 
     doc.end()
   })
+}
+
+/** Count /Page objects for smoke tests (approximate page count). */
+export function countPdfPages(buffer: Buffer): number {
+  const text = buffer.toString('latin1')
+  const matches = text.match(/\/Type\s*\/Page(?!s)\b/g)
+  return matches?.length ?? 0
 }

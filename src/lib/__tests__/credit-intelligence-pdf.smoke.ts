@@ -3,6 +3,10 @@ import { join } from 'path'
 import { writeFileSync } from 'fs'
 import type { CreditIntelligenceReport } from '../dispute-letters/types'
 import {
+  countPdfPages,
+  displayClientName,
+} from '../credit-intelligence-pdf'
+import {
   creditIntelligencePdfFilename,
   renderCreditIntelligencePdf,
 } from '../credit-intelligence-pdf-server'
@@ -11,7 +15,8 @@ const sample: CreditIntelligenceReport = {
   version: '1.0',
   analyzed_at: '2026-07-28T12:00:00.000Z',
   report_date: '07/24/2026',
-  consumer_name: 'Michael Webb',
+  consumer_name:
+    'MICHAEL WEBB (also MIKE WEBB, MICHAEL W WEBB, MICHAEL W WEBBJR)',
   factors: [
     {
       factor: 'payment_history',
@@ -34,6 +39,28 @@ const sample: CreditIntelligenceReport = {
       strengths: [],
       weaknesses: ['Elevated revolving use'],
       recommendations: ['Pay down highest-util cards'],
+    },
+    {
+      factor: 'collections',
+      weight_hint: 0.1,
+      summary: '1 collection tradeline(s).',
+      score_band: 'weak',
+      findings: [],
+      metrics: {},
+      strengths: [],
+      weaknesses: [],
+      recommendations: [],
+    },
+    {
+      factor: 'charge_offs',
+      weight_hint: 0.1,
+      summary: '0 charge-off account(s) identified.',
+      score_band: 'strong',
+      findings: [],
+      metrics: {},
+      strengths: [],
+      weaknesses: [],
+      recommendations: [],
     },
   ],
   overall: {
@@ -81,17 +108,48 @@ const sample: CreditIntelligenceReport = {
 }
 
 async function main() {
+  const cleaned = displayClientName(sample.consumer_name)
+  if (/\(also/i.test(cleaned)) {
+    throw new Error(`displayClientName still has alias text: ${cleaned}`)
+  }
+  if (cleaned !== 'MICHAEL WEBB') {
+    throw new Error(`Expected MICHAEL WEBB, got: ${cleaned}`)
+  }
+
   const buf = await renderCreditIntelligencePdf(sample)
   const name = creditIntelligencePdfFilename(sample)
+
   if (!buf.subarray(0, 5).toString().startsWith('%PDF-')) {
     throw new Error('Output is not a PDF')
   }
   if (buf.length < 1000) {
     throw new Error(`PDF too small: ${buf.length}`)
   }
+  if (/\(also/i.test(name)) {
+    throw new Error(`Filename still has alias text: ${name}`)
+  }
+  if (!name.startsWith('Credit-Analysis-MICHAEL-WEBB-')) {
+    throw new Error(`Unexpected filename: ${name}`)
+  }
+
+  const pages = countPdfPages(buf)
+  // Content-only sample should stay compact — no trailing blank pages from footer bug
+  if (pages < 1 || pages > 4) {
+    throw new Error(`Unexpected page count ${pages} (expected 1–4 without blank trailers)`)
+  }
+
   const out = join(tmpdir(), name)
   writeFileSync(out, buf)
-  console.log(JSON.stringify({ ok: true, filename: name, bytes: buf.length, out }))
+  console.log(
+    JSON.stringify({
+      ok: true,
+      filename: name,
+      displayName: cleaned,
+      pages,
+      bytes: buf.length,
+      out,
+    })
+  )
 }
 
 main().catch((err) => {
