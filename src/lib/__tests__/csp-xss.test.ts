@@ -42,7 +42,7 @@ describe('CSP and XSS hardening', () => {
 
   it('has no raw HTML sink in the dispute-letter preview', () => {
     const source = readFileSync(
-      'src/app/admin/dispute-letters/[sessionId]/letters/page.tsx',
+      'src/components/dispute-letters/DisputeLettersResultStep.tsx',
       'utf8'
     )
     assert.doesNotMatch(source, /dangerouslySetInnerHTML/)

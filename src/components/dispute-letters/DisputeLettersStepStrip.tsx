@@ -2,37 +2,57 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import {
+  DISPUTE_LETTER_STEPS,
+  type DisputeLetterStep,
+  disputeLettersStandaloneHref,
+} from '@/lib/dispute-letters/workflow'
 
-const STEPS = [
-  { slug: '', label: 'Upload' },
-  { slug: 'health', label: 'Health' },
-  { slug: 'review', label: 'Disputes' },
-  { slug: 'confirm', label: 'Confirm' },
-  { slug: 'letters', label: 'Letters' },
-]
+type Props = {
+  sessionId?: string
+  /** When set, strip is controlled (embedded in Credit Intelligence). Upload step is omitted. */
+  activeStep?: DisputeLetterStep
+  onStepChange?: (step: DisputeLetterStep) => void
+  embedded?: boolean
+}
 
-export function DisputeLettersStepStrip({ sessionId }: { sessionId?: string }) {
+export function DisputeLettersStepStrip({
+  sessionId,
+  activeStep,
+  onStepChange,
+  embedded = false,
+}: Props) {
   const pathname = usePathname()
 
+  const steps = embedded
+    ? DISPUTE_LETTER_STEPS
+    : [{ slug: '' as const, label: 'Upload' }, ...DISPUTE_LETTER_STEPS]
+
   const activeIndex = (() => {
+    if (embedded && activeStep) {
+      return DISPUTE_LETTER_STEPS.findIndex((s) => s.slug === activeStep)
+    }
     if (!sessionId) return 0
-    if (pathname.includes('/letters')) return 4
-    if (pathname.includes('/confirm')) return 3
-    if (pathname.includes('/review')) return 2
-    if (pathname.includes('/health')) return 1
+    if (pathname.includes('/letters')) return embedded ? 3 : 4
+    if (pathname.includes('/confirm')) return embedded ? 2 : 3
+    if (pathname.includes('/review')) return embedded ? 1 : 2
+    if (pathname.includes('/health')) return embedded ? 0 : 1
     return 0
   })()
 
   return (
-    <div className="mb-8 overflow-x-auto pb-1">
+    <div className={`${embedded ? 'mb-4' : 'mb-8'} overflow-x-auto pb-1`}>
       <div className="flex items-start gap-1 min-w-max">
-        {STEPS.map((step, i) => {
+        {steps.map((step, i) => {
+          const slug = step.slug
+          const isLetterStep = slug === 'health' || slug === 'review' || slug === 'confirm' || slug === 'letters'
           const href =
-            i === 0
-              ? '/admin/dispute-letters'
-              : sessionId
-                ? `/admin/dispute-letters/${sessionId}/${step.slug}`
-                : undefined
+            embedded || !sessionId
+              ? undefined
+              : !isLetterStep
+                ? '/admin/dispute-letters'
+                : disputeLettersStandaloneHref(sessionId, slug)
+
           const isComplete = i < activeIndex
           const isCurrent = i === activeIndex
           const isUpcoming = i > activeIndex
@@ -51,16 +71,27 @@ export function DisputeLettersStepStrip({ sessionId }: { sessionId?: string }) {
             </div>
           )
 
+          const interactive =
+            embedded && onStepChange && isLetterStep && !isUpcoming ? (
+              <button
+                type="button"
+                className="hover:opacity-90"
+                onClick={() => onStepChange(slug)}
+              >
+                {circle}
+              </button>
+            ) : href && !isUpcoming ? (
+              <Link href={href} className="hover:opacity-90">
+                {circle}
+              </Link>
+            ) : (
+              circle
+            )
+
           return (
-            <div key={step.slug || 'upload'} className="flex items-center">
+            <div key={slug || 'upload'} className="flex items-center">
               <div className="flex flex-col items-center w-20 sm:w-24">
-                {href && !isUpcoming ? (
-                  <Link href={href} className="hover:opacity-90">
-                    {circle}
-                  </Link>
-                ) : (
-                  circle
-                )}
+                {interactive}
                 <p
                   className={`mt-1.5 text-[10px] sm:text-xs text-center leading-tight ${
                     isCurrent ? 'font-semibold text-brand-text' : 'text-brand-dim'
@@ -69,8 +100,10 @@ export function DisputeLettersStepStrip({ sessionId }: { sessionId?: string }) {
                   {step.label}
                 </p>
               </div>
-              {i < STEPS.length - 1 && (
-                <div className={`w-6 sm:w-10 h-0.5 mb-5 shrink-0 ${isComplete ? 'bg-accent' : 'bg-neutral-200'}`} />
+              {i < steps.length - 1 && (
+                <div
+                  className={`w-6 sm:w-10 h-0.5 mb-5 shrink-0 ${isComplete ? 'bg-accent' : 'bg-neutral-200'}`}
+                />
               )}
             </div>
           )

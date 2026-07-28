@@ -21,6 +21,7 @@ import {
   type FundingScores,
 } from '@/lib/credit-funding-types'
 import { formatSsnFull } from '@/lib/ssn-utils'
+import { parseDisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 interface ApplicationListItem {
   id: string
@@ -163,7 +164,7 @@ function CreditFundingAdminContent() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'funding' | 'messages'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'messages'>('overview')
   const [newMsg, setNewMsg] = useState('')
   const [editFields, setEditFields] = useState({
     assigned_specialist: '',
@@ -201,7 +202,7 @@ function CreditFundingAdminContent() {
       }
       return
     }
-    loadDetail(id)
+    loadDetail(id, { resetTab: true })
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
       setListPanelOpen(false)
     }
@@ -228,14 +229,24 @@ function CreditFundingAdminContent() {
   useEffect(() => {
     const id = searchParams.get('id')
     if (id) {
-      loadDetail(id)
+      loadDetail(id, { resetTab: true })
       if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
         setListPanelOpen(false)
       }
     }
   }, [searchParams])
 
-  const loadDetail = async (id: string) => {
+  const intelligenceDeepLink = useMemo(() => {
+    const letters = parseDisputeLetterStep(searchParams.get('letters'))
+    const session = searchParams.get('session')
+    return {
+      initialView: letters ? ('letters' as const) : ('analysis' as const),
+      initialLetterStep: letters || ('health' as const),
+      initialSessionId: session,
+    }
+  }, [searchParams])
+
+  const loadDetail = async (id: string, options?: { resetTab?: boolean }) => {
     setDetailLoading(true)
     try {
       const r = await fetch(`/api/admin/credit-funding?id=${id}&includeDocs=true`)
@@ -255,6 +266,21 @@ function CreditFundingAdminContent() {
         status_notes: '',
       })
       setFundingScores(app.funding_scores || {})
+      if (options?.resetTab) {
+        const tabParam = searchParams.get('tab')
+        const lettersParam = parseDisputeLetterStep(searchParams.get('letters'))
+        if (tabParam === 'intelligence' || lettersParam) {
+          setActiveTab('intelligence')
+        } else if (
+          app.status === 'under_review' ||
+          app.status === 'credit_analysis_complete' ||
+          app.status === 'funding_review'
+        ) {
+          setActiveTab('intelligence')
+        } else {
+          setActiveTab('overview')
+        }
+      }
     } catch {
       setError('Failed to load application details')
     } finally {
@@ -954,7 +980,7 @@ function CreditFundingAdminContent() {
               )}
 
               <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
-                {(['overview', 'intake', 'intelligence', 'funding', 'messages'] as const).map((tab) => (
+                {(['overview', 'intake', 'intelligence', 'messages'] as const).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -980,7 +1006,16 @@ function CreditFundingAdminContent() {
 
                   {showFundingSummary && selected.funding_scores && (
                     <div className="mb-5 p-4 bg-green-50/50 rounded-xl border border-green-200/80">
-                      <h4 className="text-sm font-bold mb-2">Funding Recommendations</h4>
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h4 className="text-sm font-bold">Funding Recommendations</h4>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('intelligence')}
+                          className="text-xs font-semibold text-accent hover:underline"
+                        >
+                          Edit in Credit Intelligence →
+                        </button>
+                      </div>
                       <div className="grid grid-cols-3 gap-3 text-center mb-3">
                         {[
                           ['Revenue', selected.funding_scores.revenue_score],
@@ -1003,6 +1038,22 @@ function CreditFundingAdminContent() {
                           <span className="font-semibold">Next Steps:</span> {selected.next_steps}
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {!showFundingSummary && (
+                    <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-dashed border-brand-border bg-neutral-50 px-4 py-3">
+                      <p className="text-sm text-brand-muted">
+                        Analyze reports and save staff funding scores in{' '}
+                        <span className="font-semibold text-brand-text">Credit Intelligence</span>.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('intelligence')}
+                        className="shrink-0 text-xs font-semibold text-accent hover:underline"
+                      >
+                        Open →
+                      </button>
                     </div>
                   )}
 
@@ -1205,48 +1256,14 @@ function CreditFundingAdminContent() {
                     self_reported_inquiries: String(selected.credit_profile?.inquiries || ''),
                     document_types: documents.map((d) => d.document_type),
                   }}
+                  fundingScores={fundingScores}
+                  onFundingScoresChange={setFundingScores}
+                  onSaveFundingScores={() => patchApplication({ funding_scores: fundingScores })}
+                  savingFundingScores={saving}
+                  initialView={intelligenceDeepLink.initialView}
+                  initialLetterStep={intelligenceDeepLink.initialLetterStep}
+                  initialSessionId={intelligenceDeepLink.initialSessionId}
                 />
-              )}
-
-              {activeTab === 'funding' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
-                    {(['revenue_score', 'funding_readiness', 'credit_readiness'] as const).map((key) => (
-                      <div key={key}>
-                        <label className="text-xs font-semibold text-brand-dim capitalize">{key.replace(/_/g, ' ')}</label>
-                        <input type="number" min="0" max="100" className={inputClass}
-                          value={fundingScores[key] ?? ''}
-                          onChange={(e) => setFundingScores((s) => ({ ...s, [key]: e.target.value ? Number(e.target.value) : null }))} />
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-brand-dim">Estimated Funding Range</label>
-                    <input className={inputClass} placeholder="e.g. $50,000 – $150,000"
-                      value={fundingScores.estimated_range || ''}
-                      onChange={(e) => setFundingScores((s) => ({ ...s, estimated_range: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-brand-dim">Recommended Programs (comma-separated)</label>
-                    <input className={inputClass}
-                      value={(fundingScores.recommended_programs || []).join(', ')}
-                      onChange={(e) => setFundingScores((s) => ({
-                        ...s,
-                        recommended_programs: e.target.value.split(',').map((p) => p.trim()).filter(Boolean),
-                      }))} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-brand-dim">Specialist Recommendations</label>
-                    <textarea className={`${inputClass} min-h-[100px]`}
-                      value={fundingScores.specialist_notes || ''}
-                      onChange={(e) => setFundingScores((s) => ({ ...s, specialist_notes: e.target.value }))} />
-                  </div>
-                  <button type="button" disabled={saving}
-                    onClick={() => patchApplication({ funding_scores: fundingScores })}
-                    className="px-4 py-2 bg-brand-text text-white text-sm font-semibold rounded-lg disabled:opacity-50">
-                    Save Funding Scores
-                  </button>
-                </div>
               )}
 
               {activeTab === 'messages' && (

@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
 import CreditProgressPanel from '@/components/dispute-letters/CreditProgressPanel'
+import DisputeLettersWorkflow from '@/components/dispute-letters/DisputeLettersWorkflow'
 import { ProgressPanel } from '@/components/dispute-letters/ProgressPanel'
+import StaffFundingScoresEditor from '@/components/credit-funding/StaffFundingScoresEditor'
 import { DISPUTE_LETTER_MAX_MB } from '@/lib/dispute-letters-storage'
 import {
   fetchDisputeSessionsForApplication,
@@ -22,6 +23,8 @@ import type {
   DisputeSessionListItem,
   FundingContextPayload,
 } from '@/lib/dispute-letters/types'
+import type { FundingScores } from '@/lib/credit-funding-types'
+import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceReport | null {
   return (
@@ -37,21 +40,39 @@ function shortFileName(name: string): string {
   return `${name.slice(0, 24 - ext.length)}…${ext}`
 }
 
+type PanelView = 'analysis' | 'letters'
+
 export default function CreditIntelligencePanel({
   applicationId,
   fundingContext,
+  fundingScores,
+  onFundingScoresChange,
+  onSaveFundingScores,
+  savingFundingScores,
+  initialView = 'analysis',
+  initialLetterStep = 'health',
+  initialSessionId = null,
 }: {
   applicationId: string
   fundingContext: FundingContextPayload
+  fundingScores: FundingScores
+  onFundingScoresChange: (next: FundingScores) => void
+  onSaveFundingScores: () => void | Promise<void>
+  savingFundingScores?: boolean
+  initialView?: PanelView
+  initialLetterStep?: DisputeLetterStep
+  initialSessionId?: string | null
 }) {
   const [sessions, setSessions] = useState<DisputeSessionListItem[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(initialSessionId)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [intelligence, setIntelligence] = useState<CreditIntelligenceReport | null>(null)
+  const [view, setView] = useState<PanelView>(initialView)
+  const [letterStep, setLetterStep] = useState<DisputeLetterStep>(initialLetterStep)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,7 +81,10 @@ export default function CreditIntelligencePanel({
       const data = await fetchDisputeSessionsForApplication(applicationId)
       const list = data.sessions || []
       setSessions(list)
-      const preferred = list.find((s) => s.status === 'ready') || list[0]
+      const preferred =
+        (initialSessionId && list.find((s) => s.id === initialSessionId)) ||
+        list.find((s) => s.status === 'ready') ||
+        list[0]
       if (preferred) {
         setActiveId(preferred.id)
         setIntelligence(intelligenceFromSession(preferred))
@@ -73,17 +97,29 @@ export default function CreditIntelligencePanel({
     } finally {
       setLoading(false)
     }
-  }, [applicationId])
+  }, [applicationId, initialSessionId])
 
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    setView(initialView)
+    setLetterStep(initialLetterStep)
+    if (initialSessionId) setActiveId(initialSessionId)
+  }, [initialView, initialLetterStep, initialSessionId])
 
   function selectSession(id: string) {
     setActiveId(id)
     const s = sessions.find((x) => x.id === id)
     setIntelligence(s ? intelligenceFromSession(s) : null)
     setSuccess('')
+  }
+
+  function openLetters(step: DisputeLetterStep = 'health') {
+    if (!activeId) return
+    setLetterStep(step)
+    setView('letters')
   }
 
   const progress = useMemo(
@@ -265,10 +301,10 @@ export default function CreditIntelligencePanel({
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-brand-border bg-white p-4">
-        <h3 className="text-base font-bold text-brand-text">Credit Intelligence Engine</h3>
+        <h3 className="text-base font-bold text-brand-text">Credit Intelligence</h3>
         <p className="mt-1 text-sm text-brand-muted">
-          Import a credit report to analyze payment history, utilization, mix, inquiries, derogatories,
-          funding readiness, and dispute recommendations — using this application&apos;s intake profile.
+          Analyze the client&apos;s reports, track progress over time, then record staff funding scores for
+          the portal — one continuous workflow.
         </p>
 
         <label className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-border bg-neutral-50 px-4 py-8 cursor-pointer hover:bg-neutral-100 transition-colors">
@@ -341,6 +377,33 @@ export default function CreditIntelligencePanel({
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             {activeId && (
+              <div className="flex rounded-lg border border-brand-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setView('analysis')}
+                  className={`px-3 py-1.5 text-xs font-semibold ${
+                    view === 'analysis'
+                      ? 'bg-brand-text text-white'
+                      : 'bg-white text-brand-dim hover:bg-neutral-50'
+                  }`}
+                >
+                  Analysis
+                </button>
+                <button
+                  type="button"
+                  disabled={!(activeId && sessions.some((s) => s.id === activeId && s.status === 'ready'))}
+                  onClick={() => openLetters('health')}
+                  className={`px-3 py-1.5 text-xs font-semibold border-l border-brand-border disabled:opacity-40 ${
+                    view === 'letters'
+                      ? 'bg-brand-text text-white'
+                      : 'bg-white text-brand-dim hover:bg-neutral-50'
+                  }`}
+                >
+                  Dispute letters
+                </button>
+              </div>
+            )}
+            {activeId && view === 'analysis' && (
               <button
                 type="button"
                 disabled={busy}
@@ -350,7 +413,7 @@ export default function CreditIntelligencePanel({
                 {intelligence ? 'Refresh with funding context' : 'Generate Credit Intelligence'}
               </button>
             )}
-            {activeId && intelligence && (
+            {activeId && intelligence && view === 'analysis' && (
               <>
                 <button
                   type="button"
@@ -368,31 +431,64 @@ export default function CreditIntelligencePanel({
                 >
                   Send to client
                 </button>
+                <button
+                  type="button"
+                  onClick={() => openLetters('health')}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
+                >
+                  Prepare dispute letters
+                </button>
               </>
-            )}
-            {activeId && (
-              <Link
-                href={`/admin/dispute-letters/${activeId}/health`}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
-              >
-                Dispute letters workflow →
-              </Link>
             )}
           </div>
         </div>
       )}
 
-      {progress.readyCount >= 1 && <CreditProgressPanel progress={progress} />}
+      {progress.readyCount >= 1 && view === 'analysis' && (
+        <CreditProgressPanel progress={progress} />
+      )}
 
-      {intelligence ? (
-        <CreditIntelligenceDashboard intelligence={intelligence} sessionId={activeId || undefined} />
+      {view === 'letters' && activeId ? (
+        <DisputeLettersWorkflow
+          sessionId={activeId}
+          step={letterStep}
+          onStepChange={setLetterStep}
+          onBackToAnalysis={() => setView('analysis')}
+        />
       ) : (
-        <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 p-8 text-center">
-          <p className="text-sm font-semibold text-brand-text">No credit analysis yet</p>
-          <p className="mt-1 text-sm text-brand-dim">
-            Upload this client&apos;s credit report to generate a full profile analysis and dispute plan.
-          </p>
-        </div>
+        <>
+          {intelligence ? (
+            <CreditIntelligenceDashboard
+              intelligence={intelligence}
+              sessionId={activeId || undefined}
+              onOpenDisputeWorkflow={() => openLetters('health')}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 p-8 text-center">
+              <p className="text-sm font-semibold text-brand-text">No credit analysis yet</p>
+              <p className="mt-1 text-sm text-brand-dim">
+                Upload this client&apos;s credit report to generate a full profile analysis and dispute plan.
+                You can still save staff funding scores below.
+              </p>
+            </div>
+          )}
+
+          <StaffFundingScoresEditor
+            fundingScores={fundingScores}
+            onChange={onFundingScoresChange}
+            onSave={onSaveFundingScores}
+            saving={savingFundingScores}
+            engineHint={
+              intelligence?.funding_readiness
+                ? `${intelligence.funding_readiness.level.replace(/_/g, ' ')}${
+                    intelligence.funding_readiness.score_0_to_100 != null
+                      ? ` · ${intelligence.funding_readiness.score_0_to_100}/100`
+                      : ''
+                  }`
+                : null
+            }
+          />
+        </>
       )}
     </div>
   )

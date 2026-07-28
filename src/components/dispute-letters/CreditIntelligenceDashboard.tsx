@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import {
   FACTOR_LABELS,
   impactPercent,
@@ -85,10 +84,12 @@ export default function CreditIntelligenceDashboard({
   intelligence,
   sessionId,
   showDisputeCta = true,
+  onOpenDisputeWorkflow,
 }: {
   intelligence: CreditIntelligenceReport
   sessionId?: string
   showDisputeCta?: boolean
+  onOpenDisputeWorkflow?: () => void
 }) {
   const overall = intelligence.overall
   const funding = intelligence.funding_readiness
@@ -215,13 +216,14 @@ export default function CreditIntelligenceDashboard({
               <h4 className="text-sm font-bold text-brand-text">Account-level dispute recommendations</h4>
               <p className="text-xs text-brand-dim">{disputeInsights.length} account(s) flagged for review</p>
             </div>
-            {showDisputeCta && sessionId && (
-              <Link
-                href={`/admin/dispute-letters/${sessionId}/health`}
+            {showDisputeCta && sessionId && onOpenDisputeWorkflow && (
+              <button
+                type="button"
+                onClick={onOpenDisputeWorkflow}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:opacity-90"
               >
-                Open dispute workflow
-              </Link>
+                Prepare dispute letters
+              </button>
             )}
           </div>
           <div className="space-y-3 max-h-80 overflow-y-auto">

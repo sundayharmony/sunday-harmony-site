@@ -21,6 +21,7 @@ const MFA_INCOMPLETE_ALLOWED = new Set(['/login', '/forgot-password', '/reset-pa
 /** Credit managers may only access these admin page prefixes (after MFA). */
 const CREDIT_MANAGER_ADMIN_PATHS = [
   '/admin/credit-funding',
+  '/admin/dispute-letters',
   '/admin/team-messages',
   '/admin/settings',
 ]
