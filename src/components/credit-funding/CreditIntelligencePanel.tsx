@@ -50,11 +50,7 @@ export default function CreditIntelligencePanel({
       const preferred = list.find((s) => s.status === 'ready') || list[0]
       if (preferred) {
         setActiveId(preferred.id)
-        const existing = intelligenceFromSession(preferred)
-        setIntelligence(existing)
-        // #region agent log
-        fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'148064'},body:JSON.stringify({sessionId:'148064',hypothesisId:'D',location:'CreditIntelligencePanel.tsx:load',message:'loaded linked dispute session',data:{sessionIdPrefix:preferred.id.slice(0,8),status:preferred.status,hasIntelligence:Boolean(existing),hasReportJson:Boolean(preferred.report_json),tradelineCount:preferred.report_json?.tradelines?.length||0},timestamp:Date.now()})}).catch(()=>{})
-        // #endregion
+        setIntelligence(intelligenceFromSession(preferred))
       } else {
         setActiveId(null)
         setIntelligence(null)
@@ -140,11 +136,7 @@ export default function CreditIntelligencePanel({
       setIntelligence(rebuilt.credit_intelligence)
       await load()
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to refresh intelligence'
-      // #region agent log
-      fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'148064'},body:JSON.stringify({sessionId:'148064',hypothesisId:'A',location:'CreditIntelligencePanel.tsx:refresh',message:'rebuild intelligence failed',data:{error:msg.slice(0,300)},timestamp:Date.now()})}).catch(()=>{})
-      // #endregion
-      setError(msg)
+      setError(e instanceof Error ? e.message : 'Failed to refresh intelligence')
     } finally {
       setBusy(false)
     }

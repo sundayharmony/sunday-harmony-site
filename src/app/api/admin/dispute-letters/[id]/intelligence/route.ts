@@ -24,24 +24,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       funding_context?: FundingContextPayload
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '148064' },
-      body: JSON.stringify({
-        sessionId: '148064',
-        hypothesisId: 'A',
-        location: 'intelligence/route.ts:entry',
-        message: 'intelligence rebuild requested',
-        data: {
-          sessionIdPrefix: id.slice(0, 8),
-          hasFundingContext: Boolean(body.funding_context),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
-
     const upstream = await disputeLettersFetch(`/internal/reports/${id}/intelligence`, {
       method: 'POST',
       body: JSON.stringify({
@@ -50,21 +32,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       }),
     })
     const upstreamText = await upstream.text()
-
-    // #region agent log
-    fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '148064' },
-      body: JSON.stringify({
-        sessionId: '148064',
-        hypothesisId: 'A',
-        location: 'intelligence/route.ts:upstream',
-        message: 'python intelligence upstream response',
-        data: { status: upstream.status, bodyPreview: upstreamText.slice(0, 200) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
 
     if (!upstream.ok) {
       const missingRoute = upstream.status === 404
@@ -83,42 +50,11 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
     const intelligence = data.credit_intelligence
     if (intelligence) {
-      try {
-        await updateDisputeSessionIntelligence(id, intelligence)
-      } catch (dbErr) {
-        // #region agent log
-        fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '148064' },
-          body: JSON.stringify({
-            sessionId: '148064',
-            hypothesisId: 'C',
-            location: 'intelligence/route.ts:db',
-            message: 'intelligence_json persist failed',
-            data: { error: dbErr instanceof Error ? dbErr.message : String(dbErr) },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
-      }
+      await updateDisputeSessionIntelligence(id, intelligence)
     }
     return NextResponse.json(data)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to rebuild intelligence'
-    // #region agent log
-    fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '148064' },
-      body: JSON.stringify({
-        sessionId: '148064',
-        hypothesisId: 'B',
-        location: 'intelligence/route.ts:catch',
-        message: 'intelligence rebuild exception',
-        data: { error: message.slice(0, 300) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    // #endregion
     return NextResponse.json({ error: message }, { status: 502 })
   }
 }
