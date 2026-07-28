@@ -50,7 +50,11 @@ export default function CreditIntelligencePanel({
       const preferred = list.find((s) => s.status === 'ready') || list[0]
       if (preferred) {
         setActiveId(preferred.id)
-        setIntelligence(intelligenceFromSession(preferred))
+        const existing = intelligenceFromSession(preferred)
+        setIntelligence(existing)
+        // #region agent log
+        fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'148064'},body:JSON.stringify({sessionId:'148064',hypothesisId:'D',location:'CreditIntelligencePanel.tsx:load',message:'loaded linked dispute session',data:{sessionIdPrefix:preferred.id.slice(0,8),status:preferred.status,hasIntelligence:Boolean(existing),hasReportJson:Boolean(preferred.report_json),tradelineCount:preferred.report_json?.tradelines?.length||0},timestamp:Date.now()})}).catch(()=>{})
+        // #endregion
       } else {
         setActiveId(null)
         setIntelligence(null)
@@ -136,7 +140,11 @@ export default function CreditIntelligencePanel({
       setIntelligence(rebuilt.credit_intelligence)
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to refresh intelligence')
+      const msg = e instanceof Error ? e.message : 'Failed to refresh intelligence'
+      // #region agent log
+      fetch('http://127.0.0.1:7413/ingest/b41535e0-0f57-49e9-94f2-079fcf155127',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'148064'},body:JSON.stringify({sessionId:'148064',hypothesisId:'A',location:'CreditIntelligencePanel.tsx:refresh',message:'rebuild intelligence failed',data:{error:msg.slice(0,300)},timestamp:Date.now()})}).catch(()=>{})
+      // #endregion
+      setError(msg)
     } finally {
       setBusy(false)
     }
@@ -194,14 +202,14 @@ export default function CreditIntelligencePanel({
               {(s.report_json?.consumer?.name || s.file_name).slice(0, 28)} · {s.status}
             </button>
           ))}
-          {activeId && intelligence && (
+          {activeId && (
             <button
               type="button"
               disabled={busy}
               onClick={() => void refreshWithFundingContext()}
               className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
             >
-              Refresh with funding context
+              {intelligence ? 'Refresh with funding context' : 'Generate Credit Intelligence'}
             </button>
           )}
           {activeId && (
