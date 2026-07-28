@@ -676,8 +676,10 @@ function CreditFundingAdminContent() {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding Applications</h1>
-          <p className="text-sm text-brand-muted mt-1">Manage intake submissions, funding scores, and applicant messaging</p>
+          <h1 className="text-2xl font-bold text-brand-text">Credit Intelligence</h1>
+          <p className="text-sm text-brand-muted mt-1">
+            Applications, report analysis, dispute letters, funding scores, and client messaging
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button

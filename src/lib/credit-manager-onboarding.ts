@@ -67,7 +67,7 @@ export async function sendCreditManagerSetupEmail(params: {
         <p style="font-size:12px;color:#888;line-height:1.5">If the button does not work, copy this link:<br />
           <a href="${escHtml(resetUrl)}" style="color:#b8943f;word-break:break-all">${escHtml(resetUrl)}</a>
         </p>
-        <p style="color:#525252;line-height:1.6;font-size:14px">After setup you can use the <strong>Credit &amp; Funding</strong> panel and <strong>team messaging</strong> in the admin portal.</p>
+        <p style="color:#525252;line-height:1.6;font-size:14px">After setup you can use the <strong>Credit Intelligence</strong> panel and <strong>team messaging</strong> in the admin portal.</p>
         <p style="font-size:13px;color:#666">This code expires in 7 days. If you did not expect this email, contact Sunday Harmony support.</p>
         <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
           &mdash; Sunday Harmony

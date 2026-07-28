@@ -253,7 +253,7 @@ export default function ContactDetailPage() {
               href={`/admin/credit-funding?id=${profile.application.id}`}
               className="text-xs text-accent hover:underline mt-3 inline-block"
             >
-              View Credit & Funding Application →
+              View Credit Intelligence Application →
             </Link>
           )}
         </div>

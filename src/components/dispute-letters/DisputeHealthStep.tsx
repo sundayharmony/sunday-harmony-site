@@ -172,7 +172,7 @@ export default function DisputeHealthStep({
             href="/admin/credit-funding"
             className="rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-text hover:bg-neutral-50"
           >
-            Back to Credit & Funding
+            Back to Credit Intelligence
           </Link>
         )}
       </div>
