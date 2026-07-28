@@ -991,7 +991,7 @@ function CreditFundingAdminContent() {
                       activeTab === tab ? 'border-accent text-brand-text' : 'border-transparent text-brand-dim'
                     }`}
                   >
-                    {tab === 'intelligence' ? 'Credit Intelligence' : tab}
+                    {tab === 'intelligence' ? 'Analysis' : tab}
                   </button>
                 ))}
               </div>
@@ -1015,7 +1015,7 @@ function CreditFundingAdminContent() {
                           onClick={() => setActiveTab('intelligence')}
                           className="text-xs font-semibold text-accent hover:underline"
                         >
-                          Edit in Credit Intelligence →
+                          Edit in Analysis →
                         </button>
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-center mb-3">
@@ -1047,7 +1047,7 @@ function CreditFundingAdminContent() {
                     <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-dashed border-brand-border bg-neutral-50 px-4 py-3">
                       <p className="text-sm text-brand-muted">
                         Analyze reports and save staff funding scores in{' '}
-                        <span className="font-semibold text-brand-text">Credit Intelligence</span>.
+                        <span className="font-semibold text-brand-text">Analysis</span>.
                       </p>
                       <button
                         type="button"
