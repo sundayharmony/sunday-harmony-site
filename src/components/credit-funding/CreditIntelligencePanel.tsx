@@ -176,7 +176,12 @@ export default function CreditIntelligencePanel({
       setSuccess('PDF downloaded.')
       setStatus('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to download PDF')
+      const message = e instanceof Error ? e.message : 'Failed to download PDF'
+      setError(
+        /Minified React error/i.test(message)
+          ? 'Could not build the Credit Analysis PDF. Try Refresh with funding context, then download again.'
+          : message
+      )
       setStatus('')
     } finally {
       setBusy(false)

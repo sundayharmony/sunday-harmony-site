@@ -35,6 +35,14 @@ const csp = buildContentSecurityPolicy()
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  serverExternalPackages: [
+    '@react-pdf/renderer',
+    '@react-pdf/font',
+    '@react-pdf/pdfkit',
+    '@react-pdf/image',
+    '@react-pdf/layout',
+    'fontkit',
+  ],
   async headers() {
     return [
       {

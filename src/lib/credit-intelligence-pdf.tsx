@@ -52,9 +52,6 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   bandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     marginTop: 14,
     marginBottom: 10,
   },
@@ -66,6 +63,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     textTransform: 'uppercase',
+    alignSelf: 'flex-start',
   },
   narrative: {
     color: colors.muted,
@@ -87,18 +85,19 @@ const styles = StyleSheet.create({
   },
   twoCol: {
     flexDirection: 'row',
-    gap: 12,
   },
   col: {
     flex: 1,
+    paddingRight: 8,
+  },
+  colLast: {
+    flex: 1,
+    paddingLeft: 8,
   },
   listItem: {
     marginBottom: 4,
     color: colors.muted,
     lineHeight: 1.35,
-  },
-  bullet: {
-    color: colors.accent,
   },
   card: {
     borderWidth: 1,
@@ -170,16 +169,37 @@ const styles = StyleSheet.create({
     color: colors.dim,
     textAlign: 'center',
   },
+  boldLabel: {
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 4,
+  },
+  spacedBlock: {
+    marginTop: 8,
+  },
 })
 
-function formatBand(band: string) {
-  return band.replace(/_/g, ' ')
+/** Coerce unknown values to plain text — prevents React #31 from non-string children. */
+function asText(value: unknown, fallback = ''): string {
+  if (value == null) return fallback
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return fallback
+}
+
+function asTextList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((v) => asText(v)).filter((v) => v.length > 0)
+}
+
+function formatBand(band: unknown) {
+  return asText(band).replace(/_/g, ' ')
 }
 
 function formatDateLabel(value?: string) {
-  if (!value) return ''
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
+  const raw = asText(value)
+  if (!raw) return ''
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return raw
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -187,51 +207,53 @@ function formatDateLabel(value?: string) {
   })
 }
 
-function impactPct(value: number) {
-  return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
+function impactPct(value: unknown) {
+  const n = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(n)) return '0%'
+  return `${Math.round(Math.min(1, Math.max(0, n)) * 100)}%`
 }
 
 function BulletList({ items, limit = 8 }: { items: string[]; limit?: number }) {
-  if (!items.length) {
+  const list = asTextList(items).slice(0, limit)
+  if (!list.length) {
     return <Text style={styles.listItem}>None noted.</Text>
   }
   return (
-    <>
-      {items.slice(0, limit).map((item) => (
-        <Text key={item} style={styles.listItem}>
-          <Text style={styles.bullet}>• </Text>
-          {item}
+    <View>
+      {list.map((item, index) => (
+        <Text key={`${index}-${item.slice(0, 24)}`} style={styles.listItem}>
+          {`• ${item}`}
         </Text>
       ))}
-    </>
+    </View>
   )
 }
 
 function FactorBlock({ factor }: { factor: FactorAnalysis }) {
-  const label = FACTOR_LABELS[factor.factor] || factor.factor
+  const label = asText(FACTOR_LABELS[factor.factor] || factor.factor, 'Factor')
   return (
     <View style={styles.card} wrap={false}>
       <View style={styles.cardTitleRow}>
         <Text style={styles.cardTitle}>{label}</Text>
         <Text style={styles.cardBand}>{formatBand(factor.score_band)}</Text>
       </View>
-      <Text style={styles.cardBody}>{factor.summary}</Text>
+      <Text style={styles.cardBody}>{asText(factor.summary)}</Text>
     </View>
   )
 }
 
 function RecommendationBlock({ rec }: { rec: Recommendation }) {
+  const actions = asTextList(rec.suggested_actions).slice(0, 4)
   return (
     <View style={styles.recBlock} wrap={false}>
-      <Text style={styles.recTitle}>{rec.title}</Text>
+      <Text style={styles.recTitle}>{asText(rec.title, 'Recommendation')}</Text>
       <Text style={styles.recMeta}>
-        Impact {impactPct(rec.estimated_impact)} · Confidence {impactPct(rec.confidence)}
+        {`Impact ${impactPct(rec.estimated_impact)} · Confidence ${impactPct(rec.confidence)}`}
       </Text>
-      <Text style={styles.cardBody}>{rec.rationale}</Text>
-      {rec.suggested_actions.slice(0, 4).map((action) => (
-        <Text key={action} style={styles.listItem}>
-          <Text style={styles.bullet}>• </Text>
-          {action}
+      <Text style={styles.cardBody}>{asText(rec.rationale)}</Text>
+      {actions.map((action, index) => (
+        <Text key={`${index}-${action.slice(0, 24)}`} style={styles.listItem}>
+          {`• ${action}`}
         </Text>
       ))}
     </View>
@@ -245,17 +267,34 @@ export function CreditIntelligencePdfDocument({
 }) {
   const overall = report.overall
   const funding = report.funding_readiness
-  const weaknesses = [...(overall.weaknesses || []), ...(overall.risk_factors || [])]
+  const strengths = asTextList(overall?.strengths)
+  const weaknesses = [...asTextList(overall?.weaknesses), ...asTextList(overall?.risk_factors)]
+  const consumerName = asText(report.consumer_name, 'Client')
+  const narrative = asText(overall?.narrative)
+  const averageScore =
+    typeof overall?.average_score === 'number' ? overall.average_score : null
 
   const metaParts = [
-    report.consumer_name || 'Client',
-    report.report_date ? `Report ${report.report_date}` : '',
+    consumerName,
+    report.report_date ? `Report ${asText(report.report_date)}` : '',
     report.analyzed_at ? `Analyzed ${formatDateLabel(report.analyzed_at)}` : '',
   ].filter(Boolean)
 
+  const bandLabel = formatBand(overall?.band)
+  const scoreSuffix = averageScore != null ? `  ·  ~${averageScore}` : ''
+
+  const blockers = asTextList(funding?.blockers)
+  const supportive = asTextList(funding?.supportive_signals)
+  const practical = asTextList(funding?.practical_steps)
+  const nextSteps = asTextList(report.recommended_next_steps)
+  const factors = Array.isArray(report.factors) ? report.factors : []
+  const recommendations = Array.isArray(report.recommendations)
+    ? report.recommendations.slice(0, 10)
+    : []
+
   return (
     <Document
-      title={`Credit Profile Analysis — ${report.consumer_name || 'Client'}`}
+      title={`Credit Profile Analysis — ${consumerName}`}
       author="Sunday Harmony"
       subject="Credit Profile Analysis"
       creator="Sunday Harmony Credit Intelligence"
@@ -268,22 +307,19 @@ export function CreditIntelligencePdfDocument({
         </View>
 
         <View style={styles.bandRow}>
-          <Text style={styles.bandPill}>
-            {formatBand(overall.band)}
-            {overall.average_score != null ? `  ·  ~${overall.average_score}` : ''}
-          </Text>
+          <Text style={styles.bandPill}>{`${bandLabel}${scoreSuffix}`}</Text>
         </View>
-        {overall.narrative ? <Text style={styles.narrative}>{overall.narrative}</Text> : null}
+        {narrative ? <Text style={styles.narrative}>{narrative}</Text> : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Strengths & Risks</Text>
           <View style={styles.twoCol}>
             <View style={styles.col}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Strengths</Text>
-              <BulletList items={overall.strengths || []} />
+              <Text style={styles.boldLabel}>Strengths</Text>
+              <BulletList items={strengths} />
             </View>
-            <View style={styles.col}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Weaknesses & risks</Text>
+            <View style={styles.colLast}>
+              <Text style={styles.boldLabel}>Weaknesses & risks</Text>
               <BulletList items={weaknesses} />
             </View>
           </View>
@@ -294,61 +330,57 @@ export function CreditIntelligencePdfDocument({
           <View style={styles.card} wrap={false}>
             <View style={styles.cardTitleRow}>
               <Text style={styles.cardTitle}>
-                {formatBand(funding.level)} · {funding.score_0_to_100}/100
+                {`${formatBand(funding?.level)} · ${asText(funding?.score_0_to_100, '0')}/100`}
               </Text>
             </View>
-            <Text style={styles.cardBody}>{funding.summary}</Text>
+            <Text style={styles.cardBody}>{asText(funding?.summary)}</Text>
           </View>
           <View style={styles.twoCol}>
             <View style={styles.col}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Blockers</Text>
+              <Text style={styles.boldLabel}>Blockers</Text>
               <BulletList
-                items={
-                  funding.blockers?.length
-                    ? funding.blockers
-                    : ['None flagged from available data.']
-                }
+                items={blockers.length ? blockers : ['None flagged from available data.']}
               />
             </View>
-            <View style={styles.col}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Supportive signals</Text>
+            <View style={styles.colLast}>
+              <Text style={styles.boldLabel}>Supportive signals</Text>
               <BulletList
                 items={
-                  funding.supportive_signals?.length
-                    ? funding.supportive_signals
+                  supportive.length
+                    ? supportive
                     : ['Limited supportive signals in current extract.']
                 }
               />
             </View>
           </View>
-          {funding.practical_steps?.length ? (
-            <View style={{ marginTop: 8 }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 4 }}>Practical next steps</Text>
-              <BulletList items={funding.practical_steps} limit={6} />
+          {practical.length ? (
+            <View style={styles.spacedBlock}>
+              <Text style={styles.boldLabel}>Practical next steps</Text>
+              <BulletList items={practical} limit={6} />
             </View>
           ) : null}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Factor Analysis</Text>
-          {(report.factors || []).map((factor) => (
-            <FactorBlock key={factor.factor} factor={factor} />
+          {factors.map((factor, index) => (
+            <FactorBlock key={`${asText(factor.factor, 'factor')}-${index}`} factor={factor} />
           ))}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Prioritized Recommendations</Text>
-          {(report.recommendations || []).slice(0, 10).map((rec) => (
-            <RecommendationBlock key={rec.id} rec={rec} />
+          {recommendations.map((rec, index) => (
+            <RecommendationBlock key={`${asText(rec.id, 'rec')}-${index}`} rec={rec} />
           ))}
         </View>
 
-        {report.recommended_next_steps?.length ? (
+        {nextSteps.length ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recommended Next Steps</Text>
-            {report.recommended_next_steps.map((step, index) => (
-              <Text key={step} style={styles.stepItem}>
-                {index + 1}. {step}
+            {nextSteps.map((step, index) => (
+              <Text key={`${index}-${step.slice(0, 24)}`} style={styles.stepItem}>
+                {`${index + 1}. ${step}`}
               </Text>
             ))}
           </View>
@@ -356,8 +388,10 @@ export function CreditIntelligencePdfDocument({
 
         <View style={styles.footer}>
           <Text style={styles.disclaimer}>
-            {report.disclaimer ||
-              'Educational analysis only. Not a credit score calculation, credit counseling substitute, or legal advice. Does not guarantee score changes, deletions, or financing approval.'}
+            {asText(
+              report.disclaimer,
+              'Educational analysis only. Not a credit score calculation, credit counseling substitute, or legal advice. Does not guarantee score changes, deletions, or financing approval.'
+            )}
           </Text>
         </View>
 
