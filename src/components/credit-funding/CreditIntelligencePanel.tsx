@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
+import CreditProgressPanel from '@/components/dispute-letters/CreditProgressPanel'
 import { ProgressPanel } from '@/components/dispute-letters/ProgressPanel'
 import { DISPUTE_LETTER_MAX_MB } from '@/lib/dispute-letters-storage'
 import {
@@ -10,6 +11,11 @@ import {
   rebuildDisputeIntelligence,
   streamAnalyzeReport,
 } from '@/lib/dispute-letters/client-api'
+import {
+  buildCreditProgressDiff,
+  formatProgressDate,
+  snapshotFromSession,
+} from '@/lib/dispute-letters/credit-progress'
 import { uploadDisputeLetterToSignedUrl } from '@/lib/dispute-letters/upload-client'
 import type {
   CreditIntelligenceReport,
@@ -23,6 +29,12 @@ function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceR
     s.report_json?.credit_intelligence ||
     null
   )
+}
+
+function shortFileName(name: string): string {
+  if (name.length <= 28) return name
+  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : ''
+  return `${name.slice(0, 24 - ext.length)}…${ext}`
 }
 
 export default function CreditIntelligencePanel({
@@ -73,6 +85,30 @@ export default function CreditIntelligencePanel({
     setIntelligence(s ? intelligenceFromSession(s) : null)
     setSuccess('')
   }
+
+  const progress = useMemo(
+    () => buildCreditProgressDiff(sessions, activeId),
+    [sessions, activeId]
+  )
+
+  const readyChronological = useMemo(() => {
+    return sessions
+      .filter((s) => s.status === 'ready' && snapshotFromSession(s))
+      .slice()
+      .sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+  }, [sessions])
+
+  const firstReadyId = readyChronological[0]?.id ?? null
+  const latestReadyId = readyChronological[readyChronological.length - 1]?.id ?? null
+  const previousReadyId =
+    activeId && readyChronological.length > 1
+      ? (() => {
+          const idx = readyChronological.findIndex((s) => s.id === activeId)
+          return idx > 0 ? readyChronological[idx - 1].id : null
+        })()
+      : null
 
   async function onFile(file: File) {
     setError('')
@@ -259,62 +295,94 @@ export default function CreditIntelligencePanel({
       </div>
 
       {sessions.length > 0 && (
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-brand-dim uppercase">Reports</span>
-          {sessions.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => selectSession(s.id)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${
-                activeId === s.id
-                  ? 'border-accent bg-accent/10 text-brand-text'
-                  : 'border-brand-border text-brand-dim hover:bg-neutral-50'
-              }`}
-            >
-              {(s.report_json?.consumer?.name || s.file_name).slice(0, 28)} · {s.status}
-            </button>
-          ))}
-          {activeId && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void refreshWithFundingContext()}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
-            >
-              {intelligence ? 'Refresh with funding context' : 'Generate Credit Intelligence'}
-            </button>
-          )}
-          {activeId && intelligence && (
-            <>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-brand-dim uppercase">Report history</span>
+            {sessions.map((s) => {
+              const intel = intelligenceFromSession(s)
+              const reportDate =
+                intel?.report_date || s.report_json?.report_date || s.created_at
+              const badges: string[] = []
+              if (s.id === firstReadyId) badges.push('First')
+              if (s.id === previousReadyId && s.id !== firstReadyId) badges.push('Previous')
+              if (s.id === latestReadyId && sessions.filter((x) => x.status === 'ready').length > 1) {
+                badges.push('Latest')
+              }
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => selectSession(s.id)}
+                  className={`px-3 py-2 text-left text-xs font-semibold rounded-lg border ${
+                    activeId === s.id
+                      ? 'border-accent bg-accent/10 text-brand-text'
+                      : 'border-brand-border text-brand-dim hover:bg-neutral-50'
+                  }`}
+                >
+                  <span className="block">{formatProgressDate(reportDate)}</span>
+                  <span className="block font-medium text-[11px] opacity-80">
+                    {shortFileName(s.file_name)} · {s.status}
+                  </span>
+                  {badges.length > 0 && (
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {badges.map((b) => (
+                        <span
+                          key={b}
+                          className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-neutral-100 text-brand-dim"
+                        >
+                          {b}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            {activeId && (
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void downloadPdf()}
+                onClick={() => void refreshWithFundingContext()}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
               >
-                Download PDF
+                {intelligence ? 'Refresh with funding context' : 'Generate Credit Intelligence'}
               </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void sendPdfToClient()}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50"
+            )}
+            {activeId && intelligence && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void downloadPdf()}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  Download PDF
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void sendPdfToClient()}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  Send to client
+                </button>
+              </>
+            )}
+            {activeId && (
+              <Link
+                href={`/admin/dispute-letters/${activeId}/health`}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
               >
-                Send to client
-              </button>
-            </>
-          )}
-          {activeId && (
-            <Link
-              href={`/admin/dispute-letters/${activeId}/health`}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
-            >
-              Dispute letters workflow →
-            </Link>
-          )}
+                Dispute letters workflow →
+              </Link>
+            )}
+          </div>
         </div>
       )}
+
+      {progress.readyCount >= 1 && <CreditProgressPanel progress={progress} />}
 
       {intelligence ? (
         <CreditIntelligenceDashboard intelligence={intelligence} sessionId={activeId || undefined} />

@@ -253,3 +253,42 @@ export function sourceLabel(source: string) {
 export function impactPercent(value: number) {
   return `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`
 }
+
+export type CreditProgressDirection = 'improved' | 'worsened' | 'unchanged' | 'unknown'
+
+export interface CreditProgressHealthCounts {
+  total_accounts: number | null
+  negative_count: number | null
+  collection_count: number | null
+}
+
+export interface CreditProgressSnapshot {
+  sessionId: string
+  createdAt: string
+  reportDate: string
+  analyzedAt: string
+  fileName: string
+  overallBand: string | null
+  averageScore: number | null
+  fundingLevel: string | null
+  fundingScore: number | null
+  factorBands: Record<string, string>
+  healthCounts: CreditProgressHealthCounts
+}
+
+export interface CreditProgressDelta {
+  field: string
+  label: string
+  from: string | number | null
+  to: string | number | null
+  direction: CreditProgressDirection
+}
+
+export interface CreditProgressReport {
+  baseline: CreditProgressSnapshot | null
+  previous: CreditProgressSnapshot | null
+  current: CreditProgressSnapshot | null
+  vsBaseline: CreditProgressDelta[]
+  vsPrevious: CreditProgressDelta[]
+  readyCount: number
+}
