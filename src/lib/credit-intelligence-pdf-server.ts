@@ -24,7 +24,12 @@ export function creditIntelligencePdfFilename(report: CreditIntelligenceReport):
 
 function friendlyPdfError(err: unknown): Error {
   const message = err instanceof Error ? err.message : String(err || 'Unknown PDF error')
-  if (/Minified React error #31|Objects are not valid as a React child/i.test(message)) {
+  console.error('[credit-intelligence-pdf] render failed:', message)
+  if (
+    /Minified React error #31|Objects are not valid as a React child|React is not defined/i.test(
+      message
+    )
+  ) {
     return new Error(
       'Could not build the Credit Analysis PDF from this report. Try Refresh with funding context, then download again.'
     )
@@ -39,7 +44,11 @@ export async function renderCreditIntelligencePdf(
     const element = createElement(CreditIntelligencePdfDocument, {
       report,
     }) as ReactElement<DocumentProps>
-    return await renderToBuffer(element)
+    const buffer = await renderToBuffer(element)
+    if (!buffer?.length || buffer.subarray(0, 5).toString() !== '%PDF-') {
+      throw new Error('PDF renderer returned an invalid document')
+    }
+    return buffer
   } catch (err) {
     throw friendlyPdfError(err)
   }
