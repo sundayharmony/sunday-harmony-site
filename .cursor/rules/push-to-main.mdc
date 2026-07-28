@@ -1,0 +1,9 @@
+# Push finished work to main
+
+When implementation work for this repo is complete and verified:
+
+1. Merge the working branch into `main` (or commit directly on `main` if already checked out).
+2. `git push -u origin main` so production (Vercel) deploys from `main`.
+3. Do not leave admin/UX fixes only on a feature branch if the user expects them live.
+
+Prefer `main` as the deployment branch for Sunday Harmony site changes unless the user explicitly asks for a long-lived feature branch only.
