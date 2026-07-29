@@ -10,7 +10,7 @@ import DocumentPreviewModal, {
 } from '@/components/credit-funding/DocumentPreviewModal'
 import DocumentPreviewActions from '@/components/credit-funding/DocumentPreviewActions'
 import StatusBadge from '@/components/ui/StatusBadge'
-import { type ApplicationStatus } from '@/lib/credit-funding-types'
+import { type ApplicationStatus, type FundingScores } from '@/lib/credit-funding-types'
 
 interface PortalDocument {
   id: string
@@ -34,13 +34,7 @@ interface ApplicationData {
   next_steps?: string
   is_business_owner?: boolean
   needs_funding?: boolean
-  funding_scores?: {
-    revenue_score?: number | null
-    funding_readiness?: number | null
-    credit_readiness?: number | null
-    recommended_programs?: string[]
-    estimated_range?: string
-  }
+  funding_scores?: FundingScores
   created_at: string
   updated_at: string
 }

@@ -29,7 +29,7 @@ export default function StaffFundingScoresEditor({
       <div>
         <h3 className="text-sm font-bold text-brand-text">Staff assessment</h3>
         <p className="mt-1 text-sm text-brand-muted">
-          Scores and recommendations shown on the client portal. Separate from report analysis above.
+          Scores and recommendations shown on the client portal. Separate from report analysis on the Analysis tab.
         </p>
         {engineHint ? (
           <p className="mt-2 text-xs text-brand-dim">

@@ -14,7 +14,6 @@ import {
   CFPB_PORTAL_URL,
   EXPERIAN_SIGNUP_URL,
   FUNDING_TIMEFRAMES,
-  creditProviderShowsTrialWarning,
   getCreditProviderLinkAction,
   getCreditProviderSignupLink,
   requiresBusinessSection,
@@ -655,9 +654,6 @@ export default function CreditFundingForm() {
 
         {currentStepId === 'monitoring' && (
           <div>
-            <div className="mb-5 p-4 bg-accent-soft/40 border border-brand-border rounded-xl text-sm text-brand-muted leading-relaxed">
-              These services typically offer low-cost trial memberships. If you sign up, you may wish to cancel before any recurring subscription charges occur. Please review each provider&apos;s terms directly.
-            </div>
             <div className="mb-4">
               <label className={labelClass} htmlFor={fid('selectedCreditProvider')}>Selected Provider *</label>
               <select id={fid('selectedCreditProvider')} name="selectedCreditProvider" className={inputClass} value={form.selectedCreditProvider} onChange={(e) => update('selectedCreditProvider', e.target.value)}>
@@ -673,50 +669,57 @@ export default function CreditFundingForm() {
                 Enter the login credentials for your credit monitoring service below.
               </div>
             )}
-            {form.selectedCreditProvider && (() => {
-              const providerUrl = getCreditProviderSignupLink(form.selectedCreditProvider)
-              if (!providerUrl) return null
-              const linkAction = getCreditProviderLinkAction(form.selectedCreditProvider)
-              const isLogin = linkAction === 'login'
-              const providerName = form.selectedCreditProvider
-              return (
-                <div
-                  className="mb-5 p-4 bg-sky-50 border border-sky-200 rounded-xl"
-                  role="region"
-                  aria-label={isLogin ? `Log in to ${providerName}` : `Sign up with ${providerName}`}
-                >
-                  <p className="text-sm font-semibold text-brand-text mb-1">
-                    {isLogin ? `Log in to ${providerName} first` : `Sign up with ${providerName} first`}
+            {form.selectedCreditProvider && form.selectedCreditProvider !== 'Other' && (
+              <details
+                className="mb-5 rounded-xl border border-brand-border bg-neutral-50 open:bg-white"
+                open={!monitoringCredentialsStarted}
+              >
+                <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-brand-text flex items-center justify-between gap-2">
+                  <span>Account setup links</span>
+                  <span className="text-xs font-medium text-brand-dim">Provider · Experian · CFPB</span>
+                </summary>
+                <div className="px-4 pb-4 space-y-3 border-t border-brand-border pt-3">
+                  <p className="text-xs text-brand-muted leading-relaxed">
+                    Create or open each account first, then enter credentials below. Trial memberships can convert to paid plans — cancel after signup if you do not want a recurring charge.
                   </p>
-                  <p className="text-sm text-brand-muted mb-3">
-                    {isLogin
-                      ? 'Access the provider portal and sign in before entering your login credentials below.'
-                      : 'Create your account with this provider before entering your login credentials below.'}
-                  </p>
-                  <a
-                    href={providerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${isLogin ? 'Log in' : 'Sign up'} at ${providerName} (opens in a new tab)`}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
-                  >
-                    {isLogin ? `Log in at ${providerName}` : `Sign up at ${providerName}`}
-                    <span aria-hidden="true">↗</span>
-                  </a>
-                  {creditProviderShowsTrialWarning(form.selectedCreditProvider) && (
-                    <div
-                      className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200/90 text-sm text-amber-950"
-                      role="note"
+                  {(() => {
+                    const providerUrl = getCreditProviderSignupLink(form.selectedCreditProvider)
+                    if (!providerUrl) return null
+                    const linkAction = getCreditProviderLinkAction(form.selectedCreditProvider)
+                    const isLogin = linkAction === 'login'
+                    return (
+                      <a
+                        href={providerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800"
+                      >
+                        {isLogin ? 'Open provider login' : 'Open provider signup'}
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    )
+                  })()}
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={EXPERIAN_SIGNUP_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-brand-border text-sm font-semibold text-brand-text hover:bg-neutral-50"
                     >
-                      <p className="font-semibold text-amber-950">Cancel your trial after signing up</p>
-                      <p className="mt-1 text-amber-900/90 leading-relaxed">
-                        Trial memberships convert to paid plans — often $25.99+ per month. Cancel right after you create your account to avoid recurring charges.
-                      </p>
-                    </div>
-                  )}
+                      Experian signup ↗
+                    </a>
+                    <a
+                      href={CFPB_PORTAL_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-brand-border text-sm font-semibold text-brand-text hover:bg-neutral-50"
+                    >
+                      CFPB register ↗
+                    </a>
+                  </div>
                 </div>
-              )
-            })()}
+              </details>
+            )}
             {form.selectedCreditProvider && (
               <>
                 <div className="mb-4">
@@ -748,26 +751,6 @@ export default function CreditFundingForm() {
                   {errors.providerPassword && <p className="text-xs text-brand-red mt-1">{errors.providerPassword}</p>}
                 </div>
                 <div className="mb-5 pt-4 border-t border-brand-border">
-                  <div
-                    className="mb-4 p-4 bg-sky-50 border border-sky-200 rounded-xl"
-                    role="region"
-                    aria-label="Sign up with Experian.com"
-                  >
-                    <p className="text-sm font-semibold text-brand-text mb-1">Sign up with Experian.com first</p>
-                    <p className="text-sm text-brand-muted mb-3">
-                      Create your free Experian.com account before entering your credentials below.
-                    </p>
-                    <a
-                      href={EXPERIAN_SIGNUP_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Sign up at Experian.com (opens in a new tab)"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
-                    >
-                      Sign up at Experian.com
-                      <span aria-hidden="true">↗</span>
-                    </a>
-                  </div>
                   <p className="text-sm font-semibold text-brand-text mb-3">Experian.com credentials</p>
                   <div className="mb-4">
                     <label className={labelClass} htmlFor={fid('experianEmail')}>Experian.com Email *</label>
@@ -808,26 +791,6 @@ export default function CreditFundingForm() {
                   </div>
                 </div>
                 <div className="mb-5 pt-4 border-t border-brand-border">
-                  <div
-                    className="mb-4 p-4 bg-sky-50 border border-sky-200 rounded-xl"
-                    role="region"
-                    aria-label="Register with CFPB consumer portal"
-                  >
-                    <p className="text-sm font-semibold text-brand-text mb-1">Register with the CFPB consumer portal first</p>
-                    <p className="text-sm text-brand-muted mb-3">
-                      Create your free CFPB account before entering your credentials below.
-                    </p>
-                    <a
-                      href={CFPB_PORTAL_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Register at CFPB consumer portal (opens in a new tab)"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-brand-text text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
-                    >
-                      Register at CFPB
-                      <span aria-hidden="true">↗</span>
-                    </a>
-                  </div>
                   <p className="text-sm font-semibold text-brand-text mb-3">CFPB portal credentials</p>
                   <div className="mb-4">
                     <label className={labelClass} htmlFor={fid('cfpbEmail')}>CFPB Portal Email *</label>
@@ -890,26 +853,58 @@ export default function CreditFundingForm() {
                 </label>
               ))}
             </div>
+
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-brand-text mb-1">Funding (only if you are seeking funding)</p>
+              <p className="text-xs text-brand-dim mb-3">
+                Skip this if you only need credit repair. Choosing a funding use makes amount and timeframe required.
+              </p>
+              {!showFundingFields ? (
+                <button
+                  type="button"
+                  onClick={() => setFundingDetailsOpen(true)}
+                  className="text-sm font-semibold text-accent hover:underline"
+                >
+                  Add funding details
+                </button>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-brand-border bg-neutral-50">
+                  <div>
+                    <label className={labelClass} htmlFor={fid('fundingAmount')}>
+                      How much funding are you seeking?{seekingFunding ? ' *' : ''}
+                    </label>
+                    <input id={fid('fundingAmount')} name="fundingAmount" className={inputClass} placeholder="e.g. $50,000" value={form.fundingAmount} onChange={(e) => update('fundingAmount', e.target.value)} />
+                    {errors.fundingAmount && <p className="text-xs text-brand-red mt-1">{errors.fundingAmount}</p>}
+                  </div>
+                  <div>
+                    <label className={labelClass} htmlFor={fid('fundingUse')}>
+                      Personal or business use?{seekingFunding || form.fundingUse ? ' *' : ''}
+                    </label>
+                    <select id={fid('fundingUse')} name="fundingUse" className={inputClass} value={form.fundingUse} onChange={(e) => update('fundingUse', e.target.value)}>
+                      <option value="">Not seeking funding</option>
+                      <option value="Personal">Personal</option>
+                      <option value="Business">Business</option>
+                      <option value="Both">Both</option>
+                    </select>
+                    {errors.fundingUse && <p className="text-xs text-brand-red mt-1">{errors.fundingUse}</p>}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={labelClass} htmlFor={fid('fundingTimeframe')}>
+                      Timeframe for funding{seekingFunding ? ' *' : ''}
+                    </label>
+                    <select id={fid('fundingTimeframe')} name="fundingTimeframe" className={inputClass} value={form.fundingTimeframe} onChange={(e) => update('fundingTimeframe', e.target.value)}>
+                      <option value="">Select timeframe</option>
+                      {FUNDING_TIMEFRAMES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    {errors.fundingTimeframe && <p className="text-xs text-brand-red mt-1">{errors.fundingTimeframe}</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className={labelClass} htmlFor={fid('fundingAmount')}>
-                  How much funding are you seeking?{isSeekingFunding(form.creditGoals, form.fundingUse) ? ' *' : ' (optional)'}
-                </label>
-                <input id={fid('fundingAmount')} name="fundingAmount" className={inputClass} placeholder="e.g. $50,000" value={form.fundingAmount} onChange={(e) => update('fundingAmount', e.target.value)} />
-                {errors.fundingAmount && <p className="text-xs text-brand-red mt-1">{errors.fundingAmount}</p>}
-              </div>
-              <div>
-                <label className={labelClass} htmlFor={fid('fundingUse')}>
-                  Personal or business use?{isSeekingFunding(form.creditGoals, form.fundingUse) || form.fundingUse ? ' *' : ' (optional)'}
-                </label>
-                <select id={fid('fundingUse')} name="fundingUse" className={inputClass} value={form.fundingUse} onChange={(e) => update('fundingUse', e.target.value)}>
-                  <option value="">Select / Not seeking funding</option>
-                  <option value="Personal">Personal</option>
-                  <option value="Business">Business</option>
-                  <option value="Both">Both</option>
-                </select>
-                {errors.fundingUse && <p className="text-xs text-brand-red mt-1">{errors.fundingUse}</p>}
-              </div>
               <div>
                 <label className={labelClass} htmlFor={fid('ownsBusiness')}>Do you currently own a business?</label>
                 <select id={fid('ownsBusiness')} name="ownsBusiness" className={inputClass} value={form.ownsBusiness ? 'yes' : 'no'} onChange={(e) => update('ownsBusiness', e.target.value === 'yes')}>
@@ -924,18 +919,6 @@ export default function CreditFundingForm() {
                   {errors.businessName && <p className="text-xs text-brand-red mt-1">{errors.businessName}</p>}
                 </div>
               )}
-              <div className="sm:col-span-2">
-                <label className={labelClass} htmlFor={fid('fundingTimeframe')}>
-                  Timeframe for funding{isSeekingFunding(form.creditGoals, form.fundingUse) ? ' *' : ' (optional)'}
-                </label>
-                <select id={fid('fundingTimeframe')} name="fundingTimeframe" className={inputClass} value={form.fundingTimeframe} onChange={(e) => update('fundingTimeframe', e.target.value)}>
-                  <option value="">Select timeframe</option>
-                  {FUNDING_TIMEFRAMES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                {errors.fundingTimeframe && <p className="text-xs text-brand-red mt-1">{errors.fundingTimeframe}</p>}
-              </div>
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('goalsNotes')}>Tell us about your situation and goals</label>
