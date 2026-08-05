@@ -191,10 +191,16 @@ export const team = [
     bio: 'Passionate about helping businesses unlock their marketing potential. Mac brings strategic vision and hands-on execution to every client relationship.',
   },
   {
-    initials: 'BO',
-    name: 'Benjamin G. Ouckama',
+    initials: 'JH',
+    name: 'Jordan Hale',
     role: 'Sales Specialist',
-    bio: 'Benjamin bridges the gap between businesses and the marketing solutions they need. He ensures every client gets the right package for their goals and budget.',
+    bio: 'Jordan bridges the gap between businesses and the marketing solutions they need. He ensures every client gets the right package for their goals and budget.',
+  },
+  {
+    initials: 'AQ',
+    name: 'Avery Quinn',
+    role: 'Client Success Coordinator',
+    bio: 'Avery keeps every client relationship on track — from onboarding through ongoing support — so your team always has a clear point of contact and next step.',
   },
 ]
 
