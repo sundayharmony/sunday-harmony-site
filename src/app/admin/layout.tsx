@@ -1,7 +1,10 @@
+import type { Metadata } from 'next'
 import AdminShell from '@/components/admin/AdminShell'
+import { NO_INDEX } from '@/lib/seo'
 
-export const metadata = {
-  title: 'Admin Dashboard | Sunday Harmony',
+export const metadata: Metadata = {
+  title: 'Admin Dashboard',
+  robots: NO_INDEX,
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

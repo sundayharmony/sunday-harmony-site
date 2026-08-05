@@ -5,9 +5,16 @@ import { getPublishedCaseStudies } from '@/lib/db'
 import { getCaseStudyPdfRoute } from '@/lib/client-case-studies-storage'
 
 export const metadata: Metadata = {
-  title: 'Case Studies | Sunday Harmony',
+  title: 'Case Studies',
   description:
     'See real client results from Sunday Harmony — marketing case studies showcasing growth, strategy, and measurable outcomes.',
+  alternates: { canonical: '/case-studies' },
+  openGraph: {
+    title: 'Case Studies | Sunday Harmony',
+    description:
+      'See real client results from Sunday Harmony — marketing case studies showcasing growth, strategy, and measurable outcomes.',
+    url: '/case-studies',
+  },
 }
 
 export const revalidate = 60

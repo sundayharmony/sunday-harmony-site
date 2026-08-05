@@ -3,8 +3,16 @@ import Link from 'next/link'
 import PublicPageLayout from '@/components/layout/PublicPageLayout'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | Credit & Funding | Sunday Harmony',
-  description: 'Privacy policy for Sunday Harmony Credit & Funding services — how we collect, use, and protect your information.',
+  title: 'Privacy Policy | Credit & Funding',
+  description:
+    'Privacy policy for Sunday Harmony Credit & Funding services — how we collect, use, and protect your information.',
+  alternates: { canonical: '/credit-funding/privacy' },
+  openGraph: {
+    title: 'Privacy Policy | Credit & Funding | Sunday Harmony',
+    description:
+      'Privacy policy for Sunday Harmony Credit & Funding services — how we collect, use, and protect your information.',
+    url: '/credit-funding/privacy',
+  },
 }
 
 const sections = [

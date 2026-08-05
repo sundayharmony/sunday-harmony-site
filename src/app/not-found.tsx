@@ -1,4 +1,11 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import { NO_INDEX } from '@/lib/seo'
+
+export const metadata: Metadata = {
+  title: 'Page not found',
+  robots: NO_INDEX,
+}
 
 export default function NotFound() {
   return (

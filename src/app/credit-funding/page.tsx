@@ -4,10 +4,17 @@ import PublicPageLayout from '@/components/layout/PublicPageLayout'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 
 export const metadata: Metadata = {
-  title: 'Credit & Funding | Sunday Harmony',
+  title: 'Credit & Funding',
   description:
     'Apply for credit repair and funding assistance with Sunday Harmony. Secure multi-step intake for personal and business funding goals.',
   referrer: 'no-referrer',
+  alternates: { canonical: '/credit-funding' },
+  openGraph: {
+    title: 'Credit & Funding | Sunday Harmony',
+    description:
+      'Apply for credit repair and funding assistance with Sunday Harmony. Secure multi-step intake for personal and business funding goals.',
+    url: '/credit-funding',
+  },
 }
 
 export default function CreditFundingPage() {

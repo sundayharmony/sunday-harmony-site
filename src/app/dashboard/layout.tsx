@@ -1,21 +1,12 @@
-'use client'
+import type { Metadata } from 'next'
+import DashboardShell from '@/components/dashboard/DashboardShell'
+import { NO_INDEX } from '@/lib/seo'
 
-import { SessionProvider } from 'next-auth/react'
-import ClientSidebar from '@/components/dashboard/ClientSidebar'
+export const metadata: Metadata = {
+  title: 'Client Portal',
+  robots: NO_INDEX,
+}
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return (
-    <SessionProvider>
-      <div className="min-h-screen bg-brand-bg-soft text-brand-text">
-        <ClientSidebar />
-        <main className="ml-0 md:ml-[240px] p-4 pt-14 md:p-8 md:pt-8 min-h-screen">
-          {children}
-        </main>
-      </div>
-    </SessionProvider>
-  )
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return <DashboardShell>{children}</DashboardShell>
 }

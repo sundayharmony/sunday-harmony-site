@@ -2,6 +2,15 @@ import type { Metadata, Viewport } from 'next'
 import { Montserrat } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { siteConfig } from '@/lib/data'
+import {
+  DEFAULT_DESCRIPTION,
+  DEFAULT_OG_DESCRIPTION,
+  DEFAULT_TITLE,
+  getSiteUrl,
+  organizationJsonLd,
+  websiteJsonLd,
+} from '@/lib/seo'
 import '@/styles/globals.css'
 
 const montserrat = Montserrat({
@@ -12,27 +21,35 @@ const montserrat = Montserrat({
 })
 
 export const metadata: Metadata = {
-  title: 'Sunday Harmony | Your All-in-One Marketing Partner',
-  description:
-    'Sunday Harmony helps businesses stop guessing at marketing and start growing. Social media, SEO, Google Ads, and more — one partner who handles it all.',
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: DEFAULT_TITLE,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: DEFAULT_DESCRIPTION,
   keywords:
     'marketing agency, business marketing, local SEO, social media management, Google Ads',
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
-    title: 'Sunday Harmony | Your All-in-One Marketing Partner',
-    description:
-      'We help businesses get found online, generate leads, and grow revenue.',
-    url: 'https://www.sundayharmony.com',
-    siteName: 'Sunday Harmony',
+    title: DEFAULT_TITLE,
+    description: DEFAULT_OG_DESCRIPTION,
+    url: '/',
+    siteName: siteConfig.name,
     locale: 'en_US',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sunday Harmony | All-in-One Marketing Partner',
+    title: `${siteConfig.name} | All-in-One Marketing Partner`,
     description:
       'Stop guessing at marketing. Start growing. All-in-one marketing for businesses.',
   },
-  robots: 'index, follow',
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export const viewport: Viewport = {
@@ -46,9 +63,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const jsonLd = [organizationJsonLd(), websiteJsonLd()]
+
   return (
     <html lang="en" className={montserrat.variable}>
       <body className={`${montserrat.className} font-sans antialiased`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {children}
         <Analytics />
         <SpeedInsights />
