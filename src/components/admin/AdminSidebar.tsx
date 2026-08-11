@@ -27,6 +27,7 @@ const allNavItems = [
   { href: '/admin/roadmap', icon: '\u{1F5FA}\uFE0F', label: '90-Day Roadmap' },
   { href: '/admin/outreach', icon: '\u{1F4E8}', label: 'Outreach' },
   { href: '/admin/discovery', icon: '\u{1F3AF}', label: 'Discovery' },
+  { href: '/admin/training', icon: '\u{1F4DA}', label: 'Sales Training' },
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
