@@ -101,6 +101,10 @@ class GenerateStreamRequest(BaseModel):
     plan_ids: list[str] | None = None
 
 
+# In-flight analyze jobs (same process). Survives the HTTP response for /analyze/start.
+_analyze_jobs: dict[str, asyncio.Task] = {}
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -111,14 +115,6 @@ def config() -> dict:
     return {"cursor_api_configured": cursor_api_configured()}
 
 
-def _require_cursor_key() -> None:
-    if not cursor_api_configured():
-        raise HTTPException(
-            503,
-            "CURSOR_API_KEY is required for report analysis. Add it to .env and restart the API.",
-        )
-
-
 def _suffix_from_path(storage_path: str, file_name: str) -> str:
     for name in (file_name, storage_path):
         if name and "." in name:
@@ -126,17 +122,117 @@ def _suffix_from_path(storage_path: str, file_name: str) -> str:
     return ".pdf"
 
 
+async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -> dict:
+    """Ingest + analyze a report; always writes a terminal session status to Supabase."""
+    temp_path: Path | None = None
+    try:
+        row = get_session_row(session_id)
+        if not row:
+            raise RuntimeError("Session not found")
+
+        set_session_status(session_id, "analyzing")
+
+        ext = _suffix_from_path(storage_path, file_name)
+        detect_file_type(Path(f"x{ext}"))
+
+        temp_path = await asyncio.to_thread(write_temp_report, storage_path, ext)
+        doc = await asyncio.to_thread(ingest_file, temp_path)
+        report = await analyze_report_async(doc, allow_fallback=True)
+        update_session_report(session_id, report, file_type=doc.file_type)
+        return {
+            "status": "complete",
+            "session_id": session_id,
+            "report": report.model_dump(),
+        }
+    except Exception as e:
+        set_session_status(session_id, "failed", error_message=str(e))
+        raise
+    finally:
+        _analyze_jobs.pop(session_id, None)
+        if temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+
+def _spawn_analyze_job(session_id: str, storage_path: str, file_name: str) -> None:
+    existing = _analyze_jobs.get(session_id)
+    if existing and not existing.done():
+        return
+
+    async def _runner() -> None:
+        try:
+            await _run_analyze_job(session_id, storage_path, file_name)
+        except Exception:
+            # Status already persisted inside _run_analyze_job.
+            pass
+
+    _analyze_jobs[session_id] = asyncio.create_task(_runner())
+
+
+@app.post("/internal/analyze/start")
+async def analyze_start(
+    body: AnalyzeStreamRequest,
+    _: None = Depends(verify_internal_secret),
+):
+    """Kick off analysis in the background and return immediately (no SSE)."""
+    row = get_session_row(body.session_id)
+    if not row:
+        raise HTTPException(404, "Session not found")
+
+    try:
+        detect_file_type(Path(f"x{_suffix_from_path(body.storage_path, body.file_name)}"))
+    except ValueError as e:
+        set_session_status(body.session_id, "failed", error_message=str(e))
+        raise HTTPException(400, str(e)) from e
+
+    set_session_status(body.session_id, "analyzing")
+    _spawn_analyze_job(body.session_id, body.storage_path, body.file_name)
+    return {
+        "status": "analyzing",
+        "session_id": body.session_id,
+        "message": "Analysis started",
+    }
+
+
+@app.post("/internal/analyze")
+async def analyze(
+    body: AnalyzeStreamRequest,
+    _: None = Depends(verify_internal_secret),
+):
+    """Blocking analyze — waits until the report is ready (or fails)."""
+    row = get_session_row(body.session_id)
+    if not row:
+        raise HTTPException(404, "Session not found")
+    try:
+        return await _run_analyze_job(body.session_id, body.storage_path, body.file_name)
+    except Exception as e:
+        raise HTTPException(500, str(e)) from e
+
+
+@app.get("/internal/sessions/{session_id}/status")
+def session_status(session_id: str, _: None = Depends(verify_internal_secret)) -> dict:
+    row = get_session_row(session_id)
+    if not row:
+        raise HTTPException(404, "Session not found")
+    task = _analyze_jobs.get(session_id)
+    return {
+        "session_id": session_id,
+        "status": row.get("status") or "unknown",
+        "error_message": row.get("error_message"),
+        "job_running": bool(task is not None and not task.done()),
+    }
+
+
 @app.post("/internal/analyze/stream")
 async def analyze_stream(
     body: AnalyzeStreamRequest,
     _: None = Depends(verify_internal_secret),
 ):
-    _require_cursor_key()
+    """Legacy SSE endpoint — prefer /internal/analyze/start + status polling."""
 
     async def event_stream():
-        import asyncio
-
-        temp_path: Path | None = None
         terminal = False
         try:
             row = get_session_row(body.session_id)
@@ -147,37 +243,11 @@ async def analyze_stream(
 
             set_session_status(body.session_id, "analyzing")
             yield f"data: {json.dumps({'status': 'ingesting', 'message': 'Reading file…'})}\n\n"
-
-            ext = _suffix_from_path(body.storage_path, body.file_name)
-            try:
-                detect_file_type(Path(f"x{ext}"))
-            except ValueError as e:
-                set_session_status(body.session_id, "failed", error_message=str(e))
-                terminal = True
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                return
-
-            try:
-                temp_path = write_temp_report(body.storage_path, ext)
-            except Exception as e:
-                set_session_status(body.session_id, "failed", error_message=str(e))
-                terminal = True
-                yield f"data: {json.dumps({'error': f'Could not download report from storage: {e}'})}\n\n"
-                return
-
-            yield f"data: {json.dumps({'status': 'ingesting', 'message': 'Extracting text (OCR if needed)…'})}\n\n"
-            try:
-                doc = await asyncio.to_thread(ingest_file, temp_path)
-            except Exception as e:
-                set_session_status(body.session_id, "failed", error_message=str(e))
-                terminal = True
-                yield f"data: {json.dumps({'error': f'Failed to read report file: {e}'})}\n\n"
-                return
-
             yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Running Credit Intelligence analysis…'})}\n\n"
 
-            # Keep SSE alive while Cursor analysis runs (proxies drop idle streams).
-            task = asyncio.create_task(analyze_report_async(doc, allow_fallback=True))
+            task = asyncio.create_task(
+                _run_analyze_job(body.session_id, body.storage_path, body.file_name)
+            )
             while not task.done():
                 try:
                     await asyncio.wait_for(asyncio.shield(task), timeout=8.0)
@@ -185,12 +255,12 @@ async def analyze_stream(
                     yield ": keepalive\n\n"
                     yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Still analyzing…'})}\n\n"
 
-            report = task.result()
-            update_session_report(body.session_id, report, file_type=doc.file_type)
+            result = task.result()
             terminal = True
-            yield f"data: {json.dumps({'status': 'complete', 'session_id': body.session_id, 'report': report.model_dump()})}\n\n"
+            yield f"data: {json.dumps(result)}\n\n"
         except Exception as e:
-            set_session_status(body.session_id, "failed", error_message=str(e))
+            if not terminal:
+                set_session_status(body.session_id, "failed", error_message=str(e))
             terminal = True
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
@@ -202,11 +272,6 @@ async def analyze_stream(
                         error_message="Analysis stream ended before completion",
                     )
                 except Exception:
-                    pass
-            if temp_path and temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except OSError:
                     pass
 
     return StreamingResponse(

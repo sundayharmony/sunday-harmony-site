@@ -42,7 +42,7 @@ export function friendlyDisputeLettersUpstreamError(raw: string, status: number)
   ) {
     return (
       'Credit Intelligence analysis service is unavailable (backend returned 404 Application not found). ' +
-      'Redeploy services/dispute-letters-api on Railway and confirm Vercel DISPUTE_LETTERS_API_URL points to that service.'
+      'Confirm Vercel DISPUTE_LETTERS_API_URL points at your Render service (https://dispute-letters-api.onrender.com) and redeploy if needed.'
     )
   }
 

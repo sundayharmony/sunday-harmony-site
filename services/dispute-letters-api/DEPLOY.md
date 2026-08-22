@@ -27,14 +27,22 @@ Render still offers a **Free** web service: no card required, sleeps after ~15 m
    DISPUTE_LETTERS_API_SECRET=<same secret as Render>
    ```
 
-6. Redeploy Vercel, then:
+6. Redeploy Vercel **and** ensure Render auto-deploys from `main` (or manually redeploy). Then:
 
    ```bash
    curl https://<your-render-host>/health
    # {"status":"ok"}
    ```
 
-   First upload after idle may wait for a cold start. After that, Credit Intelligence analysis should run.
+   Analysis no longer uses SSE through Vercel. The site starts a background job on Render and polls session status until ready. First upload after idle may wait for a cold start (30–60s).
+
+## Troubleshooting “Analyze stream ended unexpectedly”
+
+That error was from the old SSE path. After this deploy, uploads use start+poll instead. If analysis still fails:
+
+1. Confirm Render logs show `/internal/analyze/start` and no OOM kill.
+2. Confirm Vercel `DISPUTE_LETTERS_API_URL` / `DISPUTE_LETTERS_API_SECRET` match Render.
+3. Image-heavy Credit Hero PDFs may need a paid Render plan (more RAM for OCR).
 
 ## Other options
 

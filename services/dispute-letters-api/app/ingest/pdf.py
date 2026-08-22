@@ -43,19 +43,22 @@ def extract_pdf(path: Path) -> ExtractedDocument:
 def _ocr_pdf(path: Path) -> tuple[str, bool]:
     """OCR page-by-page at low DPI to stay within free-tier memory limits."""
     try:
+        import gc
+
         from pdf2image import convert_from_path
         import pytesseract
 
         parts: list[str] = []
-        # Render free instances are ~512MB; convert one page at a time.
+        # Render free instances are ~512MB; convert one page at a time at low DPI.
         page = 1
         while True:
             try:
                 images = convert_from_path(
                     str(path),
-                    dpi=150,
+                    dpi=100,
                     first_page=page,
                     last_page=page,
+                    grayscale=True,
                 )
             except Exception:
                 break
@@ -69,8 +72,11 @@ def _ocr_pdf(path: Path) -> tuple[str, bool]:
                     img.close()
                 except Exception:
                     pass
+                del img
+                del images
+                gc.collect()
             page += 1
-            if page > 40:
+            if page > 30:
                 break
         return "\n\n".join(parts).strip(), True
     except Exception:

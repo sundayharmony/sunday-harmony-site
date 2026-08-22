@@ -9,7 +9,7 @@ import { DISPUTE_LETTER_MAX_MB } from '@/lib/dispute-letters-storage'
 import {
   fetchDisputeSessionsForApplication,
   rebuildDisputeIntelligence,
-  streamAnalyzeReport,
+  analyzeReport,
 } from '@/lib/dispute-letters/client-api'
 import {
   buildCreditProgressDiff,
@@ -168,8 +168,8 @@ export default function CreditIntelligencePanel({
       })
 
       setStatus('Running Credit Intelligence analysis…')
-      const result = await streamAnalyzeReport(sessionId, path, file.name, (evt) => {
-        if (typeof evt.message === 'string') setStatus(evt.message)
+      const result = await analyzeReport(sessionId, path, file.name, (message) => {
+        setStatus(message)
       })
 
       setStatus('Merging funding application context…')

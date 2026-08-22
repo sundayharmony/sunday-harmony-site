@@ -103,6 +103,8 @@ def analyze_report(doc: ExtractedDocument, *, allow_fallback: bool = True) -> Pa
 
 
 async def analyze_report_async(doc: ExtractedDocument, *, allow_fallback: bool = True) -> ParsedReport:
+    import asyncio
+
     if not cursor_api_configured():
         if allow_fallback:
             return _apply_fallback(doc, "CURSOR_API_KEY not set")
@@ -114,12 +116,20 @@ async def analyze_report_async(doc: ExtractedDocument, *, allow_fallback: bool =
             return _apply_fallback(doc, "insufficient text extracted")
         raise RuntimeError("Could not extract enough text from the uploaded file")
 
+    agent_timeout = float(os.environ.get("CURSOR_ANALYZE_TIMEOUT_SEC", "90"))
+
     try:
-        report, agent_health = await _analyze_via_agent(doc, text)
+        report, agent_health = await asyncio.wait_for(
+            _analyze_via_agent(doc, text),
+            timeout=agent_timeout,
+        )
         return _finalize_report(report, agent_health)
     except Exception as first_error:
         try:
-            report, agent_health = await _analyze_via_agent(doc, text, retry_strict=True)
+            report, agent_health = await asyncio.wait_for(
+                _analyze_via_agent(doc, text, retry_strict=True),
+                timeout=min(60.0, agent_timeout),
+            )
             return _finalize_report(report, agent_health)
         except Exception:
             if allow_fallback:

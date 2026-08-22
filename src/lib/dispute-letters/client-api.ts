@@ -22,79 +22,88 @@ export async function fetchDisputeConfig(): Promise<AppConfig> {
   return res.json()
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Start background analysis on the Python API, then poll session status until ready/failed.
+ * Avoids SSE through Vercel→Render, which often drops mid-run ("stream ended unexpectedly").
+ */
+export async function analyzeReport(
+  sessionId: string,
+  storagePath: string,
+  fileName: string,
+  onProgress?: (message: string) => void
+): Promise<{ session_id: string; report: ParsedReport }> {
+  onProgress?.('Starting Credit Intelligence analysis…')
+
+  const startRes = await fetch(`/api/admin/dispute-letters/${sessionId}/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storagePath, fileName }),
+  })
+
+  if (!startRes.ok) {
+    throw new Error(await parseError(startRes))
+  }
+
+  const deadline = Date.now() + 8 * 60 * 1000
+  let attempt = 0
+  const progressMessages = [
+    'Reading credit report…',
+    'Extracting text (OCR if needed)…',
+    'Running Credit Intelligence analysis…',
+    'Still analyzing — large image PDFs take a few minutes…',
+    'Almost done…',
+  ]
+
+  while (Date.now() < deadline) {
+    attempt += 1
+    onProgress?.(progressMessages[Math.min(attempt - 1, progressMessages.length - 1)])
+
+    await sleep(attempt < 3 ? 2000 : 3000)
+
+    const statusRes = await fetch(`/api/admin/dispute-letters/${sessionId}/status`, {
+      cache: 'no-store',
+    })
+    if (!statusRes.ok) {
+      throw new Error(await parseError(statusRes))
+    }
+
+    const statusBody = (await statusRes.json()) as {
+      status?: string
+      error_message?: string | null
+    }
+    const status = statusBody.status || ''
+
+    if (status === 'ready') {
+      onProgress?.('Loading analysis results…')
+      return fetchDisputeReport(sessionId)
+    }
+
+    if (status === 'failed') {
+      throw new Error(
+        statusBody.error_message?.trim() ||
+          'Analysis failed. Check Render logs for dispute-letters-api.'
+      )
+    }
+  }
+
+  throw new Error(
+    'Analysis timed out after 8 minutes. Open the Render service logs — OOM on the free plan is the usual cause for image-heavy Credit Hero PDFs.'
+  )
+}
+
+/** @deprecated Prefer analyzeReport (start + poll). Kept for any leftover callers. */
 export function streamAnalyzeReport(
   sessionId: string,
   storagePath: string,
   fileName: string,
   onEvent: (data: Record<string, unknown>) => void
 ): Promise<{ session_id: string; report: ParsedReport }> {
-  return new Promise((resolve, reject) => {
-    fetch(`/api/admin/dispute-letters/${sessionId}/analyze/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storagePath, fileName }),
-    })
-      .then(async (res) => {
-        if (!res.ok || !res.body) {
-          const errText = await res.text().catch(() => '')
-          let errMsg = 'Analyze stream failed'
-          if (errText) {
-            try {
-              const parsed = JSON.parse(errText) as { error?: string }
-              errMsg = parsed.error || errText
-            } catch {
-              errMsg = errText
-            }
-          }
-          throw new Error(errMsg.slice(0, 200))
-        }
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-        let lastStatus = ''
-
-        const pump = (): Promise<void> =>
-          reader.read().then(({ done, value }) => {
-            if (done) {
-              reject(
-                new Error(
-                  lastStatus
-                    ? `Analyze stream ended unexpectedly while “${lastStatus}”. Check Render logs for dispute-letters-api (OOM or Cursor analysis crash are common on the free plan).`
-                    : 'Analyze stream ended unexpectedly before any progress. Confirm Vercel DISPUTE_LETTERS_API_URL is https://dispute-letters-api.onrender.com and the shared secret matches Render.'
-                )
-              )
-              return
-            }
-            buffer += decoder.decode(value, { stream: true })
-            const parts = buffer.split('\n\n')
-            buffer = parts.pop() || ''
-            for (const part of parts) {
-              if (!part.startsWith('data: ')) continue
-              try {
-                const data = JSON.parse(part.slice(6)) as Record<string, unknown>
-                if (typeof data.message === 'string') lastStatus = data.message
-                else if (typeof data.status === 'string') lastStatus = data.status
-                onEvent(data)
-                if (data.error) {
-                  reject(new Error(String(data.error)))
-                  return
-                }
-                if (data.status === 'complete') {
-                  resolve({
-                    session_id: data.session_id as string,
-                    report: data.report as ParsedReport,
-                  })
-                  return
-                }
-              } catch {
-                /* ignore */
-              }
-            }
-            return pump()
-          })
-
-        return pump()      })
-      .catch(reject)
+  return analyzeReport(sessionId, storagePath, fileName, (message) => {
+    onEvent({ status: 'analyzing', message })
   })
 }
 
