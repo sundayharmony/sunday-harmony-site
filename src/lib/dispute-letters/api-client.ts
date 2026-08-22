@@ -14,6 +14,43 @@ export function isDisputeLettersApiConfigured(): boolean {
   return Boolean(process.env.DISPUTE_LETTERS_API_URL?.trim() && process.env.DISPUTE_LETTERS_API_SECRET?.trim())
 }
 
+/** Normalize upstream (e.g. Railway) error bodies into a staff-facing message. */
+export function friendlyDisputeLettersUpstreamError(raw: string, status: number): string {
+  const text = (raw || '').trim()
+  const tryParse = (value: string): Record<string, unknown> | null => {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+    } catch {
+      return null
+    }
+  }
+
+  const outer = tryParse(text)
+  const nestedRaw = typeof outer?.error === 'string' ? outer.error : text
+  const nested = tryParse(nestedRaw) || outer
+
+  const message =
+    (typeof nested?.message === 'string' && nested.message) ||
+    (typeof nested?.error === 'string' && nested.error) ||
+    ''
+
+  if (
+    status === 404 ||
+    /application not found/i.test(message) ||
+    /application not found/i.test(text)
+  ) {
+    return (
+      'Credit Intelligence analysis service is unavailable (backend returned 404 Application not found). ' +
+      'Redeploy services/dispute-letters-api on Railway and confirm Vercel DISPUTE_LETTERS_API_URL points to that service.'
+    )
+  }
+
+  if (message) return message.slice(0, 300)
+  if (text) return text.slice(0, 300)
+  return `Analysis service request failed (${status || 'unknown'})`
+}
+
 function authHeaders(): HeadersInit {
   return {
     Authorization: `Bearer ${API_SECRET()}`,
@@ -31,7 +68,7 @@ export async function disputeLettersJson<T>(path: string, init?: RequestInit): P
   const res = await disputeLettersFetch(path, init)
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(text || `Request failed (${res.status})`)
+    throw new Error(friendlyDisputeLettersUpstreamError(text || '', res.status))
   }
   return res.json() as Promise<T>
 }
@@ -51,10 +88,13 @@ export async function proxyDisputeLettersStream(
 
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '')
-    return new Response(JSON.stringify({ error: text || 'Stream failed' }), {
-      status: res.status || 502,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ error: friendlyDisputeLettersUpstreamError(text, res.status || 502) }),
+      {
+        status: res.status || 502,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
   }
 
   return new Response(res.body, {
