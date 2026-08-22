@@ -52,6 +52,24 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Wake a sleeping free-tier Render instance before kicking off analysis.
     await checkDisputeLettersHealth().catch(() => false)
 
+    // Fail fast with a clear message when Render cannot talk to Supabase.
+    try {
+      const cfg = await disputeLettersJson<{
+        supabase_ok?: boolean
+        supabase_error?: string | null
+        supabase_configured?: boolean
+      }>('/config')
+      if (cfg.supabase_configured === false || cfg.supabase_ok === false) {
+        const detail =
+          cfg.supabase_error ||
+          'Render analysis API is missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (must match Vercel).'
+        await updateDisputeSessionStatus(id, 'failed', detail)
+        return NextResponse.json({ error: detail }, { status: 503 })
+      }
+    } catch {
+      // Older Render deploys may not expose supabase_* yet — continue to /analyze/start.
+    }
+
     await updateDisputeSessionStatus(id, 'analyzing')
 
     const data = await disputeLettersJson<{
