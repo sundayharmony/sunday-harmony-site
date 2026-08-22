@@ -23,7 +23,21 @@ describe('friendlyDisputeLettersUpstreamError', () => {
     })
     const raw = JSON.stringify({ error: inner })
     const msg = friendlyDisputeLettersUpstreamError(raw, 404)
-    assert.match(msg, /Redeploy services\/dispute-letters-api/)
+    assert.match(msg, /DISPUTE_LETTERS_API_URL/)
+    assert.match(msg, /Render/)
+  })
+
+  it('maps opaque Internal Server Error to Supabase guidance', () => {
+    const msg = friendlyDisputeLettersUpstreamError('Internal Server Error', 500)
+    assert.match(msg, /SUPABASE_/i)
+  })
+
+  it('extracts FastAPI detail field', () => {
+    const msg = friendlyDisputeLettersUpstreamError(
+      JSON.stringify({ detail: 'Supabase is not configured on the analysis API.' }),
+      500
+    )
+    assert.match(msg, /Supabase is not configured/)
   })
 
   it('passes through ordinary upstream messages', () => {

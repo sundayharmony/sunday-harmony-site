@@ -36,13 +36,34 @@ Render still offers a **Free** web service: no card required, sleeps after ~15 m
 
    Analysis no longer uses SSE through Vercel. The site starts a background job on Render and polls session status until ready. First upload after idle may wait for a cold start (30–60s).
 
+## Troubleshooting “Internal Server Error” / 502 on analyze
+
+`/health` can be OK while analysis still fails. Authenticated DB routes need Supabase.
+
+1. Open Render → `dispute-letters-api` → **Environment** and set:
+
+   | Variable | Value |
+   |----------|-------|
+   | `SUPABASE_URL` | Same as Vercel `NEXT_PUBLIC_SUPABASE_URL` (e.g. `https://hvsoeezsbvwsrdobvgaz.supabase.co`) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Same as Vercel `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` |
+   | `DISPUTE_LETTERS_API_SECRET` | **Identical** to Vercel `DISPUTE_LETTERS_API_SECRET` |
+   | `CURSOR_API_KEY` | Cursor API key |
+
+2. **Manual Deploy** the Render service after saving env vars.
+3. Verify:
+
+   ```bash
+   curl https://<your-render-host>/config
+   # supabase_configured: true, supabase_ok: true
+   curl https://<your-render-host>/ready
+   # {"status":"ready","supabase":"ok"}
+   ```
+
+If `supabase_ok` is false, analysis cannot start — fix the Render env vars before retrying uploads.
+
 ## Troubleshooting “Analyze stream ended unexpectedly”
 
-That error was from the old SSE path. After this deploy, uploads use start+poll instead. If analysis still fails:
-
-1. Confirm Render logs show `/internal/analyze/start` and no OOM kill.
-2. Confirm Vercel `DISPUTE_LETTERS_API_URL` / `DISPUTE_LETTERS_API_SECRET` match Render.
-3. Image-heavy Credit Hero PDFs may need a paid Render plan (more RAM for OCR).
+That error was from the old SSE path. After the start+poll deploy, uploads no longer use SSE. If analysis still fails, use the Supabase checklist above and check Render logs for OOM on image-heavy PDFs.
 
 ## Other options
 

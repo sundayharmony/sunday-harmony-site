@@ -48,6 +48,7 @@ from app.services.letter_formatter import finalize_letter, letter_to_docx, lette
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
 from app.storage import upload_storage_bytes, write_temp_report
+from app.supabase_client import ping_supabase, supabase_env_configured
 
 load_dotenv()
 
@@ -60,6 +61,25 @@ async def app_lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Dispute Letters API", lifespan=app_lifespan)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc: Exception):
+    """Return JSON with a useful message instead of opaque 'Internal Server Error'."""
+    from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    if isinstance(exc, HTTPException):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, StarletteHTTPException):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, RequestValidationError):
+        return await request_validation_exception_handler(request, exc)
+    msg = str(exc).strip() or exc.__class__.__name__
+    return JSONResponse(status_code=500, content={"detail": msg[:500], "error": msg[:500]})
+
 
 _allowed_origins = os.environ.get("DISPUTE_CORS_ORIGINS", "").strip()
 if _allowed_origins:
@@ -110,9 +130,28 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/ready")
+def ready() -> dict:
+    """Liveness + Supabase reachability (use this after deploy to verify env vars)."""
+    sb = ping_supabase()
+    if not sb.get("ok"):
+        raise HTTPException(
+            503,
+            sb.get("error")
+            or "Supabase unreachable. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Render.",
+        )
+    return {"status": "ready", "supabase": "ok"}
+
+
 @app.get("/config")
 def config() -> dict:
-    return {"cursor_api_configured": cursor_api_configured()}
+    sb = ping_supabase()
+    return {
+        "cursor_api_configured": cursor_api_configured(),
+        "supabase_configured": supabase_env_configured(),
+        "supabase_ok": bool(sb.get("ok")),
+        "supabase_error": None if sb.get("ok") else sb.get("error"),
+    }
 
 
 def _suffix_from_path(storage_path: str, file_name: str) -> str:
@@ -177,6 +216,14 @@ async def analyze_start(
     _: None = Depends(verify_internal_secret),
 ):
     """Kick off analysis in the background and return immediately (no SSE)."""
+    sb = ping_supabase()
+    if not sb.get("ok"):
+        raise HTTPException(
+            503,
+            sb.get("error")
+            or "Supabase unreachable on analysis API. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Render.",
+        )
+
     row = get_session_row(body.session_id)
     if not row:
         raise HTTPException(404, "Session not found")

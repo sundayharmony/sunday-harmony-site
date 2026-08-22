@@ -14,7 +14,7 @@ export function isDisputeLettersApiConfigured(): boolean {
   return Boolean(process.env.DISPUTE_LETTERS_API_URL?.trim() && process.env.DISPUTE_LETTERS_API_SECRET?.trim())
 }
 
-/** Normalize upstream (e.g. Railway) error bodies into a staff-facing message. */
+/** Normalize upstream error bodies into a staff-facing message. */
 export function friendlyDisputeLettersUpstreamError(raw: string, status: number): string {
   const text = (raw || '').trim()
   const tryParse = (value: string): Record<string, unknown> | null => {
@@ -33,6 +33,7 @@ export function friendlyDisputeLettersUpstreamError(raw: string, status: number)
   const message =
     (typeof nested?.message === 'string' && nested.message) ||
     (typeof nested?.error === 'string' && nested.error) ||
+    (typeof nested?.detail === 'string' && nested.detail) ||
     ''
 
   if (
@@ -43,6 +44,26 @@ export function friendlyDisputeLettersUpstreamError(raw: string, status: number)
     return (
       'Credit Intelligence analysis service is unavailable (backend returned 404 Application not found). ' +
       'Confirm Vercel DISPUTE_LETTERS_API_URL points at your Render service (https://dispute-letters-api.onrender.com) and redeploy if needed.'
+    )
+  }
+
+  if (
+    /supabase/i.test(message) ||
+    /supabase/i.test(text) ||
+    status === 503
+  ) {
+    if (/supabase/i.test(message) || /supabase/i.test(text)) {
+      return (
+        (message || text).slice(0, 300) ||
+        'Analysis API cannot reach Supabase. On Render, set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to the same values as Vercel, then redeploy.'
+      )
+    }
+  }
+
+  if (/^internal server error$/i.test(text) || /^internal server error$/i.test(message)) {
+    return (
+      'Analysis API crashed (Internal Server Error). Usually Render is missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY. ' +
+      'Set those on the dispute-letters-api Render service (same as Vercel), redeploy, then open /config and confirm supabase_ok is true.'
     )
   }
 
@@ -108,7 +129,12 @@ export async function proxyDisputeLettersStream(
   })
 }
 
-export async function fetchDisputeLettersConfig(): Promise<{ cursor_api_configured: boolean }> {
+export async function fetchDisputeLettersConfig(): Promise<{
+  cursor_api_configured: boolean
+  supabase_configured?: boolean
+  supabase_ok?: boolean
+  supabase_error?: string | null
+}> {
   if (!isDisputeLettersApiConfigured()) {
     return { cursor_api_configured: false }
   }
