@@ -151,6 +151,8 @@ def config() -> dict:
         "supabase_configured": supabase_env_configured(),
         "supabase_ok": bool(sb.get("ok")),
         "supabase_error": None if sb.get("ok") else sb.get("error"),
+        "supabase_url_host": sb.get("url_host"),
+        "supabase_url_length": sb.get("url_length"),
     }
 
 

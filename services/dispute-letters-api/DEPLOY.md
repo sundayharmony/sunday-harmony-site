@@ -59,6 +59,11 @@ Render still offers a **Free** web service: no card required, sleeps after ~15 m
    # {"status":"ready","supabase":"ok"}
    ```
 
+If `supabase_ok` is false with **`Invalid URL`**:
+- In Render → Environment, **delete** `SUPABASE_URL` and add it again
+- Value must be exactly `https://<project-ref>.supabase.co` with **no quotes**, no trailing spaces
+- Click **Save**, then **Manual Deploy** (env edits do not always restart the service alone)
+
 If `supabase_ok` is false, analysis cannot start — fix the Render env vars before retrying uploads.
 
 ## Troubleshooting “Analyze stream ended unexpectedly”
