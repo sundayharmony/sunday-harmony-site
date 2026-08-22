@@ -51,11 +51,18 @@ export function streamAnalyzeReport(
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
+        let lastStatus = ''
 
         const pump = (): Promise<void> =>
           reader.read().then(({ done, value }) => {
             if (done) {
-              reject(new Error('Analyze stream ended unexpectedly'))
+              reject(
+                new Error(
+                  lastStatus
+                    ? `Analyze stream ended unexpectedly while “${lastStatus}”. Check Render logs for dispute-letters-api (OOM or Cursor analysis crash are common on the free plan).`
+                    : 'Analyze stream ended unexpectedly before any progress. Confirm Vercel DISPUTE_LETTERS_API_URL is https://dispute-letters-api.onrender.com and the shared secret matches Render.'
+                )
+              )
               return
             }
             buffer += decoder.decode(value, { stream: true })
@@ -65,6 +72,8 @@ export function streamAnalyzeReport(
               if (!part.startsWith('data: ')) continue
               try {
                 const data = JSON.parse(part.slice(6)) as Record<string, unknown>
+                if (typeof data.message === 'string') lastStatus = data.message
+                else if (typeof data.status === 'string') lastStatus = data.status
                 onEvent(data)
                 if (data.error) {
                   reject(new Error(String(data.error)))
@@ -84,8 +93,7 @@ export function streamAnalyzeReport(
             return pump()
           })
 
-        return pump()
-      })
+        return pump()      })
       .catch(reject)
   })
 }

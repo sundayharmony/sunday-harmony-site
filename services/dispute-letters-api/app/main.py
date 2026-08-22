@@ -134,10 +134,14 @@ async def analyze_stream(
     _require_cursor_key()
 
     async def event_stream():
+        import asyncio
+
         temp_path: Path | None = None
+        terminal = False
         try:
             row = get_session_row(body.session_id)
             if not row:
+                terminal = True
                 yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
                 return
 
@@ -149,28 +153,71 @@ async def analyze_stream(
                 detect_file_type(Path(f"x{ext}"))
             except ValueError as e:
                 set_session_status(body.session_id, "failed", error_message=str(e))
+                terminal = True
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
                 return
 
-            temp_path = write_temp_report(body.storage_path, ext)
-            doc = ingest_file(temp_path)
+            try:
+                temp_path = write_temp_report(body.storage_path, ext)
+            except Exception as e:
+                set_session_status(body.session_id, "failed", error_message=str(e))
+                terminal = True
+                yield f"data: {json.dumps({'error': f'Could not download report from storage: {e}'})}\n\n"
+                return
+
+            yield f"data: {json.dumps({'status': 'ingesting', 'message': 'Extracting text (OCR if needed)…'})}\n\n"
+            try:
+                doc = await asyncio.to_thread(ingest_file, temp_path)
+            except Exception as e:
+                set_session_status(body.session_id, "failed", error_message=str(e))
+                terminal = True
+                yield f"data: {json.dumps({'error': f'Failed to read report file: {e}'})}\n\n"
+                return
 
             yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Running Credit Intelligence analysis…'})}\n\n"
-            report = await analyze_report_async(doc, allow_fallback=True)
-            update_session_report(body.session_id, report, file_type=doc.file_type)
 
+            # Keep SSE alive while Cursor analysis runs (proxies drop idle streams).
+            task = asyncio.create_task(analyze_report_async(doc, allow_fallback=True))
+            while not task.done():
+                try:
+                    await asyncio.wait_for(asyncio.shield(task), timeout=8.0)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Still analyzing…'})}\n\n"
+
+            report = task.result()
+            update_session_report(body.session_id, report, file_type=doc.file_type)
+            terminal = True
             yield f"data: {json.dumps({'status': 'complete', 'session_id': body.session_id, 'report': report.model_dump()})}\n\n"
         except Exception as e:
             set_session_status(body.session_id, "failed", error_message=str(e))
+            terminal = True
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
+            if not terminal:
+                try:
+                    set_session_status(
+                        body.session_id,
+                        "failed",
+                        error_message="Analysis stream ended before completion",
+                    )
+                except Exception:
+                    pass
             if temp_path and temp_path.exists():
                 try:
                     temp_path.unlink()
                 except OSError:
                     pass
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.get("/internal/reports/{session_id}/health", response_model=ReportHealthResponse)
