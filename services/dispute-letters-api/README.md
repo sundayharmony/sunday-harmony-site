@@ -1,6 +1,8 @@
-# Dispute Letters API (Railway)
+# Dispute Letters API
 
 Python FastAPI service for Cursor AI credit report analysis and dispute letter generation.
+
+**Hosting:** this cannot run on Vercel. Use **Render (free)** as the Railway replacement — see [DEPLOY.md](./DEPLOY.md).
 
 ## Environment variables
 
@@ -27,11 +29,9 @@ $env:SUPABASE_SERVICE_ROLE_KEY="..."
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Railway deploy
+## Deploy
 
-1. Create a Railway project from this repo with root directory `services/dispute-letters-api`
-2. Set env vars above
-3. Copy the public URL to Vercel as `DISPUTE_LETTERS_API_URL`
+See [DEPLOY.md](./DEPLOY.md). Short version: Render free web service from `services/dispute-letters-api`, then set `DISPUTE_LETTERS_API_URL` + matching `DISPUTE_LETTERS_API_SECRET` on Vercel.
 
 ## Health check
 

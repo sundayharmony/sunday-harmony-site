@@ -1,0 +1,23 @@
+# Blueprint: deploy Credit Intelligence analysis API on Render (free web service).
+# Dashboard: New → Blueprint → this repo. Then set the secret env vars.
+# After deploy, copy the Render URL into Vercel as DISPUTE_LETTERS_API_URL.
+
+services:
+  - type: web
+    name: dispute-letters-api
+    runtime: docker
+    plan: free
+    rootDir: services/dispute-letters-api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: CURSOR_API_KEY
+        sync: false
+      - key: DISPUTE_LETTERS_API_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DISPUTE_CORS_ORIGINS
+        value: https://www.sundayharmony.com,https://sundayharmony.com,https://sunday-harmony-site.vercel.app
