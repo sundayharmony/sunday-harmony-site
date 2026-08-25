@@ -195,4 +195,54 @@ describe('diffTradelinesForBureau', () => {
     assert.equal(diff.removed.length, 1)
     assert.equal(diff.added.length, 1)
   })
+
+  it('ignores cosmetic inquiry status and remarks rephrasing', () => {
+    const prev = report([
+      tl({
+        id: '1',
+        creditor: 'KEYPORT KIA',
+        account_tu: '****1111',
+        account_type: 'Hard Inquiry',
+        status: 'Inquiry',
+        remarks: 'Date of inquiry: 7/18/2026',
+        bureaus: ['TUC'],
+      }),
+      tl({
+        id: '2',
+        creditor: 'Capital One',
+        account_tu: '****2222',
+        account_type: 'Credit Card',
+        status: 'Open',
+        balance: '$500',
+        bureaus: ['TUC'],
+      }),
+    ])
+    const curr = report([
+      tl({
+        id: '1b',
+        creditor: 'KEYPORT KIA',
+        account_tu: 'XXXX1111',
+        account_type: 'Hard Inquiry',
+        status: 'Inquiry on record until Aug 2028',
+        remarks: 'Inquired Jul 18, 2026',
+        bureaus: ['TUC'],
+      }),
+      tl({
+        id: '2b',
+        creditor: 'Capital One',
+        account_tu: 'XXXX2222',
+        account_type: 'Credit Card',
+        status: 'Open',
+        balance: '$0',
+        bureaus: ['TUC'],
+      }),
+    ])
+    const diff = diffTradelinesForBureau(prev, curr, 'TUC')
+    assert.equal(diff.removed.length, 0)
+    assert.equal(diff.added.length, 0)
+    // Inquiry noise ignored; only Capital One balance change remains
+    assert.equal(diff.changed.length, 1)
+    assert.equal(diff.changed[0].creditor, 'Capital One')
+    assert.ok(diff.changed[0].fields.every((f) => f.field === 'balance'))
+  })
 })

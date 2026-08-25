@@ -117,20 +117,114 @@ function normalizeFieldValue(value: string | undefined | null): string {
   return (value || '').trim()
 }
 
-/** Status/remarks often fluctuate in wording without a real change. */
-function meaningfulFieldChange(field: string, from: string, to: string): boolean {
+function isInquiryTradeline(tl: Tradeline): boolean {
+  const blob = `${tl.account_type} ${tl.item_category} ${tl.status} ${tl.remarks}`.toLowerCase()
+  return /inquir/.test(blob)
+}
+
+/** Pull calendar dates from free text and normalize to comparable tokens. */
+function extractDateTokens(text: string): string[] {
+  const out = new Set<string>()
+  const months: Record<string, string> = {
+    jan: '01',
+    january: '01',
+    feb: '02',
+    february: '02',
+    mar: '03',
+    march: '03',
+    apr: '04',
+    april: '04',
+    may: '05',
+    jun: '06',
+    june: '06',
+    jul: '07',
+    july: '07',
+    aug: '08',
+    august: '08',
+    sep: '09',
+    sept: '09',
+    september: '09',
+    oct: '10',
+    october: '10',
+    nov: '11',
+    november: '11',
+    dec: '12',
+    december: '12',
+  }
+
+  // 7/18/2026 or 07/18/26
+  for (const m of text.matchAll(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/g)) {
+    const month = m[1].padStart(2, '0')
+    const day = m[2].padStart(2, '0')
+    let year = m[3]
+    if (year.length === 2) year = `20${year}`
+    out.add(`${year}-${month}-${day}`)
+  }
+  // Jul 18, 2026 / July 18 2026
+  for (const m of text.matchAll(
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2}),?\s+(\d{4})\b/gi
+  )) {
+    const month = months[m[1].toLowerCase()]
+    if (month) out.add(`${m[3]}-${month}-${m[2].padStart(2, '0')}`)
+  }
+  // until Aug 2028 / Jan 2028
+  for (const m of text.matchAll(
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\b/gi
+  )) {
+    const month = months[m[1].toLowerCase()]
+    if (month) out.add(`${m[2]}-${month}`)
+  }
+  return [...out]
+}
+
+function datesOverlap(a: string, b: string): boolean {
+  const da = extractDateTokens(a)
+  const db = extractDateTokens(b)
+  if (!da.length || !db.length) return false
+  return da.some((x) => db.some((y) => x === y || x.startsWith(y) || y.startsWith(x)))
+}
+
+/**
+ * Status/remarks often fluctuate in wording without a real change.
+ * Inquiry rephrasings ("Inquiry" → "Inquiry on record until…", date format swaps) are ignored.
+ */
+function meaningfulFieldChange(
+  field: string,
+  from: string,
+  to: string,
+  prev: Tradeline,
+  curr: Tradeline
+): boolean {
+  if (from === to) return false
+
+  const inquiry = isInquiryTradeline(prev) || isInquiryTradeline(curr)
+
   if (field === 'status' || field === 'remarks') {
+    // Hard inquiries: wording/date-format churn is noise, not progress.
+    if (inquiry) return false
+
     const a = from.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
     const b = to.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
     if (a === b) return false
-    // Treat "Open/Current" vs "Open / Current" etc. as same
+
     const tokens = (s: string) => new Set(s.split(' ').filter(Boolean))
     const ta = tokens(a)
     const tb = tokens(b)
     if (ta.size && tb.size && [...ta].every((t) => tb.has(t)) && [...tb].every((t) => ta.has(t))) {
       return false
     }
+
+    // Same underlying date(s), different prose → ignore
+    if (datesOverlap(from, to)) return false
+
+    // Both describe paying as agreed / current / open — cosmetic
+    const payOk = (s: string) =>
+      /pays?\s+as\s+agreed|paying\s+as\s+agreed|open\s*\/?\s*current|current/.test(s)
+    if (payOk(a) && payOk(b) && !/late|delinq|charge|collect|past due/.test(a + b)) {
+      return false
+    }
   }
+
   const ma = parseMoney(from)
   const mb = parseMoney(to)
   if (ma != null && mb != null) return ma !== mb
@@ -143,7 +237,7 @@ function diffMatchedFields(prev: Tradeline, curr: Tradeline): TradelineFieldChan
     const from = normalizeFieldValue(prev[spec.field] as string | undefined)
     const to = normalizeFieldValue(curr[spec.field] as string | undefined)
     if (!from && !to) continue
-    if (!meaningfulFieldChange(String(spec.field), from, to)) continue
+    if (!meaningfulFieldChange(String(spec.field), from, to, prev, curr)) continue
     fields.push({
       field: String(spec.field),
       label: spec.label,
