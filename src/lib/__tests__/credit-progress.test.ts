@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildAllBureauProgress,
+  buildBureauProgressDiff,
   buildCreditProgressDiff,
   diffSnapshots,
   snapshotFromSession,
@@ -71,14 +73,21 @@ function session(
   id: string,
   createdAt: string,
   intel: CreditIntelligenceReport | null,
-  health?: { total_accounts: number; negative_count: number; collection_count: number }
+  health?: {
+    total_accounts: number
+    negative_count: number
+    collection_count: number
+    scores?: { tuc: number | null; exp: number | null; eqf: number | null }
+  },
+  fileName?: string,
+  tradelines?: import('../dispute-letters/types').Tradeline[]
 ): DisputeSessionListItem {
   return {
     id,
     admin_user_id: 'admin',
     status: 'ready',
     storage_path: `path/${id}`,
-    file_name: `${id}.pdf`,
+    file_name: fileName || `${id}.pdf`,
     file_type: 'application/pdf',
     report_json: intel
       ? {
@@ -87,7 +96,7 @@ function session(
           report_date: intel.report_date,
           analysis_summary: '',
           credit_health: {
-            scores: { tuc: null, exp: null, eqf: null },
+            scores: health?.scores || { tuc: null, exp: null, eqf: null },
             total_accounts: health?.total_accounts ?? 10,
             negative_count: health?.negative_count ?? 3,
             collection_count: health?.collection_count ?? 1,
@@ -97,7 +106,7 @@ function session(
           },
           credit_intelligence: intel,
           consumer: { name: 'Test Client', dob: '', ssn_last4: '', addresses: [] },
-          tradelines: [],
+          tradelines: tradelines || [],
           subscribers: [],
           file_type: 'pdf',
           ocr_used: false,
@@ -150,6 +159,12 @@ describe('diffSnapshots direction heuristics', () => {
       fundingScore: 35,
       factorBands: { payment_history: 'fair', collections: 'poor' },
       healthCounts: { total_accounts: 10, negative_count: 5, collection_count: 2 },
+      bureauCoverage: ['EXP'],
+      coverageKind: 'single',
+      bureauScores: { tuc: null, exp: 600, eqf: null },
+      perBureauHealth: {
+        EXP: { total_accounts: 10, negative_count: 5, collection_count: 2 },
+      },
       ...overrides,
     }
   }
@@ -271,5 +286,123 @@ describe('buildCreditProgressDiff', () => {
     const report = buildCreditProgressDiff([third, bare, first], 'third')
     assert.equal(report.readyCount, 2)
     assert.equal(report.previous?.sessionId, 'first')
+  })
+})
+
+describe('buildBureauProgressDiff', () => {
+  const expJan = session(
+    'exp-jan',
+    '2026-01-01T00:00:00.000Z',
+    intelligence({ score: 580, band: 'poor', fundingLevel: 'low', fundingScore: 25, reportDate: '2026-01-01' }),
+    {
+      total_accounts: 5,
+      negative_count: 3,
+      collection_count: 1,
+      scores: { tuc: null, exp: 580, eqf: null },
+    },
+    'experian-jan.pdf',
+    [
+      {
+        id: 'e1',
+        creditor: 'Capital One',
+        account_tu: '',
+        account_exp: '****1234',
+        account_eqf: '',
+        account_type: 'Credit Card',
+        status: 'Charge Off',
+        balance: '$842',
+        past_due: '$100',
+        remarks: '',
+        bureaus: ['EXP'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: ['EXP'],
+        dispute_furnisher: true,
+        legal_flags: ['charge_off'],
+        repair_priority: 'high',
+        item_category: 'charge_off',
+      },
+    ]
+  )
+  const tucFeb = session(
+    'tuc-feb',
+    '2026-02-01T00:00:00.000Z',
+    intelligence({ score: 600, band: 'fair', fundingLevel: 'limited', fundingScore: 35, reportDate: '2026-02-01' }),
+    {
+      total_accounts: 4,
+      negative_count: 2,
+      collection_count: 0,
+      scores: { tuc: 600, exp: null, eqf: null },
+    },
+    'transunion-feb.pdf'
+  )
+  const expMar = session(
+    'exp-mar',
+    '2026-03-01T00:00:00.000Z',
+    intelligence({ score: 620, band: 'fair', fundingLevel: 'limited', fundingScore: 40, reportDate: '2026-03-01' }),
+    {
+      total_accounts: 5,
+      negative_count: 1,
+      collection_count: 0,
+      scores: { tuc: null, exp: 620, eqf: null },
+    },
+    'experian-mar.pdf',
+    [
+      {
+        id: 'e1',
+        creditor: 'Capital One',
+        account_tu: '',
+        account_exp: '****1234',
+        account_eqf: '',
+        account_type: 'Credit Card',
+        status: 'Paid/Closed',
+        balance: '$0',
+        past_due: '$0',
+        remarks: '',
+        bureaus: ['EXP'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: ['EXP'],
+        dispute_furnisher: true,
+        legal_flags: [],
+        repair_priority: 'none',
+        item_category: 'closed',
+      },
+    ]
+  )
+
+  it('matches Experian→Experian and ignores TransUnion in between', () => {
+    const report = buildBureauProgressDiff([expMar, tucFeb, expJan], 'exp-mar', 'EXP')
+    assert.equal(report.readyCount, 2)
+    assert.equal(report.baseline?.sessionId, 'exp-jan')
+    assert.equal(report.current?.sessionId, 'exp-mar')
+    assert.equal(report.previous?.sessionId, 'exp-jan')
+    assert.equal(report.vsBaseline.find((d) => d.field === 'bureau_score')?.from, 580)
+    assert.equal(report.vsBaseline.find((d) => d.field === 'bureau_score')?.to, 620)
+    assert.equal(report.vsBaseline.find((d) => d.field === 'bureau_score')?.direction, 'improved')
+  })
+
+  it('builds separate tracks in buildAllBureauProgress', () => {
+    const all = buildAllBureauProgress([expMar, tucFeb, expJan], 'exp-mar')
+    assert.ok(all.EXP)
+    assert.ok(all.TUC)
+    assert.equal(all.EQF, undefined)
+    assert.equal(all.EXP?.readyCount, 2)
+    assert.equal(all.TUC?.readyCount, 1)
+    assert.equal(all.TUC?.vsBaseline.length, 0)
+  })
+
+  it('includes account field changes for matched Experian tradelines', () => {
+    const report = buildBureauProgressDiff([expMar, expJan], 'exp-mar', 'EXP')
+    const changes = report.accountChangesVsBaseline
+    assert.ok(changes)
+    assert.equal(changes.changed.length, 1)
+    assert.ok(changes.changed[0].fields.some((f) => f.field === 'balance'))
   })
 })

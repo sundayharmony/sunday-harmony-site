@@ -85,13 +85,15 @@ def cursor_api_configured() -> bool:
     return bool(os.environ.get("CURSOR_API_KEY", "").strip())
 
 
-def analyze_report(doc: ExtractedDocument, *, allow_fallback: bool = True) -> ParsedReport:
+def analyze_report(doc: ExtractedDocument, *, allow_fallback: bool = True, file_name: str = "") -> ParsedReport:
     """Sync entry point; runs the async agent on a fresh event loop when needed."""
     import asyncio
     import concurrent.futures
 
     def _run() -> ParsedReport:
-        return asyncio.run(analyze_report_async(doc, allow_fallback=allow_fallback))
+        return asyncio.run(
+            analyze_report_async(doc, allow_fallback=allow_fallback, file_name=file_name)
+        )
 
     try:
         asyncio.get_running_loop()
@@ -102,32 +104,38 @@ def analyze_report(doc: ExtractedDocument, *, allow_fallback: bool = True) -> Pa
         return pool.submit(_run).result()
 
 
-async def analyze_report_async(doc: ExtractedDocument, *, allow_fallback: bool = True) -> ParsedReport:
+async def analyze_report_async(
+    doc: ExtractedDocument, *, allow_fallback: bool = True, file_name: str = ""
+) -> ParsedReport:
     if not cursor_api_configured():
         if allow_fallback:
-            return _apply_fallback(doc, "CURSOR_API_KEY not set")
+            return _finalize_report(
+                _apply_fallback(doc, "CURSOR_API_KEY not set"), file_name=file_name
+            )
         raise RuntimeError("CURSOR_API_KEY is required for report analysis")
 
     text = _prepare_report_text(doc)
     if len(text.strip()) < 50:
         if allow_fallback:
-            return _apply_fallback(doc, "insufficient text extracted")
+            return _finalize_report(
+                _apply_fallback(doc, "insufficient text extracted"), file_name=file_name
+            )
         raise RuntimeError("Could not extract enough text from the uploaded file")
 
     try:
         report, agent_health = await _analyze_via_agent(doc, text)
-        return _finalize_report(report, agent_health)
+        return _finalize_report(report, agent_health, file_name=file_name)
     except Exception as first_error:
         try:
             report, agent_health = await _analyze_via_agent(doc, text, retry_strict=True)
-            return _finalize_report(report, agent_health)
+            return _finalize_report(report, agent_health, file_name=file_name)
         except Exception:
             if allow_fallback:
                 report = _apply_fallback(doc, str(first_error))
                 report.analysis_summary = (
                     f"Agent analysis failed; used fallback parser. ({first_error})"
                 )
-                return _finalize_report(report)
+                return _finalize_report(report, file_name=file_name)
             raise
 
 
@@ -261,10 +269,15 @@ def _valid_bureaus(codes: list) -> list[BureauCode]:
     return [b for b in codes if b in ("TUC", "EXP", "EQF")]
 
 
-def _finalize_report(report: ParsedReport, agent_health: dict | None = None) -> ParsedReport:
+def _finalize_report(
+    report: ParsedReport, agent_health: dict | None = None, *, file_name: str = ""
+) -> ParsedReport:
+    from app.services.bureau_coverage import apply_bureau_coverage
+
     report.credit_health = build_health_summary(report, agent_health)
     report = apply_high_priority_selection(report)
     report.credit_intelligence = build_credit_intelligence(report)
+    report = apply_bureau_coverage(report, file_name=file_name)
     return report
 
 

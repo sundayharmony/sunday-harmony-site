@@ -7,6 +7,21 @@ export interface BureauScores {
   eqf: number | null
 }
 
+export interface PerBureauHealth {
+  total_accounts: number
+  negative_count: number
+  collection_count: number
+}
+
+export type BureauCoverageKind = 'single' | 'dual' | 'tri_merge'
+export type BureauCoverageConfidence = 'high' | 'medium' | 'low'
+
+export interface BureauCoverage {
+  bureaus: BureauCode[]
+  coverage: BureauCoverageKind
+  confidence: BureauCoverageConfidence
+}
+
 export interface CreditHealthSummary {
   scores: BureauScores
   total_accounts: number
@@ -15,6 +30,7 @@ export interface CreditHealthSummary {
   high_priority_count: number
   repair_summary: string
   recommended_actions: string[]
+  per_bureau?: Partial<Record<BureauCode, PerBureauHealth>>
 }
 
 export interface FactorAnalysis {
@@ -150,6 +166,7 @@ export interface ParsedReport {
   analysis_summary: string
   credit_health: CreditHealthSummary
   credit_intelligence?: CreditIntelligenceReport | null
+  bureau_coverage?: BureauCoverage | null
   consumer: ConsumerInfo
   tradelines: Tradeline[]
   subscribers: { name: string; address_lines: string[]; phone: string }[]
@@ -274,6 +291,10 @@ export interface CreditProgressSnapshot {
   fundingScore: number | null
   factorBands: Record<string, string>
   healthCounts: CreditProgressHealthCounts
+  bureauCoverage: BureauCode[]
+  coverageKind: BureauCoverageKind
+  bureauScores: BureauScores
+  perBureauHealth: Partial<Record<BureauCode, CreditProgressHealthCounts>>
 }
 
 export interface CreditProgressDelta {
@@ -284,6 +305,35 @@ export interface CreditProgressDelta {
   direction: CreditProgressDirection
 }
 
+export type FieldChangeDirection = 'improved' | 'worsened' | 'neutral'
+
+export interface TradelineChange {
+  creditor: string
+  accountMask: string
+  status?: string
+  balance?: string
+  category?: string
+}
+
+export interface TradelineFieldChange {
+  creditor: string
+  accountMask: string
+  fields: {
+    field: string
+    label: string
+    from: string
+    to: string
+    direction: FieldChangeDirection
+  }[]
+}
+
+export interface TradelineProgressDiff {
+  removed: TradelineChange[]
+  added: TradelineChange[]
+  changed: TradelineFieldChange[]
+  matchConfidence: 'high' | 'medium' | 'low'
+}
+
 export interface CreditProgressReport {
   baseline: CreditProgressSnapshot | null
   previous: CreditProgressSnapshot | null
@@ -291,4 +341,7 @@ export interface CreditProgressReport {
   vsBaseline: CreditProgressDelta[]
   vsPrevious: CreditProgressDelta[]
   readyCount: number
+  bureau?: BureauCode
+  accountChangesVsBaseline?: TradelineProgressDiff | null
+  accountChangesVsPrevious?: TradelineProgressDiff | null
 }

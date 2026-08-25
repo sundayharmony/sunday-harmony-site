@@ -156,7 +156,9 @@ async def analyze_stream(
             doc = ingest_file(temp_path)
 
             yield f"data: {json.dumps({'status': 'analyzing', 'message': 'Running Credit Intelligence analysis…'})}\n\n"
-            report = await analyze_report_async(doc, allow_fallback=True)
+            report = await analyze_report_async(
+                doc, allow_fallback=True, file_name=body.file_name
+            )
             update_session_report(body.session_id, report, file_type=doc.file_type)
 
             yield f"data: {json.dumps({'status': 'complete', 'session_id': body.session_id, 'report': report.model_dump()})}\n\n"

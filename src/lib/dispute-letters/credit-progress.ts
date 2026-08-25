@@ -1,4 +1,11 @@
+import {
+  getSessionBureauCoverage,
+  perBureauFromReport,
+} from '@/lib/dispute-letters/bureau-coverage'
+import { diffTradelinesForBureau } from '@/lib/dispute-letters/tradeline-progress'
 import type {
+  BureauCode,
+  BureauScores,
   CreditIntelligenceReport,
   CreditProgressDelta,
   CreditProgressDirection,
@@ -39,6 +46,8 @@ const FUNDING_LEVEL_RANK: Record<string, number> = {
   blocked: 0,
 }
 
+const BUREAU_ORDER: BureauCode[] = ['TUC', 'EXP', 'EQF']
+
 function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceReport | null {
   return s.intelligence_json || s.report_json?.credit_intelligence || null
 }
@@ -62,6 +71,10 @@ function formatBand(value: string | null | undefined): string | null {
   return value.replace(/_/g, ' ')
 }
 
+function emptyScores(): BureauScores {
+  return { tuc: null, exp: null, eqf: null }
+}
+
 export function snapshotFromSession(session: DisputeSessionListItem): CreditProgressSnapshot | null {
   const intelligence = intelligenceFromSession(session)
   if (!intelligence) return null
@@ -78,6 +91,9 @@ export function snapshotFromSession(session: DisputeSessionListItem): CreditProg
     if (factor.factor) factorBands[factor.factor] = factor.score_band
   }
 
+  const coverage = getSessionBureauCoverage(session)
+  const scores = health?.scores || emptyScores()
+
   return {
     sessionId: session.id,
     createdAt: session.created_at,
@@ -90,6 +106,14 @@ export function snapshotFromSession(session: DisputeSessionListItem): CreditProg
     fundingScore: intelligence.funding_readiness?.score_0_to_100 ?? null,
     factorBands,
     healthCounts,
+    bureauCoverage: coverage.bureaus,
+    coverageKind: coverage.coverage,
+    bureauScores: {
+      tuc: scores.tuc ?? null,
+      exp: scores.exp ?? null,
+      eqf: scores.eqf ?? null,
+    },
+    perBureauHealth: perBureauFromReport(session.report_json),
   }
 }
 
@@ -129,6 +153,25 @@ function pushDelta(
   direction: CreditProgressDirection
 ) {
   out.push({ field, label, from, to, direction })
+}
+
+function scoreForBureau(scores: BureauScores, bureau: BureauCode): number | null {
+  if (bureau === 'EXP') return scores.exp
+  if (bureau === 'TUC') return scores.tuc
+  return scores.eqf
+}
+
+function healthForBureau(
+  snap: CreditProgressSnapshot,
+  bureau: BureauCode
+): CreditProgressHealthCounts {
+  return (
+    snap.perBureauHealth[bureau] || {
+      total_accounts: null,
+      negative_count: null,
+      collection_count: null,
+    }
+  )
 }
 
 export function diffSnapshots(
@@ -198,10 +241,7 @@ export function diffSnapshots(
         : 'unknown'
   )
 
-  const factorKeys = new Set([
-    ...Object.keys(from.factorBands),
-    ...Object.keys(to.factorBands),
-  ])
+  const factorKeys = new Set([...Object.keys(from.factorBands), ...Object.keys(to.factorBands)])
   for (const key of [...factorKeys].sort()) {
     const fromBand = from.factorBands[key] ?? null
     const toBand = to.factorBands[key] ?? null
@@ -220,6 +260,81 @@ export function diffSnapshots(
   return deltas
 }
 
+export function diffBureauSnapshots(
+  from: CreditProgressSnapshot,
+  to: CreditProgressSnapshot,
+  bureau: BureauCode
+): CreditProgressDelta[] {
+  const deltas: CreditProgressDelta[] = []
+  const fromScore = scoreForBureau(from.bureauScores, bureau)
+  const toScore = scoreForBureau(to.bureauScores, bureau)
+  const fromHealth = healthForBureau(from, bureau)
+  const toHealth = healthForBureau(to, bureau)
+
+  const bureauLabel =
+    bureau === 'EXP' ? 'Experian' : bureau === 'TUC' ? 'TransUnion' : 'Equifax'
+
+  pushDelta(
+    deltas,
+    'bureau_score',
+    `${bureauLabel} score`,
+    fromScore,
+    toScore,
+    numericDirection(fromScore, toScore, true)
+  )
+  pushDelta(
+    deltas,
+    'negative_count',
+    'Negative items',
+    fromHealth.negative_count,
+    toHealth.negative_count,
+    numericDirection(fromHealth.negative_count, toHealth.negative_count, false)
+  )
+  pushDelta(
+    deltas,
+    'collection_count',
+    'Collections',
+    fromHealth.collection_count,
+    toHealth.collection_count,
+    numericDirection(fromHealth.collection_count, toHealth.collection_count, false)
+  )
+  pushDelta(
+    deltas,
+    'total_accounts',
+    'Accounts on this bureau',
+    fromHealth.total_accounts,
+    toHealth.total_accounts,
+    fromHealth.total_accounts == null || toHealth.total_accounts == null
+      ? 'unknown'
+      : fromHealth.total_accounts === toHealth.total_accounts
+        ? 'unchanged'
+        : 'unknown'
+  )
+
+  return deltas
+}
+
+function emptyProgress(bureau?: BureauCode): CreditProgressReport {
+  return {
+    baseline: null,
+    previous: null,
+    current: null,
+    vsBaseline: [],
+    vsPrevious: [],
+    readyCount: 0,
+    bureau,
+    accountChangesVsBaseline: null,
+    accountChangesVsPrevious: null,
+  }
+}
+
+function sessionById(
+  sessions: DisputeSessionListItem[],
+  id: string
+): DisputeSessionListItem | undefined {
+  return sessions.find((s) => s.id === id)
+}
+
 /** Sessions may arrive newest-first; helper sorts oldest→newest for baseline/previous. */
 export function buildCreditProgressDiff(
   sessions: DisputeSessionListItem[],
@@ -235,16 +350,7 @@ export function buildCreditProgressDiff(
     )
 
   const readyCount = readyWithIntel.length
-  if (readyCount === 0) {
-    return {
-      baseline: null,
-      previous: null,
-      current: null,
-      vsBaseline: [],
-      vsPrevious: [],
-      readyCount: 0,
-    }
-  }
+  if (readyCount === 0) return emptyProgress()
 
   const baseline = readyWithIntel[0]
   const selectedIndex = selectedSessionId
@@ -271,6 +377,82 @@ export function buildCreditProgressDiff(
     vsPrevious,
     readyCount,
   }
+}
+
+export function buildBureauProgressDiff(
+  sessions: DisputeSessionListItem[],
+  selectedSessionId: string | null | undefined,
+  bureau: BureauCode
+): CreditProgressReport {
+  const readyWithIntel = sessions
+    .filter((s) => s.status === 'ready')
+    .map((s) => ({ session: s, snap: snapshotFromSession(s) }))
+    .filter((x): x is { session: DisputeSessionListItem; snap: CreditProgressSnapshot } => !!x.snap)
+    .filter((x) => getSessionBureauCoverage(x.session).bureaus.includes(bureau))
+    .sort(
+      (a, b) =>
+        new Date(a.session.created_at).getTime() - new Date(b.session.created_at).getTime()
+    )
+
+  const readyCount = readyWithIntel.length
+  if (readyCount === 0) return emptyProgress(bureau)
+
+  const baseline = readyWithIntel[0]
+  let currentIndex = readyCount - 1
+  if (selectedSessionId) {
+    const idx = readyWithIntel.findIndex((x) => x.session.id === selectedSessionId)
+    if (idx >= 0) currentIndex = idx
+  }
+  const current = readyWithIntel[currentIndex]
+  const previous = currentIndex > 0 ? readyWithIntel[currentIndex - 1] : null
+
+  const vsBaseline =
+    current.session.id !== baseline.session.id
+      ? diffBureauSnapshots(baseline.snap, current.snap, bureau)
+      : []
+  const vsPrevious =
+    previous && previous.session.id !== current.session.id
+      ? diffBureauSnapshots(previous.snap, current.snap, bureau)
+      : []
+
+  const currentReport = sessionById(sessions, current.session.id)?.report_json
+  const baselineReport = sessionById(sessions, baseline.session.id)?.report_json
+  const previousReport = previous
+    ? sessionById(sessions, previous.session.id)?.report_json
+    : null
+
+  const accountChangesVsBaseline =
+    current.session.id !== baseline.session.id
+      ? diffTradelinesForBureau(baselineReport, currentReport, bureau)
+      : null
+  const accountChangesVsPrevious =
+    previous && previous.session.id !== current.session.id
+      ? diffTradelinesForBureau(previousReport, currentReport, bureau)
+      : null
+
+  return {
+    baseline: baseline.snap,
+    previous: previous?.snap ?? null,
+    current: current.snap,
+    vsBaseline,
+    vsPrevious,
+    readyCount,
+    bureau,
+    accountChangesVsBaseline,
+    accountChangesVsPrevious,
+  }
+}
+
+export function buildAllBureauProgress(
+  sessions: DisputeSessionListItem[],
+  selectedSessionId: string | null | undefined
+): Partial<Record<BureauCode, CreditProgressReport>> {
+  const out: Partial<Record<BureauCode, CreditProgressReport>> = {}
+  for (const bureau of BUREAU_ORDER) {
+    const report = buildBureauProgressDiff(sessions, selectedSessionId, bureau)
+    if (report.readyCount > 0) out[bureau] = report
+  }
+  return out
 }
 
 export function formatProgressDate(iso: string | null | undefined): string {
