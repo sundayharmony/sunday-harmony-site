@@ -172,3 +172,15 @@ export async function updateDisputeSessionIntelligence(
   const { error } = await getSupabase().from('dispute_sessions').update(payload).eq('id', sessionId)
   if (error) console.error('updateDisputeSessionIntelligence error:', error)
 }
+
+/** Delete a dispute session row. Related plans/letters cascade via FK. */
+export async function deleteDisputeSession(
+  sessionId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await getSupabase().from('dispute_sessions').delete().eq('id', sessionId)
+  if (error) {
+    console.error('deleteDisputeSession error:', error)
+    return { ok: false, error: error.message || 'Failed to delete session' }
+  }
+  return { ok: true }
+}

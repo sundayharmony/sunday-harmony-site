@@ -10,6 +10,7 @@ import {
   fetchDisputeSessionsForApplication,
   rebuildDisputeIntelligence,
   analyzeReport,
+  deleteDisputeSession,
 } from '@/lib/dispute-letters/client-api'
 import {
   buildAllBureauProgress,
@@ -109,6 +110,75 @@ export default function CreditIntelligencePanel({
     const s = sessions.find((x) => x.id === id)
     setIntelligence(s ? intelligenceFromSession(s) : null)
     setSuccess('')
+  }
+
+  async function removeSession(sessionId: string) {
+    const target = sessions.find((s) => s.id === sessionId)
+    const label = target ? shortFileName(target.file_name) : 'this report'
+    if (
+      !window.confirm(
+        `Remove “${label}” from report history? This deletes the upload and analysis so you can start fresh.`
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    try {
+      await deleteDisputeSession(sessionId)
+      const remaining = sessions.filter((s) => s.id !== sessionId)
+      setSessions(remaining)
+      if (activeId === sessionId) {
+        const next =
+          remaining.find((s) => s.status === 'ready') || remaining[0] || null
+        setActiveId(next?.id ?? null)
+        setIntelligence(next ? intelligenceFromSession(next) : null)
+        setView('analysis')
+      }
+      setSuccess('Report removed from history.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove report')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function clearAllHistory() {
+    if (sessions.length === 0) return
+    if (
+      !window.confirm(
+        `Remove all ${sessions.length} report(s) from history for this client? You can upload again to start fresh.`
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    try {
+      const failures: string[] = []
+      for (const s of sessions) {
+        try {
+          await deleteDisputeSession(s.id)
+        } catch {
+          failures.push(shortFileName(s.file_name))
+        }
+      }
+      await load()
+      setActiveId(null)
+      setIntelligence(null)
+      setView('analysis')
+      if (failures.length > 0) {
+        setError(`Could not remove: ${failures.join(', ')}`)
+      } else {
+        setSuccess('Report history cleared.')
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to clear history')
+    } finally {
+      setBusy(false)
+    }
   }
 
   function openLetters(step: DisputeLetterStep = 'health') {
@@ -331,8 +401,18 @@ export default function CreditIntelligencePanel({
 
       {sessions.length > 0 && (
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
             <span className="text-xs font-semibold text-brand-dim uppercase">Report history</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void clearAllHistory()}
+              className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50"
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
             {sessions.map((s) => {
               const intel = intelligenceFromSession(s)
               const reportDate =
@@ -345,56 +425,73 @@ export default function CreditIntelligencePanel({
                 badges.push('Latest')
               }
               return (
-                <button
+                <div
                   key={s.id}
-                  type="button"
-                  onClick={() => selectSession(s.id)}
-                  className={`px-3 py-2 text-left text-xs font-semibold rounded-lg border ${
+                  className={`relative flex flex-col text-left text-xs font-semibold rounded-lg border ${
                     activeId === s.id
                       ? 'border-accent bg-accent/10 text-brand-text'
-                      : 'border-brand-border text-brand-dim hover:bg-neutral-50'
+                      : 'border-brand-border text-brand-dim'
                   }`}
                 >
-                  <span className="block">{formatProgressDate(reportDate)}</span>
-                  <span className="block font-medium text-[11px] opacity-80">
-                    {shortFileName(s.file_name)} · {s.status}
-                  </span>
-                  {coverage.bureaus.length > 0 && (
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {coverage.coverage === 'tri_merge' ? (
-                        <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-800 border border-sky-100">
-                          3-bureau
-                        </span>
-                      ) : (
-                        coverage.bureaus.map((b) => (
+                  <button
+                    type="button"
+                    onClick={() => selectSession(s.id)}
+                    className="px-3 py-2 pr-8 text-left hover:bg-neutral-50/80 rounded-lg"
+                  >
+                    <span className="block">{formatProgressDate(reportDate)}</span>
+                    <span className="block font-medium text-[11px] opacity-80">
+                      {shortFileName(s.file_name)} · {s.status}
+                    </span>
+                    {coverage.bureaus.length > 0 && (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {coverage.coverage === 'tri_merge' ? (
+                          <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-800 border border-sky-100">
+                            3-bureau
+                          </span>
+                        ) : (
+                          coverage.bureaus.map((b) => (
+                            <span
+                              key={b}
+                              className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-800 border border-sky-100"
+                            >
+                              {BUREAU_LABELS[b]}
+                            </span>
+                          ))
+                        )}
+                      </span>
+                    )}
+                    {coverage.bureaus.length === 0 && s.status === 'ready' && (
+                      <span className="mt-1 block text-[10px] font-medium text-brand-muted">
+                        {formatBureauCoverageLabel(coverage)}
+                      </span>
+                    )}
+                    {badges.length > 0 && (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {badges.map((b) => (
                           <span
                             key={b}
-                            className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-800 border border-sky-100"
+                            className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-neutral-100 text-brand-dim"
                           >
-                            {BUREAU_LABELS[b]}
+                            {b}
                           </span>
-                        ))
-                      )}
-                    </span>
-                  )}
-                  {coverage.bureaus.length === 0 && s.status === 'ready' && (
-                    <span className="mt-1 block text-[10px] font-medium text-brand-muted">
-                      {formatBureauCoverageLabel(coverage)}
-                    </span>
-                  )}
-                  {badges.length > 0 && (
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      {badges.map((b) => (
-                        <span
-                          key={b}
-                          className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-neutral-100 text-brand-dim"
-                        >
-                          {b}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </button>
+                        ))}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    title="Remove from history"
+                    aria-label={`Remove ${shortFileName(s.file_name)} from history`}
+                    disabled={busy}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void removeSession(s.id)
+                    }}
+                    className="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded text-brand-dim hover:bg-red-50 hover:text-brand-red disabled:opacity-40"
+                  >
+                    ×
+                  </button>
+                </div>
               )
             })}
           </div>

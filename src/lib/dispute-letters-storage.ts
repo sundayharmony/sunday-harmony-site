@@ -211,6 +211,30 @@ export async function removeDisputeReportObject(storagePath: string): Promise<vo
   if (error) console.error('Dispute report remove error:', error)
 }
 
+/** Remove report + letter objects under sessions/{sessionId}/. Best-effort. */
+export async function removeDisputeSessionStorage(sessionId: string, storagePath?: string | null): Promise<void> {
+  if (!sessionId || !/^[0-9a-f-]{36}$/i.test(sessionId)) return
+
+  const client = getSupabase().storage.from(DISPUTE_LETTERS_BUCKET)
+  const paths = new Set<string>()
+  if (storagePath) paths.add(storagePath)
+
+  for (const folder of [`sessions/${sessionId}/report`, `sessions/${sessionId}/letters`]) {
+    const { data, error } = await client.list(folder, { limit: 100 })
+    if (error) {
+      console.error('Dispute session storage list error:', folder, error)
+      continue
+    }
+    for (const item of data || []) {
+      if (item.name) paths.add(`${folder}/${item.name}`)
+    }
+  }
+
+  if (paths.size === 0) return
+  const { error } = await client.remove([...paths])
+  if (error) console.error('Dispute session storage remove error:', error)
+}
+
 export function newDisputeSessionId(): string {
   return randomUUID()
 }

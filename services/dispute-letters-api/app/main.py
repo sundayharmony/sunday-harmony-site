@@ -178,7 +178,7 @@ async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -
 
         temp_path = await asyncio.to_thread(write_temp_report, storage_path, ext)
         doc = await asyncio.to_thread(ingest_file, temp_path)
-        report = await analyze_report_async(doc, allow_fallback=True)
+        report = await analyze_report_async(doc, allow_fallback=True, file_name=file_name)
         update_session_report(session_id, report, file_type=doc.file_type)
         return {
             "status": "complete",

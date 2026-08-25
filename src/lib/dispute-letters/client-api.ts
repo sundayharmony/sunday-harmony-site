@@ -113,6 +113,12 @@ export async function fetchDisputeReport(sessionId: string) {
   return res.json() as Promise<{ session_id: string; report: ParsedReport }>
 }
 
+/** Permanently remove a report history session and its stored files. */
+export async function deleteDisputeSession(sessionId: string): Promise<void> {
+  const res = await fetch(`/api/admin/dispute-letters/${sessionId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await parseError(res))
+}
+
 export async function fetchDisputeHealth(sessionId: string) {
   const res = await fetch(`/api/admin/dispute-letters/${sessionId}/health`)
   if (!res.ok) throw new Error(await parseError(res))
