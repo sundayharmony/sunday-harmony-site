@@ -7,178 +7,220 @@ import type {
   CreditProgressDelta,
   CreditProgressDirection,
   CreditProgressReport,
-  FieldChangeDirection,
+  CreditProgressSnapshot,
   TradelineProgressDiff,
 } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 
-function directionClass(direction: CreditProgressDirection | FieldChangeDirection): string {
-  if (direction === 'improved') return 'text-emerald-700'
-  if (direction === 'worsened') return 'text-red-700'
-  if (direction === 'unchanged' || direction === 'neutral') return 'text-brand-dim'
-  return 'text-brand-muted'
+function scoreFromSnap(snap: CreditProgressSnapshot | null | undefined, bureau: BureauCode): number | null {
+  if (!snap) return null
+  if (bureau === 'EXP') return snap.bureauScores.exp
+  if (bureau === 'TUC') return snap.bureauScores.tuc
+  return snap.bureauScores.eqf
 }
 
-function directionLabel(direction: CreditProgressDirection | FieldChangeDirection): string {
-  if (direction === 'improved') return 'Improved'
-  if (direction === 'worsened') return 'Worsened'
-  if (direction === 'unchanged') return 'Unchanged'
-  if (direction === 'neutral') return 'Changed'
-  return 'Unknown'
+function scoreDeltaDirection(from: number | null, to: number | null): CreditProgressDirection {
+  if (from == null || to == null) return 'unknown'
+  if (from === to) return 'unchanged'
+  return to > from ? 'improved' : 'worsened'
 }
 
-function formatValue(value: string | number | null): string {
-  if (value == null || value === '') return '—'
-  return String(value)
-}
-
-function DeltaRows({
-  deltas,
-  changedOnly = false,
+function ScoreHero({
+  bureauName,
+  fromScore,
+  toScore,
+  fromLabel,
+  toLabel,
 }: {
-  deltas: CreditProgressDelta[]
-  changedOnly?: boolean
+  bureauName: string
+  fromScore: number | null
+  toScore: number | null
+  fromLabel: string
+  toLabel: string
 }) {
-  const rows = changedOnly
-    ? deltas.filter((d) => d.direction === 'improved' || d.direction === 'worsened')
-    : deltas
-  if (rows.length === 0) {
-    return <p className="text-sm text-brand-dim">No measurable changes.</p>
-  }
+  const direction = scoreDeltaDirection(fromScore, toScore)
+  const delta =
+    fromScore != null && toScore != null ? toScore - fromScore : null
+  const deltaText =
+    delta == null ? null : delta > 0 ? `+${delta}` : delta === 0 ? '0' : String(delta)
+
   return (
-    <ul className="divide-y divide-brand-border/70">
-      {rows.map((d) => (
-        <li key={d.field} className="flex items-baseline justify-between gap-3 py-2 text-sm">
+    <div className="rounded-xl border border-brand-border bg-neutral-50 px-4 py-6 sm:px-6">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
+        {bureauName} score
+      </p>
+      {fromScore != null && toScore != null && fromScore !== toScore ? (
+        <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
           <div className="min-w-0">
-            <p className="font-medium text-brand-text">{d.label}</p>
-            <p className="text-xs text-brand-dim">
-              {formatValue(d.from)} → {formatValue(d.to)}
+            <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted">
+              {fromLabel}
+            </p>
+            <p className="text-4xl font-bold tabular-nums leading-none tracking-tight text-brand-dim sm:text-5xl">
+              {fromScore}
             </p>
           </div>
-          <span
-            className={`shrink-0 text-xs font-semibold uppercase tracking-wide ${directionClass(d.direction)}`}
-          >
-            {directionLabel(d.direction)}
+          <span className="pb-1 text-2xl font-light text-brand-muted sm:text-3xl" aria-hidden>
+            →
           </span>
-        </li>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted">
+              {toLabel}
+            </p>
+            <p
+              className={`text-5xl font-bold tabular-nums leading-none tracking-tight sm:text-6xl ${
+                direction === 'improved'
+                  ? 'text-emerald-700'
+                  : direction === 'worsened'
+                    ? 'text-red-700'
+                    : 'text-brand-text'
+              }`}
+            >
+              {toScore}
+            </p>
+          </div>
+          {deltaText != null && (
+            <div className="pb-1 sm:ml-2">
+              <span
+                className={`inline-block rounded-md px-2.5 py-1 text-sm font-bold tabular-nums ${
+                  direction === 'improved'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : direction === 'worsened'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-neutral-200 text-brand-dim'
+                }`}
+              >
+                {deltaText} pts
+              </span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted">
+            {toScore != null ? toLabel : fromLabel}
+          </p>
+          <p className="text-5xl font-bold tabular-nums leading-none tracking-tight text-brand-text sm:text-6xl">
+            {toScore ?? fromScore ?? '—'}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompactMetrics({ deltas }: { deltas: CreditProgressDelta[] }) {
+  const secondary = deltas.filter((d) => d.field !== 'bureau_score')
+  if (secondary.length === 0) return null
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {secondary.map((d) => (
+        <div
+          key={d.field}
+          className="rounded-lg border border-brand-border/80 bg-white px-2.5 py-2 text-center"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-dim leading-tight">
+            {d.label}
+          </p>
+          <p className="mt-1 text-sm font-semibold tabular-nums text-brand-text">
+            {d.from ?? '—'} → {d.to ?? '—'}
+          </p>
+        </div>
       ))}
-    </ul>
+    </div>
   )
 }
 
 function AccountChangeSection({
-  title,
   diff,
-  compareLabel,
 }: {
-  title: string
   diff: TradelineProgressDiff | null | undefined
-  compareLabel: string
 }) {
   if (!diff) return null
 
   const hasAny =
     diff.removed.length > 0 || diff.added.length > 0 || diff.changed.length > 0
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-brand-dim">{title}</h4>
-        <p className="mt-0.5 text-xs text-brand-muted">{compareLabel}</p>
-      </div>
+  if (!hasAny) {
+    return (
+      <p className="text-sm text-brand-dim">
+        {diff.matchConfidence === 'low'
+          ? 'Could not match accounts reliably — score above still applies.'
+          : 'No account-level changes detected.'}
+      </p>
+    )
+  }
 
-      {!hasAny && (
-        <p className="text-sm text-brand-dim">
-          {diff.matchConfidence === 'low'
-            ? 'Could not match accounts reliably — scores and counts above still apply.'
-            : 'No account-level changes detected.'}
-        </p>
-      )}
+  return (
+    <div className="space-y-3">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
+        Account changes
+      </h4>
 
       {diff.changed.length > 0 && (
-        <div>
-          <p className="mb-1.5 text-xs font-semibold text-brand-dim">
-            Changed ({diff.changed.length})
-          </p>
-          <ul className="overflow-hidden rounded-md border border-brand-border divide-y divide-brand-border/60">
-            {diff.changed.map((item, i) => (
-              <li key={`ch-${item.creditor}-${item.accountMask}-${i}`} className="px-3 py-2">
-                <p className="text-sm font-medium text-brand-text">
-                  {item.creditor}
-                  {item.accountMask !== '—' ? (
-                    <span className="ml-1.5 font-normal text-brand-dim">{item.accountMask}</span>
-                  ) : null}
-                </p>
-                <p className="mt-0.5 text-xs text-brand-muted leading-snug">
-                  {item.fields
-                    .map((f) => `${f.label} ${f.from} → ${f.to}`)
-                    .join(' · ')}
-                </p>
-              </li>
-            ))}
-          </ul>
+        <div className="max-h-56 overflow-y-auto rounded-md border border-brand-border">
+          <table className="w-full text-left text-xs">
+            <thead className="sticky top-0 bg-neutral-50 text-[10px] uppercase tracking-wide text-brand-dim">
+              <tr>
+                <th className="px-2.5 py-1.5 font-semibold">Account</th>
+                <th className="px-2.5 py-1.5 font-semibold">What changed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diff.changed.map((item, i) => (
+                <tr
+                  key={`ch-${item.creditor}-${item.accountMask}-${i}`}
+                  className="border-t border-brand-border/60"
+                >
+                  <td className="whitespace-nowrap px-2.5 py-1.5 align-top font-medium text-brand-text">
+                    {item.creditor}
+                    {item.accountMask !== '—' ? (
+                      <span className="ml-1 font-normal text-brand-dim">{item.accountMask}</span>
+                    ) : null}
+                  </td>
+                  <td className="px-2.5 py-1.5 align-top text-brand-muted">
+                    {item.fields.map((f) => `${f.label} ${f.from} → ${f.to}`).join(' · ')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {(diff.removed.length > 0 || diff.added.length > 0) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           {diff.removed.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-semibold text-emerald-800">
+            <div className="max-h-36 overflow-y-auto rounded-md border border-emerald-200/80 bg-emerald-50/30 px-2.5 py-2 text-xs">
+              <p className="mb-1 font-semibold text-emerald-800">
                 Removed ({diff.removed.length})
               </p>
-              <ul className="max-h-48 overflow-y-auto rounded-md border border-emerald-200/80 bg-emerald-50/40 text-xs">
-                {diff.removed.map((item, i) => (
-                  <li
-                    key={`rm-${item.creditor}-${item.accountMask}-${i}`}
-                    className="border-b border-emerald-100/80 px-2.5 py-1.5 last:border-b-0"
-                  >
-                    <span className="font-medium text-brand-text">{item.creditor}</span>
-                    {item.accountMask !== '—' && (
-                      <span className="text-brand-dim"> {item.accountMask}</span>
-                    )}
-                    {(item.status || item.balance) && (
-                      <span className="block text-[11px] text-brand-dim">
-                        {[item.status, item.balance].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <p className="leading-relaxed text-brand-text">
+                {diff.removed
+                  .map((item) =>
+                    item.accountMask !== '—'
+                      ? `${item.creditor} ${item.accountMask}`
+                      : item.creditor
+                  )
+                  .join(' · ')}
+              </p>
             </div>
           )}
           {diff.added.length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-semibold text-amber-900">
-                New ({diff.added.length})
+            <div className="max-h-36 overflow-y-auto rounded-md border border-amber-200/80 bg-amber-50/30 px-2.5 py-2 text-xs">
+              <p className="mb-1 font-semibold text-amber-900">New ({diff.added.length})</p>
+              <p className="leading-relaxed text-brand-text">
+                {diff.added
+                  .map((item) =>
+                    item.accountMask !== '—'
+                      ? `${item.creditor} ${item.accountMask}`
+                      : item.creditor
+                  )
+                  .join(' · ')}
               </p>
-              <ul className="max-h-48 overflow-y-auto rounded-md border border-amber-200/80 bg-amber-50/40 text-xs">
-                {diff.added.map((item, i) => (
-                  <li
-                    key={`add-${item.creditor}-${item.accountMask}-${i}`}
-                    className="border-b border-amber-100/80 px-2.5 py-1.5 last:border-b-0"
-                  >
-                    <span className="font-medium text-brand-text">{item.creditor}</span>
-                    {item.accountMask !== '—' && (
-                      <span className="text-brand-dim"> {item.accountMask}</span>
-                    )}
-                    {(item.status || item.balance) && (
-                      <span className="block text-[11px] text-brand-dim">
-                        {[item.status, item.balance].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
         </div>
       )}
-
-      <p className="text-[11px] text-brand-muted leading-relaxed">
-        Removed means the account is no longer on this bureau report — not a guaranteed deletion.
-        Same accounts with different masking (**** vs XXXX) are matched by creditor and last digits.
-      </p>
     </div>
   )
 }
@@ -192,98 +234,100 @@ function BureauProgressBody({ progress }: { progress: CreditProgressReport }) {
     setCompareMode('baseline')
   }, [progress.bureau, progress.current?.sessionId])
 
-  if (progress.readyCount < 2 || !progress.current || !progress.baseline) {
+  if (!progress.current || !bureau) {
     return (
       <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 px-4 py-5">
-        <h3 className="text-sm font-bold text-brand-text">Progress since first {bureauName} report</h3>
-        <p className="mt-1 text-sm text-brand-dim">
-          Upload another {bureauName} report to track score and negative-item changes.
-        </p>
+        <p className="text-sm text-brand-dim">No {bureauName} report selected.</p>
       </div>
     )
   }
 
-  if (progress.current.sessionId === progress.baseline.sessionId) {
-    return (
-      <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 px-4 py-5">
-        <h3 className="text-sm font-bold text-brand-text">Progress since first {bureauName} report</h3>
-        <p className="mt-1 text-sm text-brand-dim">
-          This is the baseline {bureauName} report from{' '}
-          {formatProgressDate(progress.baseline.reportDate)}. Select a later {bureauName} analysis to
-          see what changed.
-        </p>
-      </div>
-    )
-  }
-
+  const baseline = progress.baseline || progress.current
   const canPrevious =
     !!progress.previous &&
-    progress.previous.sessionId !== progress.baseline.sessionId &&
-    progress.vsPrevious.length > 0
+    progress.previous.sessionId !== baseline.sessionId &&
+    (progress.vsPrevious?.length || 0) > 0
 
-  const activeDeltas = compareMode === 'previous' && canPrevious ? progress.vsPrevious : progress.vsBaseline
+  const compareSnap =
+    compareMode === 'previous' && canPrevious && progress.previous
+      ? progress.previous
+      : baseline
+
+  const fromScore = scoreFromSnap(compareSnap, bureau)
+  const toScore = scoreFromSnap(progress.current, bureau)
+
+  const isSameReport = compareSnap.sessionId === progress.current.sessionId
+  const activeDeltas =
+    compareMode === 'previous' && canPrevious ? progress.vsPrevious : progress.vsBaseline
   const accountDiff =
     compareMode === 'previous' && canPrevious
       ? progress.accountChangesVsPrevious
       : progress.accountChangesVsBaseline
 
-  const compareLabel =
-    compareMode === 'previous' && progress.previous
-      ? `vs previous upload (${formatProgressDate(progress.previous.reportDate)})`
-      : `vs first ${bureauName} report (${formatProgressDate(progress.baseline.reportDate)})`
+  const fromLabel = isSameReport
+    ? 'Current'
+    : compareMode === 'previous'
+      ? 'Previous'
+      : 'First report'
+  const toLabel = isSameReport ? 'Latest' : 'Updated'
 
   return (
-    <div className="rounded-xl border border-brand-border bg-white px-4 py-5 space-y-5">
-      <div>
-        <h3 className="text-sm font-bold text-brand-text">Progress since first {bureauName} report</h3>
-        <p className="mt-1 text-sm text-brand-muted">
-          Compared to first {bureauName} report ({formatProgressDate(progress.baseline.reportDate)})
-          {progress.current.reportDate
-            ? ` → selected ${formatProgressDate(progress.current.reportDate)}`
-            : ''}
-          .
-        </p>
-      </div>
-
-      {canPrevious && (
-        <div className="flex rounded-lg border border-brand-border overflow-hidden w-fit">
-          <button
-            type="button"
-            onClick={() => setCompareMode('baseline')}
-            className={`px-3 py-1.5 text-xs font-semibold ${
-              compareMode === 'baseline'
-                ? 'bg-brand-text text-white'
-                : 'bg-white text-brand-dim hover:bg-neutral-50'
-            }`}
-          >
-            vs first {bureauName}
-          </button>
-          <button
-            type="button"
-            onClick={() => setCompareMode('previous')}
-            className={`px-3 py-1.5 text-xs font-semibold border-l border-brand-border ${
-              compareMode === 'previous'
-                ? 'bg-brand-text text-white'
-                : 'bg-white text-brand-dim hover:bg-neutral-50'
-            }`}
-          >
-            vs previous upload
-          </button>
+    <div className="rounded-xl border border-brand-border bg-white px-4 py-5 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-bold text-brand-text">{bureauName} progress</h3>
+          <p className="mt-0.5 text-xs text-brand-muted">
+            {formatProgressDate(compareSnap.reportDate)}
+            {!isSameReport && progress.current.reportDate
+              ? ` → ${formatProgressDate(progress.current.reportDate)}`
+              : ''}
+          </p>
         </div>
-      )}
-
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-brand-dim mb-1">
-          Key metrics · {compareLabel}
-        </h4>
-        <DeltaRows deltas={activeDeltas} />
+        {canPrevious && (
+          <div className="flex rounded-lg border border-brand-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setCompareMode('baseline')}
+              className={`px-2.5 py-1 text-[11px] font-semibold ${
+                compareMode === 'baseline'
+                  ? 'bg-brand-text text-white'
+                  : 'bg-white text-brand-dim hover:bg-neutral-50'
+              }`}
+            >
+              vs first
+            </button>
+            <button
+              type="button"
+              onClick={() => setCompareMode('previous')}
+              className={`px-2.5 py-1 text-[11px] font-semibold border-l border-brand-border ${
+                compareMode === 'previous'
+                  ? 'bg-brand-text text-white'
+                  : 'bg-white text-brand-dim hover:bg-neutral-50'
+              }`}
+            >
+              vs previous
+            </button>
+          </div>
+        )}
       </div>
 
-      <AccountChangeSection
-        title="Account changes"
-        diff={accountDiff}
-        compareLabel={compareLabel}
+      <ScoreHero
+        bureauName={bureauName}
+        fromScore={isSameReport ? toScore : fromScore}
+        toScore={toScore}
+        fromLabel={isSameReport ? 'Report score' : fromLabel}
+        toLabel={isSameReport ? 'Report score' : toLabel}
       />
+
+      {!isSameReport && activeDeltas.length > 0 && <CompactMetrics deltas={activeDeltas} />}
+
+      {!isSameReport && <AccountChangeSection diff={accountDiff} />}
+
+      {isSameReport && progress.readyCount < 2 && (
+        <p className="text-sm text-brand-dim">
+          Upload another {bureauName} report to compare score movement and account changes.
+        </p>
+      )}
     </div>
   )
 }
@@ -328,21 +372,27 @@ export default function CreditProgressPanel({
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs font-semibold text-brand-dim uppercase">Progress by bureau</span>
         <div className="flex rounded-lg border border-brand-border overflow-hidden">
-          {available.map((bureau) => (
-            <button
-              key={bureau}
-              type="button"
-              onClick={() => setActiveBureau(bureau)}
-              className={`px-3 py-1.5 text-xs font-semibold border-l border-brand-border first:border-l-0 ${
-                activeBureau === bureau
-                  ? 'bg-brand-text text-white'
-                  : 'bg-white text-brand-dim hover:bg-neutral-50'
-              }`}
-            >
-              {BUREAU_LABELS[bureau]}
-              <span className="ml-1 opacity-70">({progressByBureau[bureau]?.readyCount || 0})</span>
-            </button>
-          ))}
+          {available.map((bureau) => {
+            const snap = progressByBureau[bureau]?.current
+            const score = snap ? scoreFromSnap(snap, bureau) : null
+            return (
+              <button
+                key={bureau}
+                type="button"
+                onClick={() => setActiveBureau(bureau)}
+                className={`px-3 py-1.5 text-xs font-semibold border-l border-brand-border first:border-l-0 ${
+                  activeBureau === bureau
+                    ? 'bg-brand-text text-white'
+                    : 'bg-white text-brand-dim hover:bg-neutral-50'
+                }`}
+              >
+                {BUREAU_LABELS[bureau]}
+                {score != null && (
+                  <span className="ml-1.5 tabular-nums opacity-80">{score}</span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
       {progress && <BureauProgressBody progress={progress} />}
