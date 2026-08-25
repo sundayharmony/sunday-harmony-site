@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { BureauScoresPanel } from '@/components/dispute-letters/BureauScoresPanel'
 import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
 import CreditProgressPanel from '@/components/dispute-letters/CreditProgressPanel'
 import DisputeLettersWorkflow from '@/components/dispute-letters/DisputeLettersWorkflow'
@@ -18,6 +19,7 @@ import {
 } from '@/lib/dispute-letters/credit-progress'
 import { uploadDisputeLetterToSignedUrl } from '@/lib/dispute-letters/upload-client'
 import type {
+  BureauScores,
   CreditIntelligenceReport,
   DisputeSessionListItem,
   FundingContextPayload,
@@ -30,6 +32,11 @@ function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceR
     s.report_json?.credit_intelligence ||
     null
   )
+}
+
+function bureauScoresFromSession(s: DisputeSessionListItem | null): BureauScores | null {
+  if (!s?.report_json?.credit_health?.scores) return null
+  return s.report_json.credit_health.scores
 }
 
 function shortFileName(name: string): string {
@@ -116,6 +123,11 @@ export default function CreditIntelligencePanel({
     () => buildCreditProgressDiff(sessions, activeId),
     [sessions, activeId]
   )
+
+  const bureauScores = useMemo(() => {
+    const activeSession = sessions.find((s) => s.id === activeId) || null
+    return bureauScoresFromSession(activeSession)
+  }, [sessions, activeId])
 
   const readyChronological = useMemo(() => {
     return sessions
@@ -448,6 +460,12 @@ export default function CreditIntelligencePanel({
         />
       ) : (
         <>
+          <BureauScoresPanel
+            scores={bureauScores}
+            title="Credit Bureau Scores"
+            subtitle={bureauScores ? undefined : 'Upload a credit report to see bureau scores'}
+          />
+
           {intelligence ? (
             <CreditIntelligenceDashboard
               intelligence={intelligence}
