@@ -18,12 +18,31 @@ const DIFF_FIELDS: { field: keyof Tradeline; label: string; lowerIsBetter: boole
   { field: 'remarks', label: 'Remarks', lowerIsBetter: false },
 ]
 
-function normalizeAccount(value: string): string {
-  return value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+/** Digits only — mask chars (* X #) are ignored so 47****** and 47XXXXXX share identity. */
+export function accountDigits(value: string): string {
+  return (value || '')
+    .replace(/[*Xx#•·_]/g, '')
+    .replace(/\D/g, '')
 }
 
 function normalizeCreditor(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return (value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizeType(value: string): string {
+  const t = normalizeCreditor(value)
+  if (!t) return ''
+  if (/inquir/.test(t)) return 'inquiry'
+  if (/collect/.test(t)) return 'collection'
+  if (/mortgage|real estate/.test(t)) return 'mortgage'
+  if (/auto|vehicle|install/.test(t)) return 'installment'
+  if (/revolving|credit card|charge/.test(t)) return 'revolving'
+  return t.slice(0, 24)
 }
 
 function parseMoney(value: string | null | undefined): number | null {
@@ -35,21 +54,27 @@ function parseMoney(value: string | null | undefined): number | null {
 }
 
 function maskAccount(raw: string): string {
-  const digits = raw.replace(/\D/g, '')
+  const digits = accountDigits(raw)
   if (digits.length >= 4) return `···${digits.slice(-4)}`
-  const cleaned = raw.trim()
-  if (!cleaned) return '—'
-  return cleaned.length > 8 ? `···${cleaned.slice(-4)}` : cleaned
+  if (digits.length > 0) return `···${digits}`
+  return '—'
 }
 
+/**
+ * Stable identity for matching across report versions.
+ * Prefer creditor + last 4 digits (mask-safe). Fall back to creditor + type.
+ */
 export function tradelineMatchKey(tl: Tradeline, bureau: BureauCode): string | null {
-  const acct = normalizeAccount(accountForBureau(tl, bureau))
-  if (acct.length >= 4) return `acct:${bureau}:${acct}`
   const creditor = normalizeCreditor(tl.creditor || '')
   if (!creditor) return null
-  const type = normalizeCreditor(tl.account_type || '')
-  const last4 = acct.slice(-4) || 'x'
-  return `fb:${bureau}:${creditor}:${type}:${last4}`
+  const digits = accountDigits(accountForBureau(tl, bureau))
+  if (digits.length >= 4) {
+    return `c4:${bureau}:${creditor}:${digits.slice(-4)}`
+  }
+  const type = normalizeType(tl.account_type || tl.item_category || '')
+  if (type) return `ct:${bureau}:${creditor}:${type}`
+  // Last resort — creditor only (risky for multi-account creditors; rematch step helps)
+  return `c:${bureau}:${creditor}`
 }
 
 function toChange(tl: Tradeline, bureau: BureauCode): TradelineChange {
@@ -92,13 +117,33 @@ function normalizeFieldValue(value: string | undefined | null): string {
   return (value || '').trim()
 }
 
+/** Status/remarks often fluctuate in wording without a real change. */
+function meaningfulFieldChange(field: string, from: string, to: string): boolean {
+  if (field === 'status' || field === 'remarks') {
+    const a = from.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+    const b = to.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+    if (a === b) return false
+    // Treat "Open/Current" vs "Open / Current" etc. as same
+    const tokens = (s: string) => new Set(s.split(' ').filter(Boolean))
+    const ta = tokens(a)
+    const tb = tokens(b)
+    if (ta.size && tb.size && [...ta].every((t) => tb.has(t)) && [...tb].every((t) => ta.has(t))) {
+      return false
+    }
+  }
+  const ma = parseMoney(from)
+  const mb = parseMoney(to)
+  if (ma != null && mb != null) return ma !== mb
+  return from !== to
+}
+
 function diffMatchedFields(prev: Tradeline, curr: Tradeline): TradelineFieldChange['fields'] {
   const fields: TradelineFieldChange['fields'] = []
   for (const spec of DIFF_FIELDS) {
     const from = normalizeFieldValue(prev[spec.field] as string | undefined)
     const to = normalizeFieldValue(curr[spec.field] as string | undefined)
-    if (from === to) continue
     if (!from && !to) continue
+    if (!meaningfulFieldChange(String(spec.field), from, to)) continue
     fields.push({
       field: String(spec.field),
       label: spec.label,
@@ -114,6 +159,46 @@ function bureauTradelines(report: ParsedReport | null | undefined, bureau: Burea
   return (report?.tradelines || []).filter((tl) => tradelineCoversBureau(tl, bureau))
 }
 
+function accountsCompatible(a: Tradeline, b: Tradeline, bureau: BureauCode): boolean {
+  if (normalizeCreditor(a.creditor) !== normalizeCreditor(b.creditor)) return false
+  const da = accountDigits(accountForBureau(a, bureau))
+  const db = accountDigits(accountForBureau(b, bureau))
+  if (da.length >= 4 && db.length >= 4) return da.slice(-4) === db.slice(-4)
+  if (da.length >= 2 && db.length >= 2 && (da.endsWith(db) || db.endsWith(da))) return true
+  // No usable digits — same creditor + similar type
+  const ta = normalizeType(a.account_type || a.item_category || '')
+  const tb = normalizeType(b.account_type || b.item_category || '')
+  if (ta && tb && ta === tb) return true
+  // Both inquiries with no digits
+  if (/inquir/i.test(a.account_type || '') && /inquir/i.test(b.account_type || '')) return true
+  return false
+}
+
+/**
+ * Pair leftover unmatched tradelines so mask-format differences don't create
+ * false removed+added pairs for the same creditor account.
+ */
+function fuzzyPair(
+  unmatchedPrev: Tradeline[],
+  unmatchedCurr: Tradeline[],
+  bureau: BureauCode
+): { pairs: [Tradeline, Tradeline][]; stillPrev: Tradeline[]; stillCurr: Tradeline[] } {
+  const pairs: [Tradeline, Tradeline][] = []
+  const currLeft = unmatchedCurr.slice()
+  const stillPrev: Tradeline[] = []
+
+  for (const prev of unmatchedPrev) {
+    const idx = currLeft.findIndex((c) => accountsCompatible(prev, c, bureau))
+    if (idx >= 0) {
+      pairs.push([prev, currLeft[idx]])
+      currLeft.splice(idx, 1)
+    } else {
+      stillPrev.push(prev)
+    }
+  }
+  return { pairs, stillPrev, stillCurr: currLeft }
+}
+
 export function diffTradelinesForBureau(
   previousReport: ParsedReport | null | undefined,
   currentReport: ParsedReport | null | undefined,
@@ -122,52 +207,73 @@ export function diffTradelinesForBureau(
   const prevList = bureauTradelines(previousReport, bureau)
   const currList = bureauTradelines(currentReport, bureau)
 
-  const prevMap = new Map<string, Tradeline>()
-  const currMap = new Map<string, Tradeline>()
-  let keyedPrev = 0
-  let keyedCurr = 0
+  // Exact key maps (first wins per key; duplicates handled via fuzzy later)
+  const prevByKey = new Map<string, Tradeline>()
+  const currByKey = new Map<string, Tradeline>()
+  const prevDupes: Tradeline[] = []
+  const currDupes: Tradeline[] = []
 
   for (const tl of prevList) {
     const key = tradelineMatchKey(tl, bureau)
-    if (!key) continue
-    keyedPrev += 1
-    if (!prevMap.has(key)) prevMap.set(key, tl)
+    if (!key) {
+      prevDupes.push(tl)
+      continue
+    }
+    if (prevByKey.has(key)) prevDupes.push(tl)
+    else prevByKey.set(key, tl)
   }
   for (const tl of currList) {
     const key = tradelineMatchKey(tl, bureau)
-    if (!key) continue
-    keyedCurr += 1
-    if (!currMap.has(key)) currMap.set(key, tl)
+    if (!key) {
+      currDupes.push(tl)
+      continue
+    }
+    if (currByKey.has(key)) currDupes.push(tl)
+    else currByKey.set(key, tl)
   }
 
-  const removed: TradelineChange[] = []
-  const added: TradelineChange[] = []
+  const pairs: [Tradeline, Tradeline][] = []
+  const unmatchedPrev: Tradeline[] = [...prevDupes]
+  const unmatchedCurr: Tradeline[] = [...currDupes]
+
+  for (const [key, prev] of prevByKey) {
+    const curr = currByKey.get(key)
+    if (curr) {
+      pairs.push([prev, curr])
+      currByKey.delete(key)
+    } else {
+      unmatchedPrev.push(prev)
+    }
+  }
+  for (const curr of currByKey.values()) {
+    unmatchedCurr.push(curr)
+  }
+
+  const fuzzy = fuzzyPair(unmatchedPrev, unmatchedCurr, bureau)
+  pairs.push(...fuzzy.pairs)
+
+  const removed = fuzzy.stillPrev.map((tl) => toChange(tl, bureau))
+  const added = fuzzy.stillCurr.map((tl) => toChange(tl, bureau))
   const changed: TradelineFieldChange[] = []
 
-  for (const [key, tl] of prevMap) {
-    if (!currMap.has(key)) removed.push(toChange(tl, bureau))
-  }
-  for (const [key, tl] of currMap) {
-    if (!prevMap.has(key)) added.push(toChange(tl, bureau))
-  }
-  for (const [key, prev] of prevMap) {
-    const curr = currMap.get(key)
-    if (!curr) continue
+  for (const [prev, curr] of pairs) {
     const fields = diffMatchedFields(prev, curr)
     if (fields.length > 0) {
       changed.push({
         creditor: curr.creditor || prev.creditor || 'Unknown',
-        accountMask: maskAccount(accountForBureau(curr, bureau) || accountForBureau(prev, bureau)),
+        accountMask: maskAccount(
+          accountForBureau(curr, bureau) || accountForBureau(prev, bureau)
+        ),
         fields,
       })
     }
   }
 
+  const matched = pairs.length
   const total = Math.max(prevList.length, currList.length, 1)
-  const keyedRatio = Math.max(keyedPrev, keyedCurr) / total
   let matchConfidence: TradelineProgressDiff['matchConfidence'] = 'low'
-  if (keyedRatio >= 0.6) matchConfidence = 'high'
-  else if (keyedRatio >= 0.3) matchConfidence = 'medium'
+  if (matched / total >= 0.6) matchConfidence = 'high'
+  else if (matched / total >= 0.3) matchConfidence = 'medium'
 
   return { removed, added, changed, matchConfidence }
 }

@@ -81,7 +81,7 @@ function AccountChangeSection({
     diff.removed.length > 0 || diff.added.length > 0 || diff.changed.length > 0
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-brand-dim">{title}</h4>
         <p className="mt-0.5 text-xs text-brand-muted">{compareLabel}</p>
@@ -95,91 +95,89 @@ function AccountChangeSection({
         </p>
       )}
 
-      {diff.removed.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-emerald-800 mb-1">Removed from report</p>
-          <ul className="space-y-1.5">
-            {diff.removed.map((item, i) => (
-              <li
-                key={`rm-${item.creditor}-${item.accountMask}-${i}`}
-                className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-brand-text">
-                    {item.creditor} {item.accountMask}
-                  </span>
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-800">
-                    Removed
-                  </span>
-                </div>
-                <p className="text-xs text-brand-dim mt-0.5">
-                  {[item.status, item.balance, item.category].filter(Boolean).join(' · ') || '—'}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {diff.added.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-amber-800 mb-1">New on report</p>
-          <ul className="space-y-1.5">
-            {diff.added.map((item, i) => (
-              <li
-                key={`add-${item.creditor}-${item.accountMask}-${i}`}
-                className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-sm"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-brand-text">
-                    {item.creditor} {item.accountMask}
-                  </span>
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-900">
-                    New
-                  </span>
-                </div>
-                <p className="text-xs text-brand-dim mt-0.5">
-                  {[item.status, item.balance, item.category].filter(Boolean).join(' · ') || '—'}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {diff.changed.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-brand-dim mb-1">Changed accounts</p>
-          <ul className="divide-y divide-brand-border/70 rounded-lg border border-brand-border">
+          <p className="mb-1.5 text-xs font-semibold text-brand-dim">
+            Changed ({diff.changed.length})
+          </p>
+          <ul className="overflow-hidden rounded-md border border-brand-border divide-y divide-brand-border/60">
             {diff.changed.map((item, i) => (
-              <li key={`ch-${item.creditor}-${item.accountMask}-${i}`} className="px-3 py-2.5">
+              <li key={`ch-${item.creditor}-${item.accountMask}-${i}`} className="px-3 py-2">
                 <p className="text-sm font-medium text-brand-text">
-                  {item.creditor} {item.accountMask}
+                  {item.creditor}
+                  {item.accountMask !== '—' ? (
+                    <span className="ml-1.5 font-normal text-brand-dim">{item.accountMask}</span>
+                  ) : null}
                 </p>
-                <ul className="mt-1 space-y-0.5">
-                  {item.fields.map((f) => (
-                    <li
-                      key={f.field}
-                      className="flex flex-wrap items-baseline justify-between gap-2 text-xs"
-                    >
-                      <span className="text-brand-dim">
-                        {f.label}: {f.from} → {f.to}
-                      </span>
-                      <span className={`font-semibold uppercase ${directionClass(f.direction)}`}>
-                        {directionLabel(f.direction)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-0.5 text-xs text-brand-muted leading-snug">
+                  {item.fields
+                    .map((f) => `${f.label} ${f.from} → ${f.to}`)
+                    .join(' · ')}
+                </p>
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {(diff.removed.length > 0 || diff.added.length > 0) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {diff.removed.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-emerald-800">
+                Removed ({diff.removed.length})
+              </p>
+              <ul className="max-h-48 overflow-y-auto rounded-md border border-emerald-200/80 bg-emerald-50/40 text-xs">
+                {diff.removed.map((item, i) => (
+                  <li
+                    key={`rm-${item.creditor}-${item.accountMask}-${i}`}
+                    className="border-b border-emerald-100/80 px-2.5 py-1.5 last:border-b-0"
+                  >
+                    <span className="font-medium text-brand-text">{item.creditor}</span>
+                    {item.accountMask !== '—' && (
+                      <span className="text-brand-dim"> {item.accountMask}</span>
+                    )}
+                    {(item.status || item.balance) && (
+                      <span className="block text-[11px] text-brand-dim">
+                        {[item.status, item.balance].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {diff.added.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-amber-900">
+                New ({diff.added.length})
+              </p>
+              <ul className="max-h-48 overflow-y-auto rounded-md border border-amber-200/80 bg-amber-50/40 text-xs">
+                {diff.added.map((item, i) => (
+                  <li
+                    key={`add-${item.creditor}-${item.accountMask}-${i}`}
+                    className="border-b border-amber-100/80 px-2.5 py-1.5 last:border-b-0"
+                  >
+                    <span className="font-medium text-brand-text">{item.creditor}</span>
+                    {item.accountMask !== '—' && (
+                      <span className="text-brand-dim"> {item.accountMask}</span>
+                    )}
+                    {(item.status || item.balance) && (
+                      <span className="block text-[11px] text-brand-dim">
+                        {[item.status, item.balance].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
       <p className="text-[11px] text-brand-muted leading-relaxed">
-        “Removed” means the account is no longer on this bureau report — not a guaranteed deletion from
-        the credit file. Matching depends on parsed account numbers.
+        Removed means the account is no longer on this bureau report — not a guaranteed deletion.
+        Same accounts with different masking (**** vs XXXX) are matched by creditor and last digits.
       </p>
     </div>
   )
