@@ -55,7 +55,7 @@ function ScoreHero({
             <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted">
               {fromLabel}
             </p>
-            <p className="text-4xl font-bold tabular-nums leading-none tracking-tight text-brand-dim sm:text-5xl">
+            <p className="font-serif text-4xl font-extrabold tabular-nums leading-none tracking-tight text-brand-dim sm:text-5xl">
               {fromScore}
             </p>
           </div>
@@ -67,7 +67,7 @@ function ScoreHero({
               {toLabel}
             </p>
             <p
-              className={`text-5xl font-bold tabular-nums leading-none tracking-tight sm:text-6xl ${
+              className={`font-serif text-5xl font-extrabold tabular-nums leading-none tracking-tight sm:text-6xl ${
                 direction === 'improved'
                   ? 'text-emerald-700'
                   : direction === 'worsened'
@@ -99,7 +99,7 @@ function ScoreHero({
           <p className="text-[11px] font-medium uppercase tracking-wide text-brand-muted">
             {toScore != null ? toLabel : fromLabel}
           </p>
-          <p className="text-5xl font-bold tabular-nums leading-none tracking-tight text-brand-text sm:text-6xl">
+          <p className="font-serif text-5xl font-extrabold tabular-nums leading-none tracking-tight text-brand-text sm:text-6xl">
             {toScore ?? fromScore ?? '—'}
           </p>
         </div>
@@ -126,6 +126,42 @@ function CompactMetrics({ deltas }: { deltas: CreditProgressDelta[] }) {
           </p>
         </div>
       ))}
+    </div>
+  )
+}
+
+function FieldChangeLine({
+  label,
+  from,
+  to,
+  direction,
+}: {
+  label: string
+  from: string
+  to: string
+  direction: 'improved' | 'worsened' | 'neutral'
+}) {
+  const toClass =
+    direction === 'improved'
+      ? 'text-emerald-800 font-semibold'
+      : direction === 'worsened'
+        ? 'text-red-800 font-semibold'
+        : 'text-brand-text font-semibold'
+
+  return (
+    <div className="grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-0.5 text-xs sm:grid-cols-[6.5rem_minmax(0,1fr)_auto_minmax(0,1.2fr)] sm:items-baseline">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-dim pt-0.5">
+        {label}
+      </span>
+      <span className="text-brand-muted line-through decoration-brand-border/80 truncate" title={from}>
+        {from}
+      </span>
+      <span className="hidden text-brand-muted sm:inline" aria-hidden>
+        →
+      </span>
+      <span className={`${toClass} truncate`} title={to}>
+        {to}
+      </span>
     </div>
   )
 }
@@ -157,34 +193,34 @@ function AccountChangeSection({
       </h4>
 
       {diff.changed.length > 0 && (
-        <div className="max-h-56 overflow-y-auto rounded-md border border-brand-border">
-          <table className="w-full text-left text-xs">
-            <thead className="sticky top-0 bg-neutral-50 text-[10px] uppercase tracking-wide text-brand-dim">
-              <tr>
-                <th className="px-2.5 py-1.5 font-semibold">Account</th>
-                <th className="px-2.5 py-1.5 font-semibold">What changed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {diff.changed.map((item, i) => (
-                <tr
-                  key={`ch-${item.creditor}-${item.accountMask}-${i}`}
-                  className="border-t border-brand-border/60"
-                >
-                  <td className="whitespace-nowrap px-2.5 py-1.5 align-top font-medium text-brand-text">
-                    {item.creditor}
-                    {item.accountMask !== '—' ? (
-                      <span className="ml-1 font-normal text-brand-dim">{item.accountMask}</span>
-                    ) : null}
-                  </td>
-                  <td className="px-2.5 py-1.5 align-top text-brand-muted">
-                    {item.fields.map((f) => `${f.label} ${f.from} → ${f.to}`).join(' · ')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="max-h-72 overflow-y-auto divide-y divide-brand-border/70 rounded-md border border-brand-border">
+          {diff.changed.map((item, i) => (
+            <li
+              key={`ch-${item.creditor}-${item.accountMask}-${i}`}
+              className="px-3 py-2.5"
+            >
+              <p className="mb-1.5 text-sm font-semibold text-brand-text">
+                {item.creditor}
+                {item.accountMask !== '—' ? (
+                  <span className="ml-1.5 text-xs font-normal text-brand-dim">
+                    {item.accountMask}
+                  </span>
+                ) : null}
+              </p>
+              <div className="space-y-1">
+                {item.fields.map((f) => (
+                  <FieldChangeLine
+                    key={f.field}
+                    label={f.label}
+                    from={f.from}
+                    to={f.to}
+                    direction={f.direction}
+                  />
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
       {(diff.removed.length > 0 || diff.added.length > 0) && (
@@ -194,29 +230,27 @@ function AccountChangeSection({
               <p className="mb-1 font-semibold text-emerald-800">
                 Removed ({diff.removed.length})
               </p>
-              <p className="leading-relaxed text-brand-text">
-                {diff.removed
-                  .map((item) =>
-                    item.accountMask !== '—'
-                      ? `${item.creditor} ${item.accountMask}`
-                      : item.creditor
-                  )
-                  .join(' · ')}
-              </p>
+              <ul className="space-y-0.5 text-brand-text">
+                {diff.removed.map((item, i) => (
+                  <li key={`rm-${item.creditor}-${item.accountMask}-${i}`}>
+                    {item.creditor}
+                    {item.accountMask !== '—' ? ` ${item.accountMask}` : ''}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {diff.added.length > 0 && (
             <div className="max-h-36 overflow-y-auto rounded-md border border-amber-200/80 bg-amber-50/30 px-2.5 py-2 text-xs">
               <p className="mb-1 font-semibold text-amber-900">New ({diff.added.length})</p>
-              <p className="leading-relaxed text-brand-text">
-                {diff.added
-                  .map((item) =>
-                    item.accountMask !== '—'
-                      ? `${item.creditor} ${item.accountMask}`
-                      : item.creditor
-                  )
-                  .join(' · ')}
-              </p>
+              <ul className="space-y-0.5 text-brand-text">
+                {diff.added.map((item, i) => (
+                  <li key={`add-${item.creditor}-${item.accountMask}-${i}`}>
+                    {item.creditor}
+                    {item.accountMask !== '—' ? ` ${item.accountMask}` : ''}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
