@@ -12,16 +12,21 @@ import {
   analyzeReport,
 } from '@/lib/dispute-letters/client-api'
 import {
-  buildCreditProgressDiff,
+  buildAllBureauProgress,
   formatProgressDate,
   snapshotFromSession,
 } from '@/lib/dispute-letters/credit-progress'
+import {
+  formatBureauCoverageLabel,
+  getSessionBureauCoverage,
+} from '@/lib/dispute-letters/bureau-coverage'
 import { uploadDisputeLetterToSignedUrl } from '@/lib/dispute-letters/upload-client'
 import type {
   CreditIntelligenceReport,
   DisputeSessionListItem,
   FundingContextPayload,
 } from '@/lib/dispute-letters/types'
+import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceReport | null {
@@ -112,9 +117,14 @@ export default function CreditIntelligencePanel({
     setView('letters')
   }
 
-  const progress = useMemo(
-    () => buildCreditProgressDiff(sessions, activeId),
+  const progressByBureau = useMemo(
+    () => buildAllBureauProgress(sessions, activeId),
     [sessions, activeId]
+  )
+
+  const hasBureauProgress = useMemo(
+    () => Object.values(progressByBureau).some((p) => (p?.readyCount || 0) >= 1),
+    [progressByBureau]
   )
 
   const readyChronological = useMemo(() => {
@@ -327,6 +337,7 @@ export default function CreditIntelligencePanel({
               const intel = intelligenceFromSession(s)
               const reportDate =
                 intel?.report_date || s.report_json?.report_date || s.created_at
+              const coverage = getSessionBureauCoverage(s)
               const badges: string[] = []
               if (s.id === firstReadyId) badges.push('First')
               if (s.id === previousReadyId && s.id !== firstReadyId) badges.push('Previous')
@@ -348,6 +359,29 @@ export default function CreditIntelligencePanel({
                   <span className="block font-medium text-[11px] opacity-80">
                     {shortFileName(s.file_name)} · {s.status}
                   </span>
+                  {coverage.bureaus.length > 0 && (
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      {coverage.coverage === 'tri_merge' ? (
+                        <span className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-800 border border-sky-100">
+                          3-bureau
+                        </span>
+                      ) : (
+                        coverage.bureaus.map((b) => (
+                          <span
+                            key={b}
+                            className="inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-800 border border-sky-100"
+                          >
+                            {BUREAU_LABELS[b]}
+                          </span>
+                        ))
+                      )}
+                    </span>
+                  )}
+                  {coverage.bureaus.length === 0 && s.status === 'ready' && (
+                    <span className="mt-1 block text-[10px] font-medium text-brand-muted">
+                      {formatBureauCoverageLabel(coverage)}
+                    </span>
+                  )}
                   {badges.length > 0 && (
                     <span className="mt-1 flex flex-wrap gap-1">
                       {badges.map((b) => (
@@ -435,8 +469,8 @@ export default function CreditIntelligencePanel({
         </div>
       )}
 
-      {progress.readyCount >= 1 && view === 'analysis' && (
-        <CreditProgressPanel progress={progress} />
+      {hasBureauProgress && view === 'analysis' && (
+        <CreditProgressPanel progressByBureau={progressByBureau} />
       )}
 
       {view === 'letters' && activeId ? (

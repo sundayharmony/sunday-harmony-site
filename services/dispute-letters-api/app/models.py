@@ -17,6 +17,18 @@ class BureauScores(BaseModel):
     eqf: int | None = None
 
 
+class PerBureauHealth(BaseModel):
+    total_accounts: int = 0
+    negative_count: int = 0
+    collection_count: int = 0
+
+
+class BureauCoverage(BaseModel):
+    bureaus: list[BureauCode] = Field(default_factory=list)
+    coverage: Literal["single", "dual", "tri_merge"] = "single"
+    confidence: Literal["high", "medium", "low"] = "low"
+
+
 class CreditHealthSummary(BaseModel):
     scores: BureauScores = Field(default_factory=BureauScores)
     total_accounts: int = 0
@@ -25,6 +37,7 @@ class CreditHealthSummary(BaseModel):
     high_priority_count: int = 0
     repair_summary: str = ""
     recommended_actions: list[str] = Field(default_factory=list)
+    per_bureau: dict[str, PerBureauHealth] = Field(default_factory=dict)
 
 
 class FactorAnalysis(BaseModel):
@@ -158,6 +171,7 @@ class ParsedReport(BaseModel):
     analysis_summary: str = ""
     credit_health: CreditHealthSummary = Field(default_factory=CreditHealthSummary)
     credit_intelligence: CreditIntelligenceReport | None = None
+    bureau_coverage: BureauCoverage | None = None
     consumer: ConsumerInfo = Field(default_factory=ConsumerInfo)
     tradelines: list[Tradeline] = Field(default_factory=list)
     subscribers: list[Subscriber] = Field(default_factory=list)
