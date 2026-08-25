@@ -34,6 +34,96 @@ function normalizeCreditor(value: string): string {
     .trim()
 }
 
+/** Legal / bureau filler words that churn between report pulls. */
+const CREDITOR_STOPWORDS = new Set([
+  'na',
+  'llc',
+  'inc',
+  'corp',
+  'co',
+  'company',
+  'bank',
+  'bk',
+  'fcu',
+  'cu',
+  'federal',
+  'union',
+  'lending',
+  'financial',
+  'fin',
+  'services',
+  'svc',
+  'svcs',
+  'the',
+  'of',
+  'and',
+  'national',
+  'assoc',
+  'association',
+])
+
+function creditorTokens(value: string): string[] {
+  return normalizeCreditor(value)
+    .split(' ')
+    .filter((t) => t.length > 0 && !CREDITOR_STOPWORDS.has(t))
+}
+
+/** Collapse creditor to a comparable core (drop filler tokens + glued suffixes). */
+function creditorCore(value: string): string {
+  const tokens = creditorTokens(value)
+  let compact = (tokens.length ? tokens.join('') : normalizeCreditor(value).replace(/\s+/g, '')).replace(
+    /(bank|bk|fcu|cu|llc|inc|corp|na|lending|financial)+$/g,
+    ''
+  )
+  return compact
+}
+
+/**
+ * True when two creditor labels are the same account under different bureau/OCR wording
+ * (CREDITONEBK ↔ CREDIT ONE BANK NA, CITADEL FCU ↔ CITADEL FEDERAL CRED U).
+ */
+export function creditorsSimilar(a: string, b: string): boolean {
+  const na = normalizeCreditor(a)
+  const nb = normalizeCreditor(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+
+  const spacedA = na.replace(/\s+/g, '')
+  const spacedB = nb.replace(/\s+/g, '')
+  if (spacedA === spacedB) return true
+  if (spacedA.length >= 4 && spacedB.length >= 4 && (spacedA.includes(spacedB) || spacedB.includes(spacedA))) {
+    return true
+  }
+
+  const ca = creditorCore(a)
+  const cb = creditorCore(b)
+  if (ca && cb) {
+    if (ca === cb) return true
+    if (ca.length >= 4 && cb.length >= 4 && (ca.includes(cb) || cb.includes(ca))) return true
+  }
+
+  const ta = creditorTokens(a)
+  const tb = creditorTokens(b)
+  if (!ta.length || !tb.length) return false
+
+  const fa = ta.join('')
+  const fb = tb.join('')
+  if (fa === fb) return true
+  if (fa.length >= 4 && fb.length >= 4 && (fa.includes(fb) || fb.includes(fa))) return true
+
+  // Shared / truncated tokens (BANTER ↔ BANT, OLDNAV ↔ OLD NAV already handled above)
+  for (const x of ta) {
+    for (const y of tb) {
+      if (x === y && x.length >= 3) return true
+      if (Math.min(x.length, y.length) >= 3 && (x.startsWith(y) || y.startsWith(x))) return true
+      if (x.length >= 4 && fb.includes(x)) return true
+      if (y.length >= 4 && fa.includes(y)) return true
+    }
+  }
+
+  return false
+}
+
 function normalizeType(value: string): string {
   const t = normalizeCreditor(value)
   if (!t) return ''
@@ -43,6 +133,17 @@ function normalizeType(value: string): string {
   if (/auto|vehicle|install/.test(t)) return 'installment'
   if (/revolving|credit card|charge/.test(t)) return 'revolving'
   return t.slice(0, 24)
+}
+
+/** Prefer bureau-specific digits; fall back to any account field so empty slots don't orphan matches. */
+function accountDigitsForMatch(tl: Tradeline, bureau: BureauCode): string {
+  const primary = accountDigits(accountForBureau(tl, bureau))
+  if (primary.length >= 4) return primary
+  for (const raw of [tl.account_tu, tl.account_exp, tl.account_eqf]) {
+    const d = accountDigits(raw || '')
+    if (d.length >= 4) return d
+  }
+  return primary
 }
 
 function parseMoney(value: string | null | undefined): number | null {
@@ -63,11 +164,12 @@ function maskAccount(raw: string): string {
 /**
  * Stable identity for matching across report versions.
  * Prefer creditor + last 4 digits (mask-safe). Fall back to creditor + type.
+ * Exact keys still use normalized creditor; fuzzy rematch covers renames.
  */
 export function tradelineMatchKey(tl: Tradeline, bureau: BureauCode): string | null {
   const creditor = normalizeCreditor(tl.creditor || '')
   if (!creditor) return null
-  const digits = accountDigits(accountForBureau(tl, bureau))
+  const digits = accountDigitsForMatch(tl, bureau)
   if (digits.length >= 4) {
     return `c4:${bureau}:${creditor}:${digits.slice(-4)}`
   }
@@ -253,11 +355,22 @@ function bureauTradelines(report: ParsedReport | null | undefined, bureau: Burea
   return (report?.tradelines || []).filter((tl) => tradelineCoversBureau(tl, bureau))
 }
 
+function last4(tl: Tradeline, bureau: BureauCode): string | null {
+  const d = accountDigitsForMatch(tl, bureau)
+  return d.length >= 4 ? d.slice(-4) : null
+}
+
 function accountsCompatible(a: Tradeline, b: Tradeline, bureau: BureauCode): boolean {
-  if (normalizeCreditor(a.creditor) !== normalizeCreditor(b.creditor)) return false
-  const da = accountDigits(accountForBureau(a, bureau))
-  const db = accountDigits(accountForBureau(b, bureau))
-  if (da.length >= 4 && db.length >= 4) return da.slice(-4) === db.slice(-4)
+  const similar = creditorsSimilar(a.creditor || '', b.creditor || '')
+  if (!similar) return false
+
+  const da = accountDigitsForMatch(a, bureau)
+  const db = accountDigitsForMatch(b, bureau)
+
+  // Both have last4 — must agree (never cross-wire sibling accounts at same creditor)
+  if (da.length >= 4 && db.length >= 4) {
+    return da.slice(-4) === db.slice(-4)
+  }
   if (da.length >= 2 && db.length >= 2 && (da.endsWith(db) || db.endsWith(da))) return true
   // No usable digits — same creditor + similar type
   const ta = normalizeType(a.account_type || a.item_category || '')
@@ -269,8 +382,8 @@ function accountsCompatible(a: Tradeline, b: Tradeline, bureau: BureauCode): boo
 }
 
 /**
- * Pair leftover unmatched tradelines so mask-format differences don't create
- * false removed+added pairs for the same creditor account.
+ * Pair leftover unmatched tradelines so mask-format / creditor-rename differences
+ * don't create false removed+added pairs for the same account.
  */
 function fuzzyPair(
   unmatchedPrev: Tradeline[],
@@ -281,8 +394,19 @@ function fuzzyPair(
   const currLeft = unmatchedCurr.slice()
   const stillPrev: Tradeline[] = []
 
+  // Pass 1: last4 + fuzzy creditor (strongest)
   for (const prev of unmatchedPrev) {
-    const idx = currLeft.findIndex((c) => accountsCompatible(prev, c, bureau))
+    const p4 = last4(prev, bureau)
+    let idx = -1
+    if (p4) {
+      idx = currLeft.findIndex((c) => {
+        const c4 = last4(c, bureau)
+        return c4 === p4 && creditorsSimilar(prev.creditor || '', c.creditor || '')
+      })
+    }
+    if (idx < 0) {
+      idx = currLeft.findIndex((c) => accountsCompatible(prev, c, bureau))
+    }
     if (idx >= 0) {
       pairs.push([prev, currLeft[idx]])
       currLeft.splice(idx, 1)

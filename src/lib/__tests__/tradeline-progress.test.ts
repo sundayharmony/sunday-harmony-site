@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   accountDigits,
+  creditorsSimilar,
   diffTradelinesForBureau,
   tradelineMatchKey,
 } from '../dispute-letters/tradeline-progress'
@@ -244,5 +245,139 @@ describe('diffTradelinesForBureau', () => {
     assert.equal(diff.changed.length, 1)
     assert.equal(diff.changed[0].creditor, 'Capital One')
     assert.ok(diff.changed[0].fields.every((f) => f.field === 'balance'))
+  })
+
+  it('does not treat renamed creditors with same last4 as removed+new', () => {
+    const prev = report([
+      tl({
+        id: '1',
+        creditor: 'CREDITONEBK',
+        account_exp: '****9364',
+        balance: '$100',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '2',
+        creditor: 'CITADEL FCU',
+        account_exp: '****5514',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '3',
+        creditor: 'SYNCB/OLDNAV',
+        account_exp: '****1859',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '4',
+        creditor: 'CCB/BANTER',
+        account_exp: '****8097',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '5',
+        creditor: 'BRIDGETON',
+        account_exp: '****1632',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '6',
+        creditor: 'KIKOFF',
+        account_exp: '',
+        account_type: 'Installment Loan',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '7',
+        creditor: 'TBOM RETAIL',
+        account_exp: '****3300',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const curr = report([
+      tl({
+        id: '1b',
+        creditor: 'CREDIT ONE BANK NA',
+        account_exp: 'XXXX9364',
+        balance: '$80',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '2b',
+        creditor: 'CITADEL FEDERAL CRED U',
+        account_exp: 'XXXX5514',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '3b',
+        creditor: 'SYNCB/OLD NAV',
+        account_exp: 'XXXX1859',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '4b',
+        creditor: 'COMENITYCAPITALBK/BANT',
+        account_exp: 'XXXX8097',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '5b',
+        creditor: 'BRIDGETON ONIZED F C U',
+        account_exp: 'XXXX1632',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '6b',
+        creditor: 'KIKOFF LENDING LLC',
+        account_exp: '',
+        account_type: 'Installment Loan',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '7b',
+        creditor: 'TBOM RETAIL',
+        account_exp: 'XXXX3300',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+      tl({
+        id: '8',
+        creditor: 'SANTANDER BANK',
+        account_exp: 'XXXX0002',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const diff = diffTradelinesForBureau(prev, curr, 'EXP')
+    assert.equal(diff.removed.length, 0)
+    assert.equal(diff.added.length, 1)
+    assert.equal(diff.added[0].creditor, 'SANTANDER BANK')
+    assert.equal(diff.changed.length, 1)
+    assert.equal(diff.changed[0].creditor, 'CREDIT ONE BANK NA')
+  })
+})
+
+describe('creditorsSimilar', () => {
+  it('matches common bureau rename patterns', () => {
+    assert.equal(creditorsSimilar('CREDITONEBK', 'CREDIT ONE BANK NA'), true)
+    assert.equal(creditorsSimilar('CITADEL FCU', 'CITADEL FEDERAL CRED U'), true)
+    assert.equal(creditorsSimilar('SYNCB/OLDNAV', 'SYNCB/OLD NAV'), true)
+    assert.equal(creditorsSimilar('CCB/BANTER', 'COMENITYCAPITALBK/BANT'), true)
+    assert.equal(creditorsSimilar('BRIDGETON', 'BRIDGETON ONIZED F C U'), true)
+    assert.equal(creditorsSimilar('KIKOFF', 'KIKOFF LENDING LLC'), true)
+    assert.equal(creditorsSimilar('Capital One', 'Midland Funding'), false)
   })
 })
