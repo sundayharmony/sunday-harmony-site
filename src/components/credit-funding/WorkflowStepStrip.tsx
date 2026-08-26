@@ -28,7 +28,7 @@ function hasHistoryEntry(step: StepItem): step is WorkflowStepState {
 export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
   if (layout === 'horizontal') {
     return (
-      <div className="overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="overflow-x-auto pt-1 pb-1 -mx-1 px-1">
         <div className="flex items-start gap-1 min-w-max">
           {steps.map((step, i) => (
             <div key={stepKey(step, i)} className="flex items-center">
