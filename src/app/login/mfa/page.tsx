@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useEffect, useState } from 'react'
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser'
 import AuthPageShell from '@/components/auth/AuthPageShell'
 import AuthInput from '@/components/auth/AuthInput'
 
@@ -12,6 +13,12 @@ function MfaVerifyForm() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const [passkeySupported, setPasskeySupported] = useState(false)
+
+  useEffect(() => {
+    setPasskeySupported(browserSupportsWebAuthn())
+  }, [])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -68,6 +75,63 @@ function MfaVerifyForm() {
     else router.push('/dashboard')
   }
 
+  const handlePasskeyMfa = async () => {
+    setError('')
+    setPasskeyLoading(true)
+
+    const email = session?.user?.email
+    const challenge = session?.mfaChallenge
+    if (!email || !challenge) {
+      setError('Session expired. Sign in again.')
+      setPasskeyLoading(false)
+      return
+    }
+
+    try {
+      const optionsRes = await fetch('/api/auth/webauthn/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!optionsRes.ok) {
+        throw new Error('Failed to get passkey options')
+      }
+
+      const { options, challengeId } = await optionsRes.json()
+
+      const assertion = await startAuthentication({ optionsJSON: options })
+
+      const result = await signIn('passkey-mfa', {
+        email,
+        response: JSON.stringify(assertion),
+        challengeId,
+        challenge,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError('Passkey verification failed')
+        setPasskeyLoading(false)
+        return
+      }
+
+      const res = await fetch('/api/auth/session')
+      const next = await res.json()
+      const role = next?.user?.role
+      if (role === 'admin') router.push('/admin')
+      else if (role === 'credit_manager') router.push('/admin/credit-funding')
+      else router.push('/dashboard')
+    } catch (err) {
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        setError('Passkey verification was cancelled')
+      } else {
+        setError('Passkey verification failed')
+      }
+      setPasskeyLoading(false)
+    }
+  }
+
   if (status === 'loading') {
     return (
       <AuthPageShell title="Two-factor authentication" subtitle="Loading…">
@@ -83,6 +147,35 @@ function MfaVerifyForm() {
           {error}
         </div>
       )}
+
+      {passkeySupported && session?.user?.passkeyEnabled && (
+        <>
+          <button
+            type="button"
+            onClick={handlePasskeyMfa}
+            disabled={passkeyLoading || loading}
+            className="w-full py-3.5 rounded-xl bg-white border-2 border-brand-border text-brand-text text-sm font-bold tracking-wide hover:border-accent hover:bg-accent-soft transition-all disabled:opacity-60 flex items-center justify-center gap-2 mb-4"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 11c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2z" />
+              <path d="M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+              <path d="M18 8v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8" />
+              <path d="M6 8a6 6 0 0 1 12 0" />
+            </svg>
+            {passkeyLoading ? 'Verifying…' : 'Use passkey instead'}
+          </button>
+
+          <div className="relative mb-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-brand-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-3 text-brand-dim">or use authenticator</span>
+            </div>
+          </div>
+        </>
+      )}
+
       <form onSubmit={handleSubmit}>
         <AuthInput
           id="mfa-code"
@@ -100,7 +193,7 @@ function MfaVerifyForm() {
         </p>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || passkeyLoading}
           className="w-full py-3.5 rounded-xl bg-brand-text text-white text-sm font-bold tracking-wide hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-60"
         >
           {loading ? 'Verifying…' : 'Verify'}

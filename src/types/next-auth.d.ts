@@ -9,6 +9,7 @@ declare module 'next-auth' {
       mfaVerified?: boolean
       mfaPending?: boolean
       mfaEnrollmentRequired?: boolean
+      passkeyEnabled?: boolean
     }
     mfaChallenge?: string
   }
@@ -19,6 +20,7 @@ declare module 'next-auth' {
     mfaVerified?: boolean
     mfaPending?: boolean
     mfaEnrollmentRequired?: boolean
+    passkeyEnabled?: boolean
   }
 }
 
@@ -30,5 +32,6 @@ declare module 'next-auth/jwt' {
     mfaPending?: boolean
     mfaEnrollmentRequired?: boolean
     mfaChallenge?: string
+    passkeyEnabled?: boolean
   }
 }

@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.3",
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.5.0",
     "@supabase/supabase-js": "^2.39.0",

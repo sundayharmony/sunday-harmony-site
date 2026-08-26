@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import AccountSettingsPanel from '@/components/settings/AccountSettingsPanel'
 import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
 import StaffMfaPanel from '@/components/settings/StaffMfaPanel'
+import PasskeyPanel from '@/components/settings/PasskeyPanel'
 
 export default function AdminSettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -24,7 +25,12 @@ export default function AdminSettingsPage() {
   return (
     <div>
       <AccountSettingsPanel title="Settings" description="Manage your account and security" />
-      {isStaff && <StaffMfaPanel />}
+      {isStaff && (
+        <>
+          <StaffMfaPanel />
+          <PasskeyPanel />
+        </>
+      )}
       {isAdmin && (
         <div className="mt-10 pt-8 border-t border-brand-border">
           <CreditExpertsPanel defaultExpanded />

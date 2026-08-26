@@ -32,7 +32,8 @@ export default function StaffMfaPanel() {
     <div className="mt-10 pt-8 border-t border-brand-border">
       <h2 className="text-lg font-bold text-brand-text mb-1">Two-factor authentication</h2>
       <p className="text-sm text-brand-muted mb-4">
-        Staff accounts require an authenticator app. Password alone is not enough to access admin tools.
+        Staff accounts require two-factor authentication. Use an authenticator app, or add a passkey
+        below to sign in with this computer instead of a 6-digit code.
       </p>
       {error && (
         <p className="text-sm text-brand-red mb-3">{error}</p>

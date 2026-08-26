@@ -15,6 +15,7 @@ import {
   type MfaUserRow,
 } from './mfa-totp'
 import { getSupabase } from './supabase'
+import { verifyAuthentication, hasPasskeyEnabled } from './webauthn'
 
 /** Staff JWT lifetime (seconds). Clients keep the longer default below. */
 export const STAFF_SESSION_MAX_AGE = 8 * 60 * 60
@@ -44,14 +45,14 @@ export function verifyMfaChallenge(userId: string, challenge: string): boolean {
   return false
 }
 
-async function loadMfaUser(email: string): Promise<(MfaUserRow & { client_id?: string }) | null> {
+async function loadMfaUser(email: string): Promise<(MfaUserRow & { client_id?: string; passkey_enabled?: boolean }) | null> {
   const { data, error } = await getSupabase()
     .from('users')
-    .select('id,email,name,role,client_id,totp_enabled,totp_secret_encrypted,totp_backup_hashes')
+    .select('id,email,name,role,client_id,totp_enabled,totp_secret_encrypted,totp_backup_hashes,passkey_enabled')
     .ilike('email', email)
     .single()
   if (error || !data) return null
-  return data as MfaUserRow & { client_id?: string }
+  return data as MfaUserRow & { client_id?: string; passkey_enabled?: boolean }
 }
 
 export const authOptions: NextAuthOptions = {
@@ -96,6 +97,7 @@ export const authOptions: NextAuthOptions = {
 
         const mfaUser = await loadMfaUser(user.email)
         const totpEnabled = Boolean(mfaUser?.totp_enabled)
+        const passkeyEnabled = Boolean(mfaUser?.passkey_enabled)
         if (!totpEnabled) {
           return {
             id: user.id,
@@ -106,6 +108,7 @@ export const authOptions: NextAuthOptions = {
             mfaVerified: false,
             mfaPending: false,
             mfaEnrollmentRequired: true,
+            passkeyEnabled,
           }
         }
 
@@ -118,6 +121,7 @@ export const authOptions: NextAuthOptions = {
           mfaVerified: false,
           mfaPending: true,
           mfaEnrollmentRequired: false,
+          passkeyEnabled,
         }
       },
     }),
@@ -177,6 +181,102 @@ export const authOptions: NextAuthOptions = {
           mfaVerified: true,
           mfaPending: false,
           mfaEnrollmentRequired: false,
+          passkeyEnabled: Boolean(mfaUser.passkey_enabled),
+        }
+      },
+    }),
+    CredentialsProvider({
+      id: 'passkey',
+      name: 'Passkey',
+      credentials: {
+        response: { label: 'Response', type: 'text' },
+        challengeId: { label: 'Challenge ID', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.response || !credentials?.challengeId) return null
+
+        const rl = await rateLimitDurable(`passkey:${credentials.challengeId}`, 5, 15 * 60 * 1000)
+        if (!rl.allowed) return null
+
+        let response: Parameters<typeof verifyAuthentication>[0]
+        try {
+          response = JSON.parse(credentials.response)
+        } catch {
+          return null
+        }
+
+        const result = await verifyAuthentication(response, credentials.challengeId)
+        if (!result.verified || !result.userId) return null
+
+        const { data: user } = await getSupabase()
+          .from('users')
+          .select('id, email, name, role, client_id')
+          .eq('id', result.userId)
+          .single()
+
+        if (!user || !isStaffRole(user.role)) return null
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          clientId: user.client_id || undefined,
+          mfaVerified: true,
+          mfaPending: false,
+          mfaEnrollmentRequired: false,
+          passkeyEnabled: true,
+        }
+      },
+    }),
+    CredentialsProvider({
+      id: 'passkey-mfa',
+      name: 'Passkey MFA',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        response: { label: 'Response', type: 'text' },
+        challengeId: { label: 'Challenge ID', type: 'text' },
+        challenge: { label: 'MFA Challenge', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.response || !credentials?.challengeId || !credentials?.challenge) {
+          return null
+        }
+
+        const emailKey = credentials.email.toLowerCase().trim()
+        const rl = await rateLimitDurable(`passkey-mfa:${emailKey}`, 5, 15 * 60 * 1000)
+        if (!rl.allowed) return null
+
+        const mfaUser = await loadMfaUser(emailKey)
+        if (!mfaUser || !isStaffRole(mfaUser.role)) return null
+        if (!verifyMfaChallenge(mfaUser.id, credentials.challenge)) return null
+
+        const hasPasskey = await hasPasskeyEnabled(mfaUser.id)
+        if (!hasPasskey) return null
+
+        let response: Parameters<typeof verifyAuthentication>[0]
+        try {
+          response = JSON.parse(credentials.response)
+        } catch {
+          return null
+        }
+
+        const result = await verifyAuthentication(response, credentials.challengeId)
+        if (!result.verified || result.userId !== mfaUser.id) return null
+
+        const base = await getUserByEmail(mfaUser.email)
+        if (!base) return null
+
+        return {
+          id: base.id,
+          email: base.email,
+          name: base.name,
+          role: base.role,
+          clientId: base.client_id || undefined,
+          mfaVerified: true,
+          mfaPending: false,
+          mfaEnrollmentRequired: false,
+          passkeyEnabled: true,
         }
       },
     }),
@@ -191,6 +291,7 @@ export const authOptions: NextAuthOptions = {
         token.mfaVerified = Boolean(user.mfaVerified)
         token.mfaPending = Boolean(user.mfaPending)
         token.mfaEnrollmentRequired = Boolean(user.mfaEnrollmentRequired)
+        token.passkeyEnabled = Boolean(user.passkeyEnabled)
         if (user.id || token.sub) {
           token.mfaChallenge = buildMfaChallenge(String(user.id || token.sub))
         }
@@ -211,6 +312,7 @@ export const authOptions: NextAuthOptions = {
           token.mfaVerified = true
           token.mfaPending = false
           token.mfaEnrollmentRequired = false
+          token.passkeyEnabled = false
           delete token.mfaChallenge
         } else {
           // Expire staff sessions after STAFF_SESSION_MAX_AGE
@@ -226,6 +328,7 @@ export const authOptions: NextAuthOptions = {
           } else {
             const mfaRow = await loadMfaUser(email)
             const enabled = Boolean(mfaRow?.totp_enabled)
+            token.passkeyEnabled = Boolean(mfaRow?.passkey_enabled)
             if (!enabled) {
               token.mfaEnrollmentRequired = true
               token.mfaPending = false
@@ -251,6 +354,7 @@ export const authOptions: NextAuthOptions = {
         session.user.mfaVerified = Boolean(token.mfaVerified)
         session.user.mfaPending = Boolean(token.mfaPending)
         session.user.mfaEnrollmentRequired = Boolean(token.mfaEnrollmentRequired)
+        session.user.passkeyEnabled = Boolean(token.passkeyEnabled)
         if (token.mfaChallenge) {
           ;(session as { mfaChallenge?: string }).mfaChallenge = token.mfaChallenge as string
         }
