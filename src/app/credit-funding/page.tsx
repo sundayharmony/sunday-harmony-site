@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { Suspense } from 'react'
 import PublicPageLayout from '@/components/layout/PublicPageLayout'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
@@ -29,6 +30,18 @@ export default function CreditFundingPage() {
       }
       description="Complete this secure intake form so our team can review your credit profile, verify your identity, and help you pursue your funding goals. All submissions are encrypted and handled confidentially."
       minimalHeader
+      hero={
+        <div className="mb-10 rounded-2xl overflow-hidden shadow-sm border border-brand-border">
+          <Image
+            src="/credit-score-hero.png"
+            alt="Credit Score Improvement"
+            width={800}
+            height={450}
+            className="w-full h-auto"
+            priority
+          />
+        </div>
+      }
     >
       <Suspense fallback={<p className="text-sm text-brand-muted">Loading application form…</p>}>
         <CreditFundingForm />
