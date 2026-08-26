@@ -30,15 +30,16 @@ export default function DisputeHealthStep({
   useEffect(() => {
     if (!sessionId) return
     setData(null)
+    setError('')
     fetchDisputeHealth(sessionId)
       .then((health) => {
         setData(health)
         setTradelines(
-          health.tradelines_by_priority.map((t) => ({
+          (health.tradelines_by_priority || []).map((t) => ({
             ...t,
             selected: t.selected || t.repair_priority === 'high',
             dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
-            dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus,
+            dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
           }))
         )
       })
@@ -60,6 +61,10 @@ export default function DisputeHealthStep({
     } finally {
       setSaving(false)
     }
+  }
+
+  if (error && !data) {
+    return <p className="text-sm text-red-600">{error}</p>
   }
 
   if (!data) {
@@ -94,9 +99,9 @@ export default function DisputeHealthStep({
       )}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <ScoreCard bureau="TransUnion" code="TUC" score={h.scores.tuc} />
-        <ScoreCard bureau="Experian" code="EXP" score={h.scores.exp} />
-        <ScoreCard bureau="Equifax" code="EQF" score={h.scores.eqf} />
+        <ScoreCard bureau="TransUnion" code="TUC" score={h.scores?.tuc ?? null} />
+        <ScoreCard bureau="Experian" code="EXP" score={h.scores?.exp ?? null} />
+        <ScoreCard bureau="Equifax" code="EQF" score={h.scores?.eqf ?? null} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -114,13 +119,13 @@ export default function DisputeHealthStep({
         />
       )}
 
-      {!intel && (h.repair_summary || h.recommended_actions.length > 0) && (
+      {!intel && (h.repair_summary || (h.recommended_actions || []).length > 0) && (
         <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-brand-text">Repair plan</h3>
           {h.repair_summary && <p className="mt-2 text-sm text-brand-text">{h.repair_summary}</p>}
-          {h.recommended_actions.length > 0 && (
+          {(h.recommended_actions || []).length > 0 && (
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-brand-dim">
-              {h.recommended_actions.map((a) => (
+              {(h.recommended_actions || []).map((a) => (
                 <li key={a}>{a}</li>
               ))}
             </ul>

@@ -67,19 +67,20 @@ export async function POST(req: NextRequest) {
       timestamp: new Date().toISOString(),
     }
 
-    // Send email if SMTP is configured
+    // Send email if SMTP is configured. Failures must not block lead persistence.
     if (isEmailConfigured()) {
       const subject = sanitizeEmailSubjectPart(
         `New Lead: ${firstName} ${lastName} from ${business}`,
         200
       )
 
-      await sendEmail({
-        from: '"Sunday Harmony Website" <sales@sundayharmony.com>',
-        to: getAdminNotifyEmail(),
-        replyTo: email,
-        subject,
-        html: `
+      try {
+        await sendEmail({
+          from: '"Sunday Harmony Website" <sales@sundayharmony.com>',
+          to: getAdminNotifyEmail(),
+          replyTo: email,
+          subject,
+          html: `
           <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Contact Form Submission
@@ -98,9 +99,10 @@ export async function POST(req: NextRequest) {
             </p>
           </div>
         `,
-      })
-    } else {
-      // SMTP not configured Ã¢ÂÂ email notification skipped
+        })
+      } catch (emailErr) {
+        console.error('Contact form email failed (lead will still be saved):', emailErr)
+      }
     }
 
     // Save lead to database

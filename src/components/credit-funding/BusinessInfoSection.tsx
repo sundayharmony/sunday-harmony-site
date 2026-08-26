@@ -88,10 +88,12 @@ export default function BusinessInfoSection({ profile, onChange, errors }: Props
         <div>
           <label className={labelClass} htmlFor={bpf('city')}>City *</label>
           <input id={bpf('city')} name="businessCity" className={inputClass} value={profile.city || ''} onChange={(e) => set('city', e.target.value)} />
+          {errors.businessCity && <p className="text-xs text-brand-red mt-1">{errors.businessCity}</p>}
         </div>
         <div>
           <label className={labelClass} htmlFor={bpf('state')}>State *</label>
           <input id={bpf('state')} name="businessState" className={inputClass} maxLength={2} value={profile.state || ''} onChange={(e) => set('state', e.target.value.toUpperCase())} />
+          {errors.businessState && <p className="text-xs text-brand-red mt-1">{errors.businessState}</p>}
         </div>
         <div>
           <label className={labelClass} htmlFor={bpf('zipCode')}>ZIP</label>

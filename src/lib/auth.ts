@@ -15,6 +15,7 @@ import {
   type MfaUserRow,
 } from './mfa-totp'
 import { getSupabase } from './supabase'
+import { emailIlikePattern } from './email-match'
 import { verifyAuthentication, hasPasskeyEnabled } from './webauthn'
 
 /** Staff JWT lifetime (seconds). Clients keep the longer default below. */
@@ -49,7 +50,7 @@ async function loadMfaUser(email: string): Promise<(MfaUserRow & { client_id?: s
   const { data, error } = await getSupabase()
     .from('users')
     .select('id,email,name,role,client_id,totp_enabled,totp_secret_encrypted,totp_backup_hashes,passkey_enabled')
-    .ilike('email', email)
+    .ilike('email', emailIlikePattern(email))
     .single()
   if (error || !data) return null
   return data as MfaUserRow & { client_id?: string; passkey_enabled?: boolean }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/db'
+import { emailIlikePattern } from '@/lib/email-match'
 import { getSupabase } from '@/lib/supabase'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     const { data: user, error } = await getSupabase()
       .from('users')
       .select('id, reset_token, reset_token_expires')
-      .ilike('email', normalizedEmail)
+      .ilike('email', emailIlikePattern(normalizedEmail))
       .single()
 
     if (error || !user || !verificationTokenMatches(user.reset_token, codeKey)) {

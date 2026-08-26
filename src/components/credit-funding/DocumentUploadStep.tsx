@@ -11,6 +11,7 @@ interface DocumentUploadStepProps {
   subtitle: string
   documents: DocumentStepItem[]
   uploads: Record<string, StagedDocumentState>
+  docsOnFile?: string[]
   onUpload: (documentType: DocumentType, file: File) => Promise<void>
   onRemove: (documentType: DocumentType) => void
 }
@@ -20,12 +21,17 @@ export default function DocumentUploadStep({
   subtitle,
   documents,
   uploads,
+  docsOnFile = [],
   onUpload,
   onRemove,
 }: DocumentUploadStepProps) {
   const requiredCount = documents.filter((d) => d.required).length
-  const uploadedRequired = documents.filter((d) => d.required && uploads[d.type]?.status === 'uploaded').length
-  const totalUploaded = documents.filter((d) => uploads[d.type]?.status === 'uploaded').length
+  const uploadedRequired = documents.filter(
+    (d) => d.required && (uploads[d.type]?.status === 'uploaded' || docsOnFile.includes(d.type))
+  ).length
+  const totalUploaded = documents.filter(
+    (d) => uploads[d.type]?.status === 'uploaded' || docsOnFile.includes(d.type)
+  ).length
 
   return (
     <div>
@@ -47,6 +53,7 @@ export default function DocumentUploadStep({
             description={doc.description}
             icon={doc.icon}
             required={doc.required}
+            onFile={docsOnFile.includes(doc.type)}
             state={uploads[doc.type]}
             onUpload={(file) => onUpload(doc.type, file)}
             onRemove={() => onRemove(doc.type)}

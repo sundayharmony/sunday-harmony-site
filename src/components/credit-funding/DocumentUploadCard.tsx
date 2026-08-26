@@ -14,6 +14,7 @@ interface DocumentUploadCardProps {
   description: string
   icon: string
   required?: boolean
+  onFile?: boolean
   state: StagedDocumentState | undefined
   onUpload: (file: File) => Promise<void>
   onRemove: () => void
@@ -25,6 +26,7 @@ export default function DocumentUploadCard({
   description,
   icon,
   required,
+  onFile,
   state,
   onUpload,
   onRemove,
@@ -59,9 +61,11 @@ export default function DocumentUploadCard({
         ? 'Uploading…'
         : status === 'error'
           ? 'Upload failed'
-          : required
-            ? 'Required'
-            : 'Optional'
+          : onFile
+            ? 'On file'
+            : required
+              ? 'Required'
+              : 'Optional'
 
   const statusClass =
     status === 'uploaded'
@@ -70,9 +74,11 @@ export default function DocumentUploadCard({
         ? 'bg-blue-50 text-blue-800 border-blue-200'
         : status === 'error' || localError
           ? 'bg-red-50 text-red-800 border-red-200'
-          : required
-            ? 'bg-amber-50 text-amber-900 border-amber-200'
-            : 'bg-neutral-50 text-brand-dim border-brand-border'
+          : onFile
+            ? 'bg-green-50 text-green-800 border-green-200'
+            : required
+              ? 'bg-amber-50 text-amber-900 border-amber-200'
+              : 'bg-neutral-50 text-brand-dim border-brand-border'
 
   return (
     <FileDropzone
@@ -87,7 +93,7 @@ export default function DocumentUploadCard({
       <div className="p-4">
         <div className="flex items-start gap-3 mb-3">
           <div className="w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center text-xl shrink-0">
-            {status === 'uploaded' ? '✓' : icon}
+            {status === 'uploaded' ? '✓' : onFile ? '✓' : icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
@@ -133,7 +139,7 @@ export default function DocumentUploadCard({
             onClick={() => inputRef.current?.click()}
             className="px-3 py-2 text-xs font-semibold rounded-lg bg-brand-text text-white hover:bg-neutral-800 disabled:opacity-50 transition-colors"
           >
-            {status === 'uploaded' ? 'Replace file' : status === 'uploading' ? 'Uploading…' : 'Choose file'}
+            {status === 'uploaded' ? 'Replace file' : status === 'uploading' ? 'Uploading…' : onFile ? 'Replace file' : 'Choose file'}
           </button>
           {status === 'uploaded' && (
             <button

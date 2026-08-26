@@ -207,7 +207,7 @@ export default function PackagePage() {
               }`}
               style={{
                 background: isCurrent ? `${pkg.color}08` : 'white',
-                borderColor: isCurrent ? `${pkg.color}30` : 'border-brand-border',
+                borderColor: isCurrent ? `${pkg.color}30` : '#e5e5e5',
                 ...(isCurrent ? { ['--tw-ring-color' as string]: `${pkg.color}40` } : {}),
               }}
             >

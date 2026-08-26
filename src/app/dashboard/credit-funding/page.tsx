@@ -76,6 +76,7 @@ export default function ClientCreditFundingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState<string | null>(null)
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<Record<string, File | null>>({})
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
   const [newMsg, setNewMsg] = useState('')
   const [sending, setSending] = useState(false)
@@ -138,6 +139,11 @@ export default function ClientCreditFundingPage() {
         const err = await r.json()
         throw new Error(err.error || 'Upload failed')
       }
+      setPendingUploadFiles((prev) => {
+        const next = { ...prev }
+        delete next[request.id]
+        return next
+      })
       await load()
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Upload failed')
@@ -306,11 +312,11 @@ export default function ClientCreditFundingPage() {
                     label="Upload requested document"
                     name={`doc-${req.id}`}
                     required
-                    value={null}
+                    value={pendingUploadFiles[req.id] || null}
                     onChange={(file) => {
+                      setPendingUploadFiles((prev) => ({ ...prev, [req.id]: file }))
                       if (file) void uploadDoc(req, file)
                     }}
-                    error={uploading === req.id ? undefined : undefined}
                   />
                   {uploading === req.id && (
                     <p className="text-xs text-brand-dim mt-2">Uploading securely…</p>

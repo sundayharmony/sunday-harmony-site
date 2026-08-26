@@ -48,9 +48,9 @@ export async function POST(req: NextRequest) {
 
     if (isEmailConfigured()) {
       const siteUrl = getPublicSiteUrl()
-      const resetUrl = `${siteUrl}/reset-password?email=${encodeURIComponent(normalizedEmail)}`
+      const resetUrl = `${siteUrl}/reset-password?email=${encodeURIComponent(user.email)}`
       await sendEmail({
-        to: normalizedEmail,
+        to: user.email,
         subject: 'Your Password Reset Code — Sunday Harmony',
         html: `
           <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">

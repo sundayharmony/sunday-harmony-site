@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto'
 import { getSupabase } from '@/lib/supabase'
+import { emailIlikePattern } from '@/lib/email-match'
 import type {
   ApplicationStatus,
   CreditFundingApplication,
@@ -107,7 +108,7 @@ export async function getPendingInvitationByEmail(email: string): Promise<Credit
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')
     .select('*')
-    .ilike('email', email.trim())
+    .ilike('email', emailIlikePattern(email))
     .eq('status', 'invitation_pending')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -121,7 +122,7 @@ export async function getOpenStaffDraftByEmail(email: string): Promise<CreditFun
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')
     .select('*')
-    .ilike('email', email.trim())
+    .ilike('email', emailIlikePattern(email))
     .eq('status', 'draft')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -651,7 +652,7 @@ export async function getCreditFundingApplicationByEmail(email: string): Promise
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')
     .select('*')
-    .ilike('email', email)
+    .ilike('email', emailIlikePattern(email))
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()

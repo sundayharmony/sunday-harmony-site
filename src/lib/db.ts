@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase'
+import { emailIlikePattern } from './email-match'
 import {
   hashPassword,
   passwordNeedsRehash,
@@ -33,7 +34,7 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
   const { data, error } = await getSupabase()
     .from('users')
     .select('*')
-    .ilike('email', email)
+    .ilike('email', emailIlikePattern(email))
     .single()
   if (error) return undefined
   return data
@@ -621,18 +622,23 @@ export interface CaseStudy {
 export type ClientCaseStudy = CaseStudy
 
 export async function getPublishedCaseStudies(): Promise<CaseStudy[]> {
-  const { data, error } = await getSupabase()
-    .from('client_case_studies')
-    .select('*')
-    .eq('published', true)
-    .order('title', { ascending: true })
+  try {
+    const { data, error } = await getSupabase()
+      .from('client_case_studies')
+      .select('*')
+      .eq('published', true)
+      .order('title', { ascending: true })
 
-  if (error) {
-    console.error('getPublishedCaseStudies error:', error)
+    if (error) {
+      console.error('getPublishedCaseStudies error:', error)
+      return []
+    }
+
+    return (data || []) as CaseStudy[]
+  } catch (err) {
+    console.error('getPublishedCaseStudies error:', err)
     return []
   }
-
-  return (data || []) as CaseStudy[]
 }
 
 export async function getAllCaseStudiesForAdmin(): Promise<CaseStudy[]> {

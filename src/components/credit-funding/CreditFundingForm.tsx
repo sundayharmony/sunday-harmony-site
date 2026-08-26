@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
 import { WorkflowStepStrip } from '@/components/credit-funding/WorkflowStepStrip'
@@ -114,6 +114,21 @@ function validateBusinessFields(bp: BusinessProfile, errors: Record<string, stri
   if (!bp.fundingPurposes?.length) errors.fundingPurposes = 'Select at least one purpose'
 }
 
+const BUSINESS_FIELD_ERROR_KEYS = [
+  'legalName',
+  'ein',
+  'businessAddress',
+  'businessCity',
+  'businessState',
+  'industry',
+  'entityType',
+  'fundingPurposes',
+] as const
+
+function onFileHint(onFile: boolean) {
+  return onFile ? ' (on file — leave blank to keep)' : ''
+}
+
 const initialState: FormState = {
   fullName: '',
   dateOfBirth: '',
@@ -178,6 +193,9 @@ export default function CreditFundingForm() {
   const [applicationId, setApplicationId] = useState('')
   const [submitError, setSubmitError] = useState('')
   const stagedUploads = useStagedDocumentUploads()
+  const intakeIdempotencyKey = useRef(
+    typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `intake-${Date.now()}`
+  )
   const [fundingDetailsOpen, setFundingDetailsOpen] = useState(false)
   const seekingFunding = isSeekingFunding(form.creditGoals, form.fundingUse)
   const showFundingFields =
@@ -305,7 +323,13 @@ export default function CreditFundingForm() {
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
-    setErrors((prev) => ({ ...prev, [key]: '' }))
+    setErrors((prev) => {
+      const next = { ...prev, [key]: '' }
+      if (key === 'businessProfile') {
+        for (const field of BUSINESS_FIELD_ERROR_KEYS) next[field] = ''
+      }
+      return next
+    })
   }
 
   const updateCredit = (key: keyof CreditProfile, value: string | boolean) => {
@@ -491,9 +515,19 @@ export default function CreditFundingForm() {
 
       setUploadProgress(70)
 
-      const intakeRes = await fetch('/api/credit-funding/intake', { method: 'POST', body: fd })
+      const intakeRes = await fetch('/api/credit-funding/intake', {
+        method: 'POST',
+        headers: { 'x-idempotency-key': intakeIdempotencyKey.current },
+        body: fd,
+      })
       const intakeData = await intakeRes.json().catch(() => ({}))
       if (!intakeRes.ok) {
+        if (intakeRes.status !== 409 && intakeRes.status < 500) {
+          intakeIdempotencyKey.current =
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `intake-${Date.now()}`
+        }
         if (intakeRes.status === 413) {
           throw new Error('Upload too large. Use files under 4 MB each (PDF, JPG, PNG, or TXT).')
         }
@@ -578,12 +612,16 @@ export default function CreditFundingForm() {
               {errors.fullName && <p className="text-xs text-brand-red mt-1">{errors.fullName}</p>}
             </div>
             <div>
-              <label className={labelClass} htmlFor={fid('dateOfBirth')}>Date of Birth *</label>
+              <label className={labelClass} htmlFor={fid('dateOfBirth')}>
+                Date of Birth *{onFileHint(secretsOnFile.dateOfBirthSet)}
+              </label>
               <input id={fid('dateOfBirth')} name="dateOfBirth" type="date" autoComplete="bday" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
               {errors.dateOfBirth && <p className="text-xs text-brand-red mt-1">{errors.dateOfBirth}</p>}
             </div>
             <div>
-              <label className={labelClass} htmlFor={fid('ssn')}>Social Security Number *</label>
+              <label className={labelClass} htmlFor={fid('ssn')}>
+                Social Security Number *{onFileHint(secretsOnFile.ssnSet)}
+              </label>
               <SsnInputField
                 id={fid('ssn')}
                 name="ssn"
@@ -645,6 +683,7 @@ export default function CreditFundingForm() {
               subtitle="Upload each document on this step. Files are encrypted and stored securely as soon as you add them."
               documents={IDENTITY_DOCUMENTS}
               uploads={stagedUploads.uploads}
+              docsOnFile={docsOnFile}
               onUpload={stagedUploads.uploadDocument}
               onRemove={stagedUploads.removeDocument}
             />
@@ -723,12 +762,16 @@ export default function CreditFundingForm() {
             {form.selectedCreditProvider && (
               <>
                 <div className="mb-4">
-                  <label className={labelClass} htmlFor={fid('providerUsername')}>Username / Login Email *</label>
+                  <label className={labelClass} htmlFor={fid('providerUsername')}>
+                    Username / Login Email *{onFileHint(secretsOnFile.providerUsernameSet)}
+                  </label>
                   <input id={fid('providerUsername')} name="providerUsername" className={inputClass} value={form.providerUsername} onChange={(e) => update('providerUsername', e.target.value)} autoComplete="off" />
                   {errors.providerUsername && <p className="text-xs text-brand-red mt-1">{errors.providerUsername}</p>}
                 </div>
                 <div className="mb-4">
-                  <label className={labelClass} htmlFor={fid('providerPassword')}>Password *</label>
+                  <label className={labelClass} htmlFor={fid('providerPassword')}>
+                    Password *{onFileHint(secretsOnFile.providerPasswordSet)}
+                  </label>
                   <div className="relative">
                     <input
                       id={fid('providerPassword')}
@@ -753,7 +796,9 @@ export default function CreditFundingForm() {
                 <div className="mb-5 pt-4 border-t border-brand-border">
                   <p className="text-sm font-semibold text-brand-text mb-3">Experian.com credentials</p>
                   <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('experianEmail')}>Experian.com Email *</label>
+                    <label className={labelClass} htmlFor={fid('experianEmail')}>
+                      Experian.com Email *{onFileHint(secretsOnFile.experianEmailSet)}
+                    </label>
                     <input
                       id={fid('experianEmail')}
                       name="experianEmail"
@@ -767,7 +812,9 @@ export default function CreditFundingForm() {
                     {errors.experianEmail && <p className="text-xs text-brand-red mt-1">{errors.experianEmail}</p>}
                   </div>
                   <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('experianPassword')}>Experian.com Password *</label>
+                    <label className={labelClass} htmlFor={fid('experianPassword')}>
+                      Experian.com Password *{onFileHint(secretsOnFile.experianPasswordSet)}
+                    </label>
                     <div className="relative">
                       <input
                         id={fid('experianPassword')}
@@ -793,7 +840,9 @@ export default function CreditFundingForm() {
                 <div className="mb-5 pt-4 border-t border-brand-border">
                   <p className="text-sm font-semibold text-brand-text mb-3">CFPB portal credentials</p>
                   <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('cfpbEmail')}>CFPB Portal Email *</label>
+                    <label className={labelClass} htmlFor={fid('cfpbEmail')}>
+                      CFPB Portal Email *{onFileHint(secretsOnFile.cfpbEmailSet)}
+                    </label>
                     <input
                       id={fid('cfpbEmail')}
                       name="cfpbEmail"
@@ -806,7 +855,9 @@ export default function CreditFundingForm() {
                     {errors.cfpbEmail && <p className="text-xs text-brand-red mt-1">{errors.cfpbEmail}</p>}
                   </div>
                   <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('cfpbPassword')}>CFPB Portal Password *</label>
+                    <label className={labelClass} htmlFor={fid('cfpbPassword')}>
+                      CFPB Portal Password *{onFileHint(secretsOnFile.cfpbPasswordSet)}
+                    </label>
                     <div className="relative">
                       <input
                         id={fid('cfpbPassword')}
@@ -942,6 +993,7 @@ export default function CreditFundingForm() {
               subtitle="Upload any documents you have available. You can add more later from your client portal if needed."
               documents={BUSINESS_DOCUMENTS}
               uploads={stagedUploads.uploads}
+              docsOnFile={docsOnFile}
               onUpload={stagedUploads.uploadDocument}
               onRemove={stagedUploads.removeDocument}
             />
@@ -999,7 +1051,9 @@ export default function CreditFundingForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass} htmlFor={fid('typedSignature')}>Typed Signature *</label>
+                <label className={labelClass} htmlFor={fid('typedSignature')}>
+                  Typed Signature *{onFileHint(secretsOnFile.typedSignatureSet)}
+                </label>
                 <input id={fid('typedSignature')} name="typedSignature" className={inputClass} placeholder="Type your full legal name" value={form.typedSignature} onChange={(e) => update('typedSignature', e.target.value)} />
                 {errors.typedSignature && <p className="text-xs text-brand-red mt-1">{errors.typedSignature}</p>}
               </div>
