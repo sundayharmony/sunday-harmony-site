@@ -12,6 +12,10 @@ function source(path: string): string {
   return readFileSync(path, 'utf8')
 }
 
+function originHosts(siteUrl: string): string[] {
+  return getWebAuthnExpectedOrigins(siteUrl).map((origin) => new URL(origin).host)
+}
+
 describe('webauthn relying party config', () => {
   it('strips www from the RP ID so apex and www share credentials', () => {
     assert.equal(getWebAuthnRpId('https://www.sundayharmony.com'), 'sundayharmony.com')
@@ -20,15 +24,17 @@ describe('webauthn relying party config', () => {
   })
 
   it('accepts both www and apex origins', () => {
-    const origins = getWebAuthnExpectedOrigins('https://sundayharmony.com')
-    assert.equal(origins.includes('https://sundayharmony.com'), true)
-    assert.equal(origins.includes('https://www.sundayharmony.com'), true)
+    assert.deepEqual(originHosts('https://sundayharmony.com').sort(), [
+      'sundayharmony.com',
+      'www.sundayharmony.com',
+    ])
   })
 
   it('accepts localhost and 127.0.0.1 during local development', () => {
-    const origins = getWebAuthnExpectedOrigins('http://localhost:3000')
-    assert.equal(origins.includes('http://localhost:3000'), true)
-    assert.equal(origins.includes('http://127.0.0.1:3000'), true)
+    assert.deepEqual(originHosts('http://localhost:3000').sort(), [
+      '127.0.0.1:3000',
+      'localhost:3000',
+    ])
   })
 
   it('round-trips public keys as base64url', () => {
