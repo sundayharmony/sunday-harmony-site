@@ -92,6 +92,7 @@ export default function CreditFundingPrivacyPage() {
       maxWidthClass="max-w-[800px]"
       label="Credit & Funding"
       title="Privacy Policy"
+      minimalHeader
       hero={
         <>
           <Link href="/credit-funding" className="text-sm text-accent hover:underline mb-6 inline-block">

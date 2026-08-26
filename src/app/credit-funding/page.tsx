@@ -28,6 +28,7 @@ export default function CreditFundingPage() {
         </>
       }
       description="Complete this secure intake form so our team can review your credit profile, verify your identity, and help you pursue your funding goals. All submissions are encrypted and handled confidentially."
+      minimalHeader
     >
       <Suspense fallback={<p className="text-sm text-brand-muted">Loading application form…</p>}>
         <CreditFundingForm />

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import BrandLogo from '@/components/BrandLogo'
 
 interface Props {
   label?: string
@@ -9,6 +10,17 @@ interface Props {
   hero?: ReactNode
   children: ReactNode
   maxWidthClass?: string
+  minimalHeader?: boolean
+}
+
+function MinimalHeader() {
+  return (
+    <header className="fixed top-0 left-0 right-0 z-[1000] border-b border-brand-border bg-white pt-[env(safe-area-inset-top,0px)]">
+      <div className="flex items-center justify-center h-[var(--nav-bar-height)]">
+        <BrandLogo height={38} priority />
+      </div>
+    </header>
+  )
 }
 
 export default function PublicPageLayout({
@@ -18,10 +30,11 @@ export default function PublicPageLayout({
   hero,
   children,
   maxWidthClass = 'max-w-[1100px]',
+  minimalHeader = false,
 }: Props) {
   return (
     <>
-      <Navbar />
+      {minimalHeader ? <MinimalHeader /> : <Navbar />}
       <main className="pt-[var(--nav-total-height)] min-h-screen bg-brand-bg-soft">
         <section className="py-16 sm:py-20">
           <div className={`${maxWidthClass} mx-auto px-7`}>
