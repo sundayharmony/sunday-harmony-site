@@ -1,4 +1,4 @@
-import { getSupabase } from './supabase'
+import { getSupabase, isSupabaseConfigured } from './supabase'
 import { emailIlikePattern } from './email-match'
 import {
   hashPassword,
@@ -622,6 +622,7 @@ export interface CaseStudy {
 export type ClientCaseStudy = CaseStudy
 
 export async function getPublishedCaseStudies(): Promise<CaseStudy[]> {
+  if (!isSupabaseConfigured()) return []
   try {
     const { data, error } = await getSupabase()
       .from('client_case_studies')
