@@ -173,6 +173,7 @@ describe('Area 06 API authorization hardening', () => {
       assert.doesNotMatch(source, /getServerSession/)
     }
     assert.match(files, /file\.client_id !== clientId/)
+    assert.match(files, /uploadTask\.client_id !== clientId/)
     assert.match(approvals, /existing\.client_id !== clientId/)
     assert.match(notifications, /notification\.user_id !== userId/)
   })

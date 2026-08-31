@@ -8,7 +8,9 @@ import {
 } from '@/lib/client-files-storage'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
-import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById, getClientById } from '@/lib/db'
+import { getFilesByClient, createFileRecord, deleteFileRecord, getFileById, getClientById, getTaskById, updateTask } from '@/lib/db'
+import { isUuid } from '@/lib/uuid'
+import { isFileUploadTask } from '@/lib/tasks'
 import {
   getAdminNotifyEmail,
   isEmailConfigured,
@@ -22,7 +24,11 @@ export const runtime = 'nodejs'
 
 const CATEGORY_OK = new Set(['report', 'graphic', 'content', 'brand', 'general'])
 
-async function notifyStaffClientFileUploaded(clientId: string, fileName: string) {
+async function notifyStaffClientFileUploaded(
+  clientId: string,
+  fileName: string,
+  taskTitle?: string
+) {
   if (!isEmailConfigured()) return
   try {
     const c = await getClientById(clientId)
@@ -32,12 +38,20 @@ async function notifyStaffClientFileUploaded(clientId: string, fileName: string)
         : 'A client'
     const html = staffPortalEmailHtml({
       heading: 'Client uploaded a file',
-      bodyParagraphs: [`${who} uploaded a file to the client vault.`, `File: ${fileName}`],
-      pathWithQuery: `/admin/files?client=${encodeURIComponent(clientId)}`,
+      bodyParagraphs: [
+        `${who} uploaded a file to the client vault.`,
+        `File: ${fileName}`,
+        ...(taskTitle ? [`Task: ${taskTitle}`] : []),
+      ],
+      pathWithQuery: taskTitle
+        ? `/admin/tasks?client=${encodeURIComponent(clientId)}`
+        : `/admin/files?client=${encodeURIComponent(clientId)}`,
     })
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),
-      subject: sanitizeEmailSubjectPart(`Client upload: ${fileName}`),
+      subject: sanitizeEmailSubjectPart(
+        taskTitle ? `Client upload for task: ${fileName}` : `Client upload: ${fileName}`
+      ),
       html,
       logLabel: 'dashboard-file-to-staff',
     })
@@ -97,6 +111,25 @@ export async function POST(request: NextRequest) {
       const category =
         typeof catRaw === 'string' && CATEGORY_OK.has(catRaw) ? catRaw : 'general'
 
+      const taskIdRaw = formData.get('task_id')
+      const taskId = typeof taskIdRaw === 'string' ? taskIdRaw.trim() : ''
+      let uploadTask: Awaited<ReturnType<typeof getTaskById>> | undefined
+      if (taskId) {
+        if (!isUuid(taskId)) {
+          return NextResponse.json({ error: 'Invalid task' }, { status: 400 })
+        }
+        uploadTask = await getTaskById(taskId)
+        if (!uploadTask || uploadTask.client_id !== clientId) {
+          return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+        }
+        if (!isFileUploadTask(uploadTask)) {
+          return NextResponse.json({ error: 'This task does not accept file uploads' }, { status: 400 })
+        }
+        if (uploadTask.status === 'completed') {
+          return NextResponse.json({ error: 'This task is already completed' }, { status: 400 })
+        }
+      }
+
       const arrayBuffer = await fileEntry.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
       const contentType = fileEntry.type || 'application/octet-stream'
@@ -124,6 +157,7 @@ export async function POST(request: NextRequest) {
         category,
         uploaded_by_role: 'client',
         uploaded_by_name: user.name || user.email || 'Client',
+        ...(uploadTask ? { task_id: uploadTask.id } : {}),
       })
 
       if (!fileRecord) {
@@ -131,9 +165,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create file record' }, { status: 500 })
       }
 
-      await notifyStaffClientFileUploaded(clientId, fileRecord.name)
+      await notifyStaffClientFileUploaded(clientId, fileRecord.name, uploadTask?.title)
 
-      return NextResponse.json({ ...fileRecord, file_url: signedUrl }, { status: 201 })
+      let updatedTask = uploadTask
+      if (uploadTask && uploadTask.status !== 'in_review') {
+        updatedTask = (await updateTask(uploadTask.id, { status: 'in_review' })) || uploadTask
+      }
+
+      return NextResponse.json(
+        { ...fileRecord, file_url: signedUrl, ...(updatedTask ? { task: updatedTask } : {}) },
+        { status: 201 }
+      )
     }
 
     const body = await request.json()

@@ -1,12 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import StatusBadge from '@/components/ui/StatusBadge'
+import { isFileUploadTask, parseTaskType, type TaskType } from '@/lib/tasks'
 
 interface Client {
   id: string
   name: string
   business: string
+}
+
+interface TaskFile {
+  id: string
+  name: string
+  file_url: string
 }
 
 interface Task {
@@ -18,6 +24,8 @@ interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   due_date?: string
   category: string
+  task_type?: TaskType
+  files?: TaskFile[]
   created_at: string
 }
 
@@ -61,6 +69,7 @@ export default function AdminTasksPage() {
     priority: Task['priority']
     due_date: string
     category: string
+    task_type: TaskType
   }>({
     title: '',
     description: '',
@@ -68,6 +77,7 @@ export default function AdminTasksPage() {
     priority: 'medium',
     due_date: '',
     category: 'deliverable',
+    task_type: 'general',
   })
 
   // Fetch clients on mount
@@ -139,6 +149,7 @@ export default function AdminTasksPage() {
         priority: 'medium',
         due_date: '',
         category: 'deliverable',
+        task_type: 'general',
       })
       setShowForm(false)
       setError('')
@@ -313,6 +324,30 @@ export default function AdminTasksPage() {
                 className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
               />
             </div>
+            <div>
+              <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
+                Task type
+              </label>
+              <select
+                value={form.task_type}
+                onChange={e => setForm(f => ({
+                  ...f,
+                  task_type: parseTaskType(e.target.value),
+                  category: parseTaskType(e.target.value) === 'file_upload' && f.category === 'deliverable'
+                    ? 'file_upload'
+                    : f.category,
+                }))}
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
+              >
+                <option value="general">General</option>
+                <option value="file_upload">File upload</option>
+              </select>
+              {form.task_type === 'file_upload' && (
+                <p className="text-[11px] text-brand-muted mt-1">
+                  The client can upload files from this task in their portal.
+                </p>
+              )}
+            </div>
           </div>
           <div className="mb-4">
             <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
@@ -380,7 +415,7 @@ export default function AdminTasksPage() {
                           {task.priority.toUpperCase()}
                         </span>
                         <span className="text-[10px] text-brand-dim bg-gray-100 px-2 py-1 rounded-full">
-                          {task.category}
+                          {isFileUploadTask(task) ? 'file upload' : task.category}
                         </span>
                         {task.due_date && (
                           <span className="text-[10px] text-brand-dim">
@@ -388,6 +423,22 @@ export default function AdminTasksPage() {
                           </span>
                         )}
                       </div>
+                      {task.files && task.files.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {task.files.map((file) => (
+                            <li key={file.id}>
+                              <a
+                                href={file.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-accent hover:underline break-all"
+                              >
+                                {file.name}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <select

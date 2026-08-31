@@ -593,6 +593,7 @@ export interface FileRecord {
   uploaded_by_name: string
   category: string
   created_at: string
+  task_id?: string | null
 }
 
 export async function getFilesByClient(clientId: string): Promise<FileRecord[]> {
@@ -605,6 +606,17 @@ export async function createFileRecord(file: Omit<FileRecord, 'id' | 'created_at
   const { data, error } = await getSupabase().from('files').insert(file).select().single()
   if (error) { console.error('createFile error:', error); return null }
   return data
+}
+
+export async function getFilesByTaskIds(taskIds: string[]): Promise<FileRecord[]> {
+  const ids = taskIds.filter(Boolean)
+  if (ids.length === 0) return []
+  const { data, error } = await getSupabase().from('files').select('*').in('task_id', ids)
+  if (error) {
+    console.error('getFilesByTaskIds error:', error)
+    return []
+  }
+  return data || []
 }
 
 export async function getFileById(id: string): Promise<FileRecord | null> {
@@ -755,8 +767,15 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   due_date: string | null
   category: string
+  task_type: 'general' | 'file_upload'
   created_at: string
   updated_at: string
+}
+
+export async function getTaskById(id: string): Promise<Task | undefined> {
+  const { data, error } = await getSupabase().from('tasks').select('*').eq('id', id).single()
+  if (error) return undefined
+  return data
 }
 
 export async function getTasksByClient(clientId: string): Promise<Task[]> {

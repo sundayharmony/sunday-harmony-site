@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { getTasksByClient, createTask, updateTask, deleteTask, getClientById, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
+import { attachFilesToTasks } from '@/lib/task-files'
+import { isFileUploadTask, parseTaskType } from '@/lib/tasks'
 import {
   clientDashboardAlertEmailHtml,
   isEmailConfigured,
@@ -24,7 +26,8 @@ export async function GET(request: NextRequest) {
     }
 
     const tasks = await getTasksByClient(clientId)
-    return NextResponse.json(tasks, { status: 200 })
+    const withFiles = await attachFilesToTasks(tasks)
+    return NextResponse.json(withFiles, { status: 200 })
   } catch (error: unknown) {
     console.error('GET /api/admin/tasks error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (session instanceof NextResponse) return session
 
     const body = await request.json()
-    const { client_id, title, description, status, priority, due_date, category } = body
+    const { client_id, title, description, status, priority, due_date, category, task_type } = body
 
     if (!client_id || !title) {
       return NextResponse.json({ error: 'Missing required fields: client_id, title' }, { status: 400 })
@@ -51,6 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Description is too long (max 5000 characters)' }, { status: 400 })
     }
 
+    const parsedType = parseTaskType(task_type)
     const taskData = {
       client_id,
       title,
@@ -58,7 +62,8 @@ export async function POST(request: NextRequest) {
       status: status || 'not_started',
       priority: priority || 'medium',
       due_date: due_date || null,
-      category: category || '',
+      category: category || (parsedType === 'file_upload' ? 'file_upload' : ''),
+      task_type: parsedType,
     }
 
     const result = await createTask(taskData)
@@ -77,7 +82,7 @@ export async function POST(request: NextRequest) {
       if (clientUser) {
         await createNotification({
           user_id: clientUser.id,
-          title: 'New Task',
+          title: isFileUploadTask({ task_type: parsedType }) ? 'File upload requested' : 'New Task',
           message: title,
           type: 'task',
           link: '/dashboard/tasks',
@@ -89,10 +94,12 @@ export async function POST(request: NextRequest) {
       try {
         const first = (clientData.name || 'there').split(' ')[0]
         const html = clientDashboardAlertEmailHtml({
-          heading: 'New Task',
+          heading: isFileUploadTask({ task_type: parsedType }) ? 'File Upload Requested' : 'New Task',
           firstName: first,
           bodyParagraphs: [
-            'The Sunday Harmony team added a new task for you:',
+            isFileUploadTask({ task_type: parsedType })
+              ? 'The Sunday Harmony team asked you to upload a file from your tasks page:'
+              : 'The Sunday Harmony team added a new task for you:',
             typeof title === 'string' ? title : String(title),
           ],
           dashboardPath: '/dashboard/tasks',
