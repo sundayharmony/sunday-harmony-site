@@ -43,15 +43,16 @@ export default function DisputeReviewStep({
   useEffect(() => {
     if (!sessionId) return
     setReportMeta(null)
+    setError('')
     fetchDisputeReport(sessionId)
       .then((data) => {
         setReportMeta({
           source: data.report.source,
-          consumer: data.report.consumer.name,
+          consumer: data.report.consumer?.name || 'Consumer',
         })
         const tls = data.report.tradelines.map((t) => ({
           ...t,
-          dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus,
+          dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
           dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
           repair_priority: t.repair_priority || 'none',
         }))
@@ -71,7 +72,7 @@ export default function DisputeReviewStep({
       if (filter === 'collections') return t.is_collection
       if (filter === 'high') return t.repair_priority === 'high'
       if (filter === 'TUC' || filter === 'EXP' || filter === 'EQF') {
-        return t.bureaus.includes(filter)
+        return (t.bureaus || []).includes(filter)
       }
       return true
     })
@@ -107,7 +108,7 @@ export default function DisputeReviewStep({
           ? {
               ...t,
               selected: true,
-              dispute_reason: t.dispute_reason || t.suggested_dispute_reason,
+              dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
             }
           : t
       )
@@ -128,11 +129,11 @@ export default function DisputeReviewStep({
         .map((t) => ({
           id: t.id,
           selected: true,
-          dispute_reason: t.dispute_reason.trim() || t.suggested_dispute_reason.trim(),
+          dispute_reason: (t.dispute_reason || t.suggested_dispute_reason || '').trim(),
         }))
         .filter((s) => s.dispute_reason)
       const hasTargets = tradelines.some(
-        (t) => t.selected && (t.dispute_bureaus.length > 0 || t.dispute_furnisher)
+        (t) => t.selected && ((t.dispute_bureaus || []).length > 0 || t.dispute_furnisher)
       )
       if (!selections.length || !hasTargets) {
         setError('Select at least one account with a dispute reason and letter target.')
@@ -147,6 +148,10 @@ export default function DisputeReviewStep({
     } finally {
       setLoading(false)
     }
+  }
+
+  if (error && !reportMeta) {
+    return <p className="text-sm text-red-600">{error}</p>
   }
 
   if (!reportMeta) {

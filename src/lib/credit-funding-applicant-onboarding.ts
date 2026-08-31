@@ -37,7 +37,7 @@ export async function ensurePortalUserForCreditApplication(
     if (!created) return null
     user = created
     isNewUser = true
-  } else if (app.client_id && !user.client_id) {
+  } else if (app.user_id === user.id && app.client_id && !user.client_id) {
     await updateUser(user.id, { client_id: app.client_id })
   }
 
@@ -52,7 +52,7 @@ export async function ensurePortalUserForCreditApplication(
       .eq('id', user.id)
   }
 
-  if (!app.user_id) {
+  if (!app.user_id && isNewUser) {
     await linkApplicationToUser(app.id, user.id, app.client_id || user.client_id || undefined)
   }
 

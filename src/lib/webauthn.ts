@@ -10,6 +10,7 @@ import {
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server'
 import { getSupabase } from './supabase'
+import { emailIlikePattern } from './email-match'
 import { getPublicSiteUrl } from './smtp-mail'
 
 export interface WebAuthnCredential {
@@ -201,7 +202,7 @@ export async function createAuthenticationChallenge(
     const { data: user } = await getSupabase()
       .from('users')
       .select('id')
-      .ilike('email', userEmail)
+      .ilike('email', emailIlikePattern(userEmail))
       .single()
 
     if (user) {

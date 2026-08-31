@@ -84,6 +84,14 @@ const sections = [
       'For privacy-related requests, please include your Application ID and full name in your correspondence.',
     ],
   },
+  {
+    title: '8. Marketing Website',
+    content: [
+      'The public Sunday Harmony website contact form collects your name, email, phone, business name, and message so we can respond to inquiries.',
+      'Contact submissions may be stored as leads in our CRM and emailed to our team. We do not sell this information.',
+      'The same access, correction, and deletion rights in section 5 apply to marketing inquiries. Email sales@sundayharmony.com to make a request.',
+    ],
+  },
 ]
 
 export default function CreditFundingPrivacyPage() {
@@ -99,7 +107,7 @@ export default function CreditFundingPrivacyPage() {
             ← Back to Application
           </Link>
           <p className="text-sm text-brand-dim mb-10">
-            Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            Last updated: August 26, 2026
           </p>
         </>
       }
@@ -108,7 +116,7 @@ export default function CreditFundingPrivacyPage() {
         <p className="text-[15px] text-brand-muted leading-relaxed">
           Sunday Harmony (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) is committed to protecting your privacy.
           This policy describes how we collect, use, store, and safeguard information submitted through our
-          Credit &amp; Funding application portal.
+          Credit &amp; Funding application portal and the Sunday Harmony marketing website.
         </p>
 
         {sections.map((section) => (

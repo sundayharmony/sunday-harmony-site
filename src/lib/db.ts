@@ -1,9 +1,11 @@
-import { getSupabase } from './supabase'
+import { getSupabase, isSupabaseConfigured } from './supabase'
+import { emailIlikePattern } from './email-match'
 import {
   hashPassword,
   passwordNeedsRehash,
   verifyPassword,
 } from './password-crypto'
+import { nextSessionVersion } from './session-version'
 
 export { hashPassword, passwordNeedsRehash, verifyPassword }
 
@@ -21,6 +23,7 @@ export interface User {
   role: 'admin' | 'client' | 'credit_manager'
   client_id?: string
   created_at: string
+  session_version?: number
 }
 
 export async function getUsers(): Promise<User[]> {
@@ -33,7 +36,7 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
   const { data, error } = await getSupabase()
     .from('users')
     .select('*')
-    .ilike('email', email)
+    .ilike('email', emailIlikePattern(email))
     .single()
   if (error) return undefined
   return data
@@ -68,8 +71,19 @@ export async function createUser(userData: {
 }
 
 export async function updateUser(id: string, updates: Partial<Omit<User, 'id'>>): Promise<User | null> {
-  if (updates.password) updates.password = hashPassword(updates.password)
-  const { data, error } = await getSupabase().from('users').update(updates).eq('id', id).select().single()
+  const payload: Partial<Omit<User, 'id'>> = { ...updates }
+  if (payload.password) {
+    payload.password = hashPassword(payload.password)
+    const current = await getUserById(id)
+    payload.session_version = nextSessionVersion(current?.session_version)
+  }
+
+  let { data, error } = await getSupabase().from('users').update(payload).eq('id', id).select().single()
+  if (error && payload.session_version != null && /session_version/i.test(error.message || '')) {
+    const withoutVersion = { ...payload }
+    delete withoutVersion.session_version
+    ;({ data, error } = await getSupabase().from('users').update(withoutVersion).eq('id', id).select().single())
+  }
   if (error) { console.error('updateUser error:', error); return null }
   return data
 }
@@ -621,18 +635,24 @@ export interface CaseStudy {
 export type ClientCaseStudy = CaseStudy
 
 export async function getPublishedCaseStudies(): Promise<CaseStudy[]> {
-  const { data, error } = await getSupabase()
-    .from('client_case_studies')
-    .select('*')
-    .eq('published', true)
-    .order('title', { ascending: true })
+  if (!isSupabaseConfigured()) return []
+  try {
+    const { data, error } = await getSupabase()
+      .from('client_case_studies')
+      .select('*')
+      .eq('published', true)
+      .order('title', { ascending: true })
 
-  if (error) {
-    console.error('getPublishedCaseStudies error:', error)
+    if (error) {
+      console.error('getPublishedCaseStudies error:', error)
+      return []
+    }
+
+    return (data || []) as CaseStudy[]
+  } catch (err) {
+    console.error('getPublishedCaseStudies error:', err)
     return []
   }
-
-  return (data || []) as CaseStudy[]
 }
 
 export async function getAllCaseStudiesForAdmin(): Promise<CaseStudy[]> {

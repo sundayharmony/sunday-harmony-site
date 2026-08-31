@@ -40,11 +40,18 @@ export function rateLimit(
   return { allowed: true, remaining: limit - entry.count, resetIn: entry.resetAt - now }
 }
 
-// Convenience: get IP from request headers
+/**
+ * Client IP for rate limiting. Prefer the rightmost X-Forwarded-For hop — that
+ * value is appended by the trusted edge (Vercel). The leftmost address can be
+ * spoofed by the client.
+ */
 export function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded) return forwarded.split(',')[0].trim()
+  if (forwarded) {
+    const parts = forwarded.split(',').map((part) => part.trim()).filter(Boolean)
+    if (parts.length > 0) return parts[parts.length - 1]
+  }
   const real = request.headers.get('x-real-ip')
-  if (real) return real
+  if (real) return real.trim()
   return 'unknown'
 }

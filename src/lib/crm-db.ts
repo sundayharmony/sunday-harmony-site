@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase'
+import { emailIlikePattern } from './email-match'
 import { decryptFieldOrLegacy } from './field-encryption'
 import {
   getLeadById,
@@ -519,7 +520,7 @@ export async function upsertLeadFromCreditIntake(params: {
   const { data: existingRows } = await getSupabase()
     .from('leads')
     .select('*')
-    .ilike('email', params.email)
+    .ilike('email', emailIlikePattern(params.email))
     .limit(1)
 
   const existing = existingRows?.[0] as Lead | undefined
@@ -623,7 +624,7 @@ export async function ensureClientFromCreditApplication(app: CreditFundingApplic
   const { data: existingClients } = await getSupabase()
     .from('clients')
     .select('*')
-    .ilike('email', app.email)
+    .ilike('email', emailIlikePattern(app.email))
     .limit(1)
 
   if (existingClients?.[0]) {

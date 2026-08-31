@@ -33,5 +33,6 @@ declare module 'next-auth/jwt' {
     mfaEnrollmentRequired?: boolean
     mfaChallenge?: string
     passkeyEnabled?: boolean
+    sessionVersion?: number
   }
 }

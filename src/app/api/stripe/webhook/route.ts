@@ -13,6 +13,7 @@ import {
   applySubscriptionToClient,
   updateClientForStripeSync,
 } from '@/lib/stripe-subscription-sync'
+import { attachStripeCustomerFromSetupIntent } from '@/lib/stripe-customer-utils'
 import { SUBSCRIPTION_EXPAND } from '@/lib/stripe-subscription-validation'
 
 export const runtime = 'nodejs'
@@ -125,9 +126,7 @@ export async function POST(req: NextRequest) {
       const setupIntent = event.data.object as Stripe.SetupIntent
       const clientId = setupIntent.metadata?.client_id
       if (clientId && setupIntent.customer) {
-        await updateClientForStripeSync(clientId, {
-          stripe_customer_id: String(setupIntent.customer),
-        })
+        await attachStripeCustomerFromSetupIntent(clientId, String(setupIntent.customer))
       }
     }
 

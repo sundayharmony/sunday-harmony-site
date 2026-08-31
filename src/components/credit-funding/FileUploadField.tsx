@@ -26,6 +26,7 @@ export default function FileUploadField({
   error,
 }: FileUploadFieldProps) {
   const [localError, setLocalError] = useState('')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const handleFile = (file: File | null) => {
     setLocalError('')
@@ -42,13 +43,15 @@ export default function FileUploadField({
     onChange(file)
   }
 
-  const previewUrl = value && value.type.startsWith('image/') ? URL.createObjectURL(value) : null
-
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    if (!value || !value.type.startsWith('image/')) {
+      setPreviewUrl(null)
+      return
     }
-  }, [previewUrl])
+    const url = URL.createObjectURL(value)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [value])
 
   return (
     <div className="mb-5">

@@ -27,5 +27,8 @@ export async function GET() {
     is_potential: client.is_potential ?? false,
     stripe_subscription_id: client.stripe_subscription_id || null,
     created_at: client.created_at,
+    start_date: client.start_date || '',
+    deliverables: Array.isArray(client.deliverables) ? client.deliverables : [],
+    quick_wins: Array.isArray(client.quick_wins) ? client.quick_wins : [],
   })
 }

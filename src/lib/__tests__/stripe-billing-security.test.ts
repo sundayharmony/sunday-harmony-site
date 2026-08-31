@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { mapStripeError } from '../stripe-errors'
+import { decideStripeCustomerAttach } from '../stripe-customer-utils'
 
 function source(path: string): string {
   return readFileSync(path, 'utf8')
@@ -36,11 +37,14 @@ describe('Area 10 Stripe billing security', () => {
     assert.doesNotMatch(webhook, /client_reference_id/)
   })
 
-  it('avoids adopting a Stripe customer linked to another client', () => {
+  it('does not adopt a Stripe customer linked to another client', () => {
     const customerUtils = source('src/lib/stripe-customer-utils.ts')
+    const webhook = source('src/app/api/stripe/webhook/route.ts')
     assert.match(customerUtils, /getClientsByStripeCustomerId/)
     assert.match(customerUtils, /linkedToAnotherClient/)
     assert.match(customerUtils, /row\.id !== clientId/)
+    assert.match(customerUtils, /decideStripeCustomerAttach/)
+    assert.match(webhook, /attachStripeCustomerFromSetupIntent/)
   })
 
   it('adds partial unique indexes for non-empty Stripe customer and subscription ids', () => {
@@ -68,5 +72,64 @@ describe('Area 10 Stripe billing security', () => {
     })
     assert.equal(card.status, 402)
     assert.equal(card.error, 'Your card was declined.')
+  })
+})
+
+describe('setup_intent customer attach ownership', () => {
+  const client = { id: 'client-a', stripe_customer_id: '' }
+
+  it('attaches when the client exists and the customer is unowned', () => {
+    assert.deepEqual(
+      decideStripeCustomerAttach({
+        client,
+        stripeCustomerId: 'cus_new',
+        clientsAlreadyLinkedToCustomer: [],
+      }),
+      { attach: true }
+    )
+  })
+
+  it('skips unknown clients', () => {
+    assert.deepEqual(
+      decideStripeCustomerAttach({
+        client: null,
+        stripeCustomerId: 'cus_new',
+        clientsAlreadyLinkedToCustomer: [],
+      }),
+      { attach: false, reason: 'client_not_found' }
+    )
+  })
+
+  it('does not overwrite a different customer already on the client', () => {
+    assert.deepEqual(
+      decideStripeCustomerAttach({
+        client: { id: 'client-a', stripe_customer_id: 'cus_existing' },
+        stripeCustomerId: 'cus_other',
+        clientsAlreadyLinkedToCustomer: [],
+      }),
+      { attach: false, reason: 'would_overwrite_existing_customer' }
+    )
+  })
+
+  it('does not steal a customer linked to another client', () => {
+    assert.deepEqual(
+      decideStripeCustomerAttach({
+        client,
+        stripeCustomerId: 'cus_shared',
+        clientsAlreadyLinkedToCustomer: [{ id: 'client-b' }],
+      }),
+      { attach: false, reason: 'customer_owned_by_other_client' }
+    )
+  })
+
+  it('skips a no-op when the client already has that customer', () => {
+    assert.deepEqual(
+      decideStripeCustomerAttach({
+        client: { id: 'client-a', stripe_customer_id: 'cus_same' },
+        stripeCustomerId: 'cus_same',
+        clientsAlreadyLinkedToCustomer: [{ id: 'client-a' }],
+      }),
+      { attach: false, reason: 'already_attached' }
+    )
   })
 })

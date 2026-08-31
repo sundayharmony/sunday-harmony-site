@@ -54,7 +54,7 @@ export function TradelineCard({
               {t.past_due ? ` · Past due ${t.past_due}` : ''}
             </p>
             <div className="mt-2 flex flex-wrap gap-1">
-              {t.bureaus.map((b) => (
+              {t.bureaus?.map((b) => (
                 <span key={b} className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-brand-dim">
                   {b}
                 </span>
@@ -89,8 +89,8 @@ export function TradelineCard({
                 <input
                   type="checkbox"
                   className="accent-accent"
-                  checked={t.dispute_bureaus.includes(b)}
-                  disabled={!t.bureaus.includes(b)}
+                  checked={(t.dispute_bureaus || []).includes(b)}
+                  disabled={!(t.bureaus || []).includes(b)}
                   onChange={(e) => onToggleBureau(b, e.target.checked)}
                 />
                 {BUREAU_LABELS[b]}

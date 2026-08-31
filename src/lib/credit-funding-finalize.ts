@@ -5,7 +5,6 @@ import {
   sendCreditFundingSubmissionEmail,
   sendCreditFundingExpertNotificationEmail,
 } from '@/lib/credit-funding-applicant-onboarding'
-import { linkApplicationToUser } from '@/lib/credit-funding-db'
 import type { CreditFundingApplication } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 import {
@@ -33,10 +32,6 @@ export async function runCreditFundingSubmissionSideEffects(params: {
   const { application, payload } = params
   const existingUser = await getUserByEmail(payload.email)
 
-  if (existingUser && !application.user_id) {
-    await linkApplicationToUser(application.id, existingUser.id, existingUser.client_id || undefined)
-  }
-
   logActivity({
     action: 'application_submitted',
     entity_type: 'credit_funding_application',
@@ -62,11 +57,11 @@ export async function runCreditFundingSubmissionSideEffects(params: {
   const appWithClient = client ? { ...application, client_id: client.id } : application
 
   const portal = await ensurePortalUserForCreditApplication(appWithClient)
-  const linkedUser = portal ? await getUserByEmail(payload.email) : existingUser
+  const shouldNotifyPortalUser = Boolean(portal && (portal.isNewUser || application.user_id))
 
-  if (linkedUser) {
+  if (shouldNotifyPortalUser && portal) {
     await createNotification({
-      user_id: linkedUser.id,
+      user_id: portal.userId,
       title: 'Application Received',
       message: `Your Credit & Funding application ${application.application_id} has been submitted.`,
       type: 'info',

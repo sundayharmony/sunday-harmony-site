@@ -270,6 +270,13 @@ export function buildFundingGoalsSummary(payload: IntakeFormPayload): string {
 
 export function assertHttpsSubmission(request: Request): boolean {
   if (process.env.NODE_ENV !== 'production') return true
+  try {
+    if (new URL(request.url).protocol === 'https:') return true
+  } catch {
+    /* fall through to proxy headers */
+  }
   const proto = request.headers.get('x-forwarded-proto')
-  return proto === 'https'
+  if (!proto) return false
+  const parts = proto.split(',').map((part) => part.trim()).filter(Boolean)
+  return parts[parts.length - 1] === 'https'
 }

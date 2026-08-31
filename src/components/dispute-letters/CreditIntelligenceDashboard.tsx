@@ -102,6 +102,14 @@ export default function CreditIntelligenceDashboard({
     (i) => i.dispute_recommended
   )
 
+  if (!overall) {
+    return (
+      <div className="rounded-xl border border-brand-border bg-white p-5">
+        <p className="text-sm text-brand-dim">Credit profile analysis is not available yet.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-brand-border bg-white p-5">
@@ -125,11 +133,11 @@ export default function CreditIntelligenceDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-xl border border-brand-border bg-white p-4">
           <h4 className="text-sm font-bold text-brand-text mb-2">Strengths</h4>
-          {overall.strengths.length === 0 ? (
+          {(!overall.strengths || overall.strengths.length === 0) ? (
             <p className="text-sm text-brand-dim">No clear strengths extracted yet.</p>
           ) : (
             <ul className="space-y-1.5 text-sm text-brand-muted">
-              {overall.strengths.map((s) => (
+              {(overall.strengths || []).map((s) => (
                 <li key={s}>• {s}</li>
               ))}
             </ul>
@@ -138,7 +146,7 @@ export default function CreditIntelligenceDashboard({
         <div className="rounded-xl border border-brand-border bg-white p-4">
           <h4 className="text-sm font-bold text-brand-text mb-2">Weaknesses & risks</h4>
           <ul className="space-y-1.5 text-sm text-brand-muted">
-            {[...overall.weaknesses, ...overall.risk_factors].slice(0, 10).map((w) => (
+            {[...(overall.weaknesses || []), ...(overall.risk_factors || [])].slice(0, 10).map((w) => (
               <li key={w}>• {w}</li>
             ))}
           </ul>
@@ -153,16 +161,16 @@ export default function CreditIntelligenceDashboard({
               <p className="mt-0.5 text-xs text-sky-800">{fundingBlockSubtitle}</p>
             ) : null}
           </div>
-          <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${bandClass(funding.level)}`}>
-            {funding.level} · {funding.score_0_to_100}/100
+          <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${bandClass(funding?.level || 'unknown')}`}>
+            {funding?.level || 'unknown'} · {funding?.score_0_to_100 ?? '—'}/100
           </span>
         </div>
-        <p className="text-sm text-sky-900 mb-3">{funding.summary}</p>
+        <p className="text-sm text-sky-900 mb-3">{funding?.summary}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-xs font-semibold uppercase text-sky-800 mb-1">Blockers</p>
             <ul className="space-y-1 text-sky-950">
-              {(funding.blockers.length ? funding.blockers : ['None flagged from available data.']).map((b) => (
+              {((funding?.blockers?.length ? funding.blockers : null) || ['None flagged from available data.']).map((b) => (
                 <li key={b}>• {b}</li>
               ))}
             </ul>
@@ -170,7 +178,7 @@ export default function CreditIntelligenceDashboard({
           <div>
             <p className="text-xs font-semibold uppercase text-sky-800 mb-1">Supportive signals</p>
             <ul className="space-y-1 text-sky-950">
-              {(funding.supportive_signals.length
+              {(funding?.supportive_signals?.length
                 ? funding.supportive_signals
                 : ['Limited supportive signals in current extract.']
               ).map((b) => (
@@ -179,7 +187,7 @@ export default function CreditIntelligenceDashboard({
             </ul>
           </div>
         </div>
-        {funding.practical_steps.length > 0 && (
+        {funding?.practical_steps && funding.practical_steps.length > 0 && (
           <div className="mt-3">
             <p className="text-xs font-semibold uppercase text-sky-800 mb-1">Practical next steps</p>
             <ul className="space-y-1 text-sm text-sky-950">
@@ -194,7 +202,7 @@ export default function CreditIntelligenceDashboard({
       <div>
         <h4 className="text-sm font-bold text-brand-text mb-3">Factor analysis</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {intelligence.factors.map((f) => (
+          {(intelligence.factors || []).map((f) => (
             <FactorCard
               key={f.factor}
               title={FACTOR_LABELS[f.factor] || f.factor}
@@ -210,10 +218,10 @@ export default function CreditIntelligenceDashboard({
       <div className="rounded-xl border border-brand-border bg-white p-4">
         <h4 className="text-sm font-bold text-brand-text mb-1">Prioritized recommendations</h4>
         <p className="text-xs text-brand-dim mb-2">Ranked by estimated impact × confidence</p>
-        {intelligence.recommendations.length === 0 ? (
+        {(intelligence.recommendations || []).length === 0 ? (
           <p className="text-sm text-brand-dim">No recommendations generated.</p>
         ) : (
-          intelligence.recommendations.slice(0, 10).map((r) => (
+          (intelligence.recommendations || []).slice(0, 10).map((r) => (
             <RecommendationRow key={r.id} rec={r} />
           ))
         )}

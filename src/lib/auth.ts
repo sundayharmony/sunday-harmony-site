@@ -15,7 +15,12 @@ import {
   type MfaUserRow,
 } from './mfa-totp'
 import { getSupabase } from './supabase'
+import { emailIlikePattern } from './email-match'
 import { verifyAuthentication, hasPasskeyEnabled } from './webauthn'
+import {
+  applySessionVersionToToken,
+  sessionVersionOf,
+} from './session-version'
 
 /** Staff JWT lifetime (seconds). Clients keep the longer default below. */
 export const STAFF_SESSION_MAX_AGE = 8 * 60 * 60
@@ -49,7 +54,7 @@ async function loadMfaUser(email: string): Promise<(MfaUserRow & { client_id?: s
   const { data, error } = await getSupabase()
     .from('users')
     .select('id,email,name,role,client_id,totp_enabled,totp_secret_encrypted,totp_backup_hashes,passkey_enabled')
-    .ilike('email', email)
+    .ilike('email', emailIlikePattern(email))
     .single()
   if (error || !data) return null
   return data as MfaUserRow & { client_id?: string; passkey_enabled?: boolean }
@@ -303,6 +308,16 @@ export const authOptions: NextAuthOptions = {
         if (!dbUser) {
           return { sub: token.sub }
         }
+
+        const versionCheck = applySessionVersionToToken(
+          token,
+          sessionVersionOf(dbUser),
+          Boolean(user)
+        )
+        if (versionCheck.invalidated) {
+          return { sub: token.sub }
+        }
+
         token.role = dbUser.role
         if (dbUser.client_id) token.clientId = dbUser.client_id
         else delete token.clientId

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAuthenticationChallenge } from '@/lib/webauthn'
+import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable } from '@/lib/rate-limit-durable'
 
 export async function POST(request: Request) {
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   const emailKey = body.email?.toLowerCase().trim()
   const rlKey = emailKey
     ? `webauthn-login:${emailKey}`
-    : `webauthn-login:anon:${request.headers.get('x-forwarded-for') || 'unknown'}`
+    : `webauthn-login:anon:${getClientIp(request)}`
 
   const rl = await rateLimitDurable(rlKey, 10, 15 * 60 * 1000)
   if (!rl.allowed) {

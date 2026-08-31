@@ -7,6 +7,27 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser'
 import AuthPageShell from '@/components/auth/AuthPageShell'
 import AuthInput from '@/components/auth/AuthInput'
+import { sanitizeLoginCallbackUrl } from '@/lib/safe-notification-link'
+
+type SessionUser = {
+  role?: string
+  mfaVerified?: boolean
+  mfaEnrollmentRequired?: boolean
+}
+
+function destinationAfterLogin(user: SessionUser | undefined, fallback: string): string {
+  const role = user?.role
+  const mfaVerified = user?.mfaVerified
+  const mfaEnrollmentRequired = user?.mfaEnrollmentRequired
+
+  if ((role === 'admin' || role === 'credit_manager') && !mfaVerified) {
+    return mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa'
+  }
+  if (role === 'admin') return '/admin'
+  if (role === 'credit_manager') return '/admin/credit-funding'
+  if (role === 'client') return '/dashboard'
+  return fallback
+}
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -17,7 +38,7 @@ function LoginForm() {
   const [passkeySupported, setPasskeySupported] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('callbackUrl') || '/'
+  const callbackUrl = sanitizeLoginCallbackUrl(searchParams.get('callbackUrl'))
 
   useEffect(() => {
     setPasskeySupported(browserSupportsWebAuthn())
@@ -41,24 +62,7 @@ function LoginForm() {
       try {
         const res = await fetch('/api/auth/session')
         const session = await res.json()
-        const role = session?.user?.role
-        const mfaVerified = session?.user?.mfaVerified
-        const mfaEnrollmentRequired = session?.user?.mfaEnrollmentRequired
-
-        if ((role === 'admin' || role === 'credit_manager') && !mfaVerified) {
-          router.push(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa')
-          return
-        }
-
-        if (role === 'admin') {
-          router.push('/admin')
-        } else if (role === 'credit_manager') {
-          router.push('/admin/credit-funding')
-        } else if (role === 'client') {
-          router.push('/dashboard')
-        } else {
-          router.push(callbackUrl)
-        }
+        router.push(destinationAfterLogin(session?.user, callbackUrl))
       } catch {
         router.push(callbackUrl)
       }
@@ -99,15 +103,7 @@ function LoginForm() {
 
       const res = await fetch('/api/auth/session')
       const session = await res.json()
-      const role = session?.user?.role
-
-      if (role === 'admin') {
-        router.push('/admin')
-      } else if (role === 'credit_manager') {
-        router.push('/admin/credit-funding')
-      } else {
-        router.push(callbackUrl)
-      }
+      router.push(destinationAfterLogin(session?.user, callbackUrl))
     } catch (err) {
       if (err instanceof Error && err.name === 'NotAllowedError') {
         setError('Passkey authentication was cancelled')

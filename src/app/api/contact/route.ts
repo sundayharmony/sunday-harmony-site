@@ -12,11 +12,6 @@ export const dynamic = 'force-dynamic'
 // Receives form data and sends email notification
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit: 3 submissions per 15 minutes per IP
-    const ip = getClientIp(req)
-    const rl = await rateLimitDurable(`contact:${ip}`, 3, 15 * 60 * 1000)
-    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
-
     const body = await req.json()
     if (hasHoneypotValue(body)) {
       return NextResponse.json({ error: 'Unable to process submission' }, { status: 400 })
@@ -55,6 +50,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Business name is required' }, { status: 400 })
     }
 
+    // Rate limit valid submissions: 3 per 15 minutes per IP
+    const ip = getClientIp(req)
+    const rl = await rateLimitDurable(`contact:${ip}`, 3, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
     // Log the submission (always works, even without email config)
     const submission = {
       firstName,
@@ -67,19 +67,20 @@ export async function POST(req: NextRequest) {
       timestamp: new Date().toISOString(),
     }
 
-    // Send email if SMTP is configured
+    // Send email if SMTP is configured. Failures must not block lead persistence.
     if (isEmailConfigured()) {
       const subject = sanitizeEmailSubjectPart(
         `New Lead: ${firstName} ${lastName} from ${business}`,
         200
       )
 
-      await sendEmail({
-        from: '"Sunday Harmony Website" <sales@sundayharmony.com>',
-        to: getAdminNotifyEmail(),
-        replyTo: email,
-        subject,
-        html: `
+      try {
+        await sendEmail({
+          from: '"Sunday Harmony Website" <sales@sundayharmony.com>',
+          to: getAdminNotifyEmail(),
+          replyTo: email,
+          subject,
+          html: `
           <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
             <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
               New Contact Form Submission
@@ -98,9 +99,10 @@ export async function POST(req: NextRequest) {
             </p>
           </div>
         `,
-      })
-    } else {
-      // SMTP not configured Ã¢ÂÂ email notification skipped
+        })
+      } catch (emailErr) {
+        console.error('Contact form email failed (lead will still be saved):', emailErr)
+      }
     }
 
     // Save lead to database

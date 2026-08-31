@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { hashPassword } from '@/lib/db'
+import { emailIlikePattern } from '@/lib/email-match'
+import { nextSessionVersion } from '@/lib/session-version'
 import { getSupabase } from '@/lib/supabase'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
@@ -57,8 +59,8 @@ export async function POST(req: NextRequest) {
 
     const { data: user, error } = await getSupabase()
       .from('users')
-      .select('id, reset_token, reset_token_expires')
-      .ilike('email', normalizedEmail)
+      .select('id, reset_token, reset_token_expires, session_version')
+      .ilike('email', emailIlikePattern(normalizedEmail))
       .single()
 
     if (error || !user || !verificationTokenMatches(user.reset_token, codeKey)) {
@@ -73,14 +75,30 @@ export async function POST(req: NextRequest) {
     }
 
     const hashedPassword = hashPassword(password)
-    const { error: updateError } = await getSupabase()
+    const passwordUpdate = {
+      password: hashedPassword,
+      reset_token: null,
+      reset_token_expires: null,
+      session_version: nextSessionVersion(
+        typeof user.session_version === 'number' ? user.session_version : 0
+      ),
+    }
+    let { error: updateError } = await getSupabase()
       .from('users')
-      .update({
-        password: hashedPassword,
-        reset_token: null,
-        reset_token_expires: null,
-      })
+      .update(passwordUpdate)
       .eq('id', user.id)
+
+    if (updateError && /session_version/i.test(updateError.message || '')) {
+      const withoutVersion = {
+        password: passwordUpdate.password,
+        reset_token: passwordUpdate.reset_token,
+        reset_token_expires: passwordUpdate.reset_token_expires,
+      }
+      ;({ error: updateError } = await getSupabase()
+        .from('users')
+        .update(withoutVersion)
+        .eq('id', user.id))
+    }
 
     if (updateError) {
       console.error('Reset password update error:', updateError)

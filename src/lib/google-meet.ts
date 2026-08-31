@@ -15,9 +15,19 @@ export function generatePlaceholderMeetLink(): string {
   return `https://meet.google.com/${part()}-${part()}-${part().slice(0, 4)}`
 }
 
+export function isSafeHttpsMeetLink(url: string): boolean {
+  try {
+    const parsed = new URL(url.trim())
+    return parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export async function resolveMeetLinkForMeeting(opts: {
   existingLink?: string
 }): Promise<string> {
-  if (opts.existingLink?.trim()) return opts.existingLink.trim()
+  const existing = opts.existingLink?.trim()
+  if (existing && isSafeHttpsMeetLink(existing)) return existing
   return generatePlaceholderMeetLink()
 }
