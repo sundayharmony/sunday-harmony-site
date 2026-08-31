@@ -7,8 +7,11 @@ export function parseTaskType(value: unknown): TaskType {
   return 'general'
 }
 
-export function isFileUploadTask(task: { task_type?: string | null }): boolean {
-  return parseTaskType(task.task_type) === 'file_upload'
+export function isFileUploadTask(task: {
+  task_type?: string | null
+  category?: string | null
+}): boolean {
+  return parseTaskType(task.task_type) === 'file_upload' || task.category === 'file_upload'
 }
 
 /** Matches allowed client-vault types in `client-files-storage`. */

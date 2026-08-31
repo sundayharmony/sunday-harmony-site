@@ -14,6 +14,7 @@ describe('file-upload tasks', () => {
     assert.equal(parseTaskType('unknown'), 'general')
     assert.equal(isFileUploadTask({ task_type: 'file_upload' }), true)
     assert.equal(isFileUploadTask({}), false)
+    assert.equal(isFileUploadTask({ category: 'file_upload' }), true)
   })
 
   it('binds client vault uploads to an owned file-upload task', () => {

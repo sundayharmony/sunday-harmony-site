@@ -603,7 +603,12 @@ export async function getFilesByClient(clientId: string): Promise<FileRecord[]> 
 }
 
 export async function createFileRecord(file: Omit<FileRecord, 'id' | 'created_at'>): Promise<FileRecord | null> {
-  const { data, error } = await getSupabase().from('files').insert(file).select().single()
+  let { data, error } = await getSupabase().from('files').insert(file).select().single()
+  if (error && file.task_id && /task_id/i.test(error.message || '')) {
+    const withoutTaskId = { ...file }
+    delete withoutTaskId.task_id
+    ;({ data, error } = await getSupabase().from('files').insert(withoutTaskId).select().single())
+  }
   if (error) { console.error('createFile error:', error); return null }
   return data
 }
@@ -785,7 +790,12 @@ export async function getTasksByClient(clientId: string): Promise<Task[]> {
 }
 
 export async function createTask(task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<Task | null> {
-  const { data, error } = await getSupabase().from('tasks').insert(task).select().single()
+  let { data, error } = await getSupabase().from('tasks').insert(task).select().single()
+  if (error && /task_type/i.test(error.message || '')) {
+    const withoutType = { ...task }
+    delete (withoutType as { task_type?: Task['task_type'] }).task_type
+    ;({ data, error } = await getSupabase().from('tasks').insert(withoutType).select().single())
+  }
   if (error) { console.error('createTask error:', error); return null }
   return data
 }
