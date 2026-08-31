@@ -1,5 +1,62 @@
 import { getStripe } from '@/lib/stripe'
 import { getClientById, getClientsByStripeCustomerId, updateClient } from '@/lib/db'
+import { updateClientForStripeSync } from '@/lib/stripe-subscription-sync'
+
+export type StripeCustomerAttachDecision =
+  | { attach: true }
+  | {
+      attach: false
+      reason:
+        | 'client_not_found'
+        | 'already_attached'
+        | 'would_overwrite_existing_customer'
+        | 'customer_owned_by_other_client'
+    }
+
+/** Pure ownership check used by setup_intent.succeeded before writing stripe_customer_id. */
+export function decideStripeCustomerAttach(params: {
+  client: { id: string; stripe_customer_id?: string | null } | null | undefined
+  stripeCustomerId: string
+  clientsAlreadyLinkedToCustomer: { id: string }[]
+}): StripeCustomerAttachDecision {
+  const client = params.client
+  if (!client) return { attach: false, reason: 'client_not_found' }
+
+  const existing = client.stripe_customer_id?.trim() || ''
+  if (existing && existing === params.stripeCustomerId) {
+    return { attach: false, reason: 'already_attached' }
+  }
+  if (existing && existing !== params.stripeCustomerId) {
+    return { attach: false, reason: 'would_overwrite_existing_customer' }
+  }
+  if (params.clientsAlreadyLinkedToCustomer.some((row) => row.id !== client.id)) {
+    return { attach: false, reason: 'customer_owned_by_other_client' }
+  }
+  return { attach: true }
+}
+
+export async function attachStripeCustomerFromSetupIntent(
+  clientId: string,
+  stripeCustomerId: string
+): Promise<'attached' | 'skipped'> {
+  const client = await getClientById(clientId)
+  const linked = await getClientsByStripeCustomerId(stripeCustomerId)
+  const decision = decideStripeCustomerAttach({
+    client,
+    stripeCustomerId,
+    clientsAlreadyLinkedToCustomer: linked,
+  })
+  if (!decision.attach) {
+    if (decision.reason !== 'already_attached' && decision.reason !== 'client_not_found') {
+      console.warn(
+        `Skipping setup_intent customer attach for client ${clientId}: ${decision.reason}`
+      )
+    }
+    return 'skipped'
+  }
+  await updateClientForStripeSync(clientId, { stripe_customer_id: stripeCustomerId })
+  return 'attached'
+}
 
 function escapeEmailForStripeSearch(email: string): string {
   return email.replace(/\\/g, '\\\\').replace(/'/g, "\\'")

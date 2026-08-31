@@ -138,6 +138,28 @@ describe('Area 06 API authorization hardening', () => {
     assert.match(databaseSource, /\.is\('user_id', null\)/)
   })
 
+  it('does not auto-link anonymous intake to an existing portal user', () => {
+    const intake = readFileSync('src/app/api/credit-funding/intake/route.ts', 'utf8')
+    const onboarding = readFileSync(
+      'src/lib/credit-funding-applicant-onboarding.ts',
+      'utf8'
+    )
+    const finalize = readFileSync('src/lib/credit-funding-finalize.ts', 'utf8')
+    const drafts = readFileSync(
+      'src/app/api/admin/credit-funding/drafts/[id]/route.ts',
+      'utf8'
+    )
+
+    assert.match(intake, /createCreditFundingApplication\(payload\)/)
+    assert.doesNotMatch(intake, /createCreditFundingApplication\(payload,\s*\{/)
+    assert.match(intake, /completeInvitedCreditFundingApplication\([\s\S]*userId: existingUser\?\.id/)
+    assert.match(onboarding, /if \(!app\.user_id && isNewUser\)/)
+    assert.match(onboarding, /app\.user_id === user\.id/)
+    assert.doesNotMatch(finalize, /linkApplicationToUser/)
+    assert.match(finalize, /portal\.isNewUser \|\| application\.user_id/)
+    assert.match(drafts, /userId: existingUser\?\.id/)
+  })
+
   it('keeps dashboard ID ownership checks while using shared client auth', () => {
     const files = readFileSync('src/app/api/dashboard/files/route.ts', 'utf8')
     const approvals = readFileSync('src/app/api/dashboard/approvals/route.ts', 'utf8')

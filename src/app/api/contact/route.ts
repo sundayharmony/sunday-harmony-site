@@ -12,11 +12,6 @@ export const dynamic = 'force-dynamic'
 // Receives form data and sends email notification
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit: 3 submissions per 15 minutes per IP
-    const ip = getClientIp(req)
-    const rl = await rateLimitDurable(`contact:${ip}`, 3, 15 * 60 * 1000)
-    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
-
     const body = await req.json()
     if (hasHoneypotValue(body)) {
       return NextResponse.json({ error: 'Unable to process submission' }, { status: 400 })
@@ -54,6 +49,11 @@ export async function POST(req: NextRequest) {
     if (!business?.trim()) {
       return NextResponse.json({ error: 'Business name is required' }, { status: 400 })
     }
+
+    // Rate limit valid submissions: 3 per 15 minutes per IP
+    const ip = getClientIp(req)
+    const rl = await rateLimitDurable(`contact:${ip}`, 3, 15 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     // Log the submission (always works, even without email config)
     const submission = {

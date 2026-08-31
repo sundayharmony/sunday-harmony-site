@@ -198,10 +198,9 @@ export async function POST(req: NextRequest) {
         clientId: invitedApp.client_id || existingUser?.client_id || undefined,
       })
     } else {
-      application = await createCreditFundingApplication(payload, {
-        userId: existingUser?.id,
-        clientId: existingUser?.client_id || undefined,
-      })
+      // Anonymous public intake must not auto-bind to an existing portal user.
+      // Claim-on-login links the application after they authenticate.
+      application = await createCreditFundingApplication(payload)
     }
 
     if (!application) {
