@@ -79,9 +79,9 @@ describe('Area 11 public surface hardening', () => {
 
   it('rate-limits contact submissions after validation, not before', () => {
     const contact = source('src/app/api/contact/route.ts')
-    const honeypot = contact.indexOf('hasHoneypotValue')
+    const honeypot = contact.indexOf('hasHoneypotValue(body)')
     const required = contact.indexOf('First name is required')
-    const rateLimit = contact.indexOf('rateLimitDurable')
+    const rateLimit = contact.indexOf('rateLimitDurable(`contact:${ip}`')
     assert.ok(honeypot >= 0 && required > honeypot, 'honeypot should run before field validation')
     assert.ok(rateLimit > required, 'rate limit should run after field validation')
   })
