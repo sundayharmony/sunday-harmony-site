@@ -37,17 +37,22 @@ export function tradelineCoversBureau(tl: Tradeline, bureau: BureauCode): boolea
   return Boolean(accountForBureau(tl, bureau))
 }
 
-function isNegativeTradeline(tl: Tradeline): boolean {
-  if (tl.is_collection) return true
+const POSITIVE_LATE_RE = /never\s+late|no\s+late(?:\s+payments?)?|\bnot\s+late\b/gi
+const RESOLVED_DISPUTE_RE = /(?:previously\s+(?:in\s+)?)?dispute[\s\S]{0,80}?(?:now\s+)?resolved/gi
+const DEROG_RE =
+  /collection|charge.?off|delinquent|\bpast\s+due\b|\blate\b|derog|\bunpaid\b|foreclos|reposs|\bin\s+dispute\b/i
+
+/** Derogatory tradeline: collection, charge-off, actual late/past-due history — not "never late". */
+export function isNegativeTradeline(tl: Tradeline): boolean {
+  if (tl.is_collection || (tl.item_category || '') === 'collection') return true
   if ((tl.legal_flags || []).some((f) =>
     ['collection', 'charge_off', 'late_payment_error'].includes(f)
   )) {
     return true
   }
-  const blob = `${tl.status} ${tl.remarks} ${tl.account_type} ${tl.past_due}`.toLowerCase()
-  return /collection|charge.?off|delinquent|late|past due|derog|dispute|unpaid|foreclos|reposs/.test(
-    blob
-  )
+  const blob = `${tl.status} ${tl.remarks} ${tl.account_type} ${tl.past_due}`
+  const cleaned = blob.replace(POSITIVE_LATE_RE, ' ').replace(RESOLVED_DISPUTE_RE, ' ')
+  return DEROG_RE.test(cleaned)
 }
 
 export function bureauHealthCounts(
@@ -149,6 +154,11 @@ export function perBureauFromReport(
   const out: Partial<Record<BureauCode, CreditProgressHealthCounts>> = {}
   const stored = report?.credit_health?.per_bureau
   for (const bureau of BUREAU_ORDER) {
+    const computed = report ? bureauHealthCounts(report, bureau) : null
+    if (computed && (computed.total_accounts || 0) > 0) {
+      out[bureau] = computed
+      continue
+    }
     const row = stored?.[bureau] as PerBureauHealth | undefined
     if (row) {
       out[bureau] = {
@@ -156,9 +166,6 @@ export function perBureauFromReport(
         negative_count: row.negative_count ?? null,
         collection_count: row.collection_count ?? null,
       }
-    } else if (report) {
-      const computed = bureauHealthCounts(report, bureau)
-      if ((computed.total_accounts || 0) > 0) out[bureau] = computed
     }
   }
   return out

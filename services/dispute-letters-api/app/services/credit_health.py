@@ -16,8 +16,19 @@ _PRIORITY_ORDER: dict[RepairPriority, int] = {
     "none": 3,
 }
 
+# Strip positive payment-history phrasing before scanning for derogatories.
+# Otherwise "never late" matches the substring "late" and inflates negative_count.
+_POSITIVE_LATE_PATTERN = re.compile(
+    r"never\s+late|no\s+late(?:\s+payments?)?|\bnot\s+late\b",
+    re.I,
+)
+_RESOLVED_DISPUTE_PATTERN = re.compile(
+    r"(?:previously\s+(?:in\s+)?)?dispute.{0,80}?(?:now\s+)?resolved",
+    re.I | re.S,
+)
 _DEROG_PATTERN = re.compile(
-    r"collection|charge.?off|delinquent|late|past due|derog|dispute|unpaid|foreclos|reposs",
+    r"collection|charge.?off|delinquent|\bpast\s+due\b|\blate\b|derog|\bunpaid\b|"
+    r"foreclos|reposs|\bin\s+dispute\b",
     re.I,
 )
 _CLOSED_PATTERN = re.compile(
@@ -47,11 +58,13 @@ def is_zero_or_blank_balance(tl: Tradeline) -> bool:
 
 
 def is_negative_tradeline(tl: Tradeline) -> bool:
-    if tl.is_collection:
+    if tl.is_collection or (tl.item_category or "") == "collection":
         return True
     if any(f in tl.legal_flags for f in ("collection", "charge_off", "late_payment_error")):
         return True
-    return bool(_DEROG_PATTERN.search(_blob(tl)))
+    blob = _POSITIVE_LATE_PATTERN.sub(" ", _blob(tl))
+    blob = _RESOLVED_DISPUTE_PATTERN.sub(" ", blob)
+    return bool(_DEROG_PATTERN.search(blob))
 
 
 def is_clean_profile_removal_target(tl: Tradeline) -> bool:

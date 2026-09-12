@@ -8,7 +8,7 @@ from app.services.bureau_coverage import (
     bureau_health_counts,
     detect_bureau_coverage,
 )
-from app.services.credit_health import build_health_summary
+from app.services.credit_health import build_health_summary, is_negative_tradeline
 
 
 def _tl(**kwargs) -> Tradeline:
@@ -58,6 +58,32 @@ def test_credit_hero_filename_tri_merge():
     assert cov.coverage == "tri_merge"
 
 
+def test_never_late_is_not_negative():
+    assert is_negative_tradeline(_tl(id="1", remarks="Individual responsibility; never late")) is False
+    assert (
+        is_negative_tradeline(
+            _tl(
+                id="2",
+                status="Paid, Closed",
+                remarks="Joint responsibility; flagged potentially negative",
+            )
+        )
+        is False
+    )
+    assert (
+        is_negative_tradeline(
+            _tl(
+                id="3",
+                remarks="Account previously in dispute - now resolved - reported by subscriber",
+            )
+        )
+        is False
+    )
+    assert is_negative_tradeline(_tl(id="c", is_collection=True, status="Collection")) is True
+    assert is_negative_tradeline(_tl(id="pd", status="Closed: Paid, was past due 150 days")) is True
+    assert is_negative_tradeline(_tl(id="late", remarks="30 days late")) is True
+
+
 def test_per_bureau_negative_counts():
     report = ParsedReport(
         consumer=ConsumerInfo(name="A"),
@@ -94,6 +120,7 @@ if __name__ == "__main__":
     test_detect_tri_merge_scores()
     test_filename_fallback()
     test_credit_hero_filename_tri_merge()
+    test_never_late_is_not_negative()
     test_per_bureau_negative_counts()
     test_apply_bureau_coverage_persists()
     print("bureau_coverage tests passed")
