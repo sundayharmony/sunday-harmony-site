@@ -10,6 +10,7 @@ import {
   fetchDisputeReport,
   streamGenerateDisputeLetters,
 } from '@/lib/dispute-letters/client-api'
+import { planSelectionsFromTradelines } from '@/lib/dispute-letters/dispute-reasons'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 
@@ -36,14 +37,7 @@ export default function DisputeConfirmStep({
       .then(async (data) => {
         const selected = data.report.tradelines.filter((t: Tradeline) => t.selected)
         setSelectedCount(selected.length)
-        const selections = selected
-          .map((t: Tradeline) => ({
-            id: t.id,
-            selected: true,
-            dispute_reason: t.dispute_reason?.trim() || t.suggested_dispute_reason?.trim() || '',
-          }))
-          .filter((t: { dispute_reason: string }) => t.dispute_reason)
-        const plan = await buildDisputePlan(sessionId, selections, {})
+        const plan = await buildDisputePlan(sessionId, planSelectionsFromTradelines(data.report.tradelines), {})
         setPlans(plan.plans)
       })
       .catch(() => setError('Failed to load plan'))
@@ -59,14 +53,7 @@ export default function DisputeConfirmStep({
         if (v.trim()) overrideMap[k] = v.split('\n').map((l) => l.trim()).filter(Boolean)
       }
       const reportData = await fetchDisputeReport(sessionId)
-      const selections = reportData.report.tradelines
-        .filter((t: Tradeline) => t.selected)
-        .map((t: Tradeline) => ({
-          id: t.id,
-          selected: true,
-          dispute_reason: t.dispute_reason?.trim() || t.suggested_dispute_reason?.trim() || '',
-        }))
-        .filter((t: { dispute_reason: string }) => t.dispute_reason)
+      const selections = planSelectionsFromTradelines(reportData.report.tradelines)
       await buildDisputePlan(sessionId, selections, overrideMap)
       await streamGenerateDisputeLetters(sessionId, (ev) => {
         if (ev.status === 'progress') {

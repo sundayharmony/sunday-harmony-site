@@ -121,6 +121,27 @@ def score_priority(tl: Tradeline) -> RepairPriority:
     return "none"
 
 
+def default_inquiry_dispute_reason(tl: Tradeline) -> str:
+    creditor = (tl.creditor or "this company").strip() or "this company"
+    return (
+        f"I did not authorize this hard inquiry from {creditor} and dispute it as an inquiry "
+        "made without a permissible purpose under FCRA §604 (15 U.S.C. §1681b). "
+        "If the inquiry cannot be verified as initiated by me, delete it from my file under "
+        "FCRA §611 (15 U.S.C. §1681i)."
+    )
+
+
+def default_dispute_reason(tl: Tradeline) -> str:
+    if classify_category(tl) == "inquiry":
+        return default_inquiry_dispute_reason(tl)
+    if is_clean_profile_removal_target(tl):
+        return default_removal_dispute_reason(tl)
+    return (
+        "I dispute this item as inaccurate and unverifiable and request deletion or correction "
+        "of any information that cannot be verified under FCRA §611 (15 U.S.C. §1681i)."
+    )
+
+
 def default_removal_dispute_reason(tl: Tradeline) -> str:
     """Deletion-focused reason for closed/obsolete negatives."""
     status = (tl.status or "this account").strip()
@@ -156,11 +177,14 @@ def enrich_tradeline(tl: Tradeline) -> Tradeline:
         flags.append("closed_derogatory")
     tl.legal_flags = flags
 
-    if is_clean_profile_removal_target(tl):
-        if not (tl.suggested_dispute_reason or "").strip():
-            tl.suggested_dispute_reason = default_removal_dispute_reason(tl)
-        if not (tl.dispute_reason or "").strip():
-            tl.dispute_reason = tl.suggested_dispute_reason
+    if not (tl.suggested_dispute_reason or "").strip() and (
+        classify_category(tl) == "inquiry" or is_clean_profile_removal_target(tl)
+    ):
+        tl.suggested_dispute_reason = default_dispute_reason(tl)
+    if not (tl.dispute_reason or "").strip() and (
+        is_clean_profile_removal_target(tl) or classify_category(tl) == "inquiry"
+    ):
+        tl.dispute_reason = tl.suggested_dispute_reason
 
     return tl
 

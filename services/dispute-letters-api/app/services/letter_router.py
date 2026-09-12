@@ -8,7 +8,11 @@ from difflib import SequenceMatcher
 from app.config import BUREAU_ADDRESSES_PATH
 from app.models import DisputePlanRequest, LetterItem, LetterPlan, LetterPlanResponse, ParsedReport, Tradeline
 from app.parsers.identityiq import lookup_subscriber
-from app.services.credit_health import is_clean_profile_removal_target, removal_sort_key
+from app.services.credit_health import (
+    default_dispute_reason,
+    is_clean_profile_removal_target,
+    removal_sort_key,
+)
 
 
 def build_plan(session_id: str, report: ParsedReport, request: DisputePlanRequest) -> LetterPlanResponse:
@@ -18,12 +22,10 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
         sel = selection_map.get(tl.id)
         if sel and sel.selected:
             reason = _resolve_reason(tl, sel.dispute_reason)
-            if reason:
-                selected.append((tl, reason))
+            selected.append((tl, reason))
         elif tl.selected:
             reason = _resolve_reason(tl, tl.dispute_reason)
-            if reason:
-                selected.append((tl, reason))
+            selected.append((tl, reason))
 
     # Closed / obsolete negatives first so letters lead with clean-profile removals
     selected.sort(key=lambda pair: removal_sort_key(pair[0]))
@@ -108,9 +110,10 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
 
 def _resolve_reason(tl: Tradeline, selection_reason: str) -> str:
     return (
-        selection_reason.strip()
-        or tl.dispute_reason.strip()
-        or tl.suggested_dispute_reason.strip()
+        (selection_reason or "").strip()
+        or (tl.dispute_reason or "").strip()
+        or (tl.suggested_dispute_reason or "").strip()
+        or default_dispute_reason(tl)
     )
 
 

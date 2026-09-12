@@ -16,6 +16,7 @@ import {
   type BureauCode,
   type Tradeline,
 } from '@/lib/dispute-letters/types'
+import { isInquiryTradeline, planSelectionsFromTradelines, resolvedDisputeReason } from '@/lib/dispute-letters/dispute-reasons'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 
@@ -53,7 +54,10 @@ export default function DisputeReviewStep({
         const tls = data.report.tradelines.map((t) => ({
           ...t,
           dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
-          dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
+          dispute_reason:
+            t.dispute_reason ||
+            t.suggested_dispute_reason ||
+            (isInquiryTradeline(t) ? resolvedDisputeReason(t) : ''),
           repair_priority: t.repair_priority || 'none',
         }))
         if (!tls.some((t) => t.selected)) {
@@ -124,19 +128,12 @@ export default function DisputeReviewStep({
     setError('')
     try {
       await patchDisputeTradelines(sessionId, tradelines)
-      const selections = tradelines
-        .filter((t) => t.selected)
-        .map((t) => ({
-          id: t.id,
-          selected: true,
-          dispute_reason: (t.dispute_reason || t.suggested_dispute_reason || '').trim(),
-        }))
-        .filter((s) => s.dispute_reason)
+      const selections = planSelectionsFromTradelines(tradelines)
       const hasTargets = tradelines.some(
         (t) => t.selected && ((t.dispute_bureaus || []).length > 0 || t.dispute_furnisher)
       )
       if (!selections.length || !hasTargets) {
-        setError('Select at least one account with a dispute reason and letter target.')
+        setError('Select at least one account with a letter target.')
         setLoading(false)
         return
       }
@@ -168,7 +165,12 @@ export default function DisputeReviewStep({
             key={t.id}
             tradeline={t}
             selected={t.selected}
-            onSelect={(checked) => update(t.id, { selected: checked })}
+            onSelect={(checked) =>
+              update(t.id, {
+                selected: checked,
+                dispute_reason: checked ? t.dispute_reason || resolvedDisputeReason(t) : t.dispute_reason,
+              })
+            }
             onChange={(patch) => update(t.id, patch)}
             onToggleBureau={(b, c) => toggleDisputeBureau(t.id, b, c)}
             showTargets
