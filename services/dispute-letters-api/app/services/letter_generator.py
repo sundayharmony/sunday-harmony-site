@@ -33,18 +33,64 @@ def build_letter_prompt(
     )
     addr = "\n".join(plan.recipient_lines)
     consumer_addrs = "\n".join(consumer.addresses) if consumer.addresses else "[Consumer address]"
-    letter_kind = "credit bureau" if plan.letter_type.startswith("bureau_") else "data furnisher"
-    is_bureau = plan.letter_type.startswith("bureau_")
-    opening_ask = (
-        " at no cost, furnisher notice within five business days under FCRA §611(a)(2), "
-        "review of all submitted information, deletion/correction of unverifiable items, "
-        "and written results with an updated consumer report if changes are made"
-        if is_bureau
-        else (
+    letter_kind = (
+        "credit bureau"
+        if plan.letter_type.startswith("bureau_")
+        or plan.letter_type
+        in {
+            "method_of_verification",
+            "warning_intent",
+            "reinvestigation",
+            "cfpb_complaint",
+        }
+        else "data furnisher"
+        if plan.letter_type in {"furnisher", "debt_validation"}
+        else "recipient"
+    )
+    is_bureau = plan.letter_type.startswith("bureau_") or plan.letter_type in {
+        "method_of_verification",
+        "warning_intent",
+        "reinvestigation",
+    }
+    if plan.letter_type == "method_of_verification":
+        opening_ask = (
+            ", disclosure of the method of verification used under FCRA §611(a)(6)–(7), "
+            "the name and contact information of any person contacted to verify the information, "
+            "and deletion of any item that cannot be verified"
+        )
+    elif plan.letter_type == "warning_intent":
+        opening_ask = (
+            ", completion of the overdue reinvestigation, written results, "
+            "and notice that continued noncompliance may result in further escalation including "
+            "a complaint to the Consumer Financial Protection Bureau and civil remedies under "
+            "FCRA §616–§617"
+        )
+    elif plan.letter_type == "reinvestigation":
+        opening_ask = (
+            ", a fresh reasonable reinvestigation of the updated or remaining inaccurate data, "
+            "deletion or correction of unverifiable fields, and written results"
+        )
+    elif plan.letter_type == "debt_validation":
+        opening_ask = (
+            ", validation of the alleged debt under FDCPA §809, identification of the original "
+            "creditor, and cessation of collection activity until validation is provided"
+        )
+    elif plan.letter_type == "cfpb_complaint":
+        opening_ask = (
+            ", supervisory attention to the unresolved FCRA / FDCPA violations described below, "
+            "and written confirmation of the agency response"
+        )
+    elif is_bureau:
+        opening_ask = (
+            " at no cost, furnisher notice within five business days under FCRA §611(a)(2), "
+            "review of all submitted information, deletion/correction of unverifiable items, "
+            "and written results with an updated consumer report if changes are made"
+        )
+    else:
+        opening_ask = (
             ", verification under applicable FCRA furnisher duties, "
             "and written confirmation of the outcome"
         )
-    )
     intel_block = ""
     if intelligence_notes:
         intel_block = (

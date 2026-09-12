@@ -7,7 +7,17 @@ from pydantic import BaseModel, Field
 
 BureauCode = Literal["TUC", "EXP", "EQF"]
 ExtractionQuality = Literal["high", "medium", "low"]
-LetterType = Literal["bureau_equifax", "bureau_experian", "bureau_transunion", "furnisher"]
+LetterType = Literal[
+    "bureau_equifax",
+    "bureau_experian",
+    "bureau_transunion",
+    "furnisher",
+    "method_of_verification",
+    "warning_intent",
+    "reinvestigation",
+    "debt_validation",
+    "cfpb_complaint",
+]
 RepairPriority = Literal["high", "medium", "low", "none"]
 
 
@@ -194,12 +204,17 @@ class TradelineSelection(BaseModel):
     id: str
     selected: bool = True
     dispute_reason: str = ""
+    # Optional Round 2+ routing hints from the dispute lifecycle
+    item_status: str | None = None
+    preferred_letter_type: LetterType | None = None
 
 
 class DisputePlanRequest(BaseModel):
     session_id: str
     selections: list[TradelineSelection] = Field(default_factory=list)
     furnisher_address_overrides: dict[str, list[str]] = Field(default_factory=dict)
+    round_number: int = 1
+    force_one_item_per_bureau: bool | None = None
 
 
 class LetterItem(BaseModel):

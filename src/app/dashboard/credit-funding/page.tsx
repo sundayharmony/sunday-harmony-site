@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import FileUploadField from '@/components/credit-funding/FileUploadField'
+import ClientDisputePanel from '@/components/credit-funding/ClientDisputePanel'
 import CreditFundingStatusTracker from '@/components/credit-funding/CreditFundingStatusTracker'
 import DocumentPreviewModal, {
   isPreviewableDocument,
@@ -291,6 +292,8 @@ export default function ClientCreditFundingPage() {
           <p className="text-sm text-brand-muted whitespace-pre-wrap">{application.next_steps}</p>
         </div>
       )}
+
+      <ClientDisputePanel />
 
       {application.client_notes && (
         <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">

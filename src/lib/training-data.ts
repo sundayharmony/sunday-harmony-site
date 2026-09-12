@@ -2,6 +2,8 @@
 // Sales Training Data — Company info, role expectations, workflow
 // ══════════════════════════════════════════════════════════
 
+import { DISPUTE_OPS_TASK_TEMPLATES } from '@/lib/dispute-letters/dispute-lifecycle'
+
 // ══════════ COMPANY OVERVIEW ══════════
 export const companyInfo = {
   name: 'Sunday Harmony',
@@ -221,3 +223,33 @@ export const comingSoonResources = [
     icon: '🖥️',
   },
 ]
+
+// ══════════ CREDIT REPAIR / DISPUTE OPS (Phase 7) ══════════
+export const disputeOpsTraining = {
+  title: 'Credit Repair / Dispute Ops',
+  overview:
+    'Dispute ops runs Round 1 → Round N letters against the bureaus and furnishers, logs outcomes, and escalates stubborn items (including CFPB drafts). Use the Dispute Letters workflow plus the rounds panel on each credit-funding application.',
+  narrative: [
+    {
+      round: 'Round 1',
+      summary:
+        'Select a focused set of tradelines (max 5 per bureau). Generate bureau + furnisher letters, print the packet with ID/address proof, mail certified/priority, log tracking, and set the 30-day response deadline from delivery (or mail date).',
+    },
+    {
+      round: 'Round 2',
+      summary:
+        'Log outcomes (deleted / verified / updated / no response). Route verified → method of verification, no response → warning/intent, collections → debt validation. Keep one primary item per bureau letter, then mail and refresh the deadline.',
+    },
+    {
+      round: 'Round 3+',
+      summary:
+        'Escalate stubborn verified/no-response items toward CFPB complaint drafts. Release mailed packets to the client portal so they can upload bureau replies. Staff reviews uploads and advances the next round.',
+    },
+  ],
+  taskTemplates: DISPUTE_OPS_TASK_TEMPLATES,
+  tips: [
+    'Never store client consumerfinance.gov passwords — clients submit CFPB complaints themselves.',
+    'Mark rounds mailed / awaiting response before opening the next round.',
+    'Release to client only after letters are ready or mailed so the portal shows a complete packet.',
+  ],
+}

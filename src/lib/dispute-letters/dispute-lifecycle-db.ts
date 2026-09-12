@@ -1,14 +1,21 @@
 import { getSupabase } from '@/lib/supabase'
 import {
+  computeDeadlineAt,
   expandTradelineSelections,
   isRoundClosedForNext,
   itemIdentityFromTradeline,
   nextRoundNumber,
   pendingQueueFromItems,
   type DisputeCaseRow,
+  type DisputeCfpbEscalationRow,
+  type DisputeCfpbStatus,
   type DisputeItemRow,
   type DisputeItemStatus,
   type DisputeLifecycleSnapshot,
+  type DisputeMailMethod,
+  type DisputePacketChecklist,
+  type DisputeResponseRow,
+  type DisputeResponseSource,
   type DisputeRoundRow,
   type DisputeRoundStatus,
 } from '@/lib/dispute-letters/dispute-lifecycle'
@@ -429,4 +436,213 @@ export async function syncLifecycleOnPlan(params: {
     roundNumber: opened.round.round_number,
     roundId: opened.round.id,
   }
+}
+
+export async function updateRoundMailTracking(params: {
+  roundId: string
+  mailMethod?: DisputeMailMethod | null
+  trackingNumber?: string | null
+  deliveredAt?: string | null
+  mailedAt?: string | null
+  packetChecklist?: DisputePacketChecklist | null
+  status?: DisputeRoundStatus | null
+}): Promise<{ ok: true; deadlineAt: string | null } | { ok: false; error: string }> {
+  const now = new Date().toISOString()
+  const mailedAt = params.mailedAt || (params.status === 'mailed' ? now : null)
+  const deadlineAt = computeDeadlineAt({
+    deliveredAt: params.deliveredAt,
+    mailedAt: mailedAt || undefined,
+  })
+
+  const payload: Record<string, unknown> = {
+    updated_at: now,
+    deadline_at: deadlineAt,
+  }
+  if (params.mailMethod !== undefined) payload.mail_method = params.mailMethod
+  if (params.trackingNumber !== undefined) payload.tracking_number = params.trackingNumber
+  if (params.deliveredAt !== undefined) payload.delivered_at = params.deliveredAt
+  if (params.packetChecklist !== undefined) payload.packet_checklist = params.packetChecklist || {}
+  if (mailedAt) payload.mailed_at = mailedAt
+  if (params.status) payload.status = params.status
+  else if (mailedAt) payload.status = 'mailed' satisfies DisputeRoundStatus
+  else if (params.deliveredAt) payload.status = 'awaiting_response' satisfies DisputeRoundStatus
+
+  const { error } = await getSupabase().from('dispute_rounds').update(payload).eq('id', params.roundId)
+  if (error) {
+    if (isMissingRelation(error)) return { ok: false, error: 'Run migration 035 for mail tracking fields.' }
+    return { ok: false, error: error.message }
+  }
+  return { ok: true, deadlineAt }
+}
+
+export async function releaseRoundToClient(
+  roundId: string,
+  released = true
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await getSupabase()
+    .from('dispute_rounds')
+    .update({
+      client_released_at: released ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', roundId)
+  if (error) {
+    if (isMissingRelation(error)) return { ok: false, error: 'Run migration 035 for client release.' }
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
+}
+
+export async function listResponsesForRound(roundId: string): Promise<DisputeResponseRow[]> {
+  const { data, error } = await getSupabase()
+    .from('dispute_responses')
+    .select('*')
+    .eq('round_id', roundId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    if (!isMissingRelation(error)) console.error('listResponsesForRound error:', error)
+    return []
+  }
+  return (data || []) as DisputeResponseRow[]
+}
+
+export async function createDisputeResponse(params: {
+  roundId: string
+  itemId?: string | null
+  source: DisputeResponseSource
+  fileName: string
+  storagePath: string
+  notes?: string | null
+  uploadedBy?: string | null
+}): Promise<{ ok: true; row: DisputeResponseRow } | { ok: false; error: string }> {
+  const { data, error } = await getSupabase()
+    .from('dispute_responses')
+    .insert({
+      round_id: params.roundId,
+      item_id: params.itemId || null,
+      source: params.source,
+      file_name: params.fileName,
+      storage_path: params.storagePath,
+      notes: params.notes || null,
+      uploaded_by: params.uploadedBy || null,
+    })
+    .select('*')
+    .single()
+  if (error || !data) {
+    if (error && isMissingRelation(error)) {
+      return { ok: false, error: 'Run migration 035 for dispute_responses.' }
+    }
+    return { ok: false, error: error?.message || 'Failed to save response' }
+  }
+  return { ok: true, row: data as DisputeResponseRow }
+}
+
+export async function listCfpbEscalationsForCase(caseId: string): Promise<DisputeCfpbEscalationRow[]> {
+  const { data, error } = await getSupabase()
+    .from('dispute_cfpb_escalations')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: false })
+  if (error) {
+    if (!isMissingRelation(error)) console.error('listCfpbEscalationsForCase error:', error)
+    return []
+  }
+  return (data || []).map((row) => ({
+    ...(row as DisputeCfpbEscalationRow),
+    item_ids: (row.item_ids as string[]) || [],
+    complaint_markdown: (row.complaint_markdown as string) || '',
+  }))
+}
+
+export async function upsertCfpbEscalation(params: {
+  id?: string
+  caseId: string
+  itemIds: string[]
+  complaintMarkdown: string
+  status?: DisputeCfpbStatus
+  notes?: string | null
+  submittedAt?: string | null
+  agencyResponseAt?: string | null
+}): Promise<{ ok: true; row: DisputeCfpbEscalationRow } | { ok: false; error: string }> {
+  const now = new Date().toISOString()
+  const payload: Record<string, unknown> = {
+    case_id: params.caseId,
+    item_ids: params.itemIds,
+    complaint_markdown: params.complaintMarkdown,
+    status: params.status || 'draft',
+    notes: params.notes ?? null,
+    updated_at: now,
+  }
+  if (params.submittedAt !== undefined) payload.submitted_at = params.submittedAt
+  if (params.agencyResponseAt !== undefined) payload.agency_response_at = params.agencyResponseAt
+
+  if (params.id) {
+    const { data, error } = await getSupabase()
+      .from('dispute_cfpb_escalations')
+      .update(payload)
+      .eq('id', params.id)
+      .select('*')
+      .single()
+    if (error || !data) return { ok: false, error: error?.message || 'Failed to update CFPB draft' }
+    return {
+      ok: true,
+      row: {
+        ...(data as DisputeCfpbEscalationRow),
+        item_ids: (data.item_ids as string[]) || [],
+      },
+    }
+  }
+
+  const { data, error } = await getSupabase()
+    .from('dispute_cfpb_escalations')
+    .insert({ ...payload, created_at: now })
+    .select('*')
+    .single()
+  if (error || !data) {
+    if (error && isMissingRelation(error)) {
+      return { ok: false, error: 'Run migration 035 for dispute_cfpb_escalations.' }
+    }
+    return { ok: false, error: error?.message || 'Failed to create CFPB draft' }
+  }
+  return {
+    ok: true,
+    row: {
+      ...(data as DisputeCfpbEscalationRow),
+      item_ids: (data.item_ids as string[]) || [],
+    },
+  }
+}
+
+export async function loadReleasedRoundsForApplication(
+  applicationUuid: string
+): Promise<{ rounds: DisputeRoundRow[]; items: DisputeItemRow[]; responses: DisputeResponseRow[] }> {
+  const empty = { rounds: [] as DisputeRoundRow[], items: [] as DisputeItemRow[], responses: [] as DisputeResponseRow[] }
+  const { data: caseRow, error } = await getSupabase()
+    .from('dispute_cases')
+    .select('id')
+    .eq('application_uuid', applicationUuid)
+    .maybeSingle()
+  if (error || !caseRow) {
+    if (error && !isMissingRelation(error)) console.error('loadReleasedRoundsForApplication error:', error)
+    return empty
+  }
+
+  const { data: rounds, error: roundsErr } = await getSupabase()
+    .from('dispute_rounds')
+    .select('*')
+    .eq('case_id', caseRow.id)
+    .not('client_released_at', 'is', null)
+    .order('round_number', { ascending: true })
+  if (roundsErr) {
+    if (!isMissingRelation(roundsErr)) console.error('released rounds error:', roundsErr)
+    return empty
+  }
+
+  const roundRows = (rounds || []) as DisputeRoundRow[]
+  const items = await listItemsForCase(caseRow.id as string)
+  const responses: DisputeResponseRow[] = []
+  for (const round of roundRows) {
+    responses.push(...(await listResponsesForRound(round.id)))
+  }
+  return { rounds: roundRows, items, responses }
 }
