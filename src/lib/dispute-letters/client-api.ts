@@ -226,7 +226,7 @@ export async function fetchDisputeLetters(sessionId: string) {
   return res.json() as Promise<{ letters: GeneratedLetter[] }>
 }
 
-export function disputeLetterDownloadUrl(sessionId: string, letterId: string, format = 'txt') {
+export function disputeLetterDownloadUrl(sessionId: string, letterId: string, format = 'docx') {
   return `/api/admin/dispute-letters/${sessionId}/letters/${letterId}/download?format=${format}`
 }
 

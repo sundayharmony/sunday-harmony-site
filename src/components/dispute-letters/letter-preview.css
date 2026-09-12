@@ -1,0 +1,63 @@
+.letter-page {
+  width: 8.5in;
+  min-height: 11in;
+  margin: 0 auto;
+  padding: 1in;
+  background: #fff;
+  box-sizing: border-box;
+  color: #000;
+  font-family: "Times New Roman", Times, "Liberation Serif", serif;
+  font-size: 12pt;
+  line-height: 1.15;
+}
+
+.letter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 6pt;
+  font-size: 11pt;
+}
+
+.letter-header-date,
+.letter-header-page {
+  font-size: 11pt;
+}
+
+.letter-body .letter-line,
+.letter-body .letter-spacer {
+  margin: 0 0 8pt;
+}
+
+.letter-body .letter-heading {
+  font-weight: 700;
+  margin-top: 12pt;
+  margin-bottom: 8pt;
+}
+
+.letter-body .letter-name {
+  font-weight: 700;
+  margin-bottom: 2pt;
+}
+
+.letter-body .letter-field,
+.letter-body .letter-tight {
+  margin-bottom: 2pt;
+}
+
+.letter-body .letter-bullet {
+  margin: 0 0 4pt 0.25in;
+  text-indent: -0.2in;
+}
+
+.letter-body .letter-indent-1 {
+  margin-left: 0.35in;
+}
+
+.letter-body .letter-indent-2 {
+  margin-left: 0.7in;
+}
+
+.letter-body .letter-spacer {
+  min-height: 12pt;
+}

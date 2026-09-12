@@ -4,7 +4,6 @@ import asyncio
 import json
 import os
 import re
-import zipfile
 from io import BytesIO
 from pathlib import Path
 
@@ -44,7 +43,13 @@ from app.services.credit_health import build_health_summary, sort_by_priority
 from app.services.credit_intelligence import build_credit_intelligence
 from app.services.cursor_client import bridge_manager
 from app.services.letter_generator import generate_letter_async, save_letter_file
-from app.services.letter_formatter import finalize_letter, letter_to_docx, letter_to_html
+from app.services.letter_formatter import (
+    finalize_letter,
+    letter_layout,
+    letter_to_docx,
+    letter_to_html,
+    letters_zip_bytes,
+)
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
 from app.storage import upload_storage_bytes, write_temp_report
@@ -490,6 +495,7 @@ def get_letters(session_id: str, _: None = Depends(verify_internal_secret)) -> d
             **l.model_dump(),
             "markdown": l.markdown,
             "html": letter_to_html(l.markdown),
+            "preview": letter_layout(l.markdown),
             "plain_text": finalize_letter(l.markdown),
         }
         for l in letters
@@ -501,7 +507,7 @@ def get_letters(session_id: str, _: None = Depends(verify_internal_secret)) -> d
 def download_letter(
     session_id: str,
     letter_id: str,
-    format: str = "txt",
+    format: str = "docx",
     _: None = Depends(verify_internal_secret),
 ):
     letter = get_letter(session_id, letter_id)
@@ -539,13 +545,8 @@ def download_zip(session_id: str, _: None = Depends(verify_internal_secret)):
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "", consumer_name.strip())
     cleaned = re.sub(r"\s+", " ", cleaned).strip()[:80] or "Client"
     zip_filename = f"{cleaned} round 1 Letters.zip"
-    buf = BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for letter in letters:
-            plain = finalize_letter(letter.markdown)
-            safe = letter.title.replace("/", "-")[:60] or letter.id
-            zf.writestr(f"{safe}.txt", plain)
-    buf.seek(0)
+    payload = letters_zip_bytes([(letter.title.replace("/", "-")[:60] or letter.id, letter.markdown) for letter in letters])
+    buf = BytesIO(payload)
     return StreamingResponse(
         buf,
         media_type="application/zip",

@@ -206,12 +206,25 @@ export interface LetterPlan {
   missing_address?: boolean
 }
 
+export type LetterPreviewVariant = 'heading' | 'name' | 'field' | 'tight' | 'body'
+
+export type LetterPreviewBlock =
+  | { kind: 'spacer' }
+  | { kind: 'bullet'; text: string }
+  | { kind: 'line'; text: string; variant: LetterPreviewVariant; indent?: number }
+
+export interface LetterPreviewLayout {
+  date: string
+  blocks: LetterPreviewBlock[]
+}
+
 export interface GeneratedLetter {
   id: string
   plan_id: string
   title: string
   markdown: string
   html?: string
+  preview?: LetterPreviewLayout
   plain_text?: string
   file_path: string
 }

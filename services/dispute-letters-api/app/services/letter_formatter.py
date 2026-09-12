@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import re
 from datetime import date
+from io import BytesIO
 
 
 SECTION_HEADINGS = frozenset(
@@ -92,6 +93,8 @@ def _is_section_heading(line: str) -> bool:
     stripped = line.strip()
     if not stripped or stripped.endswith(":") or "**" in stripped:
         return False
+    if _is_field_label_line(stripped):
+        return False
     if stripped in SECTION_HEADINGS:
         return True
     if any(c.isdigit() for c in stripped):
@@ -147,32 +150,100 @@ def _inline_html(text: str) -> str:
     return "".join(out)
 
 
-def letter_to_html(text: str) -> str:
+def _is_tight_line(display: str, *, heading: bool, name_line: bool, field_line: bool) -> bool:
+    return field_line or (
+        not heading and not name_line and len(display) < 70 and ":" not in display
+    )
+
+
+def letter_layout(text: str) -> dict:
+    """Shared structure for HTML preview, React preview, and .docx export."""
     body = normalize_letter_source(text)
+    letter_date = _extract_letter_date(body)
     lines = body.splitlines()
-    blocks: list[str] = []
-    for i, line in enumerate(lines):
+    start = 0
+    if lines and _DATE_LINE_RE.match(lines[0].strip()):
+        start = 1
+        if start < len(lines) and not lines[start].strip():
+            start += 1
+
+    blocks: list[dict] = []
+    prev_blank = True
+    for i, line in enumerate(lines[start:], start=start):
         if not line.strip():
-            blocks.append('<p class="letter-spacer">&nbsp;</p>')
+            if not prev_blank:
+                blocks.append({"kind": "spacer"})
+            prev_blank = True
             continue
+        prev_blank = False
         display = _line_display(line)
         if _is_bullet(display):
-            inner = _inline_html(_bullet_text(display))
-            blocks.append(f'<p class="letter-line letter-bullet">● {inner}</p>')
+            blocks.append({"kind": "bullet", "text": _bullet_text(display)})
             continue
-        indent = _indent_level(line)
-        inner = _inline_html(display)
+        heading = _is_section_heading(display)
+        name_line = _is_name_line(display, index=i)
+        field_line = _is_field_label_line(display) or _is_subheading(display)
+        tight = _is_tight_line(
+            display, heading=heading, name_line=name_line, field_line=field_line
+        )
+        if heading:
+            variant = "heading"
+        elif name_line:
+            variant = "name"
+        elif field_line:
+            variant = "field"
+        elif tight:
+            variant = "tight"
+        else:
+            variant = "body"
+        blocks.append(
+            {
+                "kind": "line",
+                "text": display,
+                "variant": variant,
+                "indent": _indent_level(line),
+            }
+        )
+    return {"date": letter_date, "blocks": blocks}
+
+
+def letter_to_html(text: str) -> str:
+    """HTML preview that mirrors letter_to_docx layout (header date, body, spacing)."""
+    layout = letter_layout(text)
+    parts: list[str] = [
+        '<div class="letter-page">',
+        '<div class="letter-header">',
+        f'<span class="letter-header-date">{html.escape(layout["date"])}</span>',
+        '<span class="letter-header-page">Page 1/1</span>',
+        "</div>",
+        '<div class="letter-body">',
+    ]
+    for block in layout["blocks"]:
+        kind = block["kind"]
+        if kind == "spacer":
+            parts.append('<p class="letter-spacer">&nbsp;</p>')
+            continue
+        if kind == "bullet":
+            inner = _inline_html(block["text"])
+            parts.append(f'<p class="letter-line letter-bullet">● {inner}</p>')
+            continue
+        inner = _inline_html(block["text"])
         classes = ["letter-line"]
+        indent = int(block.get("indent") or 0)
         if indent:
             classes.append(f"letter-indent-{indent}")
-        if _is_section_heading(display):
+        variant = block.get("variant") or "body"
+        if variant == "heading":
             classes.append("letter-heading")
-        elif _is_name_line(display, index=i):
+        elif variant == "name":
             classes.append("letter-name")
-        elif _is_field_label_line(display) or _is_subheading(display):
+        elif variant == "field":
             classes.append("letter-field")
-        blocks.append(f'<p class="{" ".join(classes)}">{inner}</p>')
-    return "\n".join(blocks)
+        elif variant == "tight":
+            classes.append("letter-tight")
+        parts.append(f'<p class="{" ".join(classes)}">{inner}</p>')
+    parts.extend(["</div>", "</div>"])
+    return "\n".join(parts)
 
 
 def _add_runs(para, line: str, *, bold_all: bool = False) -> None:
@@ -284,8 +355,7 @@ def letter_to_docx(text: str):
     from docx.oxml.ns import qn
     from docx.shared import Inches, Pt
 
-    body = normalize_letter_source(text)
-    letter_date = _extract_letter_date(body)
+    layout = letter_layout(text)
     document = Document()
 
     for section in document.sections:
@@ -304,7 +374,7 @@ def letter_to_docx(text: str):
         tab_stops = hp.paragraph_format.tab_stops
         tab_stops.add_tab_stop(Inches(6.5), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.SPACES)
 
-        run_date = hp.add_run(letter_date)
+        run_date = hp.add_run(layout["date"])
         _set_run_font(run_date, size_pt=11)
         hp.add_run("\t")
         run_page = hp.add_run("Page ")
@@ -319,43 +389,46 @@ def letter_to_docx(text: str):
     style.font.size = Pt(12)
     style._element.rPr.rFonts.set(qn("w:eastAsia"), "Times New Roman")
 
-    lines = body.splitlines()
-    start = 0
-    if lines and _DATE_LINE_RE.match(lines[0].strip()):
-        start = 1
-        if start < len(lines) and not lines[start].strip():
-            start += 1
-
-    prev_blank = True
-    for i, line in enumerate(lines[start:], start=start):
-        if not line.strip():
-            if not prev_blank:
-                document.add_paragraph("")
-            prev_blank = True
+    for block in layout["blocks"]:
+        kind = block["kind"]
+        if kind == "spacer":
+            document.add_paragraph("")
             continue
-        prev_blank = False
-        display = _line_display(line)
-
-        if _is_bullet(display):
-            _add_bullet_paragraph(document, _bullet_text(display))
+        if kind == "bullet":
+            _add_bullet_paragraph(document, block["text"])
             continue
-
-        heading = _is_section_heading(display)
-        name_line = _is_name_line(display, index=i)
-        field_line = _is_field_label_line(display) or _is_subheading(display)
-        tight = (
-            (not heading and not name_line and len(display) < 70 and ":" not in display)
-            or field_line
-        )
-
+        variant = block.get("variant") or "body"
         _add_rich_paragraph(
             document,
-            display,
-            indent_level=_indent_level(line),
-            heading=heading,
-            name_line=name_line,
-            field_line=field_line,
-            tight=tight,
+            block["text"],
+            indent_level=int(block.get("indent") or 0),
+            heading=variant == "heading",
+            name_line=variant == "name",
+            field_line=variant == "field",
+            tight=variant == "tight",
         )
 
     return document
+
+
+def letters_zip_bytes(letters: list[tuple[str, str]]) -> bytes:
+    """Build a ZIP of print-ready .docx files. Each item is (filename_stem, markdown)."""
+    import zipfile
+
+    buf = BytesIO()
+    used: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for stem, markdown in letters:
+            safe = re.sub(r'[<>:"/\\|?*]', "-", (stem or "letter").strip())[:60] or "letter"
+            name = safe
+            n = 2
+            while name.lower() in used:
+                name = f"{safe} ({n})"
+                n += 1
+            used.add(name.lower())
+            document = letter_to_docx(markdown)
+            doc_buf = BytesIO()
+            document.save(doc_buf)
+            zf.writestr(f"{name}.docx", doc_buf.getvalue())
+    buf.seek(0)
+    return buf.getvalue()

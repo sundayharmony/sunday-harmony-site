@@ -1,120 +1,80 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
-import type { GeneratedLetter } from '@/lib/dispute-letters/types'
+import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@/lib/dispute-letters/types'
 import {
   disputeLetterDownloadUrl,
   disputeLettersZipUrl,
   fetchDisputeLetters,
 } from '@/lib/dispute-letters/client-api'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
-
-const SECTION_HEADINGS = new Set([
-  'Consumer Identification',
-  'Disputed Tradelines',
-  'Statutory Reinvestigation Requirements',
-  'Requested Outcome',
-  'CONSUMER INFORMATION',
-  'DISPUTED ITEMS',
-])
+import './letter-preview.css'
 
 function renderInlineMarkup(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g)
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <strong key={i} className="font-bold">
-          {part.slice(2, -2)}
-        </strong>
-      )
+      return <strong key={i}>{part.slice(2, -2)}</strong>
     }
     return <span key={i}>{part}</span>
   })
 }
 
-function classifyLetterLine(line: string, index: number): string {
-  const trimmed = line.trim()
-  if (!trimmed) return 'spacer'
-  if (/^[●•▪◦]\s+/.test(trimmed) || /^[-*+]\s+/.test(trimmed)) return 'bullet'
-  if (SECTION_HEADINGS.has(trimmed)) return 'heading'
-  if (
-    index < 7 &&
-    trimmed === trimmed.toUpperCase() &&
-    /[A-Z]/.test(trimmed) &&
-    trimmed.includes(' ') &&
-    !/\d/.test(trimmed) &&
-    trimmed.length < 60
-  ) {
-    return 'name'
-  }
-  if (
-    /^(Full Name|Date of Birth|Current Address|Additional Addresses on File|Account Number|Reported Status|Reported Balance|Basis of Dispute)\s*:/i.test(
-      trimmed
-    )
-  ) {
-    return 'field'
-  }
-  if (/^Re:\s+/i.test(trimmed)) return 're'
-  return 'body'
+function lineClassName(block: Extract<LetterPreviewBlock, { kind: 'line' }>) {
+  const classes = ['letter-line']
+  const indent = block.indent || 0
+  if (indent) classes.push(`letter-indent-${indent}`)
+  if (block.variant === 'heading') classes.push('letter-heading')
+  else if (block.variant === 'name') classes.push('letter-name')
+  else if (block.variant === 'field') classes.push('letter-field')
+  else if (block.variant === 'tight') classes.push('letter-tight')
+  return classes.join(' ')
 }
 
-function LetterPreview({ text }: { text: string }) {
-  const lines = useMemo(() => text.replace(/\r\n/g, '\n').split('\n'), [text])
+function LetterPreview({ layout, fallbackText }: { layout?: LetterPreviewLayout; fallbackText: string }) {
+  const date = layout?.date || ''
+  const blocks = layout?.blocks
 
   return (
-    <article
-      className="mx-auto max-w-[720px] bg-[#fbfaf7] px-8 py-10 shadow-sm sm:px-12"
-      style={{ fontFamily: '"Times New Roman", Times, "Liberation Serif", serif' }}
-    >
-      <div className="space-y-0 text-[15px] leading-[1.55] text-[#1a1a1a]">
-        {lines.map((line, i) => {
-          const kind = classifyLetterLine(line, i)
-          if (kind === 'spacer') {
-            return <div key={i} className="h-3" aria-hidden />
+    <article className="letter-page shadow-sm">
+      <div className="letter-header">
+        <span className="letter-header-date">{date}</span>
+        <span className="letter-header-page">Page 1/1</span>
+      </div>
+      <div className="letter-body">
+        {blocks?.map((block, i) => {
+          if (block.kind === 'spacer') {
+            return <p key={i} className="letter-spacer" aria-hidden>
+              {'\u00a0'}
+            </p>
           }
-          if (kind === 'bullet') {
-            const content = line.trim().replace(/^[●•▪◦\-*+]\s+/, '')
+          if (block.kind === 'bullet') {
             return (
-              <p key={i} className="mb-1 pl-5 -indent-4">
-                ● {renderInlineMarkup(content)}
-              </p>
-            )
-          }
-          if (kind === 'heading') {
-            return (
-              <p key={i} className="mb-2 mt-5 font-bold tracking-wide">
-                {renderInlineMarkup(line.trim())}
-              </p>
-            )
-          }
-          if (kind === 'name') {
-            return (
-              <p key={i} className="mb-0.5 font-bold tracking-wide">
-                {renderInlineMarkup(line.trim())}
-              </p>
-            )
-          }
-          if (kind === 're') {
-            return (
-              <p key={i} className="mb-3 mt-1">
-                {renderInlineMarkup(line.trim())}
-              </p>
-            )
-          }
-          if (kind === 'field') {
-            return (
-              <p key={i} className="mb-0.5">
-                {renderInlineMarkup(line.trim())}
+              <p key={i} className="letter-line letter-bullet">
+                ● {renderInlineMarkup(block.text)}
               </p>
             )
           }
           return (
-            <p key={i} className="mb-2">
-              {renderInlineMarkup(line.trim())}
+            <p key={i} className={lineClassName(block)}>
+              {renderInlineMarkup(block.text)}
             </p>
           )
         })}
+        {!blocks && fallbackText
+          ? fallbackText.split('\n').map((line, i) =>
+              line.trim() ? (
+                <p key={`fallback-${i}`} className="letter-line">
+                  {renderInlineMarkup(line)}
+                </p>
+              ) : (
+                <p key={`fallback-${i}`} className="letter-spacer" aria-hidden>
+                  {'\u00a0'}
+                </p>
+              )
+            )
+          : null}
       </div>
     </article>
   )
@@ -147,8 +107,6 @@ export default function DisputeLettersResultStep({
 
   if (!sessionId) return null
 
-  const previewText = active?.markdown || active?.plain_text || ''
-
   return (
     <div className={`${embedded ? '' : 'max-w-5xl'} space-y-6`}>
       {!embedded && <DisputeLettersStepStrip sessionId={sessionId} />}
@@ -157,8 +115,8 @@ export default function DisputeLettersResultStep({
         <h2 className="text-xl font-semibold text-green-900">Letters ready</h2>
         <p className="mt-2 text-sm text-green-800">
           Mail disputes within 30 days. Keep copies of every letter and your report. Certified mail
-          with return receipt is recommended for bureaus. Download the .docx for print-ready
-          formatting.
+          with return receipt is recommended for bureaus. The ZIP contains print-ready Word (.docx)
+          files so formatting is preserved.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <a
@@ -210,9 +168,6 @@ export default function DisputeLettersResultStep({
                 {l.title}
               </button>
               <div className="mt-2 flex gap-2 text-xs">
-                <a href={disputeLetterDownloadUrl(sessionId, l.id, 'txt')} className="text-accent hover:underline">
-                  Download .txt
-                </a>
                 <a href={disputeLetterDownloadUrl(sessionId, l.id, 'docx')} className="text-accent hover:underline">
                   Download .docx
                 </a>
@@ -222,7 +177,10 @@ export default function DisputeLettersResultStep({
         </div>
         <div className="overflow-auto rounded-xl border border-brand-border bg-neutral-100/80 p-4 shadow-sm min-h-[400px]">
           {active ? (
-            <LetterPreview text={previewText} />
+            <LetterPreview
+              layout={active.preview}
+              fallbackText={active.markdown || active.plain_text || ''}
+            />
           ) : (
             <p className="text-brand-dim">No letters yet.</p>
           )}
