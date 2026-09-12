@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.models import GeneratedLetter, Tradeline
+from app.models import ConsumerInfo, GeneratedLetter, ParsedReport, Tradeline
+from app.services.bureau_coverage import bureau_health_counts, detect_bureau_coverage
 from app.services.credit_health import (
     default_inquiry_dispute_reason,
     is_negative_tradeline,
@@ -28,7 +29,10 @@ def _tl(case: dict) -> Tradeline:
         is_collection=bool(case.get("is_collection")),
         repair_priority=case.get("repair_priority", "none"),
         item_category=case.get("item_category", ""),
-        bureaus=["EXP"],
+        bureaus=case.get("bureaus") or (["EXP"] if case.get("account_exp") else []),
+        account_exp=case.get("account_exp", ""),
+        account_tu=case.get("account_tu", ""),
+        account_eqf=case.get("account_eqf", ""),
     )
 
 
@@ -71,3 +75,27 @@ def test_letter_layout_shared_sample():
         block.get("variant") == "name" and block.get("text") == "JANE CONSUMER"
         for block in layout["blocks"]
     )
+
+
+def test_bureau_coverage_parity():
+    for case in CASES["bureau_coverage_cases"]:
+        report = ParsedReport(consumer=ConsumerInfo(name="A"), tradelines=[])
+        scores = case["scores"]
+        report.credit_health.scores.tuc = scores.get("tuc")
+        report.credit_health.scores.exp = scores.get("exp")
+        report.credit_health.scores.eqf = scores.get("eqf")
+        cov = detect_bureau_coverage(report, case["file_name"])
+        assert list(cov.bureaus) == case["expect_bureaus"], case["id"]
+        assert cov.coverage == case["expect_coverage"], case["id"]
+
+
+def test_per_bureau_count_parity():
+    for case in CASES["per_bureau_cases"]:
+        report = ParsedReport(
+            consumer=ConsumerInfo(name="A"),
+            tradelines=[_tl(row) for row in case["tradelines"]],
+        )
+        counts = bureau_health_counts(report, case["bureau"])
+        assert counts.total_accounts == case["expect_total"], case["id"]
+        assert counts.negative_count == case["expect_negative"], case["id"]
+        assert counts.collection_count == case["expect_collections"], case["id"]
