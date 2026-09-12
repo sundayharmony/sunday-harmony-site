@@ -3,6 +3,7 @@ import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import { getDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
+import { getRoundNumberForSession } from '@/lib/dispute-letters/dispute-lifecycle-db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import {
   disputeLetterRoundIndex,
@@ -60,11 +61,13 @@ export async function GET(_request: NextRequest, { params }: Params) {
     }
 
     const row = await getDisputeSession(id, email)
-    let round = 1
-    if (row?.application_uuid) {
+    // Prefer durable lifecycle round number; fall back to chronological session index.
+    let round = (await getRoundNumberForSession(id)) || 0
+    if (!round && row?.application_uuid) {
       const sessions = await listDisputeSessionsForApplication(row.application_uuid)
       round = disputeLetterRoundIndex(sessions, id)
     }
+    if (!round) round = 1
     const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name, round)
     const zip = zipFiles(files)
 

@@ -166,7 +166,8 @@ export async function patchDisputeTradelines(sessionId: string, tradelines: Trad
 export async function buildDisputePlan(
   sessionId: string,
   selections: { id: string; selected: boolean; dispute_reason: string }[],
-  overrides: Record<string, string[]>
+  overrides: Record<string, string[]>,
+  tradelines?: Tradeline[]
 ) {
   const res = await fetch(`/api/admin/dispute-letters/${sessionId}/plan`, {
     method: 'POST',
@@ -175,10 +176,11 @@ export async function buildDisputePlan(
       session_id: sessionId,
       selections,
       furnisher_address_overrides: overrides,
+      ...(tradelines ? { tradelines } : {}),
     }),
   })
   if (!res.ok) throw new Error(await parseError(res))
-  return res.json() as Promise<{ session_id: string; plans: LetterPlan[] }>
+  return res.json() as Promise<{ session_id: string; plans: LetterPlan[]; dispute_round?: { id: string; round_number: number } | null }>
 }
 
 export function streamGenerateDisputeLetters(
