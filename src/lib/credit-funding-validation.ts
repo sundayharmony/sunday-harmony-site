@@ -3,6 +3,7 @@ import {
   CREDIT_GOAL_OPTIONS,
   FUNDING_TIMEFRAMES,
   ENTITY_TYPES,
+  parseEstablishedMonth,
   FUNDING_PURPOSE_OPTIONS,
   FUNDING_USE_OPTIONS,
   isSeekingFunding,
@@ -84,6 +85,7 @@ export function parseBusinessProfile(raw: unknown): BusinessProfile {
     industry: str(bp.industry, 200),
     entityType: str(bp.entityType, 100),
     yearEstablished: str(bp.yearEstablished, 10),
+    monthEstablished: parseEstablishedMonth(bp.monthEstablished),
     numberOfEmployees: str(bp.numberOfEmployees, 20),
     annualRevenue: str(bp.annualRevenue, 50),
     businessDescription: str(bp.businessDescription, 5000),
@@ -211,6 +213,12 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
     if (!bp.industry) return 'Business industry is required'
     if (!bp.entityType || !ENTITY_TYPES.includes(bp.entityType as typeof ENTITY_TYPES[number])) {
       return 'Please select a business entity type'
+    }
+    if (!parseEstablishedMonth(bp.monthEstablished)) {
+      return 'Month the business opened is required'
+    }
+    if (!/^(19|20)\d{2}$/.test(bp.yearEstablished || '')) {
+      return 'Year the business opened is required'
     }
     if (!bp.fundingPurposes?.length) return 'Select at least one funding purpose'
   }

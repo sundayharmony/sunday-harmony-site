@@ -7,14 +7,16 @@ import {
   needsFundingWorkflow,
 } from '../credit-funding-classify'
 import {
+  formatBusinessOpened,
   getNextWorkflowStatus,
   getPreviousWorkflowStatus,
   getWorkflowOrder,
   isInWorkflow,
+  parseEstablishedMonth,
   resolveWorkflowDisplayStatus,
 } from '../credit-funding-types'
 import { buildWorkflowSteps } from '../credit-funding-workflow-steps'
-import { validateIntakePayload, type IntakeFormPayload } from '../credit-funding-validation'
+import { parseBusinessProfile, validateIntakePayload, type IntakeFormPayload } from '../credit-funding-validation'
 
 describe('mapApplicationStatusToCfClientStatus', () => {
   it('maps terminals and approval correctly', () => {
@@ -221,5 +223,62 @@ describe('validateIntakePayload funding optional', () => {
       })
     )
     assert.equal(err, null)
+  })
+})
+
+describe('business opened month', () => {
+  it('normalizes month names and numbers', () => {
+    assert.equal(parseEstablishedMonth('July'), '07')
+    assert.equal(parseEstablishedMonth('7'), '07')
+    assert.equal(parseEstablishedMonth('13'), '')
+    assert.equal(formatBusinessOpened('07', '2020'), 'July 2020')
+  })
+
+  it('keeps monthEstablished when parsing a business profile', () => {
+    const parsed = parseBusinessProfile({
+      legalName: 'Philly Fades',
+      monthEstablished: 'July',
+      yearEstablished: '2020',
+    })
+    assert.equal(parsed.monthEstablished, '07')
+    assert.equal(parsed.yearEstablished, '2020')
+  })
+
+  it('requires month and year when the business section is required', () => {
+    const business = {
+      legalName: 'Philly Fades',
+      ein: '85-2829218',
+      address: '200 Bridge Street',
+      city: 'Phoenixville',
+      state: 'PA',
+      industry: 'Hair Salon',
+      entityType: 'LLC',
+      fundingPurposes: ['Working Capital'],
+    }
+    const missing = validateIntakePayload(
+      basePayload({
+        ownsBusiness: true,
+        businessName: 'Philly Fades',
+        creditGoals: ['Business Funding'],
+        fundingUse: 'Business',
+        fundingAmount: '$140000',
+        fundingTimeframe: 'Immediately',
+        businessProfile: business,
+      })
+    )
+    assert.match(missing || '', /month the business opened/i)
+
+    const complete = validateIntakePayload(
+      basePayload({
+        ownsBusiness: true,
+        businessName: 'Philly Fades',
+        creditGoals: ['Business Funding'],
+        fundingUse: 'Business',
+        fundingAmount: '$140000',
+        fundingTimeframe: 'Immediately',
+        businessProfile: { ...business, monthEstablished: '07', yearEstablished: '2020' },
+      })
+    )
+    assert.equal(complete, null)
   })
 })
