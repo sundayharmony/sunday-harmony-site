@@ -1,9 +1,14 @@
+---
+description: After testing, always merge finished work into main
+alwaysApply: true
+---
+
 # Push finished work to main
 
-When implementation work for this repo is complete and verified:
+When implementation work for this repo is complete and tests have passed:
 
 1. Merge the working branch into `main` (or commit directly on `main` if already checked out).
-2. `git push -u origin main` so production (Vercel) deploys from `main`.
-3. Do not leave admin/UX fixes only on a feature branch if the user expects them live.
+2. `git push -u origin main` so production (Vercel) deploys from `main`. Do not force-push.
+3. Do not leave finished, tested work only on a feature branch.
 
 Prefer `main` as the deployment branch for Sunday Harmony site changes unless the user explicitly asks for a long-lived feature branch only.
