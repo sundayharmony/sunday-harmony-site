@@ -47,6 +47,8 @@ describe('Staff draft applications', () => {
   it('rejects draft saves without email or name', () => {
     assert.match(validateDraftPayload(minimalPayload({ fullName: '' })) || '', /name/i)
     assert.match(validateDraftPayload(minimalPayload({ email: 'bad' })) || '', /email/i)
+    assert.match(validateDraftPayload(minimalPayload({ experianPin: '12' })) || '', /4 digits/i)
+    assert.equal(validateDraftPayload(minimalPayload({ experianPin: '1234' })), null)
   })
 
   it('builds partial encrypted rows and preserves existing secrets when blank', () => {
@@ -98,6 +100,8 @@ describe('Staff draft applications', () => {
         providerPassword: 'pass1',
         experianEmail: 'a@ex.com',
         experianPassword: 'epass',
+        experianSecurityAnswer: 'Blue',
+        experianPin: '1234',
         cfpbEmail: 'c@ex.com',
         cfpbPassword: 'cpass',
         typedSignature: 'Alex Client',
@@ -133,6 +137,8 @@ describe('Staff draft applications', () => {
         providerPassword: '',
         experianEmail: '',
         experianPassword: '',
+        experianSecurityAnswer: '',
+        experianPin: '',
         cfpbEmail: '',
         cfpbPassword: '',
         fundingAmount: '10000',
@@ -152,6 +158,8 @@ describe('Staff draft applications', () => {
         providerPasswordSet: true,
         experianEmailSet: true,
         experianPasswordSet: true,
+        experianSecurityAnswerSet: true,
+        experianPinSet: true,
         cfpbEmailSet: true,
         cfpbPasswordSet: true,
         typedSignatureSet: true,
@@ -160,6 +168,8 @@ describe('Staff draft applications', () => {
 
     assert.equal(merged.ssn, '123456789')
     assert.equal(merged.providerPassword, 'pass1')
+    assert.equal(merged.experianSecurityAnswer, 'Blue')
+    assert.equal(merged.experianPin, '1234')
     assert.equal(merged.typedSignature, 'Alex Client')
     assert.equal(validateIntakePayload(merged), null)
   })
@@ -223,6 +233,8 @@ describe('Staff draft applications', () => {
         providerPassword: 'pass1',
         experianEmail: 'a@ex.com',
         experianPassword: 'epass',
+        experianSecurityAnswer: 'Blue',
+        experianPin: '1234',
         cfpbEmail: 'c@ex.com',
         cfpbPassword: 'cpass',
         typedSignature: 'Alex Client',
@@ -250,6 +262,10 @@ describe('Staff draft applications', () => {
     assert.equal(staffDraft.typed_signature, '')
     assert.equal(staffDraft.ssnSet, true)
     assert.equal(staffDraft.providerPasswordSet, true)
+    assert.equal(staffDraft.experian_security_answer, '')
+    assert.equal(staffDraft.experian_pin, '')
+    assert.equal(staffDraft.experianSecurityAnswerSet, true)
+    assert.equal(staffDraft.experianPinSet, true)
 
     const prefill = buildInvitePrefillFromApplication(app)
     assert.equal(prefill.ssn, '')
@@ -257,6 +273,10 @@ describe('Staff draft applications', () => {
     assert.equal(prefill.providerPassword, '')
     assert.equal(prefill.providerUsername, '')
     assert.equal(prefill.experianPassword, '')
+    assert.equal(prefill.experianSecurityAnswer, '')
+    assert.equal(prefill.experianPin, '')
+    assert.equal(prefill.experianSecurityAnswerSet, true)
+    assert.equal(prefill.experianPinSet, true)
     assert.equal(prefill.cfpbPassword, '')
     assert.equal(prefill.typedSignature, '')
     assert.equal(prefill.ssnSet, true)

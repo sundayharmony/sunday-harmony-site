@@ -54,6 +54,8 @@ function sampleApplication(): CreditFundingApplication {
     provider_password_encrypted: encryptField('ProviderPass1'),
     experian_email_encrypted: encryptField('jane-experian@example.test'),
     experian_password_encrypted: encryptField('ExperianPass1'),
+    experian_security_answer_encrypted: encryptField('Blue'),
+    experian_pin_encrypted: encryptField('1234'),
     cfpb_email_encrypted: encryptField('jane-cfpb@example.test'),
     cfpb_password_encrypted: encryptField('CfpbPass1'),
     credit_goals: ['Credit Repair'],
@@ -144,11 +146,15 @@ describe('credit-funding encryption hardening', () => {
     assert.equal(admin.internal_notes, 'Internal sensitive note')
     assert.equal(admin.ssn, '••••••••')
     assert.equal(admin.provider_password, '••••••••')
+    assert.equal(admin.experian_security_answer, '••••••••')
+    assert.equal(admin.experian_pin, '••••••••')
     assert.equal(admin.credit_profile.monthlyGrossIncome, '••••••••')
     assert.equal(admin.business_profile.ein, '••••••••')
 
     assert.equal(revealApplicationSensitiveField(app, 'ssn'), '123456789')
     assert.equal(revealApplicationSensitiveField(app, 'provider_password'), 'ProviderPass1')
+    assert.equal(revealApplicationSensitiveField(app, 'experian_security_answer'), 'Blue')
+    assert.equal(revealApplicationSensitiveField(app, 'experian_pin'), '1234')
     assert.equal(revealApplicationSensitiveField(app, 'monthly_gross_income'), '9000')
     assert.equal(revealApplicationSensitiveField(app, 'business_ein'), '987654321')
   })

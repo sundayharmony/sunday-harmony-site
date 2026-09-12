@@ -131,8 +131,10 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
     provider_password_encrypted: encryptField(payload.providerPassword),
     experian_email_encrypted: encryptField(payload.experianEmail),
     experian_password_encrypted: encryptField(payload.experianPassword),
-    // Omit blank CFPB columns so inserts work if migration 023 is not applied yet.
+    // Omit blank optional columns so inserts work if later migrations are not applied yet.
     ...optionalEncryptedColumns({
+      experian_security_answer_encrypted: encryptField(payload.experianSecurityAnswer),
+      experian_pin_encrypted: encryptField(payload.experianPin),
       cfpb_email_encrypted: encryptField(payload.cfpbEmail),
       cfpb_password_encrypted: encryptField(payload.cfpbPassword),
     }),
@@ -197,8 +199,13 @@ export function buildPartialEncryptedApplicationRow(
     provider_password_encrypted: keepSecret(payload.providerPassword, existing?.provider_password_encrypted),
     experian_email_encrypted: keepSecret(payload.experianEmail, existing?.experian_email_encrypted),
     experian_password_encrypted: keepSecret(payload.experianPassword, existing?.experian_password_encrypted),
-    // Omit blank CFPB columns so drafts work if migration 023 is not applied yet.
+    // Omit blank optional columns so drafts work if later migrations are not applied yet.
     ...optionalEncryptedColumns({
+      experian_security_answer_encrypted: keepSecret(
+        payload.experianSecurityAnswer,
+        existing?.experian_security_answer_encrypted
+      ),
+      experian_pin_encrypted: keepSecret(payload.experianPin, existing?.experian_pin_encrypted),
       cfpb_email_encrypted: keepSecret(payload.cfpbEmail, existing?.cfpb_email_encrypted),
       cfpb_password_encrypted: keepSecret(payload.cfpbPassword, existing?.cfpb_password_encrypted),
     }),
@@ -232,9 +239,33 @@ export type InviteSecretSetFlags = {
   providerPasswordSet: boolean
   experianEmailSet: boolean
   experianPasswordSet: boolean
+  experianSecurityAnswerSet: boolean
+  experianPinSet: boolean
   cfpbEmailSet: boolean
   cfpbPasswordSet: boolean
   typedSignatureSet: boolean
+}
+
+function applicationSecretSetFlags(app: CreditFundingApplication): InviteSecretSetFlags {
+  return {
+    ssnSet: Boolean(app.ssn_encrypted && decryptField(app.ssn_encrypted || '')),
+    dateOfBirthSet: Boolean(app.date_of_birth_encrypted && decryptField(app.date_of_birth_encrypted || '')),
+    providerUsernameSet: Boolean(app.provider_username_encrypted && decryptField(app.provider_username_encrypted || '')),
+    providerPasswordSet: Boolean(app.provider_password_encrypted && decryptField(app.provider_password_encrypted || '')),
+    experianEmailSet: Boolean(app.experian_email_encrypted && decryptField(app.experian_email_encrypted || '')),
+    experianPasswordSet: Boolean(app.experian_password_encrypted && decryptField(app.experian_password_encrypted || '')),
+    experianSecurityAnswerSet: Boolean(
+      app.experian_security_answer_encrypted && decryptField(app.experian_security_answer_encrypted || '')
+    ),
+    experianPinSet: Boolean(app.experian_pin_encrypted && decryptField(app.experian_pin_encrypted || '')),
+    cfpbEmailSet: Boolean(app.cfpb_email_encrypted && decryptField(app.cfpb_email_encrypted || '')),
+    cfpbPasswordSet: Boolean(app.cfpb_password_encrypted && decryptField(app.cfpb_password_encrypted || '')),
+    typedSignatureSet: Boolean(
+      app.typed_signature &&
+        decryptFieldOrLegacy(app.typed_signature) &&
+        decryptFieldOrLegacy(app.typed_signature) !== 'Pending'
+    ),
+  }
 }
 
 /** Merge client-submitted secrets with values already stored on a draft/invitation row. */
@@ -269,6 +300,12 @@ export function mergeIntakePayloadWithExistingSecrets(
     providerPassword: keep(payload.providerPassword, decrypted.provider_password, keepFlags?.providerPasswordSet),
     experianEmail: keep(payload.experianEmail, decrypted.experian_email, keepFlags?.experianEmailSet),
     experianPassword: keep(payload.experianPassword, decrypted.experian_password, keepFlags?.experianPasswordSet),
+    experianSecurityAnswer: keep(
+      payload.experianSecurityAnswer,
+      decrypted.experian_security_answer,
+      keepFlags?.experianSecurityAnswerSet
+    ),
+    experianPin: keep(payload.experianPin, decrypted.experian_pin, keepFlags?.experianPinSet),
     cfpbEmail: keep(payload.cfpbEmail, decrypted.cfpb_email, keepFlags?.cfpbEmailSet),
     cfpbPassword: keep(payload.cfpbPassword, decrypted.cfpb_password, keepFlags?.cfpbPasswordSet),
     typedSignature: keep(payload.typedSignature, decrypted.typed_signature, keepFlags?.typedSignatureSet),
@@ -302,19 +339,7 @@ export function buildInvitePrefillFromApplication(app: CreditFundingApplication)
   const isPlaceholder = (value: string | undefined | null) =>
     !value || value === 'Pending' || value === 'XX' || value === '00000'
 
-  const secretSetFlags: InviteSecretSetFlags = {
-    ssnSet: Boolean(app.ssn_encrypted && decryptField(app.ssn_encrypted || '')),
-    dateOfBirthSet: Boolean(app.date_of_birth_encrypted && decryptField(app.date_of_birth_encrypted || '')),
-    providerUsernameSet: Boolean(app.provider_username_encrypted && decryptField(app.provider_username_encrypted || '')),
-    providerPasswordSet: Boolean(app.provider_password_encrypted && decryptField(app.provider_password_encrypted || '')),
-    experianEmailSet: Boolean(app.experian_email_encrypted && decryptField(app.experian_email_encrypted || '')),
-    experianPasswordSet: Boolean(app.experian_password_encrypted && decryptField(app.experian_password_encrypted || '')),
-    cfpbEmailSet: Boolean(app.cfpb_email_encrypted && decryptField(app.cfpb_email_encrypted || '')),
-    cfpbPasswordSet: Boolean(app.cfpb_password_encrypted && decryptField(app.cfpb_password_encrypted || '')),
-    typedSignatureSet: Boolean(
-      app.typed_signature && decryptFieldOrLegacy(app.typed_signature) && decryptFieldOrLegacy(app.typed_signature) !== 'Pending'
-    ),
-  }
+  const secretSetFlags = applicationSecretSetFlags(app)
 
   const creditProfile = { ...(decrypted.credit_profile || {}) }
   delete creditProfile.monthlyGrossIncome
@@ -358,6 +383,8 @@ export function buildInvitePrefillFromApplication(app: CreditFundingApplication)
     providerPassword: '',
     experianEmail: '',
     experianPassword: '',
+    experianSecurityAnswer: '',
+    experianPin: '',
     cfpbEmail: '',
     cfpbPassword: '',
     typedSignature: '',
@@ -410,6 +437,8 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     provider_password: decryptField(app.provider_password_encrypted || ''),
     experian_email: decryptField(app.experian_email_encrypted || ''),
     experian_password: decryptField(app.experian_password_encrypted || ''),
+    experian_security_answer: decryptField(app.experian_security_answer_encrypted || ''),
+    experian_pin: decryptField(app.experian_pin_encrypted || ''),
     cfpb_email: decryptField(app.cfpb_email_encrypted || ''),
     cfpb_password: decryptField(app.cfpb_password_encrypted || ''),
     internal_notes: decryptFreeTextForView(app.internal_notes),
@@ -431,6 +460,8 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     provider_password_encrypted: undefined,
     experian_email_encrypted: undefined,
     experian_password_encrypted: undefined,
+    experian_security_answer_encrypted: undefined,
+    experian_pin_encrypted: undefined,
     cfpb_email_encrypted: undefined,
     cfpb_password_encrypted: undefined,
   }
@@ -462,6 +493,8 @@ export function decryptApplicationOperationalFields(app: CreditFundingApplicatio
     provider_password_encrypted: undefined,
     experian_email_encrypted: undefined,
     experian_password_encrypted: undefined,
+    experian_security_answer_encrypted: undefined,
+    experian_pin_encrypted: undefined,
     cfpb_email_encrypted: undefined,
     cfpb_password_encrypted: undefined,
   }
@@ -477,6 +510,8 @@ export function redactApplicationSecretsForDefaultAdmin(app: CreditFundingApplic
     provider_password: app.provider_password_encrypted ? REDACTED : '',
     experian_email: app.experian_email_encrypted ? REDACTED : '',
     experian_password: app.experian_password_encrypted ? REDACTED : '',
+    experian_security_answer: app.experian_security_answer_encrypted ? REDACTED : '',
+    experian_pin: app.experian_pin_encrypted ? REDACTED : '',
     cfpb_email: app.cfpb_email_encrypted ? REDACTED : '',
     cfpb_password: app.cfpb_password_encrypted ? REDACTED : '',
     typed_signature: app.typed_signature ? REDACTED : '',
@@ -499,19 +534,7 @@ export function formatDraftForStaffEditor(app: CreditFundingApplication) {
   const redacted = redactApplicationSecretsForDefaultAdmin(app)
   return {
     ...redacted,
-    ssnSet: Boolean(app.ssn_encrypted && decryptField(app.ssn_encrypted || '')),
-    dateOfBirthSet: Boolean(app.date_of_birth_encrypted && decryptField(app.date_of_birth_encrypted || '')),
-    providerUsernameSet: Boolean(app.provider_username_encrypted && decryptField(app.provider_username_encrypted || '')),
-    providerPasswordSet: Boolean(app.provider_password_encrypted && decryptField(app.provider_password_encrypted || '')),
-    experianEmailSet: Boolean(app.experian_email_encrypted && decryptField(app.experian_email_encrypted || '')),
-    experianPasswordSet: Boolean(app.experian_password_encrypted && decryptField(app.experian_password_encrypted || '')),
-    cfpbEmailSet: Boolean(app.cfpb_email_encrypted && decryptField(app.cfpb_email_encrypted || '')),
-    cfpbPasswordSet: Boolean(app.cfpb_password_encrypted && decryptField(app.cfpb_password_encrypted || '')),
-    typedSignatureSet: Boolean(
-      app.typed_signature &&
-        decryptFieldOrLegacy(app.typed_signature) &&
-        decryptFieldOrLegacy(app.typed_signature) !== 'Pending'
-    ),
+    ...applicationSecretSetFlags(app),
     // Clear redacted placeholder strings so the editor does not treat masks as editable values
     date_of_birth: '',
     ssn: '',
@@ -519,6 +542,8 @@ export function formatDraftForStaffEditor(app: CreditFundingApplication) {
     provider_password: '',
     experian_email: '',
     experian_password: '',
+    experian_security_answer: '',
+    experian_pin: '',
     cfpb_email: '',
     cfpb_password: '',
     typed_signature: '',

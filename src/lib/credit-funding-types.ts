@@ -441,6 +441,8 @@ export interface CreditFundingApplication {
   provider_password_encrypted?: string
   experian_email_encrypted?: string
   experian_password_encrypted?: string
+  experian_security_answer_encrypted?: string
+  experian_pin_encrypted?: string
   cfpb_email_encrypted?: string
   cfpb_password_encrypted?: string
   credit_goals: string[]

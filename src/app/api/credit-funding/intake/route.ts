@@ -64,6 +64,8 @@ function parseKeepSecretFlags(raw: Record<string, unknown>): Partial<InviteSecre
     providerPasswordSet: flag('providerPasswordSet'),
     experianEmailSet: flag('experianEmailSet'),
     experianPasswordSet: flag('experianPasswordSet'),
+    experianSecurityAnswerSet: flag('experianSecurityAnswerSet'),
+    experianPinSet: flag('experianPinSet'),
     cfpbEmailSet: flag('cfpbEmailSet'),
     cfpbPasswordSet: flag('cfpbPasswordSet'),
     typedSignatureSet: flag('typedSignatureSet'),
