@@ -4,6 +4,7 @@ import {
   accountDigits,
   creditorsSimilar,
   diffTradelinesForBureau,
+  moneyValuesEquivalent,
   statusRemarksEquivalent,
   tradelineMatchKey,
 } from '../dispute-letters/tradeline-progress'
@@ -426,6 +427,60 @@ describe('closed-account remark wording', () => {
         account_exp: 'XXXX1859',
         status: 'Closed/Never late',
         remarks: 'Closed due to inactivity',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const diff = diffTradelinesForBureau(prev, curr, 'EXP')
+    assert.equal(diff.removed.length, 0)
+    assert.equal(diff.added.length, 0)
+    assert.equal(diff.changed.length, 0)
+  })
+})
+
+describe('open-account and money wording', () => {
+  it('treats current / pays as agreed / never late as the same open status', () => {
+    assert.equal(
+      statusRemarksEquivalent('Open; Current / Pays account as agreed', 'Open/Never late'),
+      true
+    )
+  })
+
+  it('treats term text plus individual responsibility as the same remark', () => {
+    assert.equal(
+      statusRemarksEquivalent('48-month term', 'Individual responsibility; 48-month terms'),
+      true
+    )
+  })
+
+  it('treats $0, dash, and em dash as the same money value', () => {
+    assert.equal(moneyValuesEquivalent('$0', '-'), true)
+    assert.equal(moneyValuesEquivalent('$0', '—'), true)
+    assert.equal(moneyValuesEquivalent('$0', ''), true)
+    assert.equal(moneyValuesEquivalent('$0', '$120'), false)
+  })
+
+  it('does not list those wording and zero-balance swaps as tradeline changes', () => {
+    const prev = report([
+      tl({
+        id: '1',
+        creditor: 'Santander',
+        account_exp: '****0002',
+        status: 'Open; Current / Pays account as agreed',
+        remarks: '48-month term',
+        balance: '$0',
+        past_due: '$0',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const curr = report([
+      tl({
+        id: '1b',
+        creditor: 'Santander',
+        account_exp: 'XXXX0002',
+        status: 'Open/Never late',
+        remarks: 'Individual responsibility; 48-month terms',
+        balance: '-',
+        past_due: '—',
         bureaus: ['EXP'],
       }),
     ])
