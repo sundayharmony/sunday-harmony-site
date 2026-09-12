@@ -34,6 +34,12 @@ startup. Standard scripts live in `package.json`; the CI pipeline is
   `next dev` — stop any running dev server first or set `PLAYWRIGHT_BASE_URL`.
   Browsers are **not** installed by the update script.
 
+### Shipping to main
+
+After the change is implemented and tests pass, **merge into `main` and push**
+(`git push -u origin main`, no force-push). Production deploys from `main`.
+Do not leave finished, tested work only on a feature branch.
+
 ### Optional Python service (`services/dispute-letters-api`)
 
 Only needed for Admin → Dispute Letters. It is a FastAPI service with its own
