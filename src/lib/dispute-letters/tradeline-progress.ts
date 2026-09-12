@@ -146,12 +146,26 @@ function accountDigitsForMatch(tl: Tradeline, bureau: BureauCode): string {
   return primary
 }
 
+const MONEY_FIELDS = new Set(['balance', 'past_due', 'credit_limit', 'high_credit'])
+
 function parseMoney(value: string | null | undefined): number | null {
   if (!value) return null
   const cleaned = value.replace(/[^0-9.-]/g, '')
   if (!cleaned || cleaned === '-' || cleaned === '.') return null
   const n = Number(cleaned)
   return Number.isFinite(n) ? n : null
+}
+
+function isBlankMoneyPlaceholder(value: string): boolean {
+  const t = value.trim()
+  return !t || /^[-–—._]+$/.test(t) || /^(n\/?a|none|null)$/i.test(t)
+}
+
+/** `$0`, `-`, `—`, and blank are the same zero for progress diffs. */
+export function moneyValuesEquivalent(from: string, to: string): boolean {
+  const a = isBlankMoneyPlaceholder(from) ? 0 : parseMoney(from)
+  const b = isBlankMoneyPlaceholder(to) ? 0 : parseMoney(to)
+  return a != null && b != null && a === b
 }
 
 function maskAccount(raw: string): string {
@@ -217,6 +231,86 @@ function fieldDirection(
 
 function normalizeFieldValue(value: string | undefined | null): string {
   return (value || '').trim()
+}
+
+const BUREAU_PREFIX_RE = /\b(exp|eqf|tu|tuc|experian|equifax|transunion)\b:?/gi
+
+export function normalizeStatusRemark(value: string): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(BUREAU_PREFIX_RE, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function hasDerogatoryCreditEvent(normalized: string): boolean {
+  const withoutNeverLate = normalized
+    .replace(/\bnever late\b/g, ' ')
+    .replace(/\bno late(?:s| payments?)?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return /charge ?off|collection|delinq|past due|\blate\b|reposs|foreclos|settlement|profit and loss|placed for collection/.test(
+    withoutNeverLate
+  )
+}
+
+function isClosedAccountWording(normalized: string): boolean {
+  return (
+    /\bclosed\b/.test(normalized) ||
+    /\bpaid in full\b/.test(normalized) ||
+    /\bpaid off\b/.test(normalized)
+  )
+}
+
+function isOpenOrCurrentWording(normalized: string): boolean {
+  return (
+    /\bopen\b/.test(normalized) ||
+    /\bcurrent\b/.test(normalized) ||
+    /pays? (?:\w+ )?as agreed/.test(normalized) ||
+    /paying as agreed/.test(normalized) ||
+    /\bnever late\b/.test(normalized) ||
+    /good standing/.test(normalized) ||
+    /paid satisfactorily/.test(normalized)
+  )
+}
+
+/** Drop bureau responsibility labels and plural churn so term text can match. */
+function remarkComparableCore(normalized: string): string {
+  return normalized
+    .replace(/\b(?:individual|joint|shared|authorized user)\s+responsibility\b/g, ' ')
+    .replace(/\bterms\b/g, 'term')
+    .replace(/\bmonths\b/g, 'month')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Same meaning, different bureau wording — not a tradeline change.
+ * Covers clean open, clean closed, and term text plus responsibility labels.
+ */
+export function statusRemarksEquivalent(from: string, to: string): boolean {
+  if (from === to) return true
+  const a = normalizeStatusRemark(from)
+  const b = normalizeStatusRemark(to)
+  if (!a || !b) return false
+  if (a === b) return true
+
+  const aDerog = hasDerogatoryCreditEvent(a)
+  const bDerog = hasDerogatoryCreditEvent(b)
+  if (aDerog !== bDerog) return false
+
+  const aClosed = isClosedAccountWording(a)
+  const bClosed = isClosedAccountWording(b)
+  const aOpen = isOpenOrCurrentWording(a)
+  const bOpen = isOpenOrCurrentWording(b)
+
+  if (aClosed && bClosed && !aDerog && !bDerog) return true
+  if (aOpen && bOpen && !aClosed && !bClosed && !aDerog && !bDerog) return true
+
+  const ca = remarkComparableCore(a)
+  const cb = remarkComparableCore(b)
+  return Boolean(ca && cb && ca === cb)
 }
 
 function isInquiryTradeline(tl: Tradeline): boolean {
@@ -319,12 +413,11 @@ function meaningfulFieldChange(
     // Same underlying date(s), different prose → ignore
     if (datesOverlap(from, to)) return false
 
-    // Both describe paying as agreed / current / open — cosmetic
-    const payOk = (s: string) =>
-      /pays?\s+as\s+agreed|paying\s+as\s+agreed|open\s*\/?\s*current|current/.test(s)
-    if (payOk(a) && payOk(b) && !/late|delinq|charge|collect|past due/.test(a + b)) {
-      return false
-    }
+    if (statusRemarksEquivalent(from, to)) return false
+  }
+
+  if (MONEY_FIELDS.has(field) || isBlankMoneyPlaceholder(from) || isBlankMoneyPlaceholder(to)) {
+    if (moneyValuesEquivalent(from, to)) return false
   }
 
   const ma = parseMoney(from)
