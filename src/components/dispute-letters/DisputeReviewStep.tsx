@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MutableRefObject } from 'react'
 import Link from 'next/link'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import { EmptyState } from '@/components/dispute-letters/EmptyState'
@@ -16,30 +16,44 @@ import {
   type BureauCode,
   type Tradeline,
 } from '@/lib/dispute-letters/types'
+import {
+  applyRecommendedSelection,
+  isRecommendedDispute,
+} from '@/lib/dispute-letters/dispute-selection'
+import { isNegativeTradeline } from '@/lib/dispute-letters/bureau-coverage'
 import { isInquiryTradeline, planSelectionsFromTradelines, resolvedDisputeReason } from '@/lib/dispute-letters/dispute-reasons'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 
 type FilterMode = 'all' | 'negative' | 'collections' | 'high' | BureauCode
 
-function isNegative(t: Tradeline) {
-  return t.repair_priority !== 'none' && t.repair_priority !== 'low'
-}
-
 export default function DisputeReviewStep({
   sessionId,
   embedded = false,
   onStepChange,
+  persistRef,
 }: {
   sessionId: string
   embedded?: boolean
   onStepChange?: (step: DisputeLetterStep) => void
+  persistRef?: MutableRefObject<(() => Promise<void>) | null>
 }) {
   const [reportMeta, setReportMeta] = useState<{ source: string; consumer: string } | null>(null)
   const [tradelines, setTradelines] = useState<Tradeline[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<FilterMode>('all')
+
+  useEffect(() => {
+    if (!persistRef) return
+    persistRef.current = async () => {
+      if (!tradelines.length) return
+      await patchDisputeTradelines(sessionId, tradelines)
+    }
+    return () => {
+      persistRef.current = null
+    }
+  }, [persistRef, sessionId, tradelines])
 
   useEffect(() => {
     if (!sessionId) return
@@ -61,18 +75,17 @@ export default function DisputeReviewStep({
           repair_priority: t.repair_priority || 'none',
         }))
         if (!tls.some((t) => t.selected)) {
-          tls.forEach((t) => {
-            if (t.repair_priority === 'high') t.selected = true
-          })
+          setTradelines(applyRecommendedSelection(tls))
+        } else {
+          setTradelines(tls)
         }
-        setTradelines(tls)
       })
       .catch(() => setError('Failed to load report'))
   }, [sessionId])
 
   const filtered = useMemo(() => {
     const list = tradelines.filter((t) => {
-      if (filter === 'negative') return isNegative(t)
+      if (filter === 'negative') return isNegativeTradeline(t)
       if (filter === 'collections') return t.is_collection
       if (filter === 'high') return t.repair_priority === 'high'
       if (filter === 'TUC' || filter === 'EXP' || filter === 'EQF') {
@@ -86,8 +99,8 @@ export default function DisputeReviewStep({
     )
   }, [tradelines, filter])
 
-  const recommended = filtered.filter((t) => t.repair_priority !== 'none')
-  const optional = filtered.filter((t) => t.repair_priority === 'none')
+  const recommended = filtered.filter((t) => isRecommendedDispute(t))
+  const optional = filtered.filter((t) => !isRecommendedDispute(t))
 
   function update(id: string, patch: Partial<Tradeline>) {
     setTradelines((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
@@ -105,14 +118,28 @@ export default function DisputeReviewStep({
     )
   }
 
-  function selectHighPriority() {
+  function selectRecommended() {
     setTradelines((prev) =>
       prev.map((t) =>
-        t.repair_priority === 'high'
+        isRecommendedDispute(t)
           ? {
               ...t,
               selected: true,
-              dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
+              dispute_reason: t.dispute_reason || resolvedDisputeReason(t),
+            }
+          : t
+      )
+    )
+  }
+
+  function selectUnauthorizedInquiries() {
+    setTradelines((prev) =>
+      prev.map((t) =>
+        isInquiryTradeline(t)
+          ? {
+              ...t,
+              selected: true,
+              dispute_reason: t.dispute_reason || resolvedDisputeReason(t),
             }
           : t
       )
@@ -183,7 +210,14 @@ export default function DisputeReviewStep({
 
   return (
     <div className={`${embedded ? '' : 'max-w-4xl'} space-y-6`}>
-      {!embedded && <DisputeLettersStepStrip sessionId={sessionId} />}
+      {!embedded && (
+        <DisputeLettersStepStrip
+          sessionId={sessionId}
+          persistBeforeNavigate={async () => {
+            await patchDisputeTradelines(sessionId, tradelines)
+          }}
+        />
+      )}
 
       <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold text-brand-text">Choose disputes</h2>
@@ -209,9 +243,16 @@ export default function DisputeReviewStep({
         <button
           type="button"
           className="rounded-lg border border-brand-border px-3 py-2 text-sm font-medium hover:bg-neutral-50"
-          onClick={selectHighPriority}
+          onClick={selectRecommended}
         >
-          Select high priority
+          Select recommended
+        </button>
+        <button
+          type="button"
+          className="rounded-lg border border-brand-border px-3 py-2 text-sm font-medium hover:bg-neutral-50"
+          onClick={selectUnauthorizedInquiries}
+        >
+          Select unauthorized inquiries
         </button>
         <button
           type="button"
@@ -246,7 +287,16 @@ export default function DisputeReviewStep({
           <button
             type="button"
             className="rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-text hover:bg-neutral-50"
-            onClick={() => onStepChange('health')}
+            onClick={() => {
+              void (async () => {
+                try {
+                  await patchDisputeTradelines(sessionId, tradelines)
+                  onStepChange('health')
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to save selections')
+                }
+              })()
+            }}
           >
             Back to health
           </button>

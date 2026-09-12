@@ -84,18 +84,23 @@ export function TradelineCard({
         <fieldset className="mt-3 rounded-lg border border-brand-border p-3">
           <legend className="px-1 text-sm font-medium text-brand-text">Letter targets</legend>
           <div className="mt-2 flex flex-wrap gap-4 text-sm">
-            {(['EQF', 'EXP', 'TUC'] as BureauCode[]).map((b) => (
-              <label key={b} className="flex items-center gap-2 text-brand-text">
-                <input
-                  type="checkbox"
-                  className="accent-accent"
-                  checked={(t.dispute_bureaus || []).includes(b)}
-                  disabled={!(t.bureaus || []).includes(b)}
-                  onChange={(e) => onToggleBureau(b, e.target.checked)}
-                />
-                {BUREAU_LABELS[b]}
-              </label>
-            ))}
+            {(['EQF', 'EXP', 'TUC'] as BureauCode[]).map((b) => {
+              const listed = (t.bureaus || []).includes(b)
+              return (
+                <label key={b} className="flex items-center gap-2 text-brand-text">
+                  <input
+                    type="checkbox"
+                    className="accent-accent"
+                    checked={(t.dispute_bureaus || []).includes(b)}
+                    onChange={(e) => onToggleBureau(b, e.target.checked)}
+                  />
+                  {BUREAU_LABELS[b]}
+                  {!listed && (t.dispute_bureaus || []).includes(b) ? (
+                    <span className="text-xs text-amber-800">not on report</span>
+                  ) : null}
+                </label>
+              )
+            })}
             <label className="flex items-center gap-2 text-brand-text">
               <input
                 type="checkbox"
@@ -106,6 +111,12 @@ export function TradelineCard({
               Furnisher
             </label>
           </div>
+          {(t.dispute_bureaus || []).some((b) => !(t.bureaus || []).includes(b)) && (
+            <p className="mt-2 text-xs text-amber-800">
+              A bureau target is enabled that was not on the extracted tradeline. Use this if OCR
+              dropped a bureau code.
+            </p>
+          )}
         </fieldset>
       )}
     </div>

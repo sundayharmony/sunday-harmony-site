@@ -9,7 +9,8 @@ and an **optional** Python `dispute-letters-api` microservice under
 
 The update script already runs `npm ci`, so dependencies are installed on
 startup. Standard scripts live in `package.json`; the CI pipeline is
-`.github/workflows/ci.yml` (`lint` → `typecheck` → `test:unit`).
+`.github/workflows/ci.yml` (`lint` → `typecheck` → `test:unit`, plus
+`python-letters` pytest with `services/dispute-letters-api/requirements-test.txt`).
 
 ### Running the app (dev)
 
@@ -29,6 +30,7 @@ startup. Standard scripts live in `package.json`; the CI pipeline is
 - Lint: `npm run lint` (currently emits only warnings, no errors).
 - Types: `npm run typecheck`.
 - Unit tests: `npm run test:unit` (node test runner via `tsx`; ~125 tests).
+- Python letters tests: `cd services/dispute-letters-api && pip install -r requirements-test.txt && PYTHONPATH=. pytest app/services/__tests__`.
 - E2E (optional): `npm run test:e2e` requires a one-time
   `npx playwright install` for browsers, and Playwright starts its own
   `next dev` — stop any running dev server first or set `PLAYWRIGHT_BASE_URL`.
@@ -42,6 +44,17 @@ Do not leave finished, tested work only on a feature branch.
 
 ### Optional Python service (`services/dispute-letters-api`)
 
-Only needed for Admin → Dispute Letters. It is a FastAPI service with its own
-`requirements.txt` and is normally deployed to Railway. It is not part of the
-default dev loop and is not installed by the update script.
+Needed for Admin → Dispute Letters / Credit Intelligence letter generation. It is a FastAPI
+service with its own `requirements.txt` and is normally deployed to **Render**
+(`dispute-letters-api`). It is not part of the default Next.js dev loop and is not installed
+by the update script.
+
+**Ship site + API together.** Vercel deploys the Next.js app from `main`. Letter generate,
+analyze, health recompute, and ZIP contents also depend on the Python API. After merging
+dispute-letter or Credit Intelligence changes to `main`, redeploy **both** Vercel and the
+Render `dispute-letters-api` service. A site-only deploy can leave generate/ZIP/analysis
+on an old API. Prefer ZIP/preview/list filtering on Next.js so a lagging API cannot
+resurrect `.txt` files or duplicate letters.
+
+Python service tests (no OCR): from `services/dispute-letters-api`,
+`pip install -r requirements-test.txt` then `PYTHONPATH=. pytest app/services/__tests__`.

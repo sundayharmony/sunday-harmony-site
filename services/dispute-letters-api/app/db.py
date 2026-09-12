@@ -177,6 +177,25 @@ def get_letter(session_id: str, letter_id: str) -> GeneratedLetter | None:
     return _letter_from_row(data)
 
 
+def session_letter_round(session_id: str, application_uuid: str | None = None) -> int:
+    """1-based index of this session among the application's reports (oldest first)."""
+    if not application_uuid:
+        return 1
+    client = get_supabase()
+    rows = (
+        client.table("dispute_sessions")
+        .select("id,created_at")
+        .eq("application_uuid", application_uuid)
+        .order("created_at")
+        .execute()
+    )
+    ids = [r["id"] for r in (rows.data or [])]
+    try:
+        return ids.index(session_id) + 1
+    except ValueError:
+        return 1
+
+
 def clear_session_letters(session_id: str) -> None:
     client = get_supabase()
     client.table("dispute_letters").delete().eq("session_id", session_id).execute()

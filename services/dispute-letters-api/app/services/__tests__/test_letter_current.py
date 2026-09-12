@@ -82,10 +82,12 @@ def test_superseded_ids_include_old_plan_uuid_for_same_recipient():
 def test_generate_endpoints_replace_prior_letters():
     from pathlib import Path
 
-    main = Path("app/main.py").read_text(encoding="utf-8")
+    jobs = Path("app/services/letter_jobs.py").read_text(encoding="utf-8")
     db = Path("app/db.py").read_text(encoding="utf-8")
-    assert "prepare_session_letters_for_generation" in main
-    assert "replacing_all=not body.plan_ids" in main
+    main = Path("app/main.py").read_text(encoding="utf-8")
+    assert "prepare_session_letters_for_generation" in jobs
+    assert "replacing_all=not plan_ids" in jobs
+    assert "run_letter_job" in main
     assert "delete().eq(\"session_id\", session_id).eq(\"plan_id\", plan_id)" in db
     assert "current_letters(" in db
 

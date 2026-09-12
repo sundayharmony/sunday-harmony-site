@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MutableRefObject } from 'react'
 import Link from 'next/link'
 import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
@@ -9,6 +9,7 @@ import { ScoreCard } from '@/components/dispute-letters/ScoreCard'
 import { StatCard } from '@/components/dispute-letters/StatCard'
 import { TradelineCard } from '@/components/dispute-letters/TradelineCard'
 import { fetchDisputeHealth, patchDisputeTradelines } from '@/lib/dispute-letters/client-api'
+import { applyRecommendedSelection } from '@/lib/dispute-letters/dispute-selection'
 import { sourceLabel, type Tradeline } from '@/lib/dispute-letters/types'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
@@ -17,15 +18,28 @@ export default function DisputeHealthStep({
   sessionId,
   embedded = false,
   onStepChange,
+  persistRef,
 }: {
   sessionId: string
   embedded?: boolean
   onStepChange?: (step: DisputeLetterStep) => void
+  persistRef?: MutableRefObject<(() => Promise<void>) | null>
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof fetchDisputeHealth>> | null>(null)
   const [tradelines, setTradelines] = useState<Tradeline[]>([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!persistRef) return
+    persistRef.current = async () => {
+      if (!tradelines.length) return
+      await patchDisputeTradelines(sessionId, tradelines)
+    }
+    return () => {
+      persistRef.current = null
+    }
+  }, [persistRef, sessionId, tradelines])
 
   useEffect(() => {
     if (!sessionId) return
@@ -35,12 +49,13 @@ export default function DisputeHealthStep({
       .then((health) => {
         setData(health)
         setTradelines(
-          (health.tradelines_by_priority || []).map((t) => ({
-            ...t,
-            selected: t.selected || t.repair_priority === 'high',
-            dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
-            dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
-          }))
+          applyRecommendedSelection(
+            (health.tradelines_by_priority || []).map((t) => ({
+              ...t,
+              dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
+              dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
+            }))
+          )
         )
       })
       .catch(() => setError('Failed to load credit health summary'))
@@ -76,7 +91,14 @@ export default function DisputeHealthStep({
 
   return (
     <div className={`${embedded ? '' : 'max-w-4xl'} space-y-6`}>
-      {!embedded && <DisputeLettersStepStrip sessionId={sessionId} />}
+      {!embedded && (
+        <DisputeLettersStepStrip
+          sessionId={sessionId}
+          persistBeforeNavigate={async () => {
+            await patchDisputeTradelines(sessionId, tradelines)
+          }}
+        />
+      )}
 
       {!embedded && (
         <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm">

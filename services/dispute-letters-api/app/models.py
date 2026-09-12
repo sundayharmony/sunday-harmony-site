@@ -230,6 +230,8 @@ class LetterPlanResponse(BaseModel):
 class GenerateLettersRequest(BaseModel):
     session_id: str
     plan_ids: list[str] | None = None
+    consumer_name: str | None = None
+    consumer_addresses: list[str] | None = None
 
 
 class GeneratedLetter(BaseModel):
@@ -247,6 +249,11 @@ class ReportSessionResponse(BaseModel):
 
 class TradelineUpdateRequest(BaseModel):
     tradelines: list[Tradeline]
+
+
+class ConsumerUpdateRequest(BaseModel):
+    name: str | None = None
+    addresses: list[str] | None = None
 
 
 class ReportHealthResponse(BaseModel):

@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
-import { proxyDisputeLettersStream } from '@/lib/dispute-letters/api-client'
+import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 300
 
 type Params = { params: Promise<{ id: string }> }
 
-export async function POST(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, { params }: Params) {
   const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
 
@@ -18,15 +17,14 @@ export async function POST(request: NextRequest, { params }: Params) {
   if (!access.ok) return access.response
 
   try {
-    const body = await request.json().catch(() => ({}))
-    return proxyDisputeLettersStream('/internal/letters/generate/stream', {
-      session_id: id,
-      plan_ids: body.plan_ids ?? null,
-      consumer_name: body.consumer_name ?? null,
-      consumer_addresses: body.consumer_addresses ?? null,
+    const body = await request.json()
+    const data = await disputeLettersJson(`/internal/reports/${id}/consumer`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
     })
+    return NextResponse.json(data)
   } catch (err) {
-    console.error('POST generate/stream error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const message = err instanceof Error ? err.message : 'Failed to update consumer identity'
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 }

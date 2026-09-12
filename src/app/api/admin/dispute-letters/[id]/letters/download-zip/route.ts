@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
-import { getDisputeSession } from '@/lib/dispute-letters/db'
+import { getDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
-import { disputeLettersZipDownloadName } from '@/lib/dispute-letters-storage'
+import {
+  disputeLetterRoundIndex,
+  disputeLettersZipDownloadName,
+} from '@/lib/dispute-letters-storage'
 import { isDocxBytes, uniqueDocxFilename, zipFiles } from '@/lib/dispute-letters/letter-zip'
 
 export const dynamic = 'force-dynamic'
@@ -57,7 +60,12 @@ export async function GET(_request: NextRequest, { params }: Params) {
     }
 
     const row = await getDisputeSession(id, email)
-    const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name)
+    let round = 1
+    if (row?.application_uuid) {
+      const sessions = await listDisputeSessionsForApplication(row.application_uuid)
+      round = disputeLetterRoundIndex(sessions, id)
+    }
+    const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name, round)
     const zip = zipFiles(files)
 
     return new Response(new Uint8Array(zip), {

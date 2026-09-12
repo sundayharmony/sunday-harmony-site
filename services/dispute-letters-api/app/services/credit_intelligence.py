@@ -26,6 +26,7 @@ from app.services.credit_health import (
     enrich_tradeline,
     is_closed_tradeline,
     is_negative_tradeline,
+    is_recommended_dispute,
 )
 from app.services.money_parse import months_between, parse_date, parse_money
 
@@ -1011,7 +1012,7 @@ def build_account_dispute_insights(tradelines: list[Tradeline], as_of: date) -> 
                 "creditor": tl.creditor,
                 "category": cat,
                 "repair_priority": tl.repair_priority,
-                "dispute_recommended": tl.repair_priority in ("high", "medium") or obsolete,
+                "dispute_recommended": is_recommended_dispute(tl) or obsolete,
                 "rationale": " ".join(reasons) or tl.analysis_notes or "Review for accuracy.",
                 "suggested_dispute_reason": tl.suggested_dispute_reason or tl.dispute_reason,
                 "supporting_facts": {
@@ -1028,7 +1029,7 @@ def build_account_dispute_insights(tradelines: list[Tradeline], as_of: date) -> 
                     ["FCRA §605 (15 U.S.C. §1681c)", "FCRA §611 (15 U.S.C. §1681i)"]
                     if obsolete
                     else ["FCRA §611 (15 U.S.C. §1681i)", "FCRA §623 (15 U.S.C. §1681s-2)"]
-                    if tl.repair_priority in ("high", "medium")
+                    if is_recommended_dispute(tl) or obsolete
                     else []
                 ),
             }

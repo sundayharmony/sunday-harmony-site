@@ -7,7 +7,9 @@ import {
   disputeLetterDownloadUrl,
   disputeLettersZipUrl,
   fetchDisputeLetters,
+  fetchLetterGenerateStatus,
 } from '@/lib/dispute-letters/client-api'
+import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import './letter-preview.css'
@@ -95,6 +97,7 @@ export default function DisputeLettersResultStep({
   const [letters, setLetters] = useState<GeneratedLetter[]>([])
   const [active, setActive] = useState<GeneratedLetter | null>(null)
   const [error, setError] = useState('')
+  const [skipped, setSkipped] = useState<SkippedLetterPlan[]>([])
 
   useEffect(() => {
     if (!sessionId) return
@@ -104,6 +107,22 @@ export default function DisputeLettersResultStep({
         if (d.letters[0]) setActive(d.letters[0])
       })
       .catch(() => setError('Failed to load letters'))
+    fetchLetterGenerateStatus(sessionId)
+      .then((job) => {
+        if (job.skipped?.length) setSkipped(job.skipped)
+      })
+      .catch(() => {
+        /* job status is optional */
+      })
+    try {
+      const raw = sessionStorage.getItem(`dispute-skipped:${sessionId}`)
+      if (raw) {
+        const parsed = JSON.parse(raw) as SkippedLetterPlan[]
+        if (Array.isArray(parsed) && parsed.length) setSkipped(parsed)
+      }
+    } catch {
+      /* ignore */
+    }
   }, [sessionId])
 
   if (!sessionId) return null
@@ -112,20 +131,24 @@ export default function DisputeLettersResultStep({
     <div className={`${embedded ? '' : 'max-w-5xl'} space-y-6`}>
       {!embedded && <DisputeLettersStepStrip sessionId={sessionId} />}
 
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6">
-        <h2 className="text-xl font-semibold text-green-900">Letters ready</h2>
-        <p className="mt-2 text-sm text-green-800">
-          Mail disputes within 30 days. Keep copies of every letter and your report. Certified mail
-          with return receipt is recommended for bureaus. The ZIP contains print-ready Word (.docx)
-          files so formatting is preserved.
+      <div className={`rounded-xl border p-6 ${letters.length ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+        <h2 className={`text-xl font-semibold ${letters.length ? 'text-green-900' : 'text-amber-950'}`}>
+          {letters.length ? 'Letters ready' : 'No letters generated'}
+        </h2>
+        <p className={`mt-2 text-sm ${letters.length ? 'text-green-800' : 'text-amber-900'}`}>
+          {letters.length
+            ? 'Mail disputes within 30 days. Keep copies of every letter and your report. Certified mail with return receipt is recommended for bureaus. The ZIP contains print-ready Word (.docx) files so formatting is preserved.'
+            : 'Add missing furnisher addresses on Confirm and generate again.'}
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
-          <a
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-            href={disputeLettersZipUrl(sessionId)}
-          >
-            Download all (ZIP)
-          </a>
+          {letters.length > 0 && (
+            <a
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              href={disputeLettersZipUrl(sessionId)}
+            >
+              Download all (ZIP)
+            </a>
+          )}
           {embedded && onBackToAnalysis ? (
             <button
               type="button"
@@ -152,6 +175,17 @@ export default function DisputeLettersResultStep({
           )}
         </div>
       </div>
+
+      {skipped.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-medium">Skipped — furnisher address needed:</p>
+          <ul className="mt-2 list-disc pl-5">
+            {skipped.map((s) => (
+              <li key={s.plan_id || s.recipient_name}>{s.recipient_name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

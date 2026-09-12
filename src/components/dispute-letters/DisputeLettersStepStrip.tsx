@@ -14,6 +14,7 @@ type Props = {
   activeStep?: DisputeLetterStep
   onStepChange?: (step: DisputeLetterStep) => void
   embedded?: boolean
+  persistBeforeNavigate?: () => Promise<void>
 }
 
 export function DisputeLettersStepStrip({
@@ -21,6 +22,7 @@ export function DisputeLettersStepStrip({
   activeStep,
   onStepChange,
   embedded = false,
+  persistBeforeNavigate,
 }: Props) {
   const pathname = usePathname()
 
@@ -71,22 +73,33 @@ export function DisputeLettersStepStrip({
             </div>
           )
 
-          const interactive =
-            embedded && onStepChange && isLetterStep && !isUpcoming ? (
-              <button
-                type="button"
-                className="hover:opacity-90"
-                onClick={() => onStepChange(slug)}
-              >
-                {circle}
-              </button>
-            ) : href && !isUpcoming ? (
-              <Link href={href} className="hover:opacity-90">
-                {circle}
-              </Link>
-            ) : (
-              circle
-            )
+          const go = async () => {
+            try {
+              await persistBeforeNavigate?.()
+            } catch {
+              return
+            }
+            if (embedded && onStepChange && isLetterStep) onStepChange(slug)
+            else if (href) window.location.assign(href)
+          }
+
+          const canNavigate =
+            !isUpcoming &&
+            ((embedded && !!onStepChange && isLetterStep) || Boolean(href))
+
+          const interactive = !canNavigate ? (
+            circle
+          ) : persistBeforeNavigate || (embedded && onStepChange) ? (
+            <button type="button" className="hover:opacity-90" onClick={() => void go()}>
+              {circle}
+            </button>
+          ) : href ? (
+            <Link href={href} className="hover:opacity-90">
+              {circle}
+            </Link>
+          ) : (
+            circle
+          )
 
           return (
             <div key={slug || 'upload'} className="flex items-center">
