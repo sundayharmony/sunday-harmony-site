@@ -39,6 +39,7 @@ CLEAN CREDIT PROFILE PRIORITY (critical):
 CREDIT INTELLIGENCE EXTRACTION (critical for utilization / age / funding readiness):
 - Extract credit_limit, high_credit, date_opened, date_of_first_delinquency, last_reported, payment_history, monthly_payment whenever visible.
 - For hard inquiries, still create tradeline-like rows with account_type containing "Inquiry".
+- For unauthorized or clustered hard inquiries, suggested_dispute_reason should cite FCRA §604 (15 U.S.C. §1681b) permissible purpose and ask the bureau to delete the inquiry if it cannot be verified as consumer-initiated.
 - For public records (bankruptcy, judgment, lien), include them as tradelines with clear account_type/status.
 
 For each tradeline, provide:
