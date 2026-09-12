@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const access = await requireDisputeSessionAccess(id, session)
   if (!access.ok) return access.response
 
-  const format = request.nextUrl.searchParams.get('format') || 'txt'
+  const format = request.nextUrl.searchParams.get('format') || 'docx'
 
   try {
     const res = await disputeLettersFetch(
