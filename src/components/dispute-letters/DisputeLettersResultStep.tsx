@@ -8,6 +8,7 @@ import {
   disputeLettersZipUrl,
   fetchDisputeLetters,
 } from '@/lib/dispute-letters/client-api'
+import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import './letter-preview.css'
 
@@ -178,8 +179,8 @@ export default function DisputeLettersResultStep({
         <div className="overflow-auto rounded-xl border border-brand-border bg-neutral-100/80 p-4 shadow-sm min-h-[400px]">
           {active ? (
             <LetterPreview
-              layout={active.preview}
-              fallbackText={active.markdown || active.plain_text || ''}
+              layout={active.preview || letterLayout(active.markdown || active.plain_text || '')}
+              fallbackText=""
             />
           ) : (
             <p className="text-brand-dim">No letters yet.</p>
