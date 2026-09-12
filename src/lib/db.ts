@@ -5,7 +5,10 @@ import {
   passwordNeedsRehash,
   verifyPassword,
 } from './password-crypto'
+import { staffMessageSetupError } from './message-text'
 import { nextSessionVersion } from './session-version'
+import { pickStaffSenderId } from './staff-sender'
+import { isUuid } from './uuid'
 
 export { hashPassword, passwordNeedsRehash, verifyPassword }
 
@@ -412,19 +415,60 @@ export interface StaffMessage {
   from_role?: string
 }
 
-export async function getStaffMessages(): Promise<StaffMessage[]> {
+export type StaffMessagesResult =
+  | { ok: true; messages: StaffMessage[] }
+  | { ok: false; status: number; error: string }
+
+export type CreateStaffMessageResult =
+  | { ok: true; message: StaffMessage }
+  | { ok: false; status: number; error: string }
+
+function staffMessagesStoreError(
+  error: { code?: string; message?: string } | null
+): { status: number; error: string } | null {
+  if (!error) return null
+  const setup = staffMessageSetupError(error)
+  if (setup) return { status: 503, error: setup }
+  if (error.code === '23503') {
+    return {
+      status: 400,
+      error: 'Your signed-in account is not linked to a staff user. Sign out and sign back in.',
+    }
+  }
+  return null
+}
+
+export async function resolveStaffSenderId(input: {
+  userId?: string | null
+  email?: string | null
+}): Promise<string | null> {
+  const userId = input.userId?.trim() ?? ''
+  const byId = isUuid(userId) ? (await getUserById(userId)) ?? null : null
+  const fromId = pickStaffSenderId({ sessionUserId: userId, userById: byId })
+  if (fromId) return fromId
+  const email = input.email?.trim() ?? ''
+  const byEmail = email ? (await getUserByEmail(email)) ?? null : null
+  return pickStaffSenderId({
+    sessionUserId: userId,
+    userById: byId,
+    userByEmail: byEmail,
+  })
+}
+
+export async function getStaffMessages(): Promise<StaffMessagesResult> {
   const { data, error } = await getSupabase()
     .from('staff_messages')
     .select('id, from_user_id, text, created_at')
     .order('created_at', { ascending: true })
 
   if (error) {
-    if (error.code !== '42P01') console.error('getStaffMessages error:', error)
-    return []
+    const mapped = staffMessagesStoreError(error)
+    if (!mapped) console.error('getStaffMessages error:', error)
+    return { ok: false, ...(mapped || { status: 500, error: 'Failed to load team messages' }) }
   }
 
   const rows = data || []
-  if (rows.length === 0) return []
+  if (rows.length === 0) return { ok: true, messages: [] }
 
   const userIds = [...new Set(rows.map((r) => r.from_user_id))]
   const { data: users } = await getSupabase()
@@ -434,23 +478,26 @@ export async function getStaffMessages(): Promise<StaffMessage[]> {
 
   const userMap = new Map((users || []).map((u) => [u.id, u]))
 
-  return rows.map((row) => {
-    const user = userMap.get(row.from_user_id)
-    return {
-      id: row.id,
-      from_user_id: row.from_user_id,
-      text: row.text,
-      created_at: row.created_at,
-      from_name: user?.name,
-      from_role: user?.role,
-    }
-  })
+  return {
+    ok: true,
+    messages: rows.map((row) => {
+      const user = userMap.get(row.from_user_id)
+      return {
+        id: row.id,
+        from_user_id: row.from_user_id,
+        text: row.text,
+        created_at: row.created_at,
+        from_name: user?.name,
+        from_role: user?.role,
+      }
+    }),
+  }
 }
 
 export async function createStaffMessage(msgData: {
   from_user_id: string
   text: string
-}): Promise<StaffMessage | null> {
+}): Promise<CreateStaffMessageResult> {
   const { data, error } = await getSupabase()
     .from('staff_messages')
     .insert({ from_user_id: msgData.from_user_id, text: msgData.text })
@@ -458,10 +505,11 @@ export async function createStaffMessage(msgData: {
     .single()
 
   if (error) {
-    console.error('createStaffMessage error:', error)
-    return null
+    const mapped = staffMessagesStoreError(error)
+    if (!mapped) console.error('createStaffMessage error:', error)
+    return { ok: false, ...(mapped || { status: 500, error: 'Failed to send message' }) }
   }
-  return data
+  return { ok: true, message: data }
 }
 
 export async function getStaffUsers(): Promise<User[]> {

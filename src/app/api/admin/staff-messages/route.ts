@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireStaffSession } from '@/lib/stripe-admin-auth'
-import { createStaffMessage, getStaffMessages, getStaffUsers } from '@/lib/db'
+import {
+  createStaffMessage,
+  getStaffMessages,
+  getStaffUsers,
+  getUserByEmail,
+  resolveStaffSenderId,
+} from '@/lib/db'
+import { isStaffRole } from '@/lib/staff-roles'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { escHtml, getPublicSiteUrl, isEmailConfigured, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
@@ -11,8 +18,11 @@ export async function GET() {
   const session = await requireStaffSession()
   if (session instanceof NextResponse) return session
 
-  const messages = await getStaffMessages()
-  return NextResponse.json(messages)
+  const result = await getStaffMessages()
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+  return NextResponse.json(result.messages)
 }
 
 export async function POST(request: NextRequest) {
@@ -27,24 +37,42 @@ export async function POST(request: NextRequest) {
   if (!text?.trim()) {
     return NextResponse.json({ error: 'Message text required' }, { status: 400 })
   }
-  if (text.length > 10000) {
+  if (typeof text === 'string' && text.length > 10000) {
     return NextResponse.json({ error: 'Message too long' }, { status: 400 })
   }
 
-  const userId = session.user.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 })
+  let fromUserId = await resolveStaffSenderId({
+    userId: session.user.id,
+    email: session.user.email,
+  })
+  if (!fromUserId) {
+    return NextResponse.json(
+      { error: 'Your signed-in account is not linked to a staff user. Sign out and sign back in.' },
+      { status: 400 }
+    )
   }
 
-  const message = await createStaffMessage({
-    from_user_id: userId,
+  let result = await createStaffMessage({
+    from_user_id: fromUserId,
     text: text.trim(),
   })
 
-  if (!message) {
-    return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
+  if (!result.ok && result.status === 400 && session.user.email) {
+    const byEmail = await getUserByEmail(session.user.email)
+    if (byEmail && isStaffRole(byEmail.role) && byEmail.id !== fromUserId) {
+      fromUserId = byEmail.id
+      result = await createStaffMessage({
+        from_user_id: fromUserId,
+        text: text.trim(),
+      })
+    }
   }
 
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
+  }
+
+  const message = result.message
   const enriched = {
     ...message,
     from_name: session.user.name || 'Staff',
