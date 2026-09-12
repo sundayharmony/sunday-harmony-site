@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
-import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
+import { disputeLettersFetch, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { getDisputeSession } from '@/lib/dispute-letters/db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { disputeLettersZipDownloadName } from '@/lib/dispute-letters-storage'
+import { isDocxBytes, uniqueDocxFilename, zipFiles } from '@/lib/dispute-letters/letter-zip'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 type Params = { params: Promise<{ id: string }> }
+
+type LetterListItem = { id: string; title?: string }
 
 export async function GET(_request: NextRequest, { params }: Params) {
   const session = await requireCreditFundingStaffSession()
@@ -22,21 +26,49 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const res = await disputeLettersFetch(`/internal/letters/${id}/download.zip`)
-    if (!res.ok) {
-      const text = await res.text()
-      return NextResponse.json({ error: text || 'ZIP download failed' }, { status: res.status })
+    const payload = await disputeLettersJson<{ letters: LetterListItem[] }>(`/internal/letters/${id}`)
+    const letters = payload.letters || []
+    if (!letters.length) {
+      return NextResponse.json({ error: 'No letters' }, { status: 404 })
+    }
+
+    const used = new Set<string>()
+    const files: { name: string; data: Uint8Array }[] = []
+    for (const letter of letters) {
+      const res = await disputeLettersFetch(
+        `/internal/letters/${id}/${letter.id}/download?format=docx`
+      )
+      if (!res.ok) {
+        const text = await res.text()
+        return NextResponse.json({ error: text || 'DOCX download failed' }, { status: res.status })
+      }
+      const data = new Uint8Array(await res.arrayBuffer())
+      if (!isDocxBytes(data)) {
+        return NextResponse.json(
+          { error: 'Letter download was not a Word document. Redeploy the dispute-letters API.' },
+          { status: 502 }
+        )
+      }
+      files.push({
+        name: uniqueDocxFilename(letter.title || letter.id, used),
+        data,
+      })
     }
 
     const row = await getDisputeSession(id, email)
     const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name)
+    const zip = zipFiles(files)
 
-    const headers = new Headers()
-    headers.set('Content-Type', 'application/zip')
-    headers.set('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`)
-    return new Response(res.body, { status: 200, headers })
+    return new Response(new Uint8Array(zip), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${filename.replace(/"/g, '')}"`,
+      },
+    })
   } catch (err) {
     console.error('zip download error:', err)
-    return NextResponse.json({ error: 'ZIP download failed' }, { status: 502 })
+    const message = err instanceof Error ? err.message : 'ZIP download failed'
+    return NextResponse.json({ error: message }, { status: 502 })
   }
 }

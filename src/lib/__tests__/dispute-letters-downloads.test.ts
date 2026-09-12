@@ -18,6 +18,7 @@ describe('dispute letter downloads and preview', () => {
     const downloadRoute = source(
       'src/app/api/admin/dispute-letters/[id]/letters/[letterId]/download/route.ts'
     )
+    const zipRoute = source('src/app/api/admin/dispute-letters/[id]/letters/download-zip/route.ts')
     assert.doesNotMatch(ui, /Download \.txt/)
     assert.doesNotMatch(ui, /format.*txt/)
     assert.match(ui, /Download all \(ZIP\)/)
@@ -26,9 +27,12 @@ describe('dispute letter downloads and preview', () => {
     assert.match(ui, /format = 'docx'|format === 'docx'|['"]docx['"]/)
     assert.match(ui, /letter-page/)
     assert.match(ui, /letter-header/)
-    assert.match(ui, /active\.preview/)
+    assert.match(ui, /letterLayout/)
     assert.match(ui, /Page 1\/1/)
     assert.match(downloadRoute, /searchParams\.get\('format'\) \|\| 'docx'/)
+    assert.match(zipRoute, /format=docx/)
+    assert.doesNotMatch(zipRoute, /download\.zip/)
+    assert.match(zipRoute, /zipFiles/)
   })
 
   it('styles the preview like the Word page', () => {
