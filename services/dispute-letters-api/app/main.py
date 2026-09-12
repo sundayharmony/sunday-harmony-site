@@ -12,38 +12,41 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.config import LETTERS_DIR, REPORTS_DIR
 from app.db import (
     get_letter,
-    get_letter_plan,
     get_session,
     get_session_row,
     init_db,
     list_letters,
-    prepare_session_letters_for_generation,
-    save_letter,
     save_letter_plan,
+    session_letter_round,
     set_session_status,
     update_session_report,
 )
 from app.ingest.router import detect_file_type, ingest_file
 from app.models import (
+    ConsumerUpdateRequest,
     DisputePlanRequest,
     GenerateLettersRequest,
-    GeneratedLetter,
     IntelligenceRequest,
     LetterPlanResponse,
+    ParsedReport,
     ReportHealthResponse,
     ReportSessionResponse,
     TradelineUpdateRequest,
 )
-from app.services.credit_health import build_health_summary, sort_by_priority
+from app.services.credit_health import sort_by_priority
 from app.services.credit_intelligence import build_credit_intelligence
 from app.services.cursor_client import bridge_manager
-from app.services.letter_generator import generate_letter_async, save_letter_file
+from app.services.letter_jobs import (
+    get_letter_job_state,
+    letter_job_running,
+    run_letter_job,
+    spawn_letter_job,
+)
 from app.services.letter_formatter import (
     finalize_letter,
     letter_layout,
@@ -53,7 +56,8 @@ from app.services.letter_formatter import (
 )
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
-from app.storage import upload_storage_bytes, write_temp_report
+from app.services.report_refresh import refresh_report_health
+from app.storage import write_temp_report
 from app.supabase_client import ping_supabase, supabase_env_configured
 
 load_dotenv()
@@ -125,6 +129,8 @@ class AnalyzeStreamRequest(BaseModel):
 class GenerateStreamRequest(BaseModel):
     session_id: str
     plan_ids: list[str] | None = None
+    consumer_name: str | None = None
+    consumer_addresses: list[str] | None = None
 
 
 # In-flight analyze jobs (same process). Survives the HTTP response for /analyze/start.
@@ -342,19 +348,18 @@ async def analyze_stream(
 
 @app.get("/internal/reports/{session_id}/health", response_model=ReportHealthResponse)
 def get_report_health(session_id: str, _: None = Depends(verify_internal_secret)) -> ReportHealthResponse:
-    row = get_session(session_id)
-    if not row:
+    row = get_session_row(session_id)
+    if not row or not row.get("report_json"):
         raise HTTPException(404, "Session not found")
-    _, _, report = row
-    health = report.credit_health or build_health_summary(report)
-    intelligence = report.credit_intelligence or build_credit_intelligence(report)
+    report = ParsedReport.model_validate(row["report_json"])
+    refresh_report_health(report, row.get("file_name") or "")
     if report.credit_intelligence is None:
-        report.credit_intelligence = intelligence
-        update_session_report(session_id, report)
+        report.credit_intelligence = build_credit_intelligence(report)
+    update_session_report(session_id, report)
     return ReportHealthResponse(
         session_id=session_id,
-        credit_health=health,
-        credit_intelligence=intelligence,
+        credit_health=report.credit_health,
+        credit_intelligence=report.credit_intelligence,
         tradelines_by_priority=sort_by_priority(report.tradelines),
         consumer_name=report.consumer.name,
         report_date=report.report_date,
@@ -394,11 +399,31 @@ def patch_tradelines(
     body: TradelineUpdateRequest,
     _: None = Depends(verify_internal_secret),
 ) -> ReportSessionResponse:
+    row = get_session_row(session_id)
+    if not row or not row.get("report_json"):
+        raise HTTPException(404, "Session not found")
+    report = ParsedReport.model_validate(row["report_json"])
+    report.tradelines = body.tradelines
+    refresh_report_health(report, row.get("file_name") or "")
+    if not update_session_report(session_id, report):
+        raise HTTPException(404, "Session not found")
+    return ReportSessionResponse(session_id=session_id, report=report)
+
+
+@app.patch("/internal/reports/{session_id}/consumer", response_model=ReportSessionResponse)
+def patch_consumer(
+    session_id: str,
+    body: ConsumerUpdateRequest,
+    _: None = Depends(verify_internal_secret),
+) -> ReportSessionResponse:
     row = get_session(session_id)
     if not row:
         raise HTTPException(404, "Session not found")
     _, _, report = row
-    report.tradelines = body.tradelines
+    if body.name is not None and body.name.strip():
+        report.consumer.name = body.name.strip()
+    if body.addresses is not None:
+        report.consumer.addresses = [a.strip() for a in body.addresses if a and a.strip()]
     if not update_session_report(session_id, report):
         raise HTTPException(404, "Session not found")
     return ReportSessionResponse(session_id=session_id, report=report)
@@ -415,83 +440,114 @@ def dispute_plan(body: DisputePlanRequest, _: None = Depends(verify_internal_sec
     return plan
 
 
+@app.post("/internal/letters/generate/start")
+async def generate_letters_start(
+    body: GenerateLettersRequest,
+    _: None = Depends(verify_internal_secret),
+):
+    """Kick off letter generation in the background (no SSE). Client should poll generate-status."""
+    row = get_session_row(body.session_id)
+    if not row:
+        raise HTTPException(404, "Session not found")
+    spawn_letter_job(
+        body.session_id,
+        body.plan_ids,
+        consumer_name=body.consumer_name,
+        consumer_addresses=body.consumer_addresses,
+    )
+    return {
+        "status": "generating",
+        "session_id": body.session_id,
+        "message": "Letter generation started",
+    }
+
+
+@app.get("/internal/letter-jobs/{session_id}")
+def generate_letters_status(session_id: str, _: None = Depends(verify_internal_secret)) -> dict:
+    state = get_letter_job_state(session_id)
+    if not state:
+        return {
+            "session_id": session_id,
+            "status": "idle",
+            "letters": [],
+            "skipped": [],
+            "job_running": letter_job_running(session_id),
+            "error_message": None,
+        }
+    return {**state, "job_running": letter_job_running(session_id)}
+
+
 @app.post("/internal/letters/generate/stream")
 async def generate_letters_stream(
     body: GenerateStreamRequest,
     _: None = Depends(verify_internal_secret),
 ):
+    """Deprecated SSE fallback — prefer /internal/letters/generate/start + letter-jobs polling."""
+
     async def event_stream():
-        row = get_session(body.session_id)
-        if not row:
-            yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
-            return
-        _, _, report = row
-        plan_resp = get_letter_plan(body.session_id)
-        if not plan_resp:
-            yield f"data: {json.dumps({'error': 'No dispute plan'})}\n\n"
-            return
+        queue: asyncio.Queue = asyncio.Queue()
 
-        plans = plan_resp.plans
-        if body.plan_ids:
-            plans = [p for p in plans if p.id in body.plan_ids]
-        prepare_session_letters_for_generation(
-            body.session_id, plans, replacing_all=not body.plan_ids
+        async def on_event(event: dict) -> None:
+            await queue.put(event)
+
+        task = asyncio.create_task(
+            run_letter_job(
+                body.session_id,
+                body.plan_ids,
+                consumer_name=body.consumer_name,
+                consumer_addresses=body.consumer_addresses,
+                on_event=on_event,
+            )
         )
+        terminal = False
+        try:
+            while not task.done() or not queue.empty():
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=2.0)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("status") in ("complete", "error"):
+                        terminal = True
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+            if not terminal:
+                try:
+                    await task
+                    yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-        total = len(plans)
-        for i, plan in enumerate(plans, 1):
-            yield f"data: {json.dumps({'status': 'progress', 'current': i, 'total': total, 'plan_id': plan.id, 'title': plan.recipient_name})}\n\n"
-            await asyncio.sleep(0.05)
-            if plan.missing_address:
-                yield f"data: {json.dumps({'status': 'skipped', 'plan_id': plan.id, 'reason': 'missing_address'})}\n\n"
-                continue
-            md = await generate_letter_async(plan, report.consumer, report)
-            path = save_letter_file(body.session_id, plan, md)
-            title = f"{plan.recipient_name} — {len(plan.items)} item(s)"
-            storage_prefix = f"sessions/{body.session_id}/letters"
-            txt_storage = f"{storage_prefix}/{plan.id}.txt"
-            try:
-                upload_storage_bytes(txt_storage, finalize_letter(md).encode("utf-8"), "text/plain")
-            except Exception:
-                txt_storage = str(path)
-            letter_id = save_letter(body.session_id, plan.id, title, md, txt_storage)
-            yield f"data: {json.dumps({'status': 'done', 'letter_id': letter_id, 'title': title})}\n\n"
-        yield f"data: {json.dumps({'status': 'complete'})}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.post("/internal/letters/generate")
-def generate_letters(body: GenerateLettersRequest, _: None = Depends(verify_internal_secret)) -> dict:
-    row = get_session(body.session_id)
+async def generate_letters(body: GenerateLettersRequest, _: None = Depends(verify_internal_secret)) -> dict:
+    """Blocking generate — same core path as start + poll."""
+    row = get_session_row(body.session_id)
     if not row:
         raise HTTPException(404, "Session not found")
-    _, _, report = row
-    plan_resp = get_letter_plan(body.session_id)
-    if not plan_resp:
-        raise HTTPException(400, "No dispute plan found. Call /internal/disputes/plan first.")
-
-    plans = plan_resp.plans
-    if body.plan_ids:
-        plans = [p for p in plans if p.id in body.plan_ids]
-    prepare_session_letters_for_generation(
-        body.session_id, plans, replacing_all=not body.plan_ids
-    )
-
-    generated: list[GeneratedLetter] = []
-    for plan in plans:
-        if plan.missing_address:
-            continue
-        import asyncio
-
-        md = asyncio.run(generate_letter_async(plan, report.consumer, report))
-        path = save_letter_file(body.session_id, plan, md)
-        title = f"{plan.recipient_name} — {len(plan.items)} item(s)"
-        letter_id = save_letter(body.session_id, plan.id, title, md, str(path))
-        generated.append(
-            GeneratedLetter(id=letter_id, plan_id=plan.id, title=title, markdown=md, file_path=str(path))
+    try:
+        return await run_letter_job(
+            body.session_id,
+            body.plan_ids,
+            consumer_name=body.consumer_name,
+            consumer_addresses=body.consumer_addresses,
         )
-    return {"session_id": body.session_id, "letters": generated}
+    except RuntimeError as e:
+        message = str(e)
+        status = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status, message) from e
+    except Exception as e:
+        raise HTTPException(500, str(e)) from e
 
 
 @app.get("/internal/letters/{session_id}")
@@ -551,7 +607,8 @@ def download_zip(session_id: str, _: None = Depends(verify_internal_secret)):
         consumer_name = (row["report_json"].get("consumer") or {}).get("name") or "Client"
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "", consumer_name.strip())
     cleaned = re.sub(r"\s+", " ", cleaned).strip()[:80] or "Client"
-    zip_filename = f"{cleaned} round 1 Letters.zip"
+    round_index = session_letter_round(session_id, (row or {}).get("application_uuid"))
+    zip_filename = f"{cleaned} round {round_index} Letters.zip"
     payload = letters_zip_bytes([(letter.title.replace("/", "-")[:60] or letter.id, letter.markdown) for letter in letters])
     buf = BytesIO(payload)
     return StreamingResponse(

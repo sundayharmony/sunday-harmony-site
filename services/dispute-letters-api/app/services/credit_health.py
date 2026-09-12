@@ -278,12 +278,19 @@ def sort_by_priority(tradelines: list[Tradeline]) -> list[Tradeline]:
     return sorted(tradelines, key=removal_sort_key)
 
 
+def is_recommended_dispute(tl: Tradeline) -> bool:
+    """Accounts staff should dispute: high/medium priority or clean-profile removal."""
+    if tl.repair_priority in ("high", "medium"):
+        return True
+    return is_clean_profile_removal_target(tl)
+
+
 def apply_high_priority_selection(report: ParsedReport) -> ParsedReport:
-    """Pre-select high-priority / clean-profile removal targets when none chosen yet."""
+    """Pre-select recommended disputes when none chosen yet. Never uncheck existing selections."""
     if any(tl.selected for tl in report.tradelines):
         return report
     for tl in report.tradelines:
-        if tl.repair_priority == "high" or is_clean_profile_removal_target(tl):
+        if is_recommended_dispute(tl):
             tl.selected = True
             if not tl.dispute_reason:
                 tl.dispute_reason = tl.suggested_dispute_reason or default_removal_dispute_reason(tl)

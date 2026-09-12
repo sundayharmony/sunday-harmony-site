@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import DisputeConfirmStep from '@/components/dispute-letters/DisputeConfirmStep'
 import DisputeHealthStep from '@/components/dispute-letters/DisputeHealthStep'
 import DisputeLettersResultStep from '@/components/dispute-letters/DisputeLettersResultStep'
@@ -18,6 +19,8 @@ export default function DisputeLettersWorkflow({
   onStepChange: (step: DisputeLetterStep) => void
   onBackToAnalysis?: () => void
 }) {
+  const persistRef = useRef<(() => Promise<void>) | null>(null)
+
   return (
     <div className="space-y-4 rounded-xl border border-brand-border bg-white p-4">
       <div>
@@ -33,13 +36,26 @@ export default function DisputeLettersWorkflow({
         embedded
         activeStep={step}
         onStepChange={onStepChange}
+        persistBeforeNavigate={async () => {
+          await persistRef.current?.()
+        }}
       />
 
       {step === 'health' && (
-        <DisputeHealthStep sessionId={sessionId} embedded onStepChange={onStepChange} />
+        <DisputeHealthStep
+          sessionId={sessionId}
+          embedded
+          onStepChange={onStepChange}
+          persistRef={persistRef}
+        />
       )}
       {step === 'review' && (
-        <DisputeReviewStep sessionId={sessionId} embedded onStepChange={onStepChange} />
+        <DisputeReviewStep
+          sessionId={sessionId}
+          embedded
+          onStepChange={onStepChange}
+          persistRef={persistRef}
+        />
       )}
       {step === 'confirm' && (
         <DisputeConfirmStep sessionId={sessionId} embedded onStepChange={onStepChange} />

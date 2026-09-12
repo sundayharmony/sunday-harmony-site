@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { disputeLettersZipDownloadName, validateDisputeReportFile } from '../dispute-letters-storage'
+import { disputeLetterRoundIndex, disputeLettersZipDownloadName, validateDisputeReportFile } from '../dispute-letters-storage'
 
 describe('validateDisputeReportFile', () => {
   it('accepts PDF under size limit', () => {
@@ -44,5 +44,19 @@ describe('disputeLettersZipDownloadName', () => {
 
   it('falls back when name is missing', () => {
     assert.equal(disputeLettersZipDownloadName(''), 'Client round 1 Letters.zip')
+  })
+
+  it('names later sessions as round 2+', () => {
+    assert.equal(disputeLettersZipDownloadName('Jane Doe', 2), 'Jane Doe round 2 Letters.zip')
+    assert.equal(
+      disputeLetterRoundIndex(
+        [
+          { id: 'new', created_at: '2026-09-12T00:00:00Z' },
+          { id: 'old', created_at: '2026-08-01T00:00:00Z' },
+        ],
+        'new'
+      ),
+      2
+    )
   })
 })

@@ -1,0 +1,94 @@
+{
+  "negative_cases": [
+    {
+      "id": "never-late",
+      "status": "Open",
+      "remarks": "Individual responsibility; never late",
+      "is_collection": false,
+      "expect_negative": false
+    },
+    {
+      "id": "resolved-dispute",
+      "status": "Open",
+      "remarks": "Account previously in dispute - now resolved - reported by subscriber",
+      "is_collection": false,
+      "expect_negative": false
+    },
+    {
+      "id": "collection",
+      "status": "Collection",
+      "remarks": "",
+      "is_collection": true,
+      "expect_negative": true
+    },
+    {
+      "id": "charge-off",
+      "status": "Charge Off",
+      "remarks": "",
+      "is_collection": false,
+      "expect_negative": true
+    },
+    {
+      "id": "past-due-closed",
+      "status": "Closed: Paid, was past due 150 days",
+      "remarks": "",
+      "is_collection": false,
+      "expect_negative": true
+    },
+    {
+      "id": "late-30",
+      "status": "Open",
+      "remarks": "30 days late",
+      "is_collection": false,
+      "expect_negative": true
+    }
+  ],
+  "recommended_cases": [
+    {
+      "id": "high-collection",
+      "status": "Collection",
+      "remarks": "",
+      "is_collection": true,
+      "repair_priority": "high",
+      "item_category": "collection",
+      "expect_recommended": true
+    },
+    {
+      "id": "medium-late",
+      "status": "Open",
+      "remarks": "30 days late",
+      "is_collection": false,
+      "repair_priority": "medium",
+      "item_category": "late_payment",
+      "expect_recommended": true
+    },
+    {
+      "id": "inquiry-low",
+      "status": "Inquiry",
+      "remarks": "",
+      "is_collection": false,
+      "repair_priority": "low",
+      "item_category": "inquiry",
+      "expect_recommended": false
+    },
+    {
+      "id": "positive-none",
+      "status": "Open",
+      "remarks": "never late",
+      "is_collection": false,
+      "repair_priority": "none",
+      "item_category": "positive",
+      "expect_recommended": false
+    }
+  ],
+  "inquiry_reason": {
+    "creditor": "TD BANK N.A.",
+    "expect_contains": ["TD BANK N.A.", "§604"]
+  },
+  "current_letters": [
+    { "id": "exp-1", "title": "Experian — 4 item(s)", "plan_id": "plan-exp" },
+    { "id": "kikoff-1", "title": "KIKOFF LENDING LLC — 1 item(s)", "plan_id": "plan-kikoff" },
+    { "id": "exp-2", "title": "Experian — 15 item(s)", "plan_id": "plan-exp-new" }
+  ],
+  "current_letters_keep_ids": ["kikoff-1", "exp-2"]
+}

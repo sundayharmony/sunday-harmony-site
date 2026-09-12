@@ -19,3 +19,20 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
+
+  python-letters:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/dispute-letters-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install slim test deps (no OCR)
+        run: pip install -r requirements-test.txt
+      - name: Pytest dispute-letters services
+        env:
+          PYTHONPATH: .
+        run: python -m pytest app/services/__tests__ -q

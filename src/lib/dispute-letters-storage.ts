@@ -239,13 +239,31 @@ export function newDisputeSessionId(): string {
   return randomUUID()
 }
 
+/** 1-based index of this session among application reports (oldest = round 1). */
+export function disputeLetterRoundIndex(
+  sessions: { id: string; created_at?: string | null }[],
+  sessionId: string
+): number {
+  const sorted = [...sessions].sort((a, b) => {
+    const aTime = Date.parse(a.created_at || '') || 0
+    const bTime = Date.parse(b.created_at || '') || 0
+    return aTime - bTime
+  })
+  const idx = sorted.findIndex((s) => s.id === sessionId)
+  return idx >= 0 ? idx + 1 : 1
+}
+
 /** Safe download filename for the generated letters ZIP bundle. */
-export function disputeLettersZipDownloadName(consumerName: string | null | undefined): string {
+export function disputeLettersZipDownloadName(
+  consumerName: string | null | undefined,
+  round = 1
+): string {
   const cleaned =
     (consumerName || 'Client')
       .trim()
       .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '')
       .replace(/\s+/g, ' ')
       .slice(0, 80) || 'Client'
-  return `${cleaned} round 1 Letters.zip`
+  const n = Number.isFinite(round) && round > 0 ? Math.floor(round) : 1
+  return `${cleaned} round ${n} Letters.zip`
 }

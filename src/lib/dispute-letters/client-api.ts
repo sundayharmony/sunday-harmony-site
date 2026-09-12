@@ -6,6 +6,10 @@ import type {
   ReportHealth,
   Tradeline,
 } from '@/lib/dispute-letters/types'
+import {
+  letterGenerateFailure,
+  type LetterGenerateJob,
+} from '@/lib/dispute-letters/generate-job'
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -179,45 +183,87 @@ export async function buildDisputePlan(
 
 export function streamGenerateDisputeLetters(
   sessionId: string,
-  onEvent: (data: Record<string, unknown>) => void
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    fetch(`/api/admin/dispute-letters/${sessionId}/generate/stream`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId }),
-    })
-      .then((res) => {
-        if (!res.ok || !res.body) throw new Error('Stream failed')
-        const reader = res.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        const pump = (): Promise<void> =>
-          reader.read().then(({ done, value }) => {
-            if (done) {
-              resolve()
-              return
-            }
-            buffer += decoder.decode(value, { stream: true })
-            const parts = buffer.split('\n\n')
-            buffer = parts.pop() || ''
-            for (const part of parts) {
-              if (part.startsWith('data: ')) {
-                try {
-                  onEvent(JSON.parse(part.slice(6)))
-                } catch {
-                  /* ignore */
-                }
-              }
-            }
-            return pump()
-          })
-
-        return pump()
-      })
-      .catch(reject)
+  onEvent: (data: Record<string, unknown>) => void,
+  options?: GenerateDisputeLettersOptions
+): Promise<LetterGenerateJob> {
+  return generateDisputeLetters(sessionId, options, (job) => {
+    onEvent(job as Record<string, unknown>)
   })
+}
+
+export type GenerateDisputeLettersOptions = {
+  planIds?: string[] | null
+  consumerName?: string
+  consumerAddresses?: string[]
+}
+
+export async function generateDisputeLetters(
+  sessionId: string,
+  options?: GenerateDisputeLettersOptions,
+  onProgress?: (job: LetterGenerateJob) => void
+): Promise<LetterGenerateJob> {
+  onProgress?.({ status: 'generating', title: 'Starting letter generation…' })
+
+  const startRes = await fetch(`/api/admin/dispute-letters/${sessionId}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      plan_ids: options?.planIds ?? null,
+      consumer_name: options?.consumerName ?? null,
+      consumer_addresses: options?.consumerAddresses ?? null,
+    }),
+  })
+  if (!startRes.ok) {
+    throw new Error(await parseError(startRes))
+  }
+
+  const deadline = Date.now() + 8 * 60 * 1000
+  let attempt = 0
+  let last: LetterGenerateJob = { status: 'generating' }
+
+  while (Date.now() < deadline) {
+    attempt += 1
+    await sleep(attempt < 3 ? 1500 : 2500)
+
+    const statusRes = await fetch(`/api/admin/dispute-letters/${sessionId}/generate`, {
+      cache: 'no-store',
+    })
+    if (!statusRes.ok) {
+      throw new Error(await parseError(statusRes))
+    }
+
+    last = (await statusRes.json()) as LetterGenerateJob
+    onProgress?.(last)
+
+    const failure = letterGenerateFailure(last)
+    if (failure) throw new Error(failure)
+
+    if (last.status === 'complete') {
+      return last
+    }
+  }
+
+  throw new Error('Letter generation timed out. Check Render logs for dispute-letters-api.')
+}
+
+export async function fetchLetterGenerateStatus(sessionId: string): Promise<LetterGenerateJob> {
+  const res = await fetch(`/api/admin/dispute-letters/${sessionId}/generate`, { cache: 'no-store' })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<LetterGenerateJob>
+}
+
+export async function patchDisputeConsumer(
+  sessionId: string,
+  consumer: { name?: string; addresses?: string[] }
+) {
+  const res = await fetch(`/api/admin/dispute-letters/${sessionId}/consumer`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(consumer),
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
 }
 
 export async function fetchDisputeLetters(sessionId: string) {
