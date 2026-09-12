@@ -90,5 +90,53 @@
     { "id": "kikoff-1", "title": "KIKOFF LENDING LLC — 1 item(s)", "plan_id": "plan-kikoff" },
     { "id": "exp-2", "title": "Experian — 15 item(s)", "plan_id": "plan-exp-new" }
   ],
-  "current_letters_keep_ids": ["kikoff-1", "exp-2"]
+  "current_letters_keep_ids": ["kikoff-1", "exp-2"],
+  "bureau_coverage_cases": [
+    {
+      "id": "score-experian",
+      "scores": { "tuc": null, "exp": 640, "eqf": null },
+      "file_name": "",
+      "expect_bureaus": ["EXP"],
+      "expect_coverage": "single"
+    },
+    {
+      "id": "credit-hero-filename",
+      "scores": { "tuc": null, "exp": null, "eqf": null },
+      "file_name": "Juan Pagan Credit Hero 8-21-2026.pdf",
+      "expect_bureaus": ["TUC", "EXP", "EQF"],
+      "expect_coverage": "tri_merge"
+    }
+  ],
+  "per_bureau_cases": [
+    {
+      "id": "experian-never-late-vs-collection",
+      "bureau": "EXP",
+      "tradelines": [
+        {
+          "id": "open",
+          "status": "Open",
+          "remarks": "Never late",
+          "account_exp": "1111",
+          "is_collection": false
+        },
+        {
+          "id": "paid",
+          "status": "Paid, Closed",
+          "remarks": "flagged potentially negative",
+          "account_exp": "2222",
+          "is_collection": false
+        },
+        {
+          "id": "coll",
+          "status": "Collection",
+          "remarks": "",
+          "account_exp": "3333",
+          "is_collection": true
+        }
+      ],
+      "expect_total": 3,
+      "expect_negative": 1,
+      "expect_collections": 1
+    }
+  ]
 }
