@@ -1,5 +1,5 @@
--- Migration 030: Dispute case / round / item lifecycle (Phase 1).
--- Run in Supabase SQL Editor after migration 029.
+-- Migration 034: Dispute case / round / item lifecycle (Phase 1).
+-- Run in Supabase SQL Editor after migration 033.
 -- Enables Round N tracking and durable per-tradeline dispute status across report uploads.
 
 CREATE TABLE IF NOT EXISTS dispute_cases (
