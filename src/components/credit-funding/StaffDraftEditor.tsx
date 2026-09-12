@@ -35,6 +35,8 @@ type DraftFormState = {
   providerPassword: string
   experianEmail: string
   experianPassword: string
+  experianSecurityAnswer: string
+  experianPin: string
   cfpbEmail: string
   cfpbPassword: string
   primaryCreditGoalsText: string
@@ -67,6 +69,8 @@ const emptyForm = (): DraftFormState => ({
   providerPassword: '',
   experianEmail: '',
   experianPassword: '',
+  experianSecurityAnswer: '',
+  experianPin: '',
   cfpbEmail: '',
   cfpbPassword: '',
   primaryCreditGoalsText: '',
@@ -98,6 +102,50 @@ type Props = {
   onFinalized: (id: string) => void
 }
 
+type SecretsOnFile = {
+  ssnSet: boolean
+  dateOfBirthSet: boolean
+  providerUsernameSet: boolean
+  providerPasswordSet: boolean
+  experianEmailSet: boolean
+  experianPasswordSet: boolean
+  experianSecurityAnswerSet: boolean
+  experianPinSet: boolean
+  cfpbEmailSet: boolean
+  cfpbPasswordSet: boolean
+  typedSignatureSet: boolean
+}
+
+const emptySecretsOnFile = (): SecretsOnFile => ({
+  ssnSet: false,
+  dateOfBirthSet: false,
+  providerUsernameSet: false,
+  providerPasswordSet: false,
+  experianEmailSet: false,
+  experianPasswordSet: false,
+  experianSecurityAnswerSet: false,
+  experianPinSet: false,
+  cfpbEmailSet: false,
+  cfpbPasswordSet: false,
+  typedSignatureSet: false,
+})
+
+function secretsFromDraft(draft: Record<string, unknown>): SecretsOnFile {
+  return {
+    ssnSet: Boolean(draft.ssnSet),
+    dateOfBirthSet: Boolean(draft.dateOfBirthSet),
+    providerUsernameSet: Boolean(draft.providerUsernameSet),
+    providerPasswordSet: Boolean(draft.providerPasswordSet),
+    experianEmailSet: Boolean(draft.experianEmailSet),
+    experianPasswordSet: Boolean(draft.experianPasswordSet),
+    experianSecurityAnswerSet: Boolean(draft.experianSecurityAnswerSet),
+    experianPinSet: Boolean(draft.experianPinSet),
+    cfpbEmailSet: Boolean(draft.cfpbEmailSet),
+    cfpbPasswordSet: Boolean(draft.cfpbPasswordSet),
+    typedSignatureSet: Boolean(draft.typedSignatureSet),
+  }
+}
+
 function mapDraftToForm(draft: Record<string, unknown>): DraftFormState {
   const base = emptyForm()
   return {
@@ -120,6 +168,8 @@ function mapDraftToForm(draft: Record<string, unknown>): DraftFormState {
     providerPassword: '',
     experianEmail: String(draft.experian_email || ''),
     experianPassword: '',
+    experianSecurityAnswer: '',
+    experianPin: '',
     cfpbEmail: String(draft.cfpb_email || ''),
     cfpbPassword: '',
     primaryCreditGoalsText: String(draft.primary_credit_goals_text || ''),
@@ -148,17 +198,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [personalMessage, setPersonalMessage] = useState('')
-  const [secretsOnFile, setSecretsOnFile] = useState({
-    ssnSet: false,
-    dateOfBirthSet: false,
-    providerUsernameSet: false,
-    providerPasswordSet: false,
-    experianEmailSet: false,
-    experianPasswordSet: false,
-    cfpbEmailSet: false,
-    cfpbPasswordSet: false,
-    typedSignatureSet: false,
-  })
+  const [secretsOnFile, setSecretsOnFile] = useState<SecretsOnFile>(emptySecretsOnFile)
 
   const currentId = draftId
   const showBusiness = requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)
@@ -166,6 +206,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
   useEffect(() => {
     if (!draftId) {
       setForm(emptyForm())
+      setSecretsOnFile(emptySecretsOnFile())
       setDocuments([])
       setApplicationId('')
       setEditable(true)
@@ -189,17 +230,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
         setDocuments(data.documents || [])
         if (data.draft) {
           setForm(mapDraftToForm(data.draft))
-          setSecretsOnFile({
-            ssnSet: Boolean(data.draft.ssnSet),
-            dateOfBirthSet: Boolean(data.draft.dateOfBirthSet),
-            providerUsernameSet: Boolean(data.draft.providerUsernameSet),
-            providerPasswordSet: Boolean(data.draft.providerPasswordSet),
-            experianEmailSet: Boolean(data.draft.experianEmailSet),
-            experianPasswordSet: Boolean(data.draft.experianPasswordSet),
-            cfpbEmailSet: Boolean(data.draft.cfpbEmailSet),
-            cfpbPasswordSet: Boolean(data.draft.cfpbPasswordSet),
-            typedSignatureSet: Boolean(data.draft.typedSignatureSet),
-          })
+          setSecretsOnFile(secretsFromDraft(data.draft))
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load draft')
@@ -233,6 +264,8 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
     providerPassword: form.providerPassword,
     experianEmail: form.experianEmail,
     experianPassword: form.experianPassword,
+    experianSecurityAnswer: form.experianSecurityAnswer,
+    experianPin: form.experianPin,
     cfpbEmail: form.cfpbEmail,
     cfpbPassword: form.cfpbPassword,
     primaryCreditGoalsText: form.primaryCreditGoalsText,
@@ -270,19 +303,9 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
       setApplicationId(data.application_id || applicationId)
       setStatus(data.status || 'draft')
       setEditable(true)
-      if (data.draft) setForm(mapDraftToForm(data.draft))
       if (data.draft) {
-        setSecretsOnFile({
-          ssnSet: Boolean(data.draft.ssnSet),
-          dateOfBirthSet: Boolean(data.draft.dateOfBirthSet),
-          providerUsernameSet: Boolean(data.draft.providerUsernameSet),
-          providerPasswordSet: Boolean(data.draft.providerPasswordSet),
-          experianEmailSet: Boolean(data.draft.experianEmailSet),
-          experianPasswordSet: Boolean(data.draft.experianPasswordSet),
-          cfpbEmailSet: Boolean(data.draft.cfpbEmailSet),
-          cfpbPasswordSet: Boolean(data.draft.cfpbPasswordSet),
-          typedSignatureSet: Boolean(data.draft.typedSignatureSet),
-        })
+        setForm(mapDraftToForm(data.draft))
+        setSecretsOnFile(secretsFromDraft(data.draft))
       }
       onSaved(data.id)
     } catch (err) {
@@ -325,19 +348,9 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
         setNotice('Finish link cancelled. Draft is editable again.')
         setStatus('draft')
         setEditable(true)
-        if (data.draft) setForm(mapDraftToForm(data.draft))
         if (data.draft) {
-          setSecretsOnFile({
-            ssnSet: Boolean(data.draft.ssnSet),
-            dateOfBirthSet: Boolean(data.draft.dateOfBirthSet),
-            providerUsernameSet: Boolean(data.draft.providerUsernameSet),
-            providerPasswordSet: Boolean(data.draft.providerPasswordSet),
-            experianEmailSet: Boolean(data.draft.experianEmailSet),
-            experianPasswordSet: Boolean(data.draft.experianPasswordSet),
-            cfpbEmailSet: Boolean(data.draft.cfpbEmailSet),
-            cfpbPasswordSet: Boolean(data.draft.cfpbPasswordSet),
-            typedSignatureSet: Boolean(data.draft.typedSignatureSet),
-          })
+          setForm(mapDraftToForm(data.draft))
+          setSecretsOnFile(secretsFromDraft(data.draft))
         }
         onSaved(currentId)
       }
@@ -479,6 +492,22 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
           <div>
             <label className={labelClass}>Experian password {secretsOnFile.experianPasswordSet ? '(leave blank to keep)' : ''}</label>
             <input className={inputClass} type="password" value={form.experianPassword} onChange={(e) => update('experianPassword', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelClass}>Experian security question answer {secretsOnFile.experianSecurityAnswerSet ? '(leave blank to keep)' : ''}</label>
+            <input className={inputClass} type="text" autoComplete="off" value={form.experianSecurityAnswer} onChange={(e) => update('experianSecurityAnswer', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelClass}>Experian 4-digit code {secretsOnFile.experianPinSet ? '(leave blank to keep)' : ''}</label>
+            <input
+              className={inputClass}
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="off"
+              value={form.experianPin}
+              onChange={(e) => update('experianPin', e.target.value.replace(/\D/g, '').slice(0, 4))}
+            />
           </div>
           <div>
             <label className={labelClass}>CFPB email</label>

@@ -182,6 +182,8 @@ function basePayload(overrides: Partial<IntakeFormPayload> = {}): IntakeFormPayl
     providerPassword: 'secret1',
     experianEmail: 'jane@example.com',
     experianPassword: 'secret1',
+    experianSecurityAnswer: 'Blue',
+    experianPin: '1234',
     cfpbEmail: 'jane@example.com',
     cfpbPassword: 'secret1',
     primaryCreditGoalsText: '',
@@ -211,6 +213,12 @@ describe('validateIntakePayload funding optional', () => {
     )
     assert.ok(err)
     assert.match(err!, /funding amount/i)
+  })
+
+  it('requires Experian security answer and 4-digit code', () => {
+    assert.match(validateIntakePayload(basePayload({ experianSecurityAnswer: '' })) || '', /security question answer/i)
+    assert.match(validateIntakePayload(basePayload({ experianPin: '' })) || '', /4-digit code/i)
+    assert.match(validateIntakePayload(basePayload({ experianPin: '12' })) || '', /4-digit code/i)
   })
 
   it('requires valid funding use enum when seeking', () => {

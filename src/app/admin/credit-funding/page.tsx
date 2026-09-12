@@ -57,6 +57,8 @@ interface ApplicationDetail {
   provider_password?: string
   experian_email?: string
   experian_password?: string
+  experian_security_answer?: string
+  experian_pin?: string
   cfpb_email?: string
   cfpb_password?: string
   credit_profile?: Record<string, unknown>
@@ -116,6 +118,8 @@ type SensitiveRevealField =
   | 'provider_password'
   | 'experian_email'
   | 'experian_password'
+  | 'experian_security_answer'
+  | 'experian_pin'
   | 'cfpb_email'
   | 'cfpb_password'
   | 'typed_signature'
@@ -1210,6 +1214,12 @@ function CreditFundingAdminContent() {
                     {renderSensitiveField('Password', 'provider_password', selected.provider_password)}
                     {renderSensitiveField('Experian.com Email', 'experian_email', selected.experian_email)}
                     {renderSensitiveField('Experian.com Password', 'experian_password', selected.experian_password)}
+                    {renderSensitiveField(
+                      'Experian security answer',
+                      'experian_security_answer',
+                      selected.experian_security_answer
+                    )}
+                    {renderSensitiveField('Experian 4-digit code', 'experian_pin', selected.experian_pin)}
                     {renderSensitiveField('CFPB Portal Email', 'cfpb_email', selected.cfpb_email)}
                     {renderSensitiveField('CFPB Portal Password', 'cfpb_password', selected.cfpb_password)}
                   </DetailSection>

@@ -39,6 +39,8 @@ export type CreditFundingSensitiveRevealField =
   | 'provider_password'
   | 'experian_email'
   | 'experian_password'
+  | 'experian_security_answer'
+  | 'experian_pin'
   | 'cfpb_email'
   | 'cfpb_password'
   | 'typed_signature'
@@ -53,6 +55,8 @@ export const CREDIT_FUNDING_REVEAL_FIELDS: readonly CreditFundingSensitiveReveal
   'provider_password',
   'experian_email',
   'experian_password',
+  'experian_security_answer',
+  'experian_pin',
   'cfpb_email',
   'cfpb_password',
   'typed_signature',
@@ -89,6 +93,10 @@ export function revealApplicationSensitiveField(
       return decrypted.experian_email || ''
     case 'experian_password':
       return decrypted.experian_password || ''
+    case 'experian_security_answer':
+      return decrypted.experian_security_answer || ''
+    case 'experian_pin':
+      return decrypted.experian_pin || ''
     case 'cfpb_email':
       return decrypted.cfpb_email || ''
     case 'cfpb_password':

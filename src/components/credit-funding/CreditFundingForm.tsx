@@ -28,6 +28,7 @@ import {
   IDENTITY_DOCUMENTS,
   BUSINESS_DOCUMENTS,
 } from '@/lib/credit-funding-document-steps'
+import { isValidExperianPin } from '@/lib/credit-funding-validation'
 import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
@@ -85,6 +86,8 @@ interface FormState {
   experianEmail: string
   experianPassword: string
   showExperianPassword: boolean
+  experianSecurityAnswer: string
+  experianPin: string
   cfpbEmail: string
   cfpbPassword: string
   showCfpbPassword: boolean
@@ -151,6 +154,8 @@ const initialState: FormState = {
   experianEmail: '',
   experianPassword: '',
   showExperianPassword: false,
+  experianSecurityAnswer: '',
+  experianPin: '',
   cfpbEmail: '',
   cfpbPassword: '',
   showCfpbPassword: false,
@@ -184,6 +189,8 @@ export default function CreditFundingForm() {
     providerPasswordSet: false,
     experianEmailSet: false,
     experianPasswordSet: false,
+    experianSecurityAnswerSet: false,
+    experianPinSet: false,
     cfpbEmailSet: false,
     cfpbPasswordSet: false,
     typedSignatureSet: false,
@@ -278,6 +285,8 @@ export default function CreditFundingForm() {
             providerPasswordSet: Boolean(p.providerPasswordSet),
             experianEmailSet: Boolean(p.experianEmailSet),
             experianPasswordSet: Boolean(p.experianPasswordSet),
+            experianSecurityAnswerSet: Boolean(p.experianSecurityAnswerSet),
+            experianPinSet: Boolean(p.experianPinSet),
             cfpbEmailSet: Boolean(p.cfpbEmailSet),
             cfpbPasswordSet: Boolean(p.cfpbPasswordSet),
             typedSignatureSet: Boolean(p.typedSignatureSet),
@@ -390,6 +399,14 @@ export default function CreditFundingForm() {
       if ((!form.experianPassword || form.experianPassword.length < 4) && !secretsOnFile.experianPasswordSet) {
         e.experianPassword = 'Required'
       }
+      if (!form.experianSecurityAnswer.trim() && !secretsOnFile.experianSecurityAnswerSet) {
+        e.experianSecurityAnswer = 'Required'
+      }
+      if (form.experianPin) {
+        if (!isValidExperianPin(form.experianPin)) e.experianPin = '4-digit code required'
+      } else if (!secretsOnFile.experianPinSet) {
+        e.experianPin = '4-digit code required'
+      }
       if (
         !secretsOnFile.cfpbEmailSet &&
         (!form.cfpbEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.cfpbEmail))
@@ -490,6 +507,8 @@ export default function CreditFundingForm() {
       fd.append('providerPassword', form.providerPassword)
       fd.append('experianEmail', form.experianEmail)
       fd.append('experianPassword', form.experianPassword)
+      fd.append('experianSecurityAnswer', form.experianSecurityAnswer)
+      fd.append('experianPin', form.experianPin)
       fd.append('cfpbEmail', form.cfpbEmail)
       fd.append('cfpbPassword', form.cfpbPassword)
       fd.append('primaryCreditGoalsText', form.primaryCreditGoalsText)
@@ -839,6 +858,40 @@ export default function CreditFundingForm() {
                       </button>
                     </div>
                     {errors.experianPassword && <p className="text-xs text-brand-red mt-1">{errors.experianPassword}</p>}
+                  </div>
+                  <div className="mb-4">
+                    <label className={labelClass} htmlFor={fid('experianSecurityAnswer')}>
+                      Experian security question answer *{onFileHint(secretsOnFile.experianSecurityAnswerSet)}
+                    </label>
+                    <input
+                      id={fid('experianSecurityAnswer')}
+                      name="experianSecurityAnswer"
+                      type="text"
+                      className={inputClass}
+                      value={form.experianSecurityAnswer}
+                      onChange={(e) => update('experianSecurityAnswer', e.target.value)}
+                      autoComplete="off"
+                    />
+                    {errors.experianSecurityAnswer && (
+                      <p className="text-xs text-brand-red mt-1">{errors.experianSecurityAnswer}</p>
+                    )}
+                  </div>
+                  <div className="mb-4">
+                    <label className={labelClass} htmlFor={fid('experianPin')}>
+                      Experian 4-digit code *{onFileHint(secretsOnFile.experianPinSet)}
+                    </label>
+                    <input
+                      id={fid('experianPin')}
+                      name="experianPin"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={4}
+                      className={inputClass}
+                      value={form.experianPin}
+                      onChange={(e) => update('experianPin', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      autoComplete="off"
+                    />
+                    {errors.experianPin && <p className="text-xs text-brand-red mt-1">{errors.experianPin}</p>}
                   </div>
                 </div>
                 <div className="mb-5 pt-4 border-t border-brand-border">

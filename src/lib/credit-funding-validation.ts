@@ -17,6 +17,15 @@ import { isValidSsn, normalizeSsnDigits } from '@/lib/ssn-utils'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const US_STATE_RE = /^[A-Z]{2}$/i
 const ZIP_RE = /^\d{5}(-\d{4})?$/
+const EXPERIAN_PIN_RE = /^\d{4}$/
+
+export function normalizeExperianPin(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 4)
+}
+
+export function isValidExperianPin(value: string): boolean {
+  return EXPERIAN_PIN_RE.test(value)
+}
 
 export interface IntakeFormPayload {
   fullName: string
@@ -34,6 +43,8 @@ export interface IntakeFormPayload {
   providerPassword: string
   experianEmail: string
   experianPassword: string
+  experianSecurityAnswer: string
+  experianPin: string
   cfpbEmail: string
   cfpbPassword: string
   primaryCreditGoalsText: string
@@ -131,6 +142,8 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
     providerPassword: str(raw.providerPassword, 200),
     experianEmail: str(raw.experianEmail, 254).toLowerCase(),
     experianPassword: str(raw.experianPassword, 200),
+    experianSecurityAnswer: str(raw.experianSecurityAnswer, 200),
+    experianPin: normalizeExperianPin(str(raw.experianPin, 8)),
     cfpbEmail: str(raw.cfpbEmail, 254).toLowerCase(),
     cfpbPassword: str(raw.cfpbPassword, 200),
     primaryCreditGoalsText: str(raw.primaryCreditGoalsText, 5000),
@@ -169,6 +182,12 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   }
   if (!payload.experianPassword || payload.experianPassword.length < 4) {
     return 'Experian.com password is required'
+  }
+  if (!payload.experianSecurityAnswer) {
+    return 'Experian security question answer is required'
+  }
+  if (!isValidExperianPin(payload.experianPin)) {
+    return 'Experian 4-digit code is required'
   }
   if (!payload.cfpbEmail || !EMAIL_RE.test(payload.cfpbEmail)) {
     return 'Valid CFPB portal email is required'
@@ -237,6 +256,9 @@ export function validateDraftPayload(payload: IntakeFormPayload): string | null 
   if (!payload.fullName.trim()) return 'Full legal name is required'
   if (!payload.email || !EMAIL_RE.test(payload.email)) return 'Valid email address is required'
   if (payload.ssn && !isValidSsn(payload.ssn)) return 'SSN must be a valid 9-digit number when provided'
+  if (payload.experianPin && !isValidExperianPin(payload.experianPin)) {
+    return 'Experian code must be 4 digits when provided'
+  }
   if (payload.email && payload.email.length > 254) return 'Email is too long'
   if (payload.state && !US_STATE_RE.test(payload.state)) return 'State must be a 2-letter code when provided'
   if (payload.zipCode && !ZIP_RE.test(payload.zipCode)) return 'ZIP code is invalid'
