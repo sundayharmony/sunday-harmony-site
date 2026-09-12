@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
+import { splitMessageTextParts } from '@/lib/message-text'
 
 interface StaffMessage {
   id: string
@@ -10,6 +12,36 @@ interface StaffMessage {
   from_role?: string
   text: string
   created_at: string
+}
+
+function apiErrorMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === 'object' && 'error' in data) {
+    const error = (data as { error?: unknown }).error
+    if (typeof error === 'string' && error.trim()) return error
+  }
+  return fallback
+}
+
+function StaffMessageBody({ text }: { text: string }) {
+  return (
+    <p className="text-sm text-brand-text whitespace-pre-wrap break-words">
+      {splitMessageTextParts(text).map((part, index) =>
+        part.type === 'link' ? (
+          <a
+            key={`${part.value}-${index}`}
+            href={part.value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent underline break-all"
+          >
+            {part.value}
+          </a>
+        ) : (
+          <span key={index}>{part.value}</span>
+        )
+      )}
+    </p>
+  )
 }
 
 export default function AdminTeamMessagesPage() {
@@ -24,7 +56,17 @@ export default function AdminTeamMessagesPage() {
 
   const loadMessages = async () => {
     const res = await fetch('/api/admin/staff-messages')
-    if (res.ok) setMessages(await res.json())
+    const data = await res.json().catch(() => null)
+    if (!res.ok) {
+      setError(apiErrorMessage(data, 'Failed to load team messages'))
+      return
+    }
+    if (Array.isArray(data)) {
+      setMessages(data)
+      setError((prev) => (prev.startsWith('Failed to send') ? prev : ''))
+    } else {
+      setError('Failed to load team messages')
+    }
   }
 
   useEffect(() => {
@@ -32,7 +74,7 @@ export default function AdminTeamMessagesPage() {
       try {
         await loadMessages()
       } catch {
-        setError('Failed to load messages')
+        setError('Failed to load team messages')
       } finally {
         setLoading(false)
       }
@@ -68,12 +110,14 @@ export default function AdminTeamMessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: msgText }),
       })
-      if (!res.ok) throw new Error('Failed to send')
-      const saved = await res.json()
+      const saved = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(apiErrorMessage(saved, 'Failed to send message. Please try again.'))
+      }
       setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? saved : m)))
       setError('')
-    } catch {
-      setError('Failed to send message. Please try again.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.')
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
       setNewMsg(msgText)
     } finally {
@@ -94,7 +138,11 @@ export default function AdminTeamMessagesPage() {
       <div className="mb-6">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Team Chat</h1>
         <p className="text-sm text-brand-muted">
-          Private messaging between admin and credit manager staff.
+          Private staff chat between admin and credit manager accounts. Client conversations belong on{' '}
+          <Link href="/admin/messages" className="text-accent underline">
+            Messages
+          </Link>
+          , not here.
         </p>
       </div>
 
@@ -144,7 +192,7 @@ export default function AdminTeamMessagesPage() {
                           : '—'}
                       </span>
                     </div>
-                    <p className="text-sm text-brand-text whitespace-pre-wrap">{msg.text}</p>
+                    <StaffMessageBody text={msg.text} />
                   </div>
                 </div>
               )
@@ -153,13 +201,20 @@ export default function AdminTeamMessagesPage() {
           <div ref={bottomRef} />
         </div>
 
-        <form onSubmit={sendMessage} className="p-3 border-t border-brand-border flex gap-3">
-          <input
-            type="text"
+        <form onSubmit={sendMessage} className="p-3 border-t border-brand-border flex gap-3 items-end">
+          <textarea
             value={newMsg}
             onChange={(e) => setNewMsg(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                e.currentTarget.form?.requestSubmit()
+              }
+            }}
             placeholder="Message your team..."
-            className="flex-1 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors"
+            rows={2}
+            maxLength={10000}
+            className="flex-1 py-2.5 px-4 bg-neutral-50 border border-brand-border rounded-xl text-brand-text text-sm outline-none focus:border-accent transition-colors resize-y min-h-[44px]"
           />
           <button
             type="submit"
