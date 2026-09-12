@@ -12,9 +12,10 @@ import {
   recordKeepingRequirements,
   bestPractices,
   comingSoonResources,
+  disputeOpsTraining,
 } from '@/lib/training-data'
 
-type Tab = 'company' | 'role' | 'workflow' | 'resources'
+type Tab = 'company' | 'role' | 'workflow' | 'dispute-ops' | 'resources'
 
 export default function TrainingPage() {
   const [tab, setTab] = useState<Tab>('company')
@@ -24,6 +25,7 @@ export default function TrainingPage() {
     ['company', 'Company'],
     ['role', 'Your Role'],
     ['workflow', 'How to Work'],
+    ['dispute-ops', 'Credit Repair / Dispute Ops'],
     ['resources', 'Resources'],
   ]
 
@@ -230,6 +232,58 @@ export default function TrainingPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'dispute-ops' && (
+        <div className="space-y-6">
+          <div className="bg-accent-soft border border-accent rounded-xl p-5">
+            <div className="text-sm font-bold text-accent mb-2">{disputeOpsTraining.title}</div>
+            <p className="text-sm text-brand-muted leading-relaxed">{disputeOpsTraining.overview}</p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-brand-text mb-4">Round 1 → N narrative</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {disputeOpsTraining.narrative.map((step) => (
+                <div key={step.round} className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
+                  <h3 className="text-sm font-bold text-brand-text mb-2">{step.round}</h3>
+                  <p className="text-xs text-brand-muted leading-relaxed">{step.summary}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-brand-text mb-4">Ops checklists</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {disputeOpsTraining.taskTemplates.map((template) => (
+                <div key={template.id} className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
+                  <h3 className="text-sm font-bold text-brand-text mb-3">{template.title}</h3>
+                  <ol className="space-y-2">
+                    {template.steps.map((step, i) => (
+                      <li key={step} className="flex items-start gap-2 text-xs text-brand-muted">
+                        <span className="text-accent font-semibold mt-0.5">{i + 1}.</span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
+            <h3 className="text-base font-bold text-brand-text mb-3">Staff tips</h3>
+            <ul className="space-y-2">
+              {disputeOpsTraining.tips.map((tip) => (
+                <li key={tip} className="flex items-start gap-2 text-xs text-brand-muted">
+                  <span className="text-accent mt-0.5">•</span>
+                  {tip}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}

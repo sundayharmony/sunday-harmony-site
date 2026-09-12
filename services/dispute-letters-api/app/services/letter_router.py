@@ -3,10 +3,18 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from difflib import SequenceMatcher
 
 from app.config import BUREAU_ADDRESSES_PATH
-from app.models import DisputePlanRequest, LetterItem, LetterPlan, LetterPlanResponse, ParsedReport, Tradeline
+from app.models import (
+    DisputePlanRequest,
+    LetterItem,
+    LetterPlan,
+    LetterPlanResponse,
+    LetterType,
+    ParsedReport,
+    Tradeline,
+    TradelineSelection,
+)
 from app.parsers.identityiq import lookup_subscriber
 from app.services.credit_health import (
     default_dispute_reason,
@@ -14,22 +22,86 @@ from app.services.credit_health import (
     removal_sort_key,
 )
 
+LETTER_META: dict[str, tuple[str, str]] = {
+    "bureau_equifax": ("FCRA §611 (15 U.S.C. §1681i)", "Equifax"),
+    "bureau_experian": ("FCRA §611 (15 U.S.C. §1681i)", "Experian"),
+    "bureau_transunion": ("FCRA §611 (15 U.S.C. §1681i)", "TransUnion"),
+    "furnisher": ("FCRA §623 (15 U.S.C. §1681s-2)", "Furnisher"),
+    "method_of_verification": (
+        "FCRA §611(a)(6)–(7) (15 U.S.C. §1681i)",
+        "Method of Verification",
+    ),
+    "warning_intent": ("FCRA §611 / §616–§617 (15 U.S.C. §1681i / §1681n–§1681o)", "Warning"),
+    "reinvestigation": ("FCRA §611 (15 U.S.C. §1681i)", "Reinvestigation"),
+    "debt_validation": ("FDCPA §809 (15 U.S.C. §1692g)", "Debt Validation"),
+    "cfpb_complaint": ("Consumer Financial Protection Act / FCRA remedies", "CFPB Complaint"),
+}
+
+
+def suggest_letter_type(
+    *,
+    item_status: str | None = None,
+    preferred: LetterType | None = None,
+    is_collection: bool = False,
+    round_number: int = 1,
+) -> LetterType:
+    """Map lifecycle outcome → follow-up letter type (staff may override)."""
+    if preferred:
+        return preferred
+    status = (item_status or "").strip().lower()
+    round_number = max(1, int(round_number or 1))
+    if status == "verified":
+        return "cfpb_complaint" if round_number >= 3 else "method_of_verification"
+    if status == "no_response":
+        return "cfpb_complaint" if round_number >= 3 else "warning_intent"
+    if status == "updated":
+        return "reinvestigation"
+    if is_collection and round_number >= 2:
+        return "debt_validation"
+    if round_number >= 3 and status == "disputed":
+        return "cfpb_complaint"
+    return "bureau_transunion"
+
 
 def build_plan(session_id: str, report: ParsedReport, request: DisputePlanRequest) -> LetterPlanResponse:
     selection_map = {s.id: s for s in request.selections}
-    selected: list[tuple[Tradeline, str]] = []
+    selected: list[tuple[Tradeline, str, TradelineSelection | None]] = []
     for tl in report.tradelines:
         sel = selection_map.get(tl.id)
         if sel and sel.selected:
             reason = _resolve_reason(tl, sel.dispute_reason)
-            selected.append((tl, reason))
-        elif tl.selected:
+            selected.append((tl, reason, sel))
+        elif not selection_map and tl.selected:
             reason = _resolve_reason(tl, tl.dispute_reason)
-            selected.append((tl, reason))
+            selected.append((tl, reason, None))
 
-    # Closed / obsolete negatives first so letters lead with clean-profile removals
     selected.sort(key=lambda pair: removal_sort_key(pair[0]))
 
+    round_number = max(1, int(request.round_number or 1))
+    one_per_bureau = (
+        request.force_one_item_per_bureau
+        if request.force_one_item_per_bureau is not None
+        else round_number >= 2
+    )
+
+    follow_up = any((sel.item_status or sel.preferred_letter_type) for _, _, sel in selected if sel)
+    if follow_up or round_number >= 2:
+        plans = _build_follow_up_plans(selected, report, request, round_number, one_per_bureau)
+        if plans:
+            return LetterPlanResponse(session_id=session_id, plans=plans)
+
+    return LetterPlanResponse(
+        session_id=session_id,
+        plans=_build_round1_plans(selected, report, request, one_per_bureau),
+    )
+
+
+def _build_round1_plans(
+    selected: list[tuple[Tradeline, str, TradelineSelection | None]],
+    report: ParsedReport,
+    request: DisputePlanRequest,
+    one_per_bureau: bool,
+) -> list[LetterPlan]:
     bureau_addrs = json.loads(BUREAU_ADDRESSES_PATH.read_text(encoding="utf-8"))
     plans: list[LetterPlan] = []
 
@@ -39,7 +111,7 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
         ("transunion", "TUC", "bureau_transunion"),
     ]:
         items: list[LetterItem] = []
-        for tl, reason in selected:
+        for tl, reason, _sel in selected:
             targets = tl.dispute_bureaus or tl.bureaus
             if bureau_code not in targets:
                 continue
@@ -55,6 +127,8 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
                     dispute_reason=_prefer_deletion_reason(tl, reason),
                 )
             )
+            if one_per_bureau and items:
+                break
         if items:
             addr = bureau_addrs[bureau_key]
             plans.append(
@@ -69,13 +143,13 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
             )
 
     by_creditor: dict[str, list[tuple[Tradeline, str]]] = {}
-    for tl, reason in selected:
+    for tl, reason, _sel in selected:
         if not tl.dispute_furnisher:
             continue
         key = _normalize_creditor(tl.creditor)
         by_creditor.setdefault(key, []).append((tl, reason))
 
-    for cred_key, group in by_creditor.items():
+    for _cred_key, group in by_creditor.items():
         sample_tl = group[0][0]
         override = request.furnisher_address_overrides.get(sample_tl.creditor)
         sub = lookup_subscriber(sample_tl.creditor, report.subscribers)
@@ -91,7 +165,7 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
                 balance=tl.balance,
                 dispute_reason=_prefer_deletion_reason(tl, reason),
             )
-            for tl, reason in group
+            for tl, reason in (group[:1] if one_per_bureau else group)
         ]
         plans.append(
             LetterPlan(
@@ -105,7 +179,137 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
             )
         )
 
-    return LetterPlanResponse(session_id=session_id, plans=plans)
+    return plans
+
+
+def _build_follow_up_plans(
+    selected: list[tuple[Tradeline, str, TradelineSelection | None]],
+    report: ParsedReport,
+    request: DisputePlanRequest,
+    round_number: int,
+    one_per_bureau: bool,
+) -> list[LetterPlan]:
+    bureau_addrs = json.loads(BUREAU_ADDRESSES_PATH.read_text(encoding="utf-8"))
+    plans: list[LetterPlan] = []
+    used_bureau: set[str] = set()
+
+    for tl, reason, sel in selected:
+        letter_type = suggest_letter_type(
+            item_status=sel.item_status if sel else None,
+            preferred=sel.preferred_letter_type if sel else None,
+            is_collection=bool(tl.is_collection),
+            round_number=round_number,
+        )
+        statute, _label = LETTER_META.get(letter_type, ("FCRA §611 (15 U.S.C. §1681i)", letter_type))
+        targets = list(tl.dispute_bureaus or tl.bureaus or ["TUC"])
+
+        if letter_type in {
+            "method_of_verification",
+            "warning_intent",
+            "reinvestigation",
+            "bureau_equifax",
+            "bureau_experian",
+            "bureau_transunion",
+        }:
+            for bureau_code in targets:
+                if one_per_bureau and bureau_code in used_bureau:
+                    continue
+                bureau_key = {"EQF": "equifax", "EXP": "experian", "TUC": "transunion"}.get(bureau_code)
+                if not bureau_key:
+                    continue
+                addr = bureau_addrs[bureau_key]
+                acct = {
+                    "TUC": tl.account_tu,
+                    "EXP": tl.account_exp,
+                    "EQF": tl.account_eqf,
+                }.get(bureau_code, "")
+                typed: LetterType = letter_type
+                if letter_type.startswith("bureau_"):
+                    typed = {
+                        "EQF": "bureau_equifax",
+                        "EXP": "bureau_experian",
+                        "TUC": "bureau_transunion",
+                    }[bureau_code]  # type: ignore[assignment]
+                plans.append(
+                    LetterPlan(
+                        id=str(uuid.uuid4()),
+                        letter_type=typed,
+                        recipient_name=addr["name"],
+                        recipient_lines=addr["lines"],
+                        statute=statute,
+                        items=[
+                            LetterItem(
+                                tradeline_id=tl.id,
+                                creditor=tl.creditor,
+                                account_number=acct,
+                                bureau=bureau_code,
+                                status=tl.status,
+                                balance=tl.balance,
+                                dispute_reason=_prefer_deletion_reason(tl, reason),
+                            )
+                        ],
+                    )
+                )
+                used_bureau.add(bureau_code)
+                if one_per_bureau:
+                    break
+            continue
+
+        if letter_type == "debt_validation":
+            override = request.furnisher_address_overrides.get(tl.creditor)
+            sub = lookup_subscriber(tl.creditor, report.subscribers)
+            lines = override or (sub.address_lines if sub else [])
+            name = sub.name if sub else tl.creditor
+            plans.append(
+                LetterPlan(
+                    id=str(uuid.uuid4()),
+                    letter_type="debt_validation",
+                    recipient_name=name,
+                    recipient_lines=lines,
+                    statute=statute,
+                    items=[
+                        LetterItem(
+                            tradeline_id=tl.id,
+                            creditor=tl.creditor,
+                            account_number=tl.account_tu or tl.account_exp or tl.account_eqf,
+                            bureau=",".join(tl.bureaus),
+                            status=tl.status,
+                            balance=tl.balance,
+                            dispute_reason=_prefer_deletion_reason(tl, reason),
+                        )
+                    ],
+                    missing_address=not lines,
+                )
+            )
+            continue
+
+        if letter_type == "cfpb_complaint":
+            plans.append(
+                LetterPlan(
+                    id=str(uuid.uuid4()),
+                    letter_type="cfpb_complaint",
+                    recipient_name="Consumer Financial Protection Bureau",
+                    recipient_lines=[
+                        "Consumer Financial Protection Bureau",
+                        "P.O. Box 2900",
+                        "Clinton, IA 52733-2900",
+                    ],
+                    statute=statute,
+                    items=[
+                        LetterItem(
+                            tradeline_id=tl.id,
+                            creditor=tl.creditor,
+                            account_number=tl.account_tu or tl.account_exp or tl.account_eqf,
+                            bureau=",".join(tl.bureaus),
+                            status=tl.status,
+                            balance=tl.balance,
+                            dispute_reason=_prefer_deletion_reason(tl, reason),
+                        )
+                    ],
+                )
+            )
+
+    return plans
 
 
 def _resolve_reason(tl: Tradeline, selection_reason: str) -> str:

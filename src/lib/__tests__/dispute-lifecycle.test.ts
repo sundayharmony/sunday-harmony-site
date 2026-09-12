@@ -2,6 +2,8 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   ROUND_1_MAX_ITEMS_PER_BUREAU,
+  buildCfpbComplaintDraft,
+  computeDeadlineAt,
   countSelectionsPerBureau,
   disputeLettersZipDownloadNameForRound,
   enforceRound1BureauCaps,
@@ -9,6 +11,7 @@ import {
   isRoundClosedForNext,
   nextRoundNumber,
   pendingQueueFromItems,
+  suggestFollowUpLetterType,
   type DisputeItemRow,
   type RoundSelectionInput,
 } from '../dispute-letters/dispute-lifecycle'
@@ -182,5 +185,69 @@ describe('dispute lifecycle rounds', () => {
       'Jane Doe round 2 Letters.zip'
     )
     assert.equal(disputeLettersZipDownloadNameForRound('', 0), 'Client round 1 Letters.zip')
+  })
+
+  it('suggests follow-up letter types from item status and round', () => {
+    assert.equal(
+      suggestFollowUpLetterType({ itemStatus: 'verified', roundNumber: 2 }),
+      'method_of_verification'
+    )
+    assert.equal(
+      suggestFollowUpLetterType({ itemStatus: 'verified', roundNumber: 3 }),
+      'cfpb_complaint'
+    )
+    assert.equal(
+      suggestFollowUpLetterType({ itemStatus: 'no_response', roundNumber: 2 }),
+      'warning_intent'
+    )
+    assert.equal(
+      suggestFollowUpLetterType({ itemStatus: 'updated', roundNumber: 2 }),
+      'reinvestigation'
+    )
+    assert.equal(
+      suggestFollowUpLetterType({ isCollection: true, roundNumber: 2 }),
+      'debt_validation'
+    )
+    assert.equal(
+      suggestFollowUpLetterType({
+        itemStatus: 'verified',
+        preferred: 'furnisher',
+        roundNumber: 3,
+      }),
+      'furnisher'
+    )
+  })
+
+  it('computes bureau response deadlines from delivery or mail date', () => {
+    assert.equal(computeDeadlineAt({}), null)
+    const fromDelivery = computeDeadlineAt({
+      deliveredAt: '2026-01-01T12:00:00.000Z',
+      mailedAt: '2025-12-20T12:00:00.000Z',
+    })
+    assert.equal(fromDelivery, '2026-01-31T12:00:00.000Z')
+    const fromMail = computeDeadlineAt({ mailedAt: '2026-02-01T08:00:00.000Z' })
+    assert.equal(fromMail, '2026-03-03T08:00:00.000Z')
+  })
+
+  it('builds a CFPB complaint draft from unresolved items', () => {
+    const draft = buildCfpbComplaintDraft({
+      consumerName: 'Alex Consumer',
+      items: [
+        {
+          creditorName: 'Capital One',
+          accountLast4: '1234',
+          bureau: 'TUC',
+          currentStatus: 'verified',
+          notes: 'Still on file',
+        },
+      ],
+      roundSummary: 'Round 2 mailed; no deletion.',
+    })
+    assert.match(draft, /# CFPB complaint draft — Alex Consumer/)
+    assert.match(draft, /Capital One ···1234 \(TUC\)/)
+    assert.match(draft, /status: verified/)
+    assert.match(draft, /Still on file/)
+    assert.match(draft, /Round 2 mailed/)
+    assert.match(draft, /consumerfinance\.gov/)
   })
 })
