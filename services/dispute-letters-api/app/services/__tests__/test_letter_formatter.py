@@ -41,6 +41,10 @@ def test_layout_puts_date_in_header_not_body():
     assert "September 12, 2026" not in body_text
     assert any(block.get("variant") == "name" and block.get("text") == "WIDJI SELPHIN" for block in layout["blocks"])
     assert any(block.get("variant") == "heading" and block.get("text") == "Consumer Identification" for block in layout["blocks"])
+    assert any(
+        block.get("variant") == "field" and str(block.get("text", "")).startswith("Full Name:")
+        for block in layout["blocks"]
+    )
     assert any(block["kind"] == "bullet" for block in layout["blocks"])
 
 

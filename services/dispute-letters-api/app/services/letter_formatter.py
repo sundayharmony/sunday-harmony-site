@@ -93,6 +93,8 @@ def _is_section_heading(line: str) -> bool:
     stripped = line.strip()
     if not stripped or stripped.endswith(":") or "**" in stripped:
         return False
+    if _is_field_label_line(stripped):
+        return False
     if stripped in SECTION_HEADINGS:
         return True
     if any(c.isdigit() for c in stripped):
