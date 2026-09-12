@@ -219,6 +219,55 @@ function normalizeFieldValue(value: string | undefined | null): string {
   return (value || '').trim()
 }
 
+const BUREAU_PREFIX_RE = /\b(exp|eqf|tu|tuc|experian|equifax|transunion)\b:?/gi
+
+export function normalizeStatusRemark(value: string): string {
+  return (value || '')
+    .toLowerCase()
+    .replace(BUREAU_PREFIX_RE, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function hasDerogatoryCreditEvent(normalized: string): boolean {
+  const withoutNeverLate = normalized
+    .replace(/\bnever late\b/g, ' ')
+    .replace(/\bno late(?:s| payments?)?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return /charge ?off|collection|delinq|past due|\blate\b|reposs|foreclos|settlement|profit and loss|placed for collection/.test(
+    withoutNeverLate
+  )
+}
+
+function isClosedAccountWording(normalized: string): boolean {
+  return (
+    /\bclosed\b/.test(normalized) ||
+    /\bpaid in full\b/.test(normalized) ||
+    /\bpaid off\b/.test(normalized)
+  )
+}
+
+/**
+ * Bureau closed-account remarks that describe the same non-derogatory outcome
+ * ("Closed; Paid satisfactorily" ≈ "Closed/Never late",
+ *  "EXP: Account closed at credit grantor…" ≈ "Closed due to inactivity").
+ */
+export function statusRemarksEquivalent(from: string, to: string): boolean {
+  if (from === to) return true
+  const a = normalizeStatusRemark(from)
+  const b = normalizeStatusRemark(to)
+  if (!a || !b) return false
+  if (a === b) return true
+  return (
+    isClosedAccountWording(a) &&
+    isClosedAccountWording(b) &&
+    !hasDerogatoryCreditEvent(a) &&
+    !hasDerogatoryCreditEvent(b)
+  )
+}
+
 function isInquiryTradeline(tl: Tradeline): boolean {
   const blob = `${tl.account_type} ${tl.item_category} ${tl.status} ${tl.remarks}`.toLowerCase()
   return /inquir/.test(blob)
@@ -318,6 +367,8 @@ function meaningfulFieldChange(
 
     // Same underlying date(s), different prose → ignore
     if (datesOverlap(from, to)) return false
+
+    if (statusRemarksEquivalent(from, to)) return false
 
     // Both describe paying as agreed / current / open — cosmetic
     const payOk = (s: string) =>

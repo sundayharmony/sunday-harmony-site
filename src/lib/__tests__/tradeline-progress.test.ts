@@ -4,6 +4,7 @@ import {
   accountDigits,
   creditorsSimilar,
   diffTradelinesForBureau,
+  statusRemarksEquivalent,
   tradelineMatchKey,
 } from '../dispute-letters/tradeline-progress'
 import type { ParsedReport, Tradeline } from '../dispute-letters/types'
@@ -379,5 +380,58 @@ describe('creditorsSimilar', () => {
     assert.equal(creditorsSimilar('BRIDGETON', 'BRIDGETON ONIZED F C U'), true)
     assert.equal(creditorsSimilar('KIKOFF', 'KIKOFF LENDING LLC'), true)
     assert.equal(creditorsSimilar('Capital One', 'Midland Funding'), false)
+  })
+})
+
+describe('closed-account remark wording', () => {
+  it('treats paid-satisfactorily / never-late / grantor-closed / inactivity as the same', () => {
+    assert.equal(
+      statusRemarksEquivalent('Closed; Paid satisfactorily', 'Closed/Never late'),
+      true
+    )
+    assert.equal(
+      statusRemarksEquivalent('EXP: Account closed at credit gra...', 'Closed due to inactivity'),
+      true
+    )
+    assert.equal(
+      statusRemarksEquivalent('Account closed at credit grantor request', 'Closed due to inactivity'),
+      true
+    )
+  })
+
+  it('still flags a real derogatory shift or an open-to-closed change', () => {
+    assert.equal(
+      statusRemarksEquivalent('Closed; Paid satisfactorily', 'Closed; 30 days late'),
+      false
+    )
+    assert.equal(statusRemarksEquivalent('Open/Current', 'Closed/Never late'), false)
+    assert.equal(statusRemarksEquivalent('Closed due to inactivity', 'Charge-off'), false)
+  })
+
+  it('does not list equivalent closed remarks as tradeline changes', () => {
+    const prev = report([
+      tl({
+        id: '1',
+        creditor: 'Old Navy',
+        account_exp: '****1859',
+        status: 'Closed; Paid satisfactorily',
+        remarks: 'EXP: Account closed at credit gra...',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const curr = report([
+      tl({
+        id: '1b',
+        creditor: 'Old Navy',
+        account_exp: 'XXXX1859',
+        status: 'Closed/Never late',
+        remarks: 'Closed due to inactivity',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const diff = diffTradelinesForBureau(prev, curr, 'EXP')
+    assert.equal(diff.removed.length, 0)
+    assert.equal(diff.added.length, 0)
+    assert.equal(diff.changed.length, 0)
   })
 })
