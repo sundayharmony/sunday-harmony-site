@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   isSafeHttpUrl,
+  safeHttpHref,
   splitMessageTextParts,
   staffMessageSetupError,
   STAFF_MESSAGES_SETUP_ERROR,
@@ -35,7 +36,9 @@ describe('team chat message text', () => {
 
   it('rejects non-http schemes', () => {
     assert.equal(isSafeHttpUrl('javascript:alert(1)'), false)
+    assert.equal(safeHttpHref('javascript:alert(1)'), null)
     assert.equal(isSafeHttpUrl('https://sundayharmony.com/admin'), true)
+    assert.equal(safeHttpHref('https://sundayharmony.com/admin'), 'https://sundayharmony.com/admin')
     const parts = splitMessageTextParts('click javascript:alert(1)')
     assert.deepEqual(parts, [{ type: 'text', value: 'click javascript:alert(1)' }])
   })
@@ -114,6 +117,7 @@ describe('staff-messages API wiring', () => {
     const page = readFileSync('src/app/admin/team-messages/page.tsx', 'utf8')
     const db = readFileSync('src/lib/db.ts', 'utf8')
     assert.match(page, /splitMessageTextParts/)
+    assert.match(page, /safeHttpHref/)
     assert.match(page, /<textarea/)
     assert.match(page, /\/admin\/messages/)
     assert.match(page, /apiErrorMessage/)

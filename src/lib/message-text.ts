@@ -4,13 +4,19 @@ function trimTrailingPunctuation(url: string): string {
   return url.replace(/[),.;!?]+$/g, '')
 }
 
-export function isSafeHttpUrl(value: string): boolean {
+/** Return a protocol-checked http(s) href, or null. Use this at render sinks. */
+export function safeHttpHref(value: string): string | null {
   try {
     const parsed = new URL(value)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.href
   } catch {
-    return false
+    return null
   }
+}
+
+export function isSafeHttpUrl(value: string): boolean {
+  return safeHttpHref(value) !== null
 }
 
 export type MessageTextPart =
@@ -30,8 +36,9 @@ export function splitMessageTextParts(text: string): MessageTextPart[] {
     if (start > lastIndex) {
       parts.push({ type: 'text', value: text.slice(lastIndex, start) })
     }
-    if (isSafeHttpUrl(url)) {
-      parts.push({ type: 'link', value: url })
+    const href = safeHttpHref(url)
+    if (href) {
+      parts.push({ type: 'link', value: href })
       if (url.length < raw.length) {
         parts.push({ type: 'text', value: raw.slice(url.length) })
       }

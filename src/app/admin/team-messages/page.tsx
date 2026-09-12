@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { splitMessageTextParts } from '@/lib/message-text'
+import { safeHttpHref, splitMessageTextParts } from '@/lib/message-text'
 
 interface StaffMessage {
   id: string
@@ -25,21 +25,23 @@ function apiErrorMessage(data: unknown, fallback: string): string {
 function StaffMessageBody({ text }: { text: string }) {
   return (
     <p className="text-sm text-brand-text whitespace-pre-wrap break-words">
-      {splitMessageTextParts(text).map((part, index) =>
-        part.type === 'link' ? (
-          <a
-            key={`${part.value}-${index}`}
-            href={part.value}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent underline break-all"
-          >
-            {part.value}
-          </a>
-        ) : (
-          <span key={index}>{part.value}</span>
-        )
-      )}
+      {splitMessageTextParts(text).map((part, index) => {
+        const href = part.type === 'link' ? safeHttpHref(part.value) : null
+        if (href) {
+          return (
+            <a
+              key={`${href}-${index}`}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent underline break-all"
+            >
+              {href}
+            </a>
+          )
+        }
+        return <span key={index}>{part.value}</span>
+      })}
     </p>
   )
 }
