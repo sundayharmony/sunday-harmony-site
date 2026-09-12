@@ -23,6 +23,7 @@ from app.db import (
     get_session_row,
     init_db,
     list_letters,
+    prepare_session_letters_for_generation,
     save_letter,
     save_letter_plan,
     set_session_status,
@@ -433,6 +434,9 @@ async def generate_letters_stream(
         plans = plan_resp.plans
         if body.plan_ids:
             plans = [p for p in plans if p.id in body.plan_ids]
+        prepare_session_letters_for_generation(
+            body.session_id, plans, replacing_all=not body.plan_ids
+        )
 
         total = len(plans)
         for i, plan in enumerate(plans, 1):
@@ -470,6 +474,9 @@ def generate_letters(body: GenerateLettersRequest, _: None = Depends(verify_inte
     plans = plan_resp.plans
     if body.plan_ids:
         plans = [p for p in plans if p.id in body.plan_ids]
+    prepare_session_letters_for_generation(
+        body.session_id, plans, replacing_all=not body.plan_ids
+    )
 
     generated: list[GeneratedLetter] = []
     for plan in plans:

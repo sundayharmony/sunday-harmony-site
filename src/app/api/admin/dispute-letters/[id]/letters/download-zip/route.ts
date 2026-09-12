@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch, disputeLettersJson } from '@/lib/dispute-letters/api-client'
+import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import { getDisputeSession } from '@/lib/dispute-letters/db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { disputeLettersZipDownloadName } from '@/lib/dispute-letters-storage'
@@ -12,7 +13,7 @@ export const maxDuration = 60
 
 type Params = { params: Promise<{ id: string }> }
 
-type LetterListItem = { id: string; title?: string }
+type LetterListItem = { id: string; title?: string; plan_id?: string }
 
 export async function GET(_request: NextRequest, { params }: Params) {
   const session = await requireCreditFundingStaffSession()
@@ -27,7 +28,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
   try {
     const payload = await disputeLettersJson<{ letters: LetterListItem[] }>(`/internal/letters/${id}`)
-    const letters = payload.letters || []
+    const letters = currentLetters(payload.letters || [])
     if (!letters.length) {
       return NextResponse.json({ error: 'No letters' }, { status: 404 })
     }

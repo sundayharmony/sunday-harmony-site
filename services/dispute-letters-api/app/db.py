@@ -4,7 +4,8 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from app.models import GeneratedLetter, LetterPlanResponse, ParsedReport
+from app.models import GeneratedLetter, LetterPlan, LetterPlanResponse, ParsedReport
+from app.services.letter_current import current_letters, superseded_letter_ids
 from app.supabase_client import get_supabase
 
 
@@ -85,8 +86,6 @@ def get_letter_plan(session_id: str) -> LetterPlanResponse | None:
     data = row.data
     if not data or not data.get("plans_json"):
         return None
-    from app.models import LetterPlan
-
     plans = [LetterPlan.model_validate(p) for p in data["plans_json"]]
     return LetterPlanResponse(session_id=session_id, plans=plans)
 
@@ -103,6 +102,8 @@ def save_letter(
     lid = letter_id or str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     client = get_supabase()
+    # Replace the prior file for this plan instead of appending a new copy.
+    client.table("dispute_letters").delete().eq("session_id", session_id).eq("plan_id", plan_id).execute()
     client.table("dispute_letters").insert(
         {
             "id": lid,
@@ -117,7 +118,17 @@ def save_letter(
     return lid
 
 
-def list_letters(session_id: str) -> list[GeneratedLetter]:
+def _letter_from_row(row: dict) -> GeneratedLetter:
+    return GeneratedLetter(
+        id=row["id"],
+        plan_id=row["plan_id"],
+        title=row["title"],
+        markdown=row["markdown"],
+        file_path=row.get("storage_path") or "",
+    )
+
+
+def list_letter_rows(session_id: str) -> list[GeneratedLetter]:
     client = get_supabase()
     rows = (
         client.table("dispute_letters")
@@ -126,16 +137,28 @@ def list_letters(session_id: str) -> list[GeneratedLetter]:
         .order("created_at")
         .execute()
     )
-    return [
-        GeneratedLetter(
-            id=r["id"],
-            plan_id=r["plan_id"],
-            title=r["title"],
-            markdown=r["markdown"],
-            file_path=r.get("storage_path") or "",
-        )
-        for r in (rows.data or [])
-    ]
+    return [_letter_from_row(r) for r in (rows.data or [])]
+
+
+def list_letters(session_id: str) -> list[GeneratedLetter]:
+    """Current letters only — one file per recipient/plan, latest generation wins."""
+    return current_letters(list_letter_rows(session_id))
+
+
+def prepare_session_letters_for_generation(
+    session_id: str,
+    plans: list[LetterPlan],
+    *,
+    replacing_all: bool,
+) -> None:
+    """Drop prior generations so regenerate replaces files instead of appending copies."""
+    if replacing_all:
+        clear_session_letters(session_id)
+        return
+    ids = superseded_letter_ids(list_letter_rows(session_id), plans)
+    if not ids:
+        return
+    get_supabase().table("dispute_letters").delete().eq("session_id", session_id).in_("id", ids).execute()
 
 
 def get_letter(session_id: str, letter_id: str) -> GeneratedLetter | None:
@@ -151,13 +174,7 @@ def get_letter(session_id: str, letter_id: str) -> GeneratedLetter | None:
     data = row.data
     if not data:
         return None
-    return GeneratedLetter(
-        id=data["id"],
-        plan_id=data["plan_id"],
-        title=data["title"],
-        markdown=data["markdown"],
-        file_path=data.get("storage_path") or "",
-    )
+    return _letter_from_row(data)
 
 
 def clear_session_letters(session_id: str) -> None:
