@@ -21,8 +21,8 @@ startup. Standard scripts live in `package.json`; the CI pipeline is
   skipped and the DB write is caught/ignored). See `src/app/api/contact/route.ts`.
 - Features that need external services degrade gracefully or return errors when
   their env vars are unset: Supabase (admin/client portals, leads persistence),
-  Stripe (billing), Google Places (admin leads discovery, returns 503), Gemini
-  (marketing graphics), and the dispute-letters API. Configure the relevant
+  Stripe (billing), Google Places (admin leads discovery, returns 503), and the
+  dispute-letters API. Configure the relevant
   vars from `.env.example` in a `.env.local` only when working on those areas.
 
 ### Testing / quality
