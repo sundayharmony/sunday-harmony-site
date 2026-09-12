@@ -16,6 +16,7 @@ import {
   DOCUMENT_TYPES,
   STATUS_LABELS,
   documentDisplayLabel,
+  establishedMonthLabel,
   needsFundingWorkflow,
   type ApplicationStatus,
   type FundingScores,
@@ -1231,6 +1232,12 @@ function CreditFundingAdminContent() {
                       {renderSensitiveField('EIN', 'business_ein', String(selected.business_profile.ein || ''))}
                       <DetailField label="Entity Type" value={String(selected.business_profile.entityType || '')} />
                       <DetailField label="Industry" value={String(selected.business_profile.industry || '')} />
+                      <DetailField
+                        label="Month Opened"
+                        value={
+                          establishedMonthLabel(String(selected.business_profile.monthEstablished || '')) || '—'
+                        }
+                      />
                       <DetailField label="Year Established" value={String(selected.business_profile.yearEstablished || '')} />
                       <DetailField label="Employees" value={String(selected.business_profile.numberOfEmployees || '')} />
                       <DetailField label="Annual Revenue" value={String(selected.business_profile.annualRevenue || '')} />

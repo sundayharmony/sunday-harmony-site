@@ -2,6 +2,7 @@
 
 import {
   ENTITY_TYPES,
+  ESTABLISHED_MONTHS,
   FUNDING_PURPOSE_OPTIONS,
   type BusinessProfile,
 } from '@/lib/credit-funding-types'
@@ -127,8 +128,34 @@ export default function BusinessInfoSection({ profile, onChange, errors }: Props
           {errors.entityType && <p className="text-xs text-brand-red mt-1">{errors.entityType}</p>}
         </div>
         <div>
-          <label className={labelClass}>Year Established</label>
-          <input className={inputClass} value={profile.yearEstablished || ''} onChange={(e) => set('yearEstablished', e.target.value)} />
+          <label className={labelClass} htmlFor={bpf('monthEstablished')}>Month Opened *</label>
+          <select
+            id={bpf('monthEstablished')}
+            name="monthEstablished"
+            className={inputClass}
+            value={profile.monthEstablished || ''}
+            onChange={(e) => set('monthEstablished', e.target.value)}
+          >
+            <option value="">Select month</option>
+            {ESTABLISHED_MONTHS.map((month) => (
+              <option key={month.value} value={month.value}>{month.label}</option>
+            ))}
+          </select>
+          {errors.monthEstablished && <p className="text-xs text-brand-red mt-1">{errors.monthEstablished}</p>}
+        </div>
+        <div>
+          <label className={labelClass} htmlFor={bpf('yearEstablished')}>Year Established *</label>
+          <input
+            id={bpf('yearEstablished')}
+            name="yearEstablished"
+            className={inputClass}
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="YYYY"
+            value={profile.yearEstablished || ''}
+            onChange={(e) => set('yearEstablished', e.target.value.replace(/\D/g, '').slice(0, 4))}
+          />
+          {errors.yearEstablished && <p className="text-xs text-brand-red mt-1">{errors.yearEstablished}</p>}
         </div>
         <div>
           <label className={labelClass}>Number of Employees</label>

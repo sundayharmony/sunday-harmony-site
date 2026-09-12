@@ -249,6 +249,71 @@ export function resolveWorkflowDisplayStatus(
   return status
 }
 
+export const ESTABLISHED_MONTHS = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+] as const
+
+export type EstablishedMonth = (typeof ESTABLISHED_MONTHS)[number]['value']
+
+const MONTH_NAME_ALIASES: Record<string, EstablishedMonth> = {
+  january: '01',
+  jan: '01',
+  february: '02',
+  feb: '02',
+  march: '03',
+  mar: '03',
+  april: '04',
+  apr: '04',
+  may: '05',
+  june: '06',
+  jun: '06',
+  july: '07',
+  jul: '07',
+  august: '08',
+  aug: '08',
+  september: '09',
+  sep: '09',
+  sept: '09',
+  october: '10',
+  oct: '10',
+  november: '11',
+  nov: '11',
+  december: '12',
+  dec: '12',
+}
+
+export function parseEstablishedMonth(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const value = raw.trim()
+  if (!value) return ''
+  if (/^(0?[1-9]|1[0-2])$/.test(value)) return value.padStart(2, '0')
+  return MONTH_NAME_ALIASES[value.toLowerCase()] || ''
+}
+
+export function establishedMonthLabel(value?: string | null): string {
+  const month = parseEstablishedMonth(value || '')
+  return ESTABLISHED_MONTHS.find((item) => item.value === month)?.label || ''
+}
+
+export function formatBusinessOpened(month?: string | null, year?: string | null): string {
+  const yearText = typeof year === 'string' ? year.trim() : ''
+  const monthLabel = establishedMonthLabel(month)
+  if (monthLabel && yearText) return `${monthLabel} ${yearText}`
+  if (monthLabel) return monthLabel
+  return yearText
+}
+
 export const ENTITY_TYPES = [
   'Sole Proprietorship',
   'LLC',
@@ -387,6 +452,8 @@ export interface BusinessProfile {
   industry?: string
   entityType?: string
   yearEstablished?: string
+  /** Calendar month the business opened, `01`–`12`. */
+  monthEstablished?: string
   numberOfEmployees?: string
   annualRevenue?: string
   businessDescription?: string

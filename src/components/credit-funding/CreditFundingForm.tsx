@@ -111,6 +111,8 @@ function validateBusinessFields(bp: BusinessProfile, errors: Record<string, stri
   if (!bp.state?.trim() || bp.state.length !== 2) errors.businessState = '2-letter state'
   if (!bp.industry?.trim()) errors.industry = 'Required'
   if (!bp.entityType) errors.entityType = 'Required'
+  if (!bp.monthEstablished) errors.monthEstablished = 'Required'
+  if (!/^(19|20)\d{2}$/.test(bp.yearEstablished || '')) errors.yearEstablished = 'Required'
   if (!bp.fundingPurposes?.length) errors.fundingPurposes = 'Select at least one purpose'
 }
 
@@ -122,6 +124,8 @@ const BUSINESS_FIELD_ERROR_KEYS = [
   'businessState',
   'industry',
   'entityType',
+  'monthEstablished',
+  'yearEstablished',
   'fundingPurposes',
 ] as const
 
