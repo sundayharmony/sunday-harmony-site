@@ -38,8 +38,9 @@ describe('validateDisputeReportFile', () => {
 })
 
 describe('disputeLettersZipDownloadName', () => {
-  it('uses consumer name with round 1 suffix', () => {
+  it('uses consumer name with round suffix', () => {
     assert.equal(disputeLettersZipDownloadName('Jane Doe'), 'Jane Doe round 1 Letters.zip')
+    assert.equal(disputeLettersZipDownloadName('Jane Doe', 3), 'Jane Doe round 3 Letters.zip')
   })
 
   it('falls back when name is missing', () => {

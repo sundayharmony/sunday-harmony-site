@@ -240,12 +240,16 @@ export function newDisputeSessionId(): string {
 }
 
 /** Safe download filename for the generated letters ZIP bundle. */
-export function disputeLettersZipDownloadName(consumerName: string | null | undefined): string {
+export function disputeLettersZipDownloadName(
+  consumerName: string | null | undefined,
+  roundNumber: number = 1
+): string {
   const cleaned =
     (consumerName || 'Client')
       .trim()
       .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '')
       .replace(/\s+/g, ' ')
       .slice(0, 80) || 'Client'
-  return `${cleaned} round 1 Letters.zip`
+  const round = Number.isFinite(roundNumber) && roundNumber >= 1 ? Math.floor(roundNumber) : 1
+  return `${cleaned} round ${round} Letters.zip`
 }

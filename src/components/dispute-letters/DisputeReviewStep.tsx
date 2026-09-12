@@ -16,6 +16,11 @@ import {
   type BureauCode,
   type Tradeline,
 } from '@/lib/dispute-letters/types'
+import {
+  ROUND_1_MAX_ITEMS_PER_BUREAU,
+  enforceRound1BureauCaps,
+  expandTradelineSelections,
+} from '@/lib/dispute-letters/dispute-lifecycle'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 
@@ -81,6 +86,11 @@ export default function DisputeReviewStep({
     )
   }, [tradelines, filter])
 
+  const round1Cap = useMemo(
+    () => enforceRound1BureauCaps(expandTradelineSelections(tradelines)),
+    [tradelines]
+  )
+
   const recommended = filtered.filter((t) => t.repair_priority !== 'none')
   const optional = filtered.filter((t) => t.repair_priority === 'none')
 
@@ -122,6 +132,11 @@ export default function DisputeReviewStep({
     setLoading(true)
     setError('')
     try {
+      if (!round1Cap.ok) {
+        setError(round1Cap.message || 'Too many Round 1 items per bureau.')
+        setLoading(false)
+        return
+      }
       await patchDisputeTradelines(sessionId, tradelines)
       const selections = tradelines
         .filter((t) => t.selected)
@@ -139,7 +154,7 @@ export default function DisputeReviewStep({
         setLoading(false)
         return
       }
-      await buildDisputePlan(sessionId, selections, {})
+      await buildDisputePlan(sessionId, selections, {}, tradelines)
       if (onStepChange) onStepChange('confirm')
       else window.location.assign(disputeLettersStandaloneHref(sessionId, 'confirm'))
     } catch (e) {
@@ -221,6 +236,12 @@ export default function DisputeReviewStep({
         <div className="space-y-8">
           {renderGroup('Dispute recommended', recommended)}
           {renderGroup('Optional / positive accounts', optional)}
+        </div>
+      )}
+
+      {round1Cap && !round1Cap.ok && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Round 1 cap: max {ROUND_1_MAX_ITEMS_PER_BUREAU} items per bureau. {round1Cap.message}
         </div>
       )}
 

@@ -5,6 +5,7 @@ import { BureauScoresPanel } from '@/components/dispute-letters/BureauScoresPane
 import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
 import CreditProgressPanel from '@/components/dispute-letters/CreditProgressPanel'
 import DisputeLettersWorkflow from '@/components/dispute-letters/DisputeLettersWorkflow'
+import DisputeRoundsPanel from '@/components/dispute-letters/DisputeRoundsPanel'
 import { ProgressPanel } from '@/components/dispute-letters/ProgressPanel'
 import { DISPUTE_LETTER_MAX_MB } from '@/lib/dispute-letters-storage'
 import {
@@ -581,6 +582,8 @@ export default function CreditIntelligencePanel({
       {hasBureauProgress && view === 'analysis' && (
         <CreditProgressPanel progressByBureau={progressByBureau} />
       )}
+
+      <DisputeRoundsPanel applicationId={applicationId} />
 
       {view === 'letters' && activeId ? (
         <DisputeLettersWorkflow

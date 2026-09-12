@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
 import { getDisputeSession } from '@/lib/dispute-letters/db'
+import { getRoundNumberForSession } from '@/lib/dispute-letters/dispute-lifecycle-db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { disputeLettersZipDownloadName } from '@/lib/dispute-letters-storage'
 
@@ -29,7 +30,11 @@ export async function GET(_request: NextRequest, { params }: Params) {
     }
 
     const row = await getDisputeSession(id, email)
-    const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name)
+    const roundNumber = (await getRoundNumberForSession(id)) || 1
+    const filename = disputeLettersZipDownloadName(
+      row?.report_json?.consumer?.name,
+      roundNumber
+    )
 
     const headers = new Headers()
     headers.set('Content-Type', 'application/zip')
