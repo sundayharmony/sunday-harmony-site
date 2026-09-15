@@ -243,13 +243,13 @@ export const disputeOpsTraining = {
     {
       round: 'Round 3+',
       summary:
-        'Escalate stubborn verified/no-response items toward CFPB complaint drafts. Release mailed packets to the client portal so they can upload bureau replies. Staff reviews uploads and advances the next round.',
+        'Escalate stubborn verified/no-response items toward CFPB complaint drafts. Release mailed rounds to the client portal so they can see status and upload bureau replies. Staff still print/mail letters from Credit Intelligence; the portal does not download the ZIP.',
     },
   ],
   taskTemplates: DISPUTE_OPS_TASK_TEMPLATES,
   tips: [
     'Never store client consumerfinance.gov passwords — clients submit CFPB complaints themselves.',
     'Mark rounds mailed / awaiting response before opening the next round.',
-    'Release to client only after letters are ready or mailed so the portal shows a complete packet.',
+    'Release to client only after letters are ready or mailed so the portal shows round status and can accept bureau-reply uploads.',
   ],
 }

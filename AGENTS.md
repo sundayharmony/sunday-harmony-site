@@ -56,5 +56,10 @@ Render `dispute-letters-api` service. A site-only deploy can leave generate/ZIP/
 on an old API. Prefer ZIP/preview/list filtering on Next.js so a lagging API cannot
 resurrect `.txt` files or duplicate letters.
 
+Multi-round tracking also needs production Supabase SQL
+`supabase-migration-034-dispute-rounds.sql` then `supabase-migration-035-dispute-ops-lifecycle.sql`
+(SQL Editor; these are not in `supabase/migrations/`). Without them, letter generate still works
+but the rounds panel, mail tracking, and client reply uploads will not persist.
+
 Python service tests (no OCR): from `services/dispute-letters-api`,
 `pip install -r requirements-test.txt` then `PYTHONPATH=. pytest app/services/__tests__`.
