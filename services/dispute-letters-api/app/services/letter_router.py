@@ -38,6 +38,20 @@ LETTER_META: dict[str, tuple[str, str]] = {
 }
 
 
+# In-progress statuses (pending / selected_for_round / disputed) are stamped as soon as
+# Round 1 is planned. They must not switch the router onto per-item follow-up letters.
+FOLLOW_UP_ITEM_STATUSES = frozenset({"verified", "no_response", "updated", "frivolous"})
+
+
+def _is_follow_up_selection(sel: TradelineSelection | None) -> bool:
+    if sel is None:
+        return False
+    if sel.preferred_letter_type:
+        return True
+    status = (sel.item_status or "").strip().lower()
+    return status in FOLLOW_UP_ITEM_STATUSES
+
+
 def suggest_letter_type(
     *,
     item_status: str | None = None,
@@ -84,7 +98,7 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
         else round_number >= 2
     )
 
-    follow_up = any((sel.item_status or sel.preferred_letter_type) for _, _, sel in selected if sel)
+    follow_up = any(_is_follow_up_selection(sel) for _, _, sel in selected)
     if follow_up or round_number >= 2:
         plans = _build_follow_up_plans(selected, report, request, round_number, one_per_bureau)
         if plans:

@@ -3,7 +3,7 @@ import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { getDisputeSessionById } from '@/lib/dispute-letters/db'
 import {
-  itemIdentityFromTradeline,
+  enrichPlanSelectionsWithItemStatus,
   type DisputeItemRow,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/lib/dispute-letters/dispute-lifecycle-db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { getSupabase } from '@/lib/supabase'
-import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
+import type { Tradeline } from '@/lib/dispute-letters/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -27,37 +27,6 @@ type SelectionPayload = {
   item_status?: string
   preferred_letter_type?: string
   [key: string]: unknown
-}
-
-function enrichSelectionsWithItemStatus(
-  selections: SelectionPayload[],
-  tradelines: Tradeline[],
-  items: DisputeItemRow[]
-): SelectionPayload[] {
-  if (!selections.length || !items.length) return selections
-  const byMatchKey = new Map(items.map((item) => [item.match_key, item]))
-  const tlById = new Map(tradelines.map((t) => [t.id, t]))
-
-  return selections.map((sel) => {
-    if (!sel || typeof sel.id !== 'string') return sel
-    if (sel.item_status) return sel
-    const tl = tlById.get(sel.id)
-    if (!tl) return sel
-
-    const bureaus = (
-      tl.dispute_bureaus?.length ? tl.dispute_bureaus : tl.bureaus
-    ).filter((b): b is BureauCode => b === 'TUC' || b === 'EXP' || b === 'EQF')
-
-    for (const bureau of bureaus) {
-      const identity = itemIdentityFromTradeline(tl, bureau)
-      if (!identity) continue
-      const item = byMatchKey.get(identity.matchKey)
-      if (item?.current_status) {
-        return { ...sel, item_status: item.current_status }
-      }
-    }
-    return sel
-  })
 }
 
 async function loadItemsForLifecycleRound(params: {
@@ -127,7 +96,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         applicationUuid: row?.application_uuid,
         roundId: lifecycle.roundId,
       })
-      enrichedSelections = enrichSelectionsWithItemStatus(selectionList, tradelines, items)
+      enrichedSelections = enrichPlanSelectionsWithItemStatus(selectionList, tradelines, items)
     }
 
     const roundNumber = lifecycle.roundNumber || 1

@@ -8,7 +8,10 @@ import {
   disputeLettersZipDownloadNameForRound,
   enforceRound1BureauCaps,
   expandTradelineSelections,
+  enrichPlanSelectionsWithItemStatus,
+  isFollowUpOutcomeStatus,
   isRoundClosedForNext,
+  itemIdentityFromTradeline,
   nextRoundNumber,
   pendingQueueFromItems,
   suggestFollowUpLetterType,
@@ -249,5 +252,54 @@ describe('dispute lifecycle rounds', () => {
     assert.match(draft, /Still on file/)
     assert.match(draft, /Round 2 mailed/)
     assert.match(draft, /consumerfinance\.gov/)
+  })
+
+  it('does not treat in-progress item statuses as follow-up outcomes', () => {
+    assert.equal(isFollowUpOutcomeStatus('disputed'), false)
+    assert.equal(isFollowUpOutcomeStatus('selected_for_round'), false)
+    assert.equal(isFollowUpOutcomeStatus('pending'), false)
+    assert.equal(isFollowUpOutcomeStatus('verified'), true)
+    assert.equal(isFollowUpOutcomeStatus('no_response'), true)
+  })
+
+  it('does not stamp disputed/selected_for_round onto Round 1 plan selections', () => {
+    const tradeline = tl({
+      id: 'cap1',
+      creditor: 'Capital One',
+      account_tu: '****1111',
+      selected: true,
+      dispute_bureaus: ['TUC'],
+    })
+    const identity = itemIdentityFromTradeline(tradeline, 'TUC')
+    assert.ok(identity)
+    const disputed: DisputeItemRow = {
+      id: 'item-1',
+      case_id: 'c',
+      match_key: identity.matchKey,
+      creditor_name: 'Capital One',
+      account_last4: '1111',
+      bureau: 'TUC',
+      account_type: 'Credit Card',
+      current_status: 'disputed',
+      last_round_number: 1,
+      last_letter_type: 'bureau',
+      notes: null,
+      created_at: '',
+      updated_at: '',
+    }
+    const stripped = enrichPlanSelectionsWithItemStatus(
+      [{ id: 'cap1', selected: true, item_status: 'disputed' }],
+      [tradeline],
+      [disputed]
+    )
+    assert.equal(stripped[0].item_status, undefined)
+
+    const verified = { ...disputed, current_status: 'verified' as const }
+    const stamped = enrichPlanSelectionsWithItemStatus(
+      [{ id: 'cap1', selected: true, item_status: undefined as string | undefined }],
+      [tradeline],
+      [verified]
+    )
+    assert.equal(stamped[0].item_status, 'verified')
   })
 })

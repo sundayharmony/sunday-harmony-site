@@ -316,6 +316,65 @@ export function daysUntilDeadline(deadlineAt: string | null | undefined, now = n
   return Math.ceil((end.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
 }
 
+/** Outcomes that should change letter type. In-progress statuses must not. */
+export const FOLLOW_UP_OUTCOME_STATUSES: ReadonlySet<string> = new Set([
+  'verified',
+  'no_response',
+  'updated',
+  'frivolous',
+])
+
+export function isFollowUpOutcomeStatus(status: string | null | undefined): boolean {
+  return FOLLOW_UP_OUTCOME_STATUSES.has(String(status || '').trim().toLowerCase())
+}
+
+export interface PlanSelectionWithStatus {
+  id?: string
+  selected?: boolean
+  dispute_reason?: string
+  item_status?: string
+  preferred_letter_type?: string
+  [key: string]: unknown
+}
+
+/**
+ * Stamp bureau-reply outcomes onto plan selections.
+ * Ignore pending / selected_for_round / disputed — those are set as soon as Round 1
+ * is planned and must not switch the Python router onto the follow-up letter path.
+ */
+export function enrichPlanSelectionsWithItemStatus<T extends PlanSelectionWithStatus>(
+  selections: T[],
+  tradelines: Tradeline[],
+  items: DisputeItemRow[]
+): T[] {
+  if (!selections.length || !items.length) return selections
+  const byMatchKey = new Map(items.map((item) => [item.match_key, item]))
+  const tlById = new Map(tradelines.map((t) => [t.id, t]))
+
+  return selections.map((sel) => {
+    if (!sel || typeof sel.id !== 'string') return sel
+    if (isFollowUpOutcomeStatus(sel.item_status) || sel.preferred_letter_type) return sel
+    const { item_status: _ignoredInProgress, ...rest } = sel
+    const stripped = (sel.item_status ? rest : sel) as T
+    const tl = tlById.get(sel.id)
+    if (!tl) return stripped
+
+    const bureaus = (
+      tl.dispute_bureaus?.length ? tl.dispute_bureaus : tl.bureaus
+    ).filter((b): b is BureauCode => b === 'TUC' || b === 'EXP' || b === 'EQF')
+
+    for (const bureau of bureaus) {
+      const identity = itemIdentityFromTradeline(tl, bureau)
+      if (!identity) continue
+      const item = byMatchKey.get(identity.matchKey)
+      if (isFollowUpOutcomeStatus(item?.current_status)) {
+        return { ...stripped, item_status: item?.current_status }
+      }
+    }
+    return stripped
+  })
+}
+
 export function suggestFollowUpLetterType(params: {
   itemStatus?: DisputeItemStatus | string | null
   preferred?: FollowUpLetterType | null
