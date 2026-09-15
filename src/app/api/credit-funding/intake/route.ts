@@ -91,9 +91,6 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = getClientIp(req)
-    const rl = await rateLimitDurable(`credit-funding:${ip}`, 3, 60 * 60 * 1000)
-    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
-
     const formData = await req.formData()
     if (hasHoneypotValue(formData)) {
       return NextResponse.json({ error: 'Unable to process submission' }, { status: 400 })
@@ -191,6 +188,11 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+
+    // After cheap validation so form/field errors do not burn the quota.
+    // Key/version bump clears counters that filled up during the schema outage.
+    const rl = await rateLimitDurable(`credit-funding-intake:v2:${ip}`, 20, 60 * 60 * 1000)
+    if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     let application: Awaited<ReturnType<typeof createCreditFundingApplication>> | null = null
 
