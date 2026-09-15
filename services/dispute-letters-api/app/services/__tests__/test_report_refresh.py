@@ -70,6 +70,7 @@ def test_refresh_report_health_recomputes_stale_counts():
     refresh_report_health(report, "experian.pdf")
     assert report.credit_health.negative_count == 1
     assert report.credit_health.collection_count == 1
+    assert report.credit_health.scores.exp == 640
     assert report.bureau_coverage is not None
     assert "EXP" in report.credit_health.per_bureau
     assert report.credit_health.per_bureau["EXP"].negative_count == 1

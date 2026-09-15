@@ -56,7 +56,7 @@ from app.services.letter_formatter import (
 )
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
-from app.services.report_refresh import refresh_report_health
+from app.services.report_refresh import recover_scores_from_storage, refresh_report_health
 from app.storage import write_temp_report
 from app.supabase_client import ping_supabase, supabase_env_configured
 
@@ -353,6 +353,7 @@ def get_report_health(session_id: str, _: None = Depends(verify_internal_secret)
         raise HTTPException(404, "Session not found")
     report = ParsedReport.model_validate(row["report_json"])
     refresh_report_health(report, row.get("file_name") or "")
+    recover_scores_from_storage(report, row)
     if report.credit_intelligence is None:
         report.credit_intelligence = build_credit_intelligence(report)
     update_session_report(session_id, report)
@@ -405,6 +406,7 @@ def patch_tradelines(
     report = ParsedReport.model_validate(row["report_json"])
     report.tradelines = body.tradelines
     refresh_report_health(report, row.get("file_name") or "")
+    recover_scores_from_storage(report, row)
     if not update_session_report(session_id, report):
         raise HTTPException(404, "Session not found")
     return ReportSessionResponse(session_id=session_id, report=report)
