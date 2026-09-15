@@ -50,12 +50,19 @@ describe('Area 11 public surface hardening', () => {
   })
 
   it('rejects shared honeypot fields for JSON and FormData submissions', () => {
-    assert.equal(hasHoneypotValue({ companyWebsite: '' }), false)
-    assert.equal(hasHoneypotValue({ companyWebsite: 'https://spam.example' }), true)
+    assert.equal(hasHoneypotValue({ sh_hp_field: '' }), false)
+    assert.equal(hasHoneypotValue({ shHpField: 'https://spam.example' }), true)
+    // Autofill / real business website fields must not be treated as bots.
+    assert.equal(hasHoneypotValue({ companyWebsite: 'https://real-business.com' }), false)
+    assert.equal(hasHoneypotValue({ website: 'https://real-business.com' }), false)
 
     const formData = new FormData()
-    formData.set('website', 'bot-value')
+    formData.set('sh_hp_field', 'bot-value')
     assert.equal(hasHoneypotValue(formData), true)
+    const legit = new FormData()
+    legit.set('companyWebsite', 'https://autofill.example')
+    legit.set('businessProfile', JSON.stringify({ website: 'https://real-business.com' }))
+    assert.equal(hasHoneypotValue(legit), false)
   })
 
   it('serves case studies through a private app route and migration', () => {

@@ -103,7 +103,7 @@ interface FormState {
   consent: ConsentData
   typedSignature: string
   signatureDate: string
-  companyWebsite: string
+  shHpField: string
 }
 
 function validateBusinessFields(bp: BusinessProfile, errors: Record<string, string>) {
@@ -171,7 +171,7 @@ const initialState: FormState = {
   consent: { accurateInfo: false, authorizeReview: false, agreeTerms: false },
   typedSignature: '',
   signatureDate: new Date().toISOString().slice(0, 10),
-  companyWebsite: '',
+  shHpField: '',
 }
 
 export default function CreditFundingForm() {
@@ -523,7 +523,7 @@ export default function CreditFundingForm() {
       fd.append('consent', JSON.stringify(form.consent))
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
-      fd.append('companyWebsite', form.companyWebsite)
+      fd.append('sh_hp_field', form.shHpField)
       for (const [key, value] of Object.entries(secretsOnFile)) {
         fd.append(key, String(value))
       }
@@ -615,15 +615,15 @@ export default function CreditFundingForm() {
 
       <div className="p-6 sm:p-8">
         <div className="hidden" aria-hidden="true">
-          <label htmlFor={fid('companyWebsite')}>Company website</label>
+          <label htmlFor={fid('shHpField')}>Office fax</label>
           <input
-            id={fid('companyWebsite')}
-            name="companyWebsite"
+            id={fid('shHpField')}
+            name="sh_hp_field"
             type="text"
             tabIndex={-1}
             autoComplete="off"
-            value={form.companyWebsite}
-            onChange={(e) => update('companyWebsite', e.target.value)}
+            value={form.shHpField}
+            onChange={(e) => update('shHpField', e.target.value)}
           />
         </div>
         {/* Step 1 */}

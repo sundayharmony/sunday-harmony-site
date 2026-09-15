@@ -39,6 +39,25 @@ export function generateApplicationId(): string {
   return `CF-${ymd}-${suffix}`
 }
 
+const OPTIONAL_EXPERIAN_COLUMNS = [
+  'experian_security_answer_encrypted',
+  'experian_pin_encrypted',
+] as const
+
+function isMissingColumnError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false
+  return (
+    error.code === 'PGRST204' ||
+    /schema cache|could not find the '.+' column/i.test(error.message || '')
+  )
+}
+
+function withoutOptionalExperianColumns<T extends Record<string, unknown>>(row: T): T {
+  const next = { ...row }
+  for (const col of OPTIONAL_EXPERIAN_COLUMNS) delete next[col]
+  return next
+}
+
 const CREDIT_FUNDING_LIST_SELECT = [
   'id',
   'application_id',
@@ -88,6 +107,24 @@ export async function createCreditFundingApplication(
 
   if (error) {
     console.error('createCreditFundingApplication error:', error)
+    if (isMissingColumnError(error) && OPTIONAL_EXPERIAN_COLUMNS.some((col) => col in row)) {
+      const retry = await getSupabase()
+        .from('credit_funding_applications')
+        .insert(withoutOptionalExperianColumns(row))
+        .select()
+        .single()
+      if (!retry.error && retry.data) {
+        const app = retry.data as CreditFundingApplication
+        await createStatusHistory({
+          application_uuid: app.id,
+          status: 'submitted',
+          staff_email: null,
+          notes: 'Application submitted via intake form',
+        })
+        return app
+      }
+      console.error('createCreditFundingApplication retry error:', retry.error)
+    }
     return null
   }
 
@@ -463,6 +500,26 @@ export async function completeInvitedCreditFundingApplication(
 
   if (error) {
     console.error('completeInvitedCreditFundingApplication error:', error)
+    if (isMissingColumnError(error) && OPTIONAL_EXPERIAN_COLUMNS.some((col) => col in row)) {
+      const retry = await getSupabase()
+        .from('credit_funding_applications')
+        .update(withoutOptionalExperianColumns(row))
+        .eq('id', applicationId)
+        .eq('status', 'invitation_pending')
+        .select()
+        .single()
+      if (!retry.error && retry.data) {
+        const app = retry.data as CreditFundingApplication
+        await createStatusHistory({
+          application_uuid: app.id,
+          status: 'submitted',
+          staff_email: null,
+          notes: 'Application completed via staff invitation link',
+        })
+        return app
+      }
+      console.error('completeInvitedCreditFundingApplication retry error:', retry.error)
+    }
     return null
   }
 

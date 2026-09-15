@@ -12,12 +12,12 @@ interface FormData {
   business: string
   service: string
   message: string
-  companyWebsite: string
+  shHpField: string
 }
 
 export default function ContactForm() {
   const [form, setForm] = useState<FormData>({
-    firstName: '', lastName: '', email: '', phone: '', business: '', service: '', message: '', companyWebsite: '',
+    firstName: '', lastName: '', email: '', phone: '', business: '', service: '', message: '', shHpField: '',
   })
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -120,15 +120,15 @@ export default function ContactForm() {
             ) : (
               <form onSubmit={handleSubmit}>
                 <div className="hidden" aria-hidden="true">
-                  <label htmlFor="contact-company-website">Company website</label>
+                  <label htmlFor="contact-sh-hp-field">Office fax</label>
                   <input
-                    id="contact-company-website"
-                    name="companyWebsite"
+                    id="contact-sh-hp-field"
+                    name="sh_hp_field"
                     type="text"
                     tabIndex={-1}
                     autoComplete="off"
-                    value={form.companyWebsite}
-                    onChange={(e) => update('companyWebsite', e.target.value)}
+                    value={form.shHpField}
+                    onChange={(e) => update('shHpField', e.target.value)}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
