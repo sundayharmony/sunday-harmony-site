@@ -8,6 +8,7 @@ from app.models import (
     RepairPriority,
     Tradeline,
 )
+from app.services.bureau_scores import parse_score_value
 
 _PRIORITY_ORDER: dict[RepairPriority, int] = {
     "high": 0,
@@ -202,23 +203,13 @@ def enrich_tradeline(tl: Tradeline) -> Tradeline:
     return tl
 
 
-def _parse_score(value) -> int | None:
-    if value is None:
-        return None
-    try:
-        n = int(value)
-        return n if 300 <= n <= 850 else None
-    except (TypeError, ValueError):
-        return None
-
-
 def merge_agent_health(data: dict | None, summary: CreditHealthSummary) -> CreditHealthSummary:
     if not data:
         return summary
     scores = data.get("scores") or {}
-    summary.scores.tuc = _parse_score(scores.get("tuc")) or summary.scores.tuc
-    summary.scores.exp = _parse_score(scores.get("exp")) or summary.scores.exp
-    summary.scores.eqf = _parse_score(scores.get("eqf")) or summary.scores.eqf
+    summary.scores.tuc = parse_score_value(scores.get("tuc")) or summary.scores.tuc
+    summary.scores.exp = parse_score_value(scores.get("exp")) or summary.scores.exp
+    summary.scores.eqf = parse_score_value(scores.get("eqf")) or summary.scores.eqf
     if data.get("repair_summary"):
         summary.repair_summary = str(data["repair_summary"])
     actions = data.get("recommended_actions") or []
@@ -237,6 +228,7 @@ def build_health_summary(report: ParsedReport, agent_health: dict | None = None)
     removal = sum(1 for tl in tradelines if is_clean_profile_removal_target(tl))
 
     summary = CreditHealthSummary(
+        scores=report.credit_health.scores.model_copy(),
         total_accounts=len(tradelines),
         negative_count=negative,
         collection_count=collections,

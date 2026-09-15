@@ -6,7 +6,8 @@ from difflib import SequenceMatcher
 
 from bs4 import BeautifulSoup
 
-from app.models import BureauCode, ConsumerInfo, ParsedReport, Subscriber, Tradeline
+from app.models import BureauCode, BureauScores, ConsumerInfo, ParsedReport, Subscriber, Tradeline
+from app.services.bureau_scores import parse_score_value
 
 
 def _clean(text: str) -> str:
@@ -59,8 +60,9 @@ def parse(html: str, file_type: str = "html", ocr_used: bool = False, quality: s
     consumer = _parse_consumer(soup)
     subscribers = _parse_subscribers(soup)
     tradelines = _parse_tradelines(soup)
+    scores = parse_scores(html)
 
-    return ParsedReport(
+    report = ParsedReport(
         source="identityiq",
         reference=reference,
         report_date=report_date,
@@ -71,6 +73,8 @@ def parse(html: str, file_type: str = "html", ocr_used: bool = False, quality: s
         ocr_used=ocr_used,
         extraction_quality=quality,
     )
+    report.credit_health.scores = scores
+    return report
 
 
 def _parse_consumer(soup: BeautifulSoup) -> ConsumerInfo:
@@ -122,11 +126,42 @@ def _parse_subscribers(soup: BeautifulSoup) -> list[Subscriber]:
     return subscribers
 
 
+_SCORE_SECTION = re.compile(r"^credit\s+score$", re.I)
+_SKIP_SCORE_LABEL = re.compile(r"range|factor|rank|date|model|reason", re.I)
+
+
+def parse_scores(html: str) -> BureauScores:
+    """Read the IdentityIQ Credit Score 3-bureau table (skipped as a tradeline)."""
+    soup = BeautifulSoup(html, "lxml")
+    scores = BureauScores()
+    for header in soup.select("div.sub_header"):
+        title = _clean(header.get_text())
+        if not _SCORE_SECTION.match(title):
+            continue
+        table = header.find_next("table", class_=lambda c: c and "rpt_table4column" in c)
+        if not table:
+            continue
+        fields = _parse_bureau_table(table)
+        for bureau, rows in fields.items():
+            attr = {"TUC": "tuc", "EXP": "exp", "EQF": "eqf"}[bureau]
+            for label, value in rows.items():
+                if _SKIP_SCORE_LABEL.search(label):
+                    continue
+                if not re.search(r"score", label, re.I):
+                    continue
+                parsed = parse_score_value(value)
+                if parsed is not None:
+                    setattr(scores, attr, parsed)
+                    break
+        break
+    return scores
+
+
 def _parse_tradelines(soup: BeautifulSoup) -> list[Tradeline]:
     tradelines: list[Tradeline] = []
     for header in soup.select("div.sub_header.ng-binding, div.sub_header.ng-scope"):
         creditor = _clean(header.get_text())
-        if not creditor or creditor in ("Credit Score",):
+        if not creditor or _SCORE_SECTION.match(creditor):
             continue
         table = header.find_next("table", class_=lambda c: c and "rpt_table4column" in c)
         if not table:
@@ -137,11 +172,11 @@ def _parse_tradelines(soup: BeautifulSoup) -> list[Tradeline]:
     return tradelines
 
 
-def _parse_tradeline_table(table, creditor: str) -> Tradeline | None:
+def _parse_bureau_table(table) -> dict[str, dict[str, str]]:
     bureau_cols: dict[str, int] = {}
     header_row = table.select_one("tr")
     if header_row:
-        for i, th in enumerate(header_row.find_all("th")):
+        for i, th in enumerate(header_row.find_all(["th", "td"])):
             cls = " ".join(th.get("class", []))
             if "headerTUC" in cls:
                 bureau_cols["TUC"] = i
@@ -156,10 +191,18 @@ def _parse_tradeline_table(table, creditor: str) -> Tradeline | None:
         if not label_el:
             continue
         label = _clean(label_el.get_text()).rstrip(":")
-        cells = row.select(".info")
+        cells = row.find_all("td")
+        info_cells = row.select(".info")
         for bureau, idx in bureau_cols.items():
             if idx < len(cells):
                 fields[bureau][label] = _cell_text(cells[idx])
+            elif idx < len(info_cells):
+                fields[bureau][label] = _cell_text(info_cells[idx])
+    return fields
+
+
+def _parse_tradeline_table(table, creditor: str) -> Tradeline | None:
+    fields = _parse_bureau_table(table)
 
     account_tu = fields["TUC"].get("Account #", "")
     account_exp = fields["EXP"].get("Account #", "")
