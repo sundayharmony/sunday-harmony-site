@@ -78,6 +78,9 @@ export async function PUT(request: NextRequest) {
     if (completed !== undefined) updates.completed = completed
 
     const result = await upsertOnboardingResponse(clientId, updates)
+    if (!result) {
+      return NextResponse.json({ error: 'Failed to save onboarding. Please try again.' }, { status: 500 })
+    }
     return NextResponse.json(result, { status: 200 })
   } catch (error: unknown) {
     console.error('PUT /api/dashboard/onboarding error:', error)

@@ -132,7 +132,10 @@ export default function OnboardingPage() {
         body: JSON.stringify({ ...data, completed: true }),
       });
 
-      if (!res.ok) throw new Error('Failed to submit onboarding');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(typeof body.error === 'string' ? body.error : 'Failed to submit onboarding')
+      }
       setData(prev => prev ? { ...prev, completed: true } : null);
       setIsEditing(false);
     } catch (err) {

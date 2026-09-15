@@ -1,4 +1,7 @@
-export const HONEYPOT_FIELD_NAMES = ['companyWebsite', 'website'] as const
+/** Autofill-resistant trap. Do not use `website` / `companyWebsite` — browsers fill those. */
+export const HONEYPOT_FIELD_NAME = 'sh_hp_field'
+
+export const HONEYPOT_FIELD_NAMES = [HONEYPOT_FIELD_NAME, 'shHpField'] as const
 
 export function hasHoneypotValue(input: FormData | Record<string, unknown>): boolean {
   return HONEYPOT_FIELD_NAMES.some((field) => {
