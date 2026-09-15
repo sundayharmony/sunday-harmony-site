@@ -205,6 +205,18 @@ export default function CreditIntelligencePanel({
     [progressByBureau]
   )
 
+  const hasComparableProgress = useMemo(
+    () =>
+      Object.values(progressByBureau).some(
+        (p) => (p?.readyCount || 0) >= 2 && !!p?.current && !!p?.baseline
+      ),
+    [progressByBureau]
+  )
+
+  const [progressCompareMode, setProgressCompareMode] = useState<'baseline' | 'previous'>(
+    'baseline'
+  )
+
   const bureauScores = useMemo(() => {
     const activeSession = sessions.find((s) => s.id === activeId) || null
     return bureauScoresFromSession(activeSession)
@@ -371,6 +383,83 @@ export default function CreditIntelligencePanel({
       setStatus('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to send PDF')
+      setStatus('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function downloadProgressPdf() {
+    if (!activeId) return
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    setStatus('Generating credit progress PDF…')
+    try {
+      const res = await fetch(`/api/admin/dispute-letters/${activeId}/progress/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ compareMode: progressCompareMode }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to generate progress PDF')
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || 'Credit-Progress.pdf'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setSuccess('Credit progress PDF downloaded.')
+      setStatus('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to download progress PDF')
+      setStatus('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function sendProgressPdfToClient() {
+    if (!activeId) return
+    const confirmed = window.confirm(
+      'Share this Credit Progress Report PDF (before/after scores and account changes — no funding content) to the client portal and email the client?'
+    )
+    if (!confirmed) return
+
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    setStatus('Generating and sending progress PDF…')
+    try {
+      const res = await fetch(`/api/admin/credit-funding/${applicationId}/send-progress-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeId,
+          notifyEmail: true,
+          compareMode: progressCompareMode,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send progress PDF')
+      }
+      setSuccess(
+        data.emailed
+          ? `Progress PDF shared to portal and emailed (${data.fileName || 'Credit Progress'}).`
+          : `Progress PDF shared to portal (${data.fileName || 'Credit Progress'}).`
+      )
+      setStatus('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to send progress PDF')
       setStatus('')
     } finally {
       setBusy(false)
@@ -580,7 +669,59 @@ export default function CreditIntelligencePanel({
       )}
 
       {hasBureauProgress && view === 'analysis' && (
-        <CreditProgressPanel progressByBureau={progressByBureau} />
+        <div className="space-y-3">
+          <CreditProgressPanel progressByBureau={progressByBureau} />
+          {hasComparableProgress && activeId && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-border bg-white px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-brand-text">Client progress PDF</p>
+                <p className="text-xs text-brand-muted">
+                  Before/after scores and account changes only — no funding eligibility.
+                </p>
+              </div>
+              <div className="flex rounded-lg border border-brand-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setProgressCompareMode('baseline')}
+                  className={`px-2.5 py-1 text-[11px] font-semibold ${
+                    progressCompareMode === 'baseline'
+                      ? 'bg-brand-text text-white'
+                      : 'bg-white text-brand-dim hover:bg-neutral-50'
+                  }`}
+                >
+                  vs first
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProgressCompareMode('previous')}
+                  className={`px-2.5 py-1 text-[11px] font-semibold border-l border-brand-border ${
+                    progressCompareMode === 'previous'
+                      ? 'bg-brand-text text-white'
+                      : 'bg-white text-brand-dim hover:bg-neutral-50'
+                  }`}
+                >
+                  vs previous
+                </button>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void downloadProgressPdf()}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Download progress PDF
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void sendProgressPdfToClient()}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Send progress PDF
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       <DisputeRoundsPanel applicationId={applicationId} />
