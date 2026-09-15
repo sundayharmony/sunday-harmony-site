@@ -255,6 +255,7 @@ class GeneratedLetter(BaseModel):
     title: str
     markdown: str
     file_path: str
+    sent_at: str | None = None
 
 
 class ReportSessionResponse(BaseModel):

@@ -8,6 +8,7 @@ import type {
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import {
   loadDisputeLifecycleForApplication,
+  markLetterSent,
   releaseRoundToClient,
   updateDisputeItemStatus,
   updateRoundMailTracking,
@@ -38,6 +39,16 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
+
+    if (body?.letterId && (body.sent === true || body.markSent === true || body.status === 'sent')) {
+      const result = await markLetterSent(String(body.letterId))
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json({
+        ok: true,
+        sentAt: result.sentAt,
+        roundComplete: result.roundComplete,
+      })
+    }
 
     if (body?.roundId && body?.releaseToClient !== undefined) {
       const result = await releaseRoundToClient(String(body.roundId), Boolean(body.releaseToClient))
@@ -87,7 +98,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          'Provide roundId+status, roundId+mail tracking fields, roundId+releaseToClient, or itemId+status',
+          'Provide letterId+sent, roundId+status, roundId+mail tracking fields, roundId+releaseToClient, or itemId+status',
       },
       { status: 400 }
     )

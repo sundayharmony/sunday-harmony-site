@@ -125,6 +125,7 @@ def _letter_from_row(row: dict) -> GeneratedLetter:
         title=row["title"],
         markdown=row["markdown"],
         file_path=row.get("storage_path") or "",
+        sent_at=row.get("sent_at"),
     )
 
 

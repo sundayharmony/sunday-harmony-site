@@ -1,8 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
+  MAX_ITEMS_PER_LETTER,
   ROUND_1_MAX_ITEMS_PER_BUREAU,
   buildCfpbComplaintDraft,
+  chunkItems,
+  comparisonUpdatesForItems,
   computeDeadlineAt,
   countSelectionsPerBureau,
   disputeLettersZipDownloadNameForRound,
@@ -11,11 +15,15 @@ import {
   enrichPlanSelectionsWithItemStatus,
   isFollowUpOutcomeStatus,
   isRoundClosedForNext,
+  isRoundFullySent,
   itemIdentityFromTradeline,
+  itemWorkflowStage,
+  letterChunkCount,
   nextRoundNumber,
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
+  splitWorkflowQueues,
   suggestFollowUpLetterType,
   type DisputeItemRow,
   type RoundSelectionInput,
@@ -181,7 +189,7 @@ describe('dispute lifecycle rounds', () => {
     assert.ok(queue.every((i) => i.current_status !== 'deleted'))
   })
 
-  it('keeps not-yet-disputed items out of the next-round queue', () => {
+  it('keeps not-yet-disputed items out of the next-round queue until a round is fully sent', () => {
     const items: DisputeItemRow[] = [
       item({ id: 'p', creditor_name: 'Pending Bank', current_status: 'pending', last_round_number: null }),
       item({
@@ -199,7 +207,7 @@ describe('dispute lifecycle rounds', () => {
     )
     assert.deepEqual(
       nextRound.map((i) => i.current_status),
-      ['disputed']
+      []
     )
   })
 
@@ -359,5 +367,110 @@ describe('dispute lifecycle rounds', () => {
       [verified]
     )
     assert.equal(stamped[0].item_status, 'verified')
+  })
+
+  it('does not treat generated letters as sent until sent_at is set', () => {
+    const generated = item({ id: 'g', current_status: 'selected_for_round' })
+    const legacy = item({ id: 'l', current_status: 'disputed' })
+    const sent = item({
+      id: 's',
+      current_status: 'disputed',
+      sent_at: '2026-09-15T12:00:00.000Z',
+    })
+    assert.equal(
+      itemWorkflowStage(generated, { id: 'r', case_id: 'c', round_number: 1, status: 'letters_ready' } as never),
+      'letter_generated'
+    )
+    assert.equal(itemWorkflowStage(legacy), 'letter_generated')
+    assert.equal(itemWorkflowStage(sent), 'sent')
+  })
+
+  it('completes a round only when every assigned item is sent', () => {
+    const items = [
+      item({ id: 'a', current_status: 'disputed', sent_at: '2026-09-15T12:00:00.000Z' }),
+      item({ id: 'b', current_status: 'selected_for_round' }),
+    ]
+    assert.equal(
+      isRoundFullySent({
+        round: { id: 'r', case_id: 'c', round_number: 1, status: 'letters_ready' } as never,
+        roundItemIds: ['a', 'b'],
+        items,
+      }),
+      false
+    )
+    items[1] = { ...items[1], sent_at: '2026-09-15T13:00:00.000Z', current_status: 'disputed' }
+    assert.equal(
+      isRoundFullySent({
+        round: { id: 'r', case_id: 'c', round_number: 1, status: 'letters_ready' } as never,
+        roundItemIds: ['a', 'b'],
+        items,
+      }),
+      true
+    )
+  })
+
+  it('moves identified items into next round only after a completed sent round', () => {
+    const items = [
+      item({ id: 'new', current_status: 'pending', last_round_number: null }),
+      item({
+        id: 'remain',
+        current_status: 'disputed',
+        sent_at: '2026-09-15T12:00:00.000Z',
+        last_round_number: 1,
+      }),
+    ]
+    const before = splitWorkflowQueues(items)
+    assert.equal(before.identified.length, 1)
+    assert.equal(before.nextRound.length, 0)
+    const after = splitWorkflowQueues(items, null, [1])
+    assert.ok(after.nextRound.some((i) => i.id === 'new'))
+    assert.ok(after.nextRound.some((i) => i.id === 'remain'))
+  })
+
+  it('chunks letter items at seven', () => {
+    assert.equal(MAX_ITEMS_PER_LETTER, 7)
+    assert.equal(letterChunkCount(15), 3)
+    assert.deepEqual(
+      chunkItems(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']).map((c) => c.length),
+      [7, 1]
+    )
+  })
+
+  it('marks removed sent items resolved and still-on-file items as remaining', () => {
+    const sent = item({
+      id: 'gone',
+      match_key: 'gone-key',
+      current_status: 'disputed',
+      sent_at: '2026-09-15T12:00:00.000Z',
+    })
+    const remain = item({
+      id: 'stay',
+      match_key: 'stay-key',
+      current_status: 'disputed',
+      sent_at: '2026-09-15T12:00:00.000Z',
+    })
+    const updates = comparisonUpdatesForItems({
+      items: [sent, remain],
+      latestMatchKeys: new Set(['stay-key']),
+      latestCandidateKeys: new Set(['stay-key']),
+    })
+    assert.equal(updates.find((u) => u.id === 'gone')?.nextStatus, 'deleted')
+    assert.equal(updates.find((u) => u.id === 'stay')?.event.stage, 'still_appears')
+  })
+
+  it('does not stamp items disputed at plan time; Sent is a separate action', () => {
+    const db = readFileSync('src/lib/dispute-letters/dispute-lifecycle-db.ts', 'utf8')
+    const readyFn = db.slice(
+      db.indexOf('export async function markRoundLettersReady'),
+      db.indexOf('export async function updateRoundStatus')
+    )
+    assert.equal(readyFn.includes("current_status: 'disputed'"), false)
+    const planFn = db.slice(
+      db.indexOf('export async function syncLifecycleOnPlan'),
+      db.indexOf('export async function updateRoundMailTracking')
+    )
+    assert.equal(planFn.includes('markRoundLettersReady'), false)
+    assert.match(db, /export async function markLetterSent/)
+    assert.match(db, /export async function onLettersGenerated/)
   })
 })

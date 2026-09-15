@@ -23,9 +23,10 @@ import {
 import { isNegativeTradeline } from '@/lib/dispute-letters/bureau-coverage'
 import { isInquiryTradeline, planSelectionsFromTradelines, resolvedDisputeReason } from '@/lib/dispute-letters/dispute-reasons'
 import {
-  ROUND_1_MAX_ITEMS_PER_BUREAU,
-  enforceRound1BureauCaps,
+  MAX_ITEMS_PER_LETTER,
+  countSelectionsPerBureau,
   expandTradelineSelections,
+  letterChunkCount,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
@@ -104,10 +105,23 @@ export default function DisputeReviewStep({
     )
   }, [tradelines, filter])
 
-  const round1Cap = useMemo(
-    () => enforceRound1BureauCaps(expandTradelineSelections(tradelines)),
+  const bureauCounts = useMemo(
+    () => countSelectionsPerBureau(expandTradelineSelections(tradelines)),
     [tradelines]
   )
+
+  const letterSplitNotes = useMemo(() => {
+    const notes: string[] = []
+    for (const bureau of ['EQF', 'EXP', 'TUC'] as BureauCode[]) {
+      const count = bureauCounts[bureau] || 0
+      const letters = letterChunkCount(count)
+      if (letters > 1) {
+        const label = bureau === 'EQF' ? 'Equifax' : bureau === 'EXP' ? 'Experian' : 'TransUnion'
+        notes.push(`${label}: ${count} items → ${letters} letters`)
+      }
+    }
+    return notes
+  }, [bureauCounts])
 
   const recommended = filtered.filter((t) => isRecommendedDispute(t))
   const optional = filtered.filter((t) => !isRecommendedDispute(t))
@@ -164,11 +178,6 @@ export default function DisputeReviewStep({
     setLoading(true)
     setError('')
     try {
-      if (!round1Cap.ok) {
-        setError(round1Cap.message || 'Too many Round 1 items per bureau.')
-        setLoading(false)
-        return
-      }
       await patchDisputeTradelines(sessionId, tradelines)
       const selections = planSelectionsFromTradelines(tradelines)
       const hasTargets = tradelines.some(
@@ -287,11 +296,12 @@ export default function DisputeReviewStep({
         </div>
       )}
 
-      {!round1Cap.ok && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Round 1 cap: max {ROUND_1_MAX_ITEMS_PER_BUREAU} items per bureau. {round1Cap.message}
-        </div>
-      )}
+      <div className="rounded-lg border border-brand-border bg-neutral-50 px-3 py-2 text-sm text-brand-dim">
+        Each bureau or furnisher letter includes at most {MAX_ITEMS_PER_LETTER} items. Extra
+        selections create additional letters in this same round — they are not auto-marked
+        disputed until you confirm Sent.
+        {letterSplitNotes.length > 0 ? ` ${letterSplitNotes.join('. ')}.` : ''}
+      </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

@@ -55,6 +55,14 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
   try {
     const data = await disputeLettersJson<LetterGenerateJob>(`/internal/letter-jobs/${id}`)
+    if (data.status === 'complete') {
+      try {
+        const { onLettersGenerated } = await import('@/lib/dispute-letters/dispute-lifecycle-db')
+        await onLettersGenerated(id)
+      } catch (hookErr) {
+        console.error('onLettersGenerated hook failed:', hookErr)
+      }
+    }
     const failure = letterGenerateFailure(data)
     if (failure && (data.status === 'failed' || data.status === 'error')) {
       return NextResponse.json({ ...data, error_message: failure })

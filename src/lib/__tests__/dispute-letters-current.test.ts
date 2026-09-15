@@ -53,6 +53,15 @@ describe('currentLetters', () => {
     assert.equal(listed.length, 2)
     assert.notEqual(letterIdentityKey(listed[0]), letterIdentityKey(listed[1]))
   })
+
+  it('keeps chunked bureau letters with part numbers instead of collapsing them', () => {
+    const listed = currentLetters([
+      letter('exp-1', 'Experian (letter 1 of 2) — 7 item(s)', 'plan-exp-a'),
+      letter('exp-2', 'Experian (letter 2 of 2) — 1 item(s)', 'plan-exp-b'),
+    ])
+    assert.equal(listed.length, 2)
+    assert.notEqual(letterIdentityKey(listed[0]), letterIdentityKey(listed[1]))
+  })
 })
 
 describe('current letter wiring', () => {

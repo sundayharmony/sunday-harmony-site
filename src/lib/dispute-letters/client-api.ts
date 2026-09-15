@@ -274,6 +274,16 @@ export async function fetchDisputeLetters(sessionId: string) {
   return res.json() as Promise<{ letters: GeneratedLetter[] }>
 }
 
+export async function markDisputeLetterSent(letterId: string) {
+  const res = await fetch('/api/admin/dispute-letters/lifecycle', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ letterId, sent: true }),
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{ ok: boolean; sentAt?: string; roundComplete?: boolean }>
+}
+
 export function disputeLetterDownloadUrl(sessionId: string, letterId: string, format = 'docx') {
   return `/api/admin/dispute-letters/${sessionId}/letters/${letterId}/download?format=${format}`
 }

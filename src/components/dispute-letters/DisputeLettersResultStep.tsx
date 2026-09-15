@@ -8,6 +8,7 @@ import {
   disputeLettersZipUrl,
   fetchDisputeLetters,
   fetchLetterGenerateStatus,
+  markDisputeLetterSent,
 } from '@/lib/dispute-letters/client-api'
 import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
@@ -98,6 +99,24 @@ export default function DisputeLettersResultStep({
   const [active, setActive] = useState<GeneratedLetter | null>(null)
   const [error, setError] = useState('')
   const [skipped, setSkipped] = useState<SkippedLetterPlan[]>([])
+  const [sentBusy, setSentBusy] = useState<string | null>(null)
+
+  async function markSent(letterId: string) {
+    setSentBusy(letterId)
+    setError('')
+    try {
+      const result = await markDisputeLetterSent(letterId)
+      setLetters((prev) =>
+        prev.map((letter) =>
+          letter.id === letterId ? { ...letter, sent_at: result.sentAt || new Date().toISOString() } : letter
+        )
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to mark letter sent')
+    } finally {
+      setSentBusy(null)
+    }
+  }
 
   useEffect(() => {
     if (!sessionId) return
@@ -137,7 +156,7 @@ export default function DisputeLettersResultStep({
         </h2>
         <p className={`mt-2 text-sm ${letters.length ? 'text-green-800' : 'text-amber-900'}`}>
           {letters.length
-            ? 'Mail disputes within 30 days. Keep copies of every letter and your report. Certified mail with return receipt is recommended for bureaus. The ZIP contains print-ready Word (.docx) files so formatting is preserved.'
+            ? 'Mail disputes within 30 days. Keep copies of every letter and your report. Mark each letter Sent after it is mailed — generating a letter does not record a dispute. Certified mail with return receipt is recommended for bureaus. The ZIP contains print-ready Word (.docx) files so formatting is preserved.'
             : 'Add missing furnisher addresses on Confirm and generate again.'}
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -202,10 +221,24 @@ export default function DisputeLettersResultStep({
               >
                 {l.title}
               </button>
-              <div className="mt-2 flex gap-2 text-xs">
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 <a href={disputeLetterDownloadUrl(sessionId, l.id, 'docx')} className="text-accent hover:underline">
                   Download .docx
                 </a>
+                {l.sent_at ? (
+                  <span className="font-medium text-green-800">
+                    Sent {new Date(l.sent_at).toLocaleDateString()}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={sentBusy === l.id}
+                    onClick={() => void markSent(l.id)}
+                    className="font-semibold text-accent hover:underline disabled:opacity-50"
+                  >
+                    {sentBusy === l.id ? 'Saving…' : 'Mark sent'}
+                  </button>
+                )}
               </div>
             </div>
           ))}

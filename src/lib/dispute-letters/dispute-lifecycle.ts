@@ -4,8 +4,11 @@ import { isRecommendedDispute } from '@/lib/dispute-letters/dispute-selection'
 import { accountDigits, tradelineMatchKey } from '@/lib/dispute-letters/tradeline-progress'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 
-/** Round 1 industry rule: keep first-round bureau letters focused. */
-export const ROUND_1_MAX_ITEMS_PER_BUREAU = 5
+/** Soft warning only — selection is not blocked. Bureau letters split at MAX_ITEMS_PER_LETTER. */
+export const ROUND_1_MAX_ITEMS_PER_BUREAU = 50
+
+/** Max accounts in a single bureau (or furnisher) letter; extra items create additional letters. */
+export const MAX_ITEMS_PER_LETTER = 7
 
 export type DisputeCaseStatus = 'active' | 'paused' | 'completed'
 export type DisputeRoundStatus =
@@ -110,18 +113,54 @@ export interface DisputeItemRow {
   last_round_number: number | null
   last_letter_type: string | null
   notes: string | null
+  sent_at?: string | null
+  status_history?: DisputeStatusEvent[]
   created_at: string
   updated_at: string
+}
+
+export type DisputeWorkflowStage =
+  | 'identified'
+  | 'selected'
+  | 'letter_generated'
+  | 'sent'
+  | 'still_appears'
+  | 'resolved'
+  | 'withdrawn'
+
+export interface DisputeStatusEvent {
+  at: string
+  stage: DisputeWorkflowStage | string
+  roundNumber?: number | null
+  detail?: string | null
+}
+
+export interface DisputeRoundLetter {
+  id: string
+  session_id: string
+  plan_id: string
+  title: string
+  sent_at: string | null
+  created_at?: string
 }
 
 export interface DisputeLifecycleSnapshot {
   case: DisputeCaseRow | null
   rounds: DisputeRoundRow[]
   items: DisputeItemRow[]
-  /** Remaining report negatives / inquiries that have not been mailed in a round. */
+  identifiedQueue: DisputeItemRow[]
+  selectedQueue: DisputeItemRow[]
+  letterGeneratedQueue: DisputeItemRow[]
+  sentQueue: DisputeItemRow[]
+  nextRoundQueue: DisputeItemRow[]
+  /** @deprecated Use identifiedQueue + selectedQueue */
   notYetDisputed: DisputeItemRow[]
+  /** Next-round remaining items (still on file after a sent round, or bureau outcomes). */
   pendingQueue: DisputeItemRow[]
   activeRound: DisputeRoundRow | null
+  letters: DisputeRoundLetter[]
+  roundSendProgress: { selected: number; sent: number; complete: boolean }
+  hasCompletedRound: boolean
 }
 
 export interface RoundSelectionInput {
@@ -144,18 +183,23 @@ export interface ItemIdentity {
   accountType: string
 }
 
-/** Statuses for accounts that have not been included in a mailed round yet. */
-export const NOT_YET_DISPUTED_STATUSES: DisputeItemStatus[] = [
-  'pending',
-  'selected_for_round',
-]
+/** Identified on the report, not yet chosen for the current round. */
+export const IDENTIFIED_STATUSES: DisputeItemStatus[] = ['pending']
 
-/** Bureau-reply / in-flight statuses that still need work in a later round. */
+/** Chosen for the current round; letters may or may not exist yet. */
+export const SELECTED_STATUSES: DisputeItemStatus[] = ['selected_for_round']
+
+/** Bureau-reply outcomes that still need a later round. */
 export const NEEDS_NEXT_ROUND_STATUSES: DisputeItemStatus[] = [
   'no_response',
   'verified',
   'updated',
-  'disputed',
+]
+
+/** @deprecated Use IDENTIFIED_STATUSES + SELECTED_STATUSES */
+export const NOT_YET_DISPUTED_STATUSES: DisputeItemStatus[] = [
+  'pending',
+  'selected_for_round',
 ]
 
 const BUREAU_CODES: BureauCode[] = ['TUC', 'EXP', 'EQF']
@@ -172,17 +216,128 @@ export function isRoundClosedForNext(status: DisputeRoundStatus): boolean {
   return status === 'mailed' || status === 'closed' || status === 'awaiting_response'
 }
 
+export function isRoundFullySent(params: {
+  round: DisputeRoundRow | null | undefined
+  roundItemIds: string[]
+  items: DisputeItemRow[]
+}): boolean {
+  if (!params.round || !params.roundItemIds.length) return false
+  const byId = new Map(params.items.map((item) => [item.id, item]))
+  return params.roundItemIds.every((id) => Boolean(byId.get(id)?.sent_at))
+}
+
+export function itemWorkflowStage(
+  item: DisputeItemRow,
+  activeRound: DisputeRoundRow | null = null
+): DisputeWorkflowStage {
+  if (item.current_status === 'deleted') return 'resolved'
+  if (item.current_status === 'withdrawn' || item.current_status === 'frivolous') return 'withdrawn'
+  if (
+    item.current_status === 'verified' ||
+    item.current_status === 'updated' ||
+    item.current_status === 'no_response'
+  ) {
+    return 'still_appears'
+  }
+  // Re-selected for a later round takes precedence over a prior sent_at.
+  if (item.current_status === 'selected_for_round') {
+    if (
+      activeRound &&
+      (activeRound.status === 'letters_ready' ||
+        activeRound.status === 'mailed' ||
+        activeRound.status === 'awaiting_response') &&
+      item.last_round_number === activeRound.round_number
+    ) {
+      return 'letter_generated'
+    }
+    return 'selected'
+  }
+  if (item.sent_at) return 'sent'
+  if (item.current_status === 'disputed') {
+    // Legacy rows stamped disputed at plan time — treat as letter generated until Sent.
+    return 'letter_generated'
+  }
+  return 'identified'
+}
+
+export function splitWorkflowQueues(
+  items: DisputeItemRow[],
+  activeRound: DisputeRoundRow | null = null,
+  completedRoundNumbers: number[] = []
+): {
+  identified: DisputeItemRow[]
+  selected: DisputeItemRow[]
+  letterGenerated: DisputeItemRow[]
+  sent: DisputeItemRow[]
+  nextRound: DisputeItemRow[]
+  resolved: DisputeItemRow[]
+} {
+  const identified: DisputeItemRow[] = []
+  const selected: DisputeItemRow[] = []
+  const letterGenerated: DisputeItemRow[] = []
+  const sent: DisputeItemRow[] = []
+  const nextRound: DisputeItemRow[] = []
+  const resolved: DisputeItemRow[] = []
+  const completed = new Set(completedRoundNumbers)
+
+  for (const item of items) {
+    const stage = itemWorkflowStage(item, activeRound)
+    if (stage === 'resolved' || stage === 'withdrawn') {
+      resolved.push(item)
+      continue
+    }
+    if (stage === 'still_appears') {
+      nextRound.push(item)
+      continue
+    }
+    if (stage === 'sent') {
+      sent.push(item)
+      const last = item.last_round_number
+      if (last && completed.has(last)) nextRound.push(item)
+      continue
+    }
+    if (stage === 'letter_generated') {
+      letterGenerated.push(item)
+      continue
+    }
+    if (stage === 'selected') {
+      selected.push(item)
+      continue
+    }
+    identified.push(item)
+    // After a completed round, newly identified / never-selected items feed Next Round.
+    if (completed.size > 0) nextRound.push(item)
+  }
+
+  return {
+    identified: sortQueueItems(identified),
+    selected: sortQueueItems(selected),
+    letterGenerated: sortQueueItems(letterGenerated),
+    sent: sortQueueItems(sent),
+    nextRound: sortQueueItems(nextRound),
+    resolved: sortQueueItems(resolved),
+  }
+}
+
+export function appendStatusEvent(
+  history: DisputeStatusEvent[] | null | undefined,
+  event: Omit<DisputeStatusEvent, 'at'> & { at?: string }
+): DisputeStatusEvent[] {
+  return [...(history || []), { at: event.at || new Date().toISOString(), ...event }]
+}
+
 export function nextRoundNumber(rounds: { round_number: number }[]): number {
   if (!rounds.length) return 1
   return Math.max(...rounds.map((r) => r.round_number)) + 1
 }
 
 export function notYetDisputedFromItems(items: DisputeItemRow[]): DisputeItemRow[] {
-  return sortQueueItems(items.filter((i) => NOT_YET_DISPUTED_STATUSES.includes(i.current_status)))
+  const queues = splitWorkflowQueues(items)
+  return sortQueueItems([...queues.identified, ...queues.selected])
 }
 
 export function pendingQueueFromItems(items: DisputeItemRow[]): DisputeItemRow[] {
-  return sortQueueItems(items.filter((i) => NEEDS_NEXT_ROUND_STATUSES.includes(i.current_status)))
+  return splitWorkflowQueues(items).nextRound
 }
 
 /** Negatives, inquiries, and recommended disputes should appear in the item queue. */
@@ -194,6 +349,21 @@ export function isDisputeCandidateTradeline(tl: Tradeline): boolean {
  * Expand remaining dispute candidates into per-bureau identities.
  * Selected-for-round rows are created separately; this covers accounts not yet in a letter.
  */
+export function allIdentitiesFromTradelines(tradelines: Tradeline[]): ItemIdentity[] {
+  const out: ItemIdentity[] = []
+  const seen = new Set<string>()
+  for (const tl of tradelines) {
+    for (const bureau of BUREAU_CODES) {
+      if (!tradelineCoversBureau(tl, bureau)) continue
+      const identity = itemIdentityFromTradeline(tl, bureau)
+      if (!identity || seen.has(identity.matchKey)) continue
+      seen.add(identity.matchKey)
+      out.push(identity)
+    }
+  }
+  return out
+}
+
 export function pendingIdentitiesFromTradelines(tradelines: Tradeline[]): ItemIdentity[] {
   const out: ItemIdentity[] = []
   const seen = new Set<string>()
@@ -208,6 +378,132 @@ export function pendingIdentitiesFromTradelines(tradelines: Tradeline[]): ItemId
     }
   }
   return out
+}
+
+/** Split a bureau/furnisher item list so each letter stays at MAX_ITEMS_PER_LETTER. */
+export function chunkItems<T>(items: T[], size: number = MAX_ITEMS_PER_LETTER): T[][] {
+  const max = size < 1 ? 1 : size
+  if (!items.length) return []
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += max) {
+    chunks.push(items.slice(i, i + max))
+  }
+  return chunks
+}
+
+export function letterChunkCount(itemCount: number, size: number = MAX_ITEMS_PER_LETTER): number {
+  if (itemCount <= 0) return 0
+  return Math.ceil(itemCount / (size < 1 ? 1 : size))
+}
+
+export interface ComparisonItemUpdate {
+  id: string
+  nextStatus?: DisputeItemStatus
+  event: Omit<DisputeStatusEvent, 'at'>
+}
+
+/**
+ * Compare durable dispute items against the latest report.
+ * Removed → resolved. Still on file after a send → still appears.
+ * Corrected (on file but no longer a candidate) → updated.
+ * Reappeared after deletion → identified.
+ */
+export function comparisonUpdatesForItems(params: {
+  items: DisputeItemRow[]
+  latestMatchKeys: Set<string>
+  latestCandidateKeys: Set<string>
+}): ComparisonItemUpdate[] {
+  const updates: ComparisonItemUpdate[] = []
+  for (const item of params.items) {
+    const onFile = params.latestMatchKeys.has(item.match_key)
+    const candidate = params.latestCandidateKeys.has(item.match_key)
+    const wasDisputed =
+      Boolean(item.sent_at) ||
+      item.current_status === 'disputed' ||
+      item.current_status === 'verified' ||
+      item.current_status === 'updated' ||
+      item.current_status === 'no_response'
+
+    if (!onFile) {
+      if (item.current_status === 'deleted' || item.current_status === 'withdrawn') continue
+      updates.push({
+        id: item.id,
+        nextStatus: 'deleted',
+        event: {
+          stage: 'resolved',
+          roundNumber: item.last_round_number,
+          detail: 'Removed from latest credit report',
+        },
+      })
+      continue
+    }
+
+    if (item.current_status === 'deleted' && candidate) {
+      updates.push({
+        id: item.id,
+        nextStatus: 'pending',
+        event: {
+          stage: 'identified',
+          roundNumber: item.last_round_number,
+          detail: 'Reappeared on latest credit report',
+        },
+      })
+      continue
+    }
+
+    if (!wasDisputed) continue
+
+    if (!candidate) {
+      if (item.current_status === 'updated' || item.current_status === 'deleted') continue
+      updates.push({
+        id: item.id,
+        nextStatus: 'updated',
+        event: {
+          stage: 'still_appears',
+          roundNumber: item.last_round_number,
+          detail: 'Still on file but no longer a dispute candidate (corrected)',
+        },
+      })
+      continue
+    }
+
+    const history = item.status_history || []
+    const last = history[history.length - 1]
+    if (last?.stage === 'still_appears' && last.detail?.includes('Still appears')) continue
+    updates.push({
+      id: item.id,
+      event: {
+        stage: 'still_appears',
+        roundNumber: item.last_round_number,
+        detail: 'Still appears on latest credit report',
+      },
+    })
+  }
+  return updates
+}
+
+export function formatStatusHistory(events: DisputeStatusEvent[] | null | undefined): string[] {
+  return (events || []).map((event) => {
+    const date = event.at
+      ? new Date(event.at).toLocaleDateString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+        })
+      : ''
+    const stage =
+      event.stage === 'identified' ||
+      event.stage === 'selected' ||
+      event.stage === 'letter_generated' ||
+      event.stage === 'sent' ||
+      event.stage === 'still_appears' ||
+      event.stage === 'resolved' ||
+      event.stage === 'withdrawn'
+        ? workflowStageLabel(event.stage)
+        : event.stage
+    const round = event.roundNumber ? `Round ${event.roundNumber}` : ''
+    return [date, round, stage, event.detail].filter(Boolean).join(' · ')
+  })
 }
 
 export function countSelectionsPerBureau(
@@ -291,11 +587,11 @@ export function disputeLettersZipDownloadNameForRound(
 export function itemStatusLabel(status: DisputeItemStatus): string {
   switch (status) {
     case 'pending':
-      return 'Pending'
+      return 'Identified'
     case 'selected_for_round':
-      return 'Selected'
+      return 'Selected for round'
     case 'disputed':
-      return 'Disputed'
+      return 'Sent'
     case 'deleted':
       return 'Deleted'
     case 'verified':
@@ -310,6 +606,27 @@ export function itemStatusLabel(status: DisputeItemStatus): string {
       return 'Withdrawn'
     default:
       return status
+  }
+}
+
+export function workflowStageLabel(stage: DisputeWorkflowStage): string {
+  switch (stage) {
+    case 'identified':
+      return 'Identified'
+    case 'selected':
+      return 'Selected for round'
+    case 'letter_generated':
+      return 'Letter generated'
+    case 'sent':
+      return 'Sent'
+    case 'still_appears':
+      return 'Still appears'
+    case 'resolved':
+      return 'Resolved / removed'
+    case 'withdrawn':
+      return 'Withdrawn'
+    default:
+      return stage
   }
 }
 

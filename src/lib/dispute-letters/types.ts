@@ -227,6 +227,7 @@ export interface GeneratedLetter {
   preview?: LetterPreviewLayout
   plain_text?: string
   file_path: string
+  sent_at?: string | null
 }
 
 export type DisputeSessionStatus = 'uploaded' | 'analyzing' | 'ready' | 'failed'

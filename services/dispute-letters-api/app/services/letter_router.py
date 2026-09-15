@@ -42,6 +42,9 @@ LETTER_META: dict[str, tuple[str, str]] = {
 # Round 1 is planned. They must not switch the router onto per-item follow-up letters.
 FOLLOW_UP_ITEM_STATUSES = frozenset({"verified", "no_response", "updated", "frivolous"})
 
+# Max accounts in a single bureau or furnisher letter. Extra items create additional letters.
+MAX_ITEMS_PER_LETTER = 7
+
 
 def _is_follow_up_selection(sel: TradelineSelection | None) -> bool:
     if sel is None:
@@ -110,6 +113,45 @@ def build_plan(session_id: str, report: ParsedReport, request: DisputePlanReques
     )
 
 
+def chunk_items(items: list, size: int = MAX_ITEMS_PER_LETTER) -> list[list]:
+    max_size = 1 if size < 1 else size
+    if not items:
+        return []
+    return [items[i : i + max_size] for i in range(0, len(items), max_size)]
+
+
+def _chunk_recipient_name(base: str, index: int, total: int) -> str:
+    if total <= 1:
+        return base
+    return f"{base} (letter {index + 1} of {total})"
+
+
+def _append_chunked_plans(
+    plans: list[LetterPlan],
+    *,
+    items: list[LetterItem],
+    letter_type: str,
+    recipient_name: str,
+    recipient_lines: list[str],
+    statute: str,
+    missing_address: bool = False,
+) -> None:
+    chunks = chunk_items(items)
+    total = len(chunks)
+    for index, chunk in enumerate(chunks):
+        plans.append(
+            LetterPlan(
+                id=str(uuid.uuid4()),
+                letter_type=letter_type,
+                recipient_name=_chunk_recipient_name(recipient_name, index, total),
+                recipient_lines=recipient_lines,
+                statute=statute,
+                items=chunk,
+                missing_address=missing_address,
+            )
+        )
+
+
 def _build_round1_plans(
     selected: list[tuple[Tradeline, str, TradelineSelection | None]],
     report: ParsedReport,
@@ -145,15 +187,13 @@ def _build_round1_plans(
                 break
         if items:
             addr = bureau_addrs[bureau_key]
-            plans.append(
-                LetterPlan(
-                    id=str(uuid.uuid4()),
-                    letter_type=letter_type,
-                    recipient_name=addr["name"],
-                    recipient_lines=addr["lines"],
-                    statute="FCRA §611 (15 U.S.C. §1681i)",
-                    items=items,
-                )
+            _append_chunked_plans(
+                plans,
+                items=items,
+                letter_type=letter_type,
+                recipient_name=addr["name"],
+                recipient_lines=addr["lines"],
+                statute="FCRA §611 (15 U.S.C. §1681i)",
             )
 
     by_creditor: dict[str, list[tuple[Tradeline, str]]] = {}
@@ -181,16 +221,14 @@ def _build_round1_plans(
             )
             for tl, reason in (group[:1] if one_per_bureau else group)
         ]
-        plans.append(
-            LetterPlan(
-                id=str(uuid.uuid4()),
-                letter_type="furnisher",
-                recipient_name=name,
-                recipient_lines=lines,
-                statute="FCRA §623 (15 U.S.C. §1681s-2)",
-                items=items,
-                missing_address=not lines,
-            )
+        _append_chunked_plans(
+            plans,
+            items=items,
+            letter_type="furnisher",
+            recipient_name=name,
+            recipient_lines=lines,
+            statute="FCRA §623 (15 U.S.C. §1681s-2)",
+            missing_address=not lines,
         )
 
     return plans

@@ -71,7 +71,7 @@ def _exp_tradeline(tid: str, creditor: str) -> Tradeline:
 
 
 def test_round1_disputed_status_keeps_grouped_bureau_letters():
-    """Lifecycle stamps items as disputed at plan time; Round 1 must stay 1 letter per bureau."""
+    """In-progress statuses must not switch Round 1 onto per-item follow-up letters."""
     one = _exp_tradeline("one", "CAPITAL ONE")
     two = _exp_tradeline("two", "DISCOVER")
     report = ParsedReport(consumer=ConsumerInfo(name="Test Client"), tradelines=[one, two])
@@ -116,9 +116,26 @@ def test_round2_no_response_routes_to_warning():
     assert [p.letter_type for p in result.plans] == ["warning_intent"]
 
 
+def test_round1_chunks_bureau_letters_at_seven_items():
+    tradelines = [_exp_tradeline(f"t{i}", f"CREDITOR {i}") for i in range(8)]
+    report = ParsedReport(consumer=ConsumerInfo(name="Test Client"), tradelines=tradelines)
+    request = DisputePlanRequest(
+        session_id="s1",
+        round_number=1,
+        selections=[TradelineSelection(id=f"t{i}", selected=True) for i in range(8)],
+    )
+    result = build_plan("s1", report, request)
+    experian = [p for p in result.plans if p.letter_type == "bureau_experian"]
+    assert len(experian) == 2
+    assert [len(p.items) for p in experian] == [7, 1]
+    assert experian[0].recipient_name == "Experian (letter 1 of 2)"
+    assert experian[1].recipient_name == "Experian (letter 2 of 2)"
+
+
 if __name__ == "__main__":
     test_selected_inquiry_with_empty_reason_is_in_experian_letter()
     test_round1_disputed_status_keeps_grouped_bureau_letters()
     test_round2_verified_routes_to_method_of_verification()
     test_round2_no_response_routes_to_warning()
+    test_round1_chunks_bureau_letters_at_seven_items()
     print("letter_router tests passed")
