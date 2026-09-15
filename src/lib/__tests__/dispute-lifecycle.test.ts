@@ -13,6 +13,8 @@ import {
   isRoundClosedForNext,
   itemIdentityFromTradeline,
   nextRoundNumber,
+  notYetDisputedFromItems,
+  pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
   suggestFollowUpLetterType,
   type DisputeItemRow,
@@ -41,6 +43,23 @@ function tl(partial: Partial<Tradeline> & { id: string; creditor: string }): Tra
     legal_flags: [],
     repair_priority: 'none',
     item_category: '',
+    ...partial,
+  }
+}
+
+function item(partial: Partial<DisputeItemRow> & Pick<DisputeItemRow, 'id' | 'current_status'>): DisputeItemRow {
+  return {
+    case_id: 'c',
+    match_key: partial.id,
+    creditor_name: 'Creditor',
+    account_last4: '0000',
+    bureau: 'TUC',
+    account_type: 'Card',
+    last_round_number: 1,
+    last_letter_type: 'bureau',
+    notes: null,
+    created_at: '',
+    updated_at: '',
     ...partial,
   }
 }
@@ -131,55 +150,94 @@ describe('dispute lifecycle rounds', () => {
 
   it('builds pending queue from unresolved item statuses', () => {
     const items: DisputeItemRow[] = [
-      {
+      item({
         id: '1',
-        case_id: 'c',
         match_key: 'a',
         creditor_name: 'Verified Bank',
         account_last4: '1111',
         bureau: 'TUC',
-        account_type: 'Card',
         current_status: 'verified',
-        last_round_number: 1,
-        last_letter_type: 'bureau',
-        notes: null,
-        created_at: '',
-        updated_at: '',
-      },
-      {
+      }),
+      item({
         id: '2',
-        case_id: 'c',
         match_key: 'b',
         creditor_name: 'Deleted Co',
         account_last4: '2222',
         bureau: 'EXP',
-        account_type: 'Card',
         current_status: 'deleted',
-        last_round_number: 1,
-        last_letter_type: 'bureau',
-        notes: null,
-        created_at: '',
-        updated_at: '',
-      },
-      {
+      }),
+      item({
         id: '3',
-        case_id: 'c',
         match_key: 'c',
         creditor_name: 'No Reply LLC',
         account_last4: '3333',
         bureau: 'EQF',
         account_type: 'Collection',
         current_status: 'no_response',
-        last_round_number: 1,
-        last_letter_type: 'bureau',
-        notes: null,
-        created_at: '',
-        updated_at: '',
-      },
+      }),
     ]
     const queue = pendingQueueFromItems(items)
     assert.equal(queue.length, 2)
     assert.ok(queue.every((i) => i.current_status !== 'deleted'))
+  })
+
+  it('keeps not-yet-disputed items out of the next-round queue', () => {
+    const items: DisputeItemRow[] = [
+      item({ id: 'p', creditor_name: 'Pending Bank', current_status: 'pending', last_round_number: null }),
+      item({
+        id: 's',
+        creditor_name: 'Selected Bank',
+        current_status: 'selected_for_round',
+      }),
+      item({ id: 'd', creditor_name: 'Disputed Bank', current_status: 'disputed' }),
+    ]
+    const pending = notYetDisputedFromItems(items)
+    const nextRound = pendingQueueFromItems(items)
+    assert.deepEqual(
+      pending.map((i) => i.current_status),
+      ['pending', 'selected_for_round']
+    )
+    assert.deepEqual(
+      nextRound.map((i) => i.current_status),
+      ['disputed']
+    )
+  })
+
+  it('expands unselected negatives and inquiries into pending identities', () => {
+    const identities = pendingIdentitiesFromTradelines([
+      tl({
+        id: 'neg',
+        creditor: 'Collections Inc',
+        is_collection: true,
+        selected: false,
+        bureaus: ['TUC', 'EXP', 'EQF'],
+        account_tu: '****1111',
+        account_exp: '****1111',
+        account_eqf: '****1111',
+      }),
+      tl({
+        id: 'inq',
+        creditor: 'Hard Pull LLC',
+        status: 'Inquiry',
+        item_category: 'inquiry',
+        selected: false,
+        bureaus: ['EXP'],
+        account_exp: '****9999',
+      }),
+      tl({
+        id: 'good',
+        creditor: 'Clean Card',
+        status: 'Open',
+        remarks: 'Never late',
+        selected: false,
+        bureaus: ['TUC'],
+        account_tu: '****2222',
+      }),
+    ])
+    assert.equal(identities.length, 4)
+    assert.ok(identities.every((i) => i.creditorName !== 'Clean Card'))
+    assert.equal(identities.filter((i) => i.creditorName === 'Collections Inc').length, 3)
+    assert.equal(identities.filter((i) => i.creditorName === 'Hard Pull LLC').length, 1)
   })
 
   it('names ZIP files with the real round number', () => {

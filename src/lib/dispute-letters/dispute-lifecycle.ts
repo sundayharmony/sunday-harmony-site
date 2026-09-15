@@ -1,4 +1,6 @@
-import { accountForBureau } from '@/lib/dispute-letters/bureau-coverage'
+import { accountForBureau, isNegativeTradeline, tradelineCoversBureau } from '@/lib/dispute-letters/bureau-coverage'
+import { isInquiryTradeline } from '@/lib/dispute-letters/dispute-reasons'
+import { isRecommendedDispute } from '@/lib/dispute-letters/dispute-selection'
 import { accountDigits, tradelineMatchKey } from '@/lib/dispute-letters/tradeline-progress'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 
@@ -116,6 +118,8 @@ export interface DisputeLifecycleSnapshot {
   case: DisputeCaseRow | null
   rounds: DisputeRoundRow[]
   items: DisputeItemRow[]
+  /** Remaining report negatives / inquiries that have not been mailed in a round. */
+  notYetDisputed: DisputeItemRow[]
   pendingQueue: DisputeItemRow[]
   activeRound: DisputeRoundRow | null
 }
@@ -140,15 +144,29 @@ export interface ItemIdentity {
   accountType: string
 }
 
-/** Statuses that still need work in a later round. */
-export const NEEDS_NEXT_ROUND_STATUSES: DisputeItemStatus[] = [
+/** Statuses for accounts that have not been included in a mailed round yet. */
+export const NOT_YET_DISPUTED_STATUSES: DisputeItemStatus[] = [
   'pending',
+  'selected_for_round',
+]
+
+/** Bureau-reply / in-flight statuses that still need work in a later round. */
+export const NEEDS_NEXT_ROUND_STATUSES: DisputeItemStatus[] = [
   'no_response',
   'verified',
   'updated',
-  'selected_for_round',
   'disputed',
 ]
+
+const BUREAU_CODES: BureauCode[] = ['TUC', 'EXP', 'EQF']
+
+function sortQueueItems(items: DisputeItemRow[]): DisputeItemRow[] {
+  return [...items].sort((a, b) => {
+    const bureauCmp = a.bureau.localeCompare(b.bureau)
+    if (bureauCmp !== 0) return bureauCmp
+    return a.creditor_name.localeCompare(b.creditor_name)
+  })
+}
 
 export function isRoundClosedForNext(status: DisputeRoundStatus): boolean {
   return status === 'mailed' || status === 'closed' || status === 'awaiting_response'
@@ -159,14 +177,37 @@ export function nextRoundNumber(rounds: { round_number: number }[]): number {
   return Math.max(...rounds.map((r) => r.round_number)) + 1
 }
 
+export function notYetDisputedFromItems(items: DisputeItemRow[]): DisputeItemRow[] {
+  return sortQueueItems(items.filter((i) => NOT_YET_DISPUTED_STATUSES.includes(i.current_status)))
+}
+
 export function pendingQueueFromItems(items: DisputeItemRow[]): DisputeItemRow[] {
-  return items
-    .filter((i) => NEEDS_NEXT_ROUND_STATUSES.includes(i.current_status))
-    .sort((a, b) => {
-      const bureauCmp = a.bureau.localeCompare(b.bureau)
-      if (bureauCmp !== 0) return bureauCmp
-      return a.creditor_name.localeCompare(b.creditor_name)
-    })
+  return sortQueueItems(items.filter((i) => NEEDS_NEXT_ROUND_STATUSES.includes(i.current_status)))
+}
+
+/** Negatives, inquiries, and recommended disputes should appear in the item queue. */
+export function isDisputeCandidateTradeline(tl: Tradeline): boolean {
+  return isNegativeTradeline(tl) || isInquiryTradeline(tl) || isRecommendedDispute(tl)
+}
+
+/**
+ * Expand remaining dispute candidates into per-bureau identities.
+ * Selected-for-round rows are created separately; this covers accounts not yet in a letter.
+ */
+export function pendingIdentitiesFromTradelines(tradelines: Tradeline[]): ItemIdentity[] {
+  const out: ItemIdentity[] = []
+  const seen = new Set<string>()
+  for (const tl of tradelines) {
+    if (!isDisputeCandidateTradeline(tl)) continue
+    for (const bureau of BUREAU_CODES) {
+      if (!tradelineCoversBureau(tl, bureau)) continue
+      const identity = itemIdentityFromTradeline(tl, bureau)
+      if (!identity || seen.has(identity.matchKey)) continue
+      seen.add(identity.matchKey)
+      out.push(identity)
+    }
+  }
+  return out
 }
 
 export function countSelectionsPerBureau(

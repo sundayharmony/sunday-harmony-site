@@ -5,6 +5,8 @@ import {
   isRoundClosedForNext,
   itemIdentityFromTradeline,
   nextRoundNumber,
+  notYetDisputedFromItems,
+  pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
   type DisputeCaseRow,
   type DisputeCfpbEscalationRow,
@@ -19,6 +21,7 @@ import {
   type DisputeRoundRow,
   type DisputeRoundStatus,
 } from '@/lib/dispute-letters/dispute-lifecycle'
+import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import type { Tradeline } from '@/lib/dispute-letters/types'
 
 function isMissingRelation(error: { message?: string; code?: string } | null): boolean {
@@ -130,6 +133,7 @@ export async function loadDisputeLifecycleForApplication(
     case: null,
     rounds: [],
     items: [],
+    notYetDisputed: [],
     pendingQueue: [],
     activeRound: null,
   }
@@ -147,6 +151,7 @@ export async function loadDisputeLifecycleForApplication(
   if (!caseRow) return empty
 
   const disputeCase = caseRow as DisputeCaseRow
+  await seedPendingItemsFromLatestReport(applicationUuid, disputeCase.id)
   const rounds = await listRoundsForCase(disputeCase.id)
   const items = await listItemsForCase(disputeCase.id)
   const activeRound =
@@ -158,9 +163,68 @@ export async function loadDisputeLifecycleForApplication(
     case: disputeCase,
     rounds,
     items,
+    notYetDisputed: notYetDisputedFromItems(items),
     pendingQueue: pendingQueueFromItems(items),
     activeRound,
   }
+}
+
+async function latestReportTradelines(applicationUuid: string): Promise<Tradeline[]> {
+  const sessions = await listDisputeSessionsForApplication(applicationUuid)
+  for (const session of sessions) {
+    const tradelines = session.report_json?.tradelines
+    if (Array.isArray(tradelines) && tradelines.length) return tradelines
+  }
+  return []
+}
+
+/** Insert remaining negatives/inquiries as pending so they get a status dropdown. */
+export async function ensurePendingItemsFromTradelines(params: {
+  caseId: string
+  tradelines: Tradeline[]
+}): Promise<{ inserted: number; error?: string }> {
+  const identities = pendingIdentitiesFromTradelines(params.tradelines)
+  if (!identities.length) return { inserted: 0 }
+
+  const existing = await listItemsForCase(params.caseId)
+  const existingKeys = new Set(existing.map((item) => item.match_key))
+  const now = new Date().toISOString()
+  const rows = identities
+    .filter((identity) => !existingKeys.has(identity.matchKey))
+    .map((identity) => ({
+      case_id: params.caseId,
+      match_key: identity.matchKey,
+      creditor_name: identity.creditorName,
+      account_last4: identity.accountLast4,
+      bureau: identity.bureau,
+      account_type: identity.accountType,
+      current_status: 'pending' satisfies DisputeItemStatus,
+      last_round_number: null,
+      last_letter_type: null,
+      created_at: now,
+      updated_at: now,
+    }))
+
+  if (!rows.length) return { inserted: 0 }
+
+  const { error } = await getSupabase().from('dispute_items').insert(rows)
+  if (error) {
+    if (isMissingRelation(error)) return { inserted: 0 }
+    // Parallel page loads can race the unique (case_id, match_key) insert.
+    if (error.code === '23505') return { inserted: 0 }
+    console.error('ensurePendingItemsFromTradelines error:', error)
+    return { inserted: 0, error: error.message }
+  }
+  return { inserted: rows.length }
+}
+
+async function seedPendingItemsFromLatestReport(
+  applicationUuid: string,
+  caseId: string
+): Promise<void> {
+  const tradelines = await latestReportTradelines(applicationUuid)
+  if (!tradelines.length) return
+  await ensurePendingItemsFromTradelines({ caseId, tradelines })
 }
 
 export async function openOrCreateRound(params: {
@@ -429,6 +493,10 @@ export async function syncLifecycleOnPlan(params: {
     return { ok: false, error: upsert.error, status: 500 }
   }
 
+  await ensurePendingItemsFromTradelines({
+    caseId: disputeCase.id,
+    tradelines: params.tradelines,
+  })
   await markRoundLettersReady(opened.round.id, params.sessionId)
 
   return {
