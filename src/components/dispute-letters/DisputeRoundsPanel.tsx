@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   daysUntilDeadline,
   itemStatusLabel,
+  notYetDisputedFromItems,
   roundStatusLabel,
   type DisputeCfpbEscalationRow,
   type DisputeItemRow,
@@ -18,14 +19,15 @@ import {
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 
 const ITEM_OUTCOMES: DisputeItemStatus[] = [
+  'pending',
+  'selected_for_round',
+  'disputed',
   'deleted',
   'verified',
   'updated',
   'no_response',
   'frivolous',
   'withdrawn',
-  'pending',
-  'disputed',
 ]
 
 const MAIL_METHODS: DisputeMailMethod[] = ['certified', 'priority', 'other']
@@ -116,9 +118,17 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
   const unresolvedItems = useMemo(
     () =>
       (snapshot?.items || []).filter(
-        (item) => !['deleted', 'withdrawn', 'frivolous'].includes(item.current_status)
+        (item) =>
+          !['deleted', 'withdrawn', 'frivolous', 'pending', 'selected_for_round'].includes(
+            item.current_status
+          )
       ),
     [snapshot?.items]
+  )
+
+  const notYetDisputed = useMemo(
+    () => snapshot?.notYetDisputed ?? notYetDisputedFromItems(snapshot?.items || []),
+    [snapshot?.items, snapshot?.notYetDisputed]
   )
 
   async function patch(body: Record<string, unknown>) {
@@ -299,7 +309,17 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         </div>
       )}
 
-      <PendingQueue
+      <ItemStatusQueue
+        title="Not yet disputed"
+        empty="No remaining negatives or inquiries from the report."
+        items={notYetDisputed}
+        busy={busy}
+        onStatus={(itemId, status) => void patch({ itemId, status })}
+      />
+
+      <ItemStatusQueue
+        title="Needs next round"
+        empty="No unresolved items yet."
         items={snapshot.pendingQueue}
         busy={busy}
         onStatus={(itemId, status) => void patch({ itemId, status })}
@@ -576,11 +596,15 @@ function RoundCard({
   )
 }
 
-function PendingQueue({
+function ItemStatusQueue({
+  title,
+  empty,
   items,
   busy,
   onStatus,
 }: {
+  title: string
+  empty: string
   items: DisputeItemRow[]
   busy: boolean
   onStatus: (itemId: string, status: DisputeItemStatus) => void
@@ -588,8 +612,8 @@ function PendingQueue({
   if (!items.length) {
     return (
       <div className="rounded-lg border border-dashed border-brand-border bg-neutral-50 p-3">
-        <p className="text-xs font-semibold text-brand-text">Needs next round</p>
-        <p className="mt-1 text-xs text-brand-dim">No unresolved items yet.</p>
+        <p className="text-xs font-semibold text-brand-text">{title}</p>
+        <p className="mt-1 text-xs text-brand-dim">{empty}</p>
       </div>
     )
   }
@@ -597,7 +621,7 @@ function PendingQueue({
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
-        Needs next round ({items.length})
+        {title} ({items.length})
       </p>
       <ul className="divide-y divide-brand-border rounded-lg border border-brand-border">
         {items.map((item) => (
