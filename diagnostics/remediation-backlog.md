@@ -26,6 +26,6 @@
 | O-2 | Configure Upstash in Vercel production | P1 |
 | O-3 | Private `client-files` bucket if still public | P1 |
 | O-4 | Replace plaintext password in admin welcome email with setup link | P1 |
-| O-5 | Gemini responses to signed URLs instead of inline base64 | P2 |
+| O-5 | Gemini responses to signed URLs instead of inline base64 | Cancelled — Marketing Graphics (Gemini) removed |
 | O-6 | Playwright E2E expansion | P3 |
 | O-7 | Admin TOTP 2FA | P3 |

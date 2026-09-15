@@ -14,7 +14,6 @@ ANALYZE=true npm run build
 |-----------------|---------|-------------------|
 | `/credit-funding` | CreditFundingForm (~900 lines) | `next/dynamic` on page |
 | `/case-studies` | `pdfjs-dist` | Dynamic `CaseStudyPdfSheet`, server-fetched studies |
-| `/admin/marketing-graphics` | `html-to-image` | Recommend dynamic editor import |
 | Global | Montserrat 7→4 weights | Trimmed in `layout.tsx` |
 
 ## Public vs admin
