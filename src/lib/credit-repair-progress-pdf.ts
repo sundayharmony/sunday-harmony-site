@@ -50,6 +50,10 @@ export type CreditRepairProgressPdfInput = {
   progressByBureau: Partial<Record<BureauCode, CreditProgressReport>>
 }
 
+export function parseCreditRepairCompareMode(value: unknown): CreditRepairCompareMode {
+  return value === 'previous' ? 'previous' : 'baseline'
+}
+
 type Doc = PDFKit.PDFDocument
 
 function contentWidth(doc: Doc) {

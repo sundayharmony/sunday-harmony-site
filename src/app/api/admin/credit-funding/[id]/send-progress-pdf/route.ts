@@ -13,11 +13,13 @@ import {
   uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
 import {
+  buildCreditRepairProgressPdfInput,
+  parseCreditRepairCompareMode,
+} from '@/lib/credit-repair-progress-pdf'
+import {
   creditRepairProgressPdfFilename,
-  prepareCreditRepairProgressPdfInput,
   renderCreditRepairProgressPdf,
 } from '@/lib/credit-repair-progress-pdf-server'
-import type { CreditRepairCompareMode } from '@/lib/credit-repair-progress-pdf'
 import {
   getDisputeSessionById,
   listDisputeSessionsForApplication,
@@ -28,10 +30,6 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 type Params = { params: Promise<{ id: string }> }
-
-function parseCompareMode(value: unknown): CreditRepairCompareMode {
-  return value === 'previous' ? 'previous' : 'baseline'
-}
 
 async function notifyApplicant(
   email: string,
@@ -95,7 +93,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
 
   const notifyEmail = body.notifyEmail !== false
-  const compareMode = parseCompareMode(body.compareMode)
+  const compareMode = parseCreditRepairCompareMode(body.compareMode)
   const staffEmail = session.user?.email || 'admin'
   const staffName = session.user?.name || 'Sunday Harmony Team'
 
@@ -105,7 +103,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       sessions = [...sessions, disputeSession]
     }
 
-    const prepared = prepareCreditRepairProgressPdfInput({
+    const prepared = buildCreditRepairProgressPdfInput({
       sessions,
       selectedSessionId: sessionId,
       compareMode,

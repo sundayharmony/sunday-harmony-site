@@ -1,11 +1,11 @@
 import {
   buildCreditRepairProgressPdfBuffer,
   buildCreditRepairProgressPdfInput,
-  type CreditRepairCompareMode,
   type CreditRepairProgressPdfInput,
 } from '@/lib/credit-repair-progress-pdf'
 import { displayClientName } from '@/lib/credit-intelligence-pdf'
-import type { DisputeSessionListItem } from '@/lib/dispute-letters/types'
+
+export { buildCreditRepairProgressPdfInput }
 
 export function creditRepairProgressPdfFilename(input: CreditRepairProgressPdfInput): string {
   const rawName = displayClientName(input.clientName, 'Client')
@@ -25,15 +25,6 @@ export function creditRepairProgressPdfFilename(input: CreditRepairProgressPdfIn
 
   const mode = input.compareMode === 'previous' ? 'vs-previous' : 'vs-first'
   return `Credit-Progress-${safeName}-${mode}-${ymd}.pdf`
-}
-
-export function prepareCreditRepairProgressPdfInput(params: {
-  sessions: DisputeSessionListItem[]
-  selectedSessionId: string
-  compareMode?: CreditRepairCompareMode
-  clientName?: string | null
-}): CreditRepairProgressPdfInput | { error: string } {
-  return buildCreditRepairProgressPdfInput(params)
 }
 
 export async function renderCreditRepairProgressPdf(

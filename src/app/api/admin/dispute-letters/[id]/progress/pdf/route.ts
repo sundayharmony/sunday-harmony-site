@@ -7,28 +7,19 @@ import {
 } from '@/lib/dispute-letters/db'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import {
+  buildCreditRepairProgressPdfInput,
+  parseCreditRepairCompareMode,
+  type CreditRepairCompareMode,
+} from '@/lib/credit-repair-progress-pdf'
+import {
   creditRepairProgressPdfFilename,
-  prepareCreditRepairProgressPdfInput,
   renderCreditRepairProgressPdf,
 } from '@/lib/credit-repair-progress-pdf-server'
-import type { CreditRepairCompareMode } from '@/lib/credit-repair-progress-pdf'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 type Params = { params: Promise<{ id: string }> }
-
-function parseCompareMode(value: unknown): CreditRepairCompareMode {
-  return value === 'previous' ? 'previous' : 'baseline'
-}
-
-function applicationDisplayName(application: {
-  full_name?: string | null
-  email?: string | null
-} | null): string | null {
-  if (!application) return null
-  return application.full_name?.trim() || application.email?.trim() || null
-}
 
 async function buildProgressPdfForSession(
   sessionId: string,
@@ -48,10 +39,10 @@ async function buildProgressPdfForSession(
       sessions = [...sessions, disputeSession]
     }
     const application = await getCreditFundingApplicationById(disputeSession.application_uuid)
-    clientName = applicationDisplayName(application ?? null)
+    clientName = application?.full_name?.trim() || application?.email?.trim() || null
   }
 
-  const prepared = prepareCreditRepairProgressPdfInput({
+  const prepared = buildCreditRepairProgressPdfInput({
     sessions,
     selectedSessionId: sessionId,
     compareMode,
@@ -83,10 +74,11 @@ export async function GET(request: NextRequest, { params }: Params) {
   const access = await requireDisputeSessionAccess(id, session)
   if (!access.ok) return access.response
 
-  const compareMode = parseCompareMode(request.nextUrl.searchParams.get('compareMode'))
-
   try {
-    return await buildProgressPdfForSession(id, compareMode)
+    return await buildProgressPdfForSession(
+      id,
+      parseCreditRepairCompareMode(request.nextUrl.searchParams.get('compareMode'))
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to generate progress PDF'
     return NextResponse.json({ error: message }, { status: 500 })
@@ -104,7 +96,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const body = (await request.json().catch(() => ({}))) as { compareMode?: string }
-    return await buildProgressPdfForSession(id, parseCompareMode(body.compareMode))
+    return await buildProgressPdfForSession(id, parseCreditRepairCompareMode(body.compareMode))
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to generate progress PDF'
     return NextResponse.json({ error: message }, { status: 500 })
