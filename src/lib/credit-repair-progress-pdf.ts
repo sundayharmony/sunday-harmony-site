@@ -3,7 +3,7 @@ import {
   buildAllBureauProgress,
   formatProgressDate,
 } from '@/lib/dispute-letters/credit-progress'
-import { asText, displayClientName } from '@/lib/credit-intelligence-pdf'
+import { asText, displayClientName, pdfSafeText } from '@/lib/credit-intelligence-pdf'
 import type {
   BureauCode,
   CreditProgressDelta,
@@ -56,13 +56,28 @@ export function parseCreditRepairCompareMode(value: unknown): CreditRepairCompar
 
 type Doc = PDFKit.PDFDocument
 
+const PAGE_MARGINS = { top: 56, bottom: 58, left: 54, right: 54 }
+const SECTION_GAP = 0.55
+const SUBSECTION_GAP = 0.35
+const ITEM_GAP = 0.28
+
 function contentWidth(doc: Doc) {
   return doc.page.width - doc.page.margins.left - doc.page.margins.right
+}
+
+function safe(value: unknown, fallback = ''): string {
+  return pdfSafeText(asText(value, fallback))
 }
 
 function ensureSpace(doc: Doc, needed: number) {
   const bottom = doc.page.height - doc.page.margins.bottom
   if (doc.y + needed > bottom) doc.addPage()
+}
+
+function startBureauPage(doc: Doc) {
+  doc.addPage()
+  doc.x = doc.page.margins.left
+  doc.y = doc.page.margins.top
 }
 
 function drawFooter(doc: Doc, pageNumber: number) {
@@ -75,11 +90,16 @@ function drawFooter(doc: Doc, pageNumber: number) {
       .font('Helvetica')
       .fontSize(8)
       .fillColor(COLORS.dim)
-      .text(`Page ${pageNumber} · Credit Progress Report · Sunday Harmony`, doc.page.margins.left, doc.page.height - 36, {
-        width: contentWidth(doc),
-        align: 'center',
-        lineBreak: false,
-      })
+      .text(
+        safe(`Page ${pageNumber} | Credit Progress Report | Sunday Harmony`),
+        doc.page.margins.left,
+        doc.page.height - 36,
+        {
+          width: contentWidth(doc),
+          align: 'center',
+          lineBreak: false,
+        }
+      )
   } finally {
     doc.page.margins.bottom = savedBottom
     doc.x = savedX
@@ -121,8 +141,8 @@ function activeAccountDiff(
 }
 
 function formatDeltaValue(value: string | number | null | undefined): string {
-  if (value == null || value === '') return '—'
-  return String(value)
+  if (value == null || value === '') return '-'
+  return safe(String(value))
 }
 
 function directionColor(direction: string): string {
@@ -141,7 +161,7 @@ export function buildCreditRepairProgressPdfBuffer(
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'LETTER',
-      margins: { top: 48, bottom: 52, left: 48, right: 48 },
+      margins: PAGE_MARGINS,
       info: {
         Title: 'Credit Progress Report',
         Author: 'Sunday Harmony',
@@ -163,35 +183,37 @@ export function buildCreditRepairProgressPdfBuffer(
 
     const client = displayClientName(input.clientName, 'Client')
     const compareLabel =
-      input.compareMode === 'previous' ? 'Previous report → Current' : 'First report → Current'
-    const generated = formatProgressDate(input.generatedAt || new Date().toISOString())
+      input.compareMode === 'previous' ? 'Previous report -> Current' : 'First report -> Current'
+    const generated = safe(formatProgressDate(input.generatedAt || new Date().toISOString()))
 
-    // Header
-    doc.font('Helvetica-Bold').fontSize(18).fillColor(COLORS.text).text('Sunday Harmony')
-    doc.moveDown(0.15)
-    doc.font('Helvetica-Bold').fontSize(14).fillColor(COLORS.accent).text('Credit Progress Report')
-    doc.moveDown(0.25)
-    doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted)
-    doc.text(`Prepared for ${client}`)
-    doc.text(`Comparison: ${compareLabel}`)
-    doc.text(`Generated ${generated}`)
-    doc.moveDown(0.4)
+    // Cover page
+    doc.font('Helvetica-Bold').fontSize(20).fillColor(COLORS.text).text('Sunday Harmony')
+    doc.moveDown(0.35)
+    doc.font('Helvetica-Bold').fontSize(16).fillColor(COLORS.accent).text('Credit Progress Report')
+    doc.moveDown(0.45)
+    doc.font('Helvetica').fontSize(11).fillColor(COLORS.muted)
+    doc.text(safe(`Prepared for ${client}`), { lineGap: 4 })
+    doc.text(safe(`Comparison: ${compareLabel}`), { lineGap: 4 })
+    doc.text(safe(`Generated ${generated}`), { lineGap: 4 })
+    doc.moveDown(0.65)
     doc
       .moveTo(doc.page.margins.left, doc.y)
       .lineTo(doc.page.margins.left + contentWidth(doc), doc.y)
       .strokeColor(COLORS.border)
       .stroke()
-    doc.moveDown(0.55)
+    doc.moveDown(0.75)
 
     doc
       .font('Helvetica')
-      .fontSize(9)
+      .fontSize(10)
       .fillColor(COLORS.muted)
       .text(
-        'This report summarizes credit score movement and specific account-level changes between the compared credit reports. It is for educational progress tracking only and is not a credit score product, funding decision, or legal advice.',
-        { width: contentWidth(doc) }
+        safe(
+          'This report summarizes credit score movement and specific account-level changes between the compared credit reports. It is for educational progress tracking only and is not a credit score product, funding decision, or legal advice.'
+        ),
+        { width: contentWidth(doc), lineGap: 3 }
       )
-    doc.moveDown(0.7)
+    doc.moveDown(0.9)
 
     const bureaus = BUREAU_ORDER.filter((b) => {
       const report = input.progressByBureau[b]
@@ -204,7 +226,8 @@ export function buildCreditRepairProgressPdfBuffer(
       return
     }
 
-    for (const bureau of bureaus) {
+    for (let bureauIndex = 0; bureauIndex < bureaus.length; bureauIndex += 1) {
+      const bureau = bureaus[bureauIndex]
       const report = input.progressByBureau[bureau]!
       const fromScore = scoreForBureau(report, 'from', input.compareMode)
       const toScore = scoreForBureau(report, 'to', input.compareMode)
@@ -217,15 +240,17 @@ export function buildCreditRepairProgressPdfBuffer(
         input.compareMode === 'previous' && report.previous ? report.previous : report.baseline
       const toSnap = report.current
 
-      ensureSpace(doc, 120)
-      doc.font('Helvetica-Bold').fontSize(12).fillColor(COLORS.text).text(BUREAU_LABELS[bureau])
-      const fromLabel = formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt)
-      const toLabel = formatProgressDate(toSnap?.reportDate || toSnap?.createdAt)
-      const fromFile = fromSnap?.fileName ? ` · ${fromSnap.fileName}` : ''
-      const toFile = toSnap?.fileName ? ` · ${toSnap.fileName}` : ''
-      doc.font('Helvetica').fontSize(8).fillColor(COLORS.dim)
-      doc.text(`${fromLabel}${fromFile} → ${toLabel}${toFile}`)
-      doc.moveDown(0.35)
+      startBureauPage(doc)
+
+      doc.font('Helvetica-Bold').fontSize(15).fillColor(COLORS.text).text(BUREAU_LABELS[bureau])
+      doc.moveDown(0.25)
+      const fromLabel = safe(formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt))
+      const toLabel = safe(formatProgressDate(toSnap?.reportDate || toSnap?.createdAt))
+      const fromFile = fromSnap?.fileName ? ` | ${safe(fromSnap.fileName)}` : ''
+      const toFile = toSnap?.fileName ? ` | ${safe(toSnap.fileName)}` : ''
+      doc.font('Helvetica').fontSize(9).fillColor(COLORS.dim)
+      doc.text(safe(`${fromLabel}${fromFile} -> ${toLabel}${toFile}`), { lineGap: 2 })
+      doc.moveDown(SECTION_GAP)
 
       // Score hero row
       const scoreDelta =
@@ -233,138 +258,174 @@ export function buildCreditRepairProgressPdfBuffer(
       const scoreColor =
         scoreDelta == null ? COLORS.text : scoreDelta > 0 ? COLORS.emerald : scoreDelta < 0 ? COLORS.red : COLORS.text
 
-      ensureSpace(doc, 56)
       const boxY = doc.y
-      const boxH = 48
-      doc.roundedRect(doc.page.margins.left, boxY, contentWidth(doc), boxH, 6).fill(COLORS.softBg)
-      doc.fillColor(COLORS.dim).font('Helvetica').fontSize(8)
-      doc.text('BEFORE', doc.page.margins.left + 14, boxY + 10, { lineBreak: false })
-      doc.text('AFTER', doc.page.margins.left + 120, boxY + 10, { lineBreak: false })
+      const boxH = 62
+      doc.roundedRect(doc.page.margins.left, boxY, contentWidth(doc), boxH, 8).fill(COLORS.softBg)
+      doc.fillColor(COLORS.dim).font('Helvetica').fontSize(9)
+      doc.text('BEFORE', doc.page.margins.left + 18, boxY + 14, { lineBreak: false })
+      doc.text('AFTER', doc.page.margins.left + 140, boxY + 14, { lineBreak: false })
       if (scoreDelta != null) {
-        doc.text('CHANGE', doc.page.margins.left + 230, boxY + 10, { lineBreak: false })
+        doc.text('CHANGE', doc.page.margins.left + 270, boxY + 14, { lineBreak: false })
       }
-      doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(20)
-      doc.text(fromScore != null ? String(fromScore) : '—', doc.page.margins.left + 14, boxY + 22, {
+      doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(24)
+      doc.text(fromScore != null ? String(fromScore) : '-', doc.page.margins.left + 18, boxY + 30, {
         lineBreak: false,
       })
-      doc.text(toScore != null ? String(toScore) : '—', doc.page.margins.left + 120, boxY + 22, {
+      doc.text(toScore != null ? String(toScore) : '-', doc.page.margins.left + 140, boxY + 30, {
         lineBreak: false,
       })
       if (toScore == null && hasAccounts) {
         doc
           .font('Helvetica')
-          .fontSize(7)
+          .fontSize(8)
           .fillColor(COLORS.amber)
           .text(
-            'Score not found in the newer report file — account changes below still apply.',
-            doc.page.margins.left + 14,
-            boxY + boxH + 2,
-            { width: contentWidth(doc) - 28, lineBreak: true }
+            safe(
+              'Score not found in the newer report file - account changes below still apply.'
+            ),
+            doc.page.margins.left + 18,
+            boxY + boxH + 6,
+            { width: contentWidth(doc) - 36, lineGap: 2 }
           )
-        doc.y = Math.max(doc.y, boxY + boxH + 14)
+        doc.y = Math.max(doc.y, boxY + boxH + 20)
       }
       if (scoreDelta != null) {
         const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
-        doc.fillColor(scoreColor).text(`${label} pts`, doc.page.margins.left + 230, boxY + 22, {
+        doc.fillColor(scoreColor).text(safe(`${label} pts`), doc.page.margins.left + 270, boxY + 30, {
           lineBreak: false,
         })
       }
-      doc.y = boxY + boxH + 10
+      doc.y = boxY + boxH + 18
       doc.x = doc.page.margins.left
 
       // Profile metrics (exclude funding)
       const metricDeltas = deltas.filter((d) => d.field !== 'bureau_score')
       if (metricDeltas.length) {
-        ensureSpace(doc, 24 + metricDeltas.length * 14)
-        doc.font('Helvetica-Bold').fontSize(9).fillColor(COLORS.muted).text('PROFILE METRICS')
-        doc.moveDown(0.2)
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('PROFILE METRICS')
+        doc.moveDown(SUBSECTION_GAP)
         for (const d of metricDeltas) {
-          ensureSpace(doc, 14)
-          doc.font('Helvetica').fontSize(9).fillColor(COLORS.text)
-          const left = `${d.label}: ${formatDeltaValue(d.from)} → ${formatDeltaValue(d.to)}`
-          doc.text(left, { continued: true })
+          ensureSpace(doc, 18)
+          doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
+          const left = safe(`${d.label}: ${formatDeltaValue(d.from)} -> ${formatDeltaValue(d.to)}`)
+          doc.text(left, { continued: true, lineGap: 2 })
           doc.fillColor(directionColor(d.direction)).text(
             d.direction === 'unchanged' ? '  (same)' : `  (${d.direction})`
           )
+          doc.moveDown(0.12)
         }
-        doc.moveDown(0.35)
+        doc.moveDown(SECTION_GAP)
       }
 
       // Account changes
       const diff = accounts
 
-      ensureSpace(doc, 28)
-      doc.font('Helvetica-Bold').fontSize(9).fillColor(COLORS.muted).text('ACCOUNT CHANGES')
-      doc.moveDown(0.2)
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('ACCOUNT CHANGES')
+      doc.moveDown(SUBSECTION_GAP)
 
       if (!hasAccounts) {
         doc
           .font('Helvetica')
-          .fontSize(9)
+          .fontSize(10)
           .fillColor(COLORS.dim)
           .text(
-            diff?.matchConfidence === 'low'
-              ? 'Could not match accounts reliably between reports. Score change above still applies.'
-              : 'No account-level changes detected for this bureau.'
+            safe(
+              diff?.matchConfidence === 'low'
+                ? 'Could not match accounts reliably between reports. Score change above still applies.'
+                : 'No account-level changes detected for this bureau.'
+            ),
+            { lineGap: 2 }
           )
-        doc.moveDown(0.6)
-        continue
-      }
+        doc.moveDown(SECTION_GAP)
+      } else {
+        if (diff!.changed.length > 0) {
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.text).text('Updated accounts')
+          doc.moveDown(SUBSECTION_GAP)
+          for (const item of diff!.changed) {
+            ensureSpace(doc, 36 + item.fields.length * 16)
+            const mask =
+              item.accountMask && item.accountMask !== '-' && item.accountMask !== '—'
+                ? ` ${safe(item.accountMask)}`
+                : ''
+            doc
+              .font('Helvetica-Bold')
+              .fontSize(10)
+              .fillColor(COLORS.text)
+              .text(safe(`${item.creditor}${mask}`))
+            doc.moveDown(0.1)
+            for (const f of item.fields) {
+              doc
+                .font('Helvetica')
+                .fontSize(9)
+                .fillColor(COLORS.muted)
+                .text(safe(`  ${f.label}: ${f.from} -> `), { continued: true })
+              doc
+                .fillColor(
+                  directionColor(
+                    f.direction === 'improved'
+                      ? 'improved'
+                      : f.direction === 'worsened'
+                        ? 'worsened'
+                        : 'unchanged'
+                  )
+                )
+                .text(safe(f.to))
+            }
+            doc.moveDown(ITEM_GAP)
+          }
+          doc.moveDown(0.2)
+        }
 
-      if (diff!.changed.length > 0) {
-        ensureSpace(doc, 20)
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Updated accounts')
-        doc.moveDown(0.15)
-        for (const item of diff!.changed) {
-          ensureSpace(doc, 28 + item.fields.length * 12)
-          const mask = item.accountMask && item.accountMask !== '—' ? ` ${item.accountMask}` : ''
-          doc.font('Helvetica-Bold').fontSize(9).fillColor(COLORS.text).text(`${item.creditor}${mask}`)
-          for (const f of item.fields) {
+        if (diff!.removed.length > 0) {
+          ensureSpace(doc, 24 + diff!.removed.length * 14)
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.emerald).text('Removed from report')
+          doc.moveDown(SUBSECTION_GAP)
+          for (const item of diff!.removed) {
+            const mask =
+              item.accountMask && item.accountMask !== '-' && item.accountMask !== '—'
+                ? ` ${safe(item.accountMask)}`
+                : ''
             doc
               .font('Helvetica')
-              .fontSize(8)
-              .fillColor(COLORS.muted)
-              .text(`  ${f.label}: ${f.from} → `, { continued: true })
-            doc.fillColor(directionColor(f.direction === 'improved' ? 'improved' : f.direction === 'worsened' ? 'worsened' : 'unchanged')).text(f.to)
+              .fontSize(10)
+              .fillColor(COLORS.text)
+              .text(safe(`- ${item.creditor}${mask}`), { lineGap: 2 })
           }
-          doc.moveDown(0.15)
+          doc.moveDown(SECTION_GAP)
+        }
+
+        if (diff!.added.length > 0) {
+          ensureSpace(doc, 24 + diff!.added.length * 14)
+          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.amber).text('New on report')
+          doc.moveDown(SUBSECTION_GAP)
+          for (const item of diff!.added) {
+            const mask =
+              item.accountMask && item.accountMask !== '-' && item.accountMask !== '—'
+                ? ` ${safe(item.accountMask)}`
+                : ''
+            doc
+              .font('Helvetica')
+              .fontSize(10)
+              .fillColor(COLORS.text)
+              .text(safe(`- ${item.creditor}${mask}`), { lineGap: 2 })
+          }
+          doc.moveDown(SECTION_GAP)
         }
       }
 
-      if (diff!.removed.length > 0) {
-        ensureSpace(doc, 20 + diff!.removed.length * 11)
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.emerald).text('Removed from report')
-        doc.moveDown(0.1)
-        for (const item of diff!.removed) {
-          const mask = item.accountMask && item.accountMask !== '—' ? ` ${item.accountMask}` : ''
-          doc.font('Helvetica').fontSize(9).fillColor(COLORS.text).text(`• ${item.creditor}${mask}`)
-        }
-        doc.moveDown(0.25)
+      if (bureauIndex === bureaus.length - 1) {
+        ensureSpace(doc, 52)
+        doc
+          .font('Helvetica')
+          .fontSize(8)
+          .fillColor(COLORS.dim)
+          .text(
+            safe(
+              'Disclaimer: Sunday Harmony provides credit education and dispute support. This document is not a FICO Score, VantageScore, credit counseling substitute, or guarantee of score improvement. Credit bureau data can differ across reports and may update on different schedules.'
+            ),
+            { width: contentWidth(doc), lineGap: 2 }
+          )
       }
-
-      if (diff!.added.length > 0) {
-        ensureSpace(doc, 20 + diff!.added.length * 11)
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.amber).text('New on report')
-        doc.moveDown(0.1)
-        for (const item of diff!.added) {
-          const mask = item.accountMask && item.accountMask !== '—' ? ` ${item.accountMask}` : ''
-          doc.font('Helvetica').fontSize(9).fillColor(COLORS.text).text(`• ${item.creditor}${mask}`)
-        }
-        doc.moveDown(0.25)
-      }
-
-      doc.moveDown(0.45)
     }
-
-    ensureSpace(doc, 40)
-    doc
-      .font('Helvetica')
-      .fontSize(8)
-      .fillColor(COLORS.dim)
-      .text(
-        'Disclaimer: Sunday Harmony provides credit education and dispute support. This document is not a FICO® Score, VantageScore®, credit counseling substitute, or guarantee of score improvement. Credit bureau data can differ across reports and may update on different schedules.',
-        { width: contentWidth(doc) }
-      )
 
     doc.end()
   })
