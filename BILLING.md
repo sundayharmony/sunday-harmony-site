@@ -17,6 +17,20 @@
 
 No routine work in the Stripe Dashboard is required after setup.
 
+## Credit repair (one-time fee)
+
+Credit repair clients are **not** marketing subscribers. Intake sets `clients.billing_model = credit_repair_one_time`.
+
+Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **Admin → Clients**:
+
+1. Client adds a card on `/dashboard/billing` (Payment Element; card data never hits this server).
+2. Staff enter the fee and click **Charge card on file**, or **Email invoice** if there is no card yet.
+3. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`).
+
+Optional env: `CREDIT_REPAIR_DEFAULT_FEE_CENTS` (USD cents) as the amount prefill.
+
+One-time repair fees are excluded from marketing MRR. Run migration `037`.
+
 ## How billing works in the app
 
 | Role | Where | Actions |
@@ -46,6 +60,8 @@ Stripe.js **Payment Element** runs on your site (no redirect to stripe.com). Car
 - `POST /api/admin/clients/billing/activate` — `{ clientId }`
 - `POST /api/admin/clients/billing/start` — `{ clientId, tier? }`
 - `GET /api/admin/clients/billing-status?clientId=` — stripe/db drift snapshot
+- `GET/POST /api/admin/clients/repair-billing` — one-time credit repair fee (admin or credit manager)
+- `GET/POST /api/admin/credit-funding/[id]/repair-billing` — same, scoped to an application
 - `GET /api/dashboard/billing/invoices` — client invoices
 - `GET /api/admin/stripe/invoices?clientId=` — admin invoice list
 
@@ -53,14 +69,16 @@ Hosted Checkout and Customer Portal routes return **410** (retired).
 
 ## Data model (`clients` table)
 
-- `package_tier`, `monthly_price` — plan on file; updated from Stripe on subscribe/webhook/sync
+- `package_tier`, `monthly_price` — marketing plan on file; unused for credit repair fees
+- `billing_model` — `marketing_subscription` | `credit_repair_one_time`
 - `billing_status` — `not_started` | `trial` | `paid` | `past_due` | `unpaid` (webhook-driven)
 - `stripe_customer_id`, `stripe_subscription_id`
-- `is_potential` — prospect flag; dashboard access is allowed but billing actions are locked until admin activates
+- `repair_fee_cents`, `repair_fee_paid_at`, `stripe_repair_invoice_id` — one-time repair fee
+- `is_potential` — prospect flag; marketing billing is locked until admin activates. Credit repair clients can add a card before the fee is charged.
 
 ## MRR reporting
 
-- **Contracted MRR**: sum of `monthly_price` for active, non-potential clients
+- **Contracted MRR**: sum of `monthly_price` for active, non-potential marketing clients (excludes credit repair)
 - **Stripe MRR (est.)**: same sum for clients with active subscription and `paid`/`trial` status
 
 Shown on **Admin → Clients** header and **Admin → Billing**.

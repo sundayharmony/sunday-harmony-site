@@ -15,6 +15,7 @@ import {
 } from '@/lib/stripe-subscription-sync'
 import { attachStripeCustomerFromSetupIntent } from '@/lib/stripe-customer-utils'
 import { SUBSCRIPTION_EXPAND } from '@/lib/stripe-subscription-validation'
+import { applyRepairInvoicePaid, isRepairInvoice } from '@/lib/credit-repair-billing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -139,13 +140,22 @@ export async function POST(req: NextRequest) {
         if (subscriptionId) {
           const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
           await applySubscriptionToClient(client.id, subscription)
+          const paidAtRaw = invoice.status_transitions?.paid_at
+          const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null
+          await updateClientForStripeSync(client.id, {
+            is_potential: false,
+            last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
+          })
+        } else if (isRepairInvoice(invoice, client)) {
+          await applyRepairInvoicePaid(client.id, invoice)
+        } else {
+          const paidAtRaw = invoice.status_transitions?.paid_at
+          const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null
+          await updateClientForStripeSync(client.id, {
+            is_potential: false,
+            last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
+          })
         }
-        const paidAtRaw = invoice.status_transitions?.paid_at
-        const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null
-        await updateClientForStripeSync(client.id, {
-          is_potential: false,
-          last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
-        })
       }
     }
 

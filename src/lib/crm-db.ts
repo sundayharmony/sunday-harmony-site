@@ -23,6 +23,7 @@ import {
   type MeetingType,
   type MeetingStatus,
 } from './crm-types'
+import { billingModelForCreditApplication } from './credit-repair-billing'
 import {
   getCreditFundingApplications,
   getDocumentsByApplicationUuid,
@@ -605,17 +606,28 @@ export async function syncClientFromLead(leadId: string, clientId: string): Prom
     .eq('id', clientId)
 }
 
+function creditRepairClientPatch(app: CreditFundingApplication, existing?: Client) {
+  const leadType = (app.lead_type as LeadType) || deriveLeadTypeFromIntake(app.credit_goals, app.funding_use || '')
+  const billingModel = billingModelForCreditApplication({
+    lead_type: leadType,
+    service_type: app.service_type,
+  })
+  const keepMarketingSub = Boolean(existing?.stripe_subscription_id?.trim())
+  return {
+    lead_type: leadType,
+    credit_funding_client_status: mapApplicationStatusToCfClientStatus(app.status),
+    ...(keepMarketingSub ? {} : { billing_model: billingModel }),
+    updated_at: new Date().toISOString(),
+  }
+}
+
 export async function ensureClientFromCreditApplication(app: CreditFundingApplication): Promise<Client | null> {
   if (app.client_id) {
     const existing = await getClientById(app.client_id)
     if (existing) {
       await getSupabase()
         .from('clients')
-        .update({
-          lead_type: (app.lead_type as LeadType) || deriveLeadTypeFromIntake(app.credit_goals, app.funding_use || ''),
-          credit_funding_client_status: mapApplicationStatusToCfClientStatus(app.status),
-          updated_at: new Date().toISOString(),
-        })
+        .update(creditRepairClientPatch(app, existing))
         .eq('id', app.client_id)
       return existing
     }
@@ -635,15 +647,12 @@ export async function ensureClientFromCreditApplication(app: CreditFundingApplic
       .eq('id', app.id)
     await getSupabase()
       .from('clients')
-      .update({
-        lead_type: (app.lead_type as LeadType) || 'credit_repair_funding',
-        credit_funding_client_status: mapApplicationStatusToCfClientStatus(app.status),
-        updated_at: new Date().toISOString(),
-      })
+      .update(creditRepairClientPatch(app, client))
       .eq('id', client.id)
     return client
   }
 
+  const leadType = (app.lead_type as LeadType) || deriveLeadTypeFromIntake(app.credit_goals, app.funding_use || '')
   const { data, error } = await getSupabase()
     .from('clients')
     .insert({
@@ -657,10 +666,14 @@ export async function ensureClientFromCreditApplication(app: CreditFundingApplic
       status: 'active',
       is_potential: true,
       billing_status: 'not_started',
+      billing_model: billingModelForCreditApplication({
+        lead_type: leadType,
+        service_type: app.service_type,
+      }),
       notes: `Auto-created from Credit & Funding application ${app.application_id}`,
       deliverables: [],
       quick_wins: [],
-      lead_type: (app.lead_type as LeadType) || deriveLeadTypeFromIntake(app.credit_goals, app.funding_use || ''),
+      lead_type: leadType,
       credit_funding_client_status: mapApplicationStatusToCfClientStatus(app.status),
     })
     .select()

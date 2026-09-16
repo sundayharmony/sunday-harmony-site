@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react'
 import StatCard from '@/components/ui/StatCard'
 import BillingPanel from '@/components/billing/BillingPanel'
 import { TIER_LABELS } from '@/lib/stripe-catalog'
+import { formatRepairFeeCents, isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 
 interface ClientData {
   id: string
@@ -16,6 +17,10 @@ interface ClientData {
   status: string
   is_potential?: boolean
   billing_status?: string
+  billing_model?: string | null
+  lead_type?: string | null
+  repair_fee_cents?: number | null
+  repair_fee_paid_at?: string | null
   next_billing_date?: string | null
   last_payment_at?: string | null
   stripe_customer_id?: string
@@ -78,6 +83,7 @@ export default function BillingPage() {
   }, [])
 
   const monthlyPrice = client?.monthly_price || 0
+  const repairClient = client ? isCreditRepairBillingClient(client) : false
   const totalPaid = useMemo(
     () => invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + (i.amount_paid || 0), 0),
     [invoices]
@@ -104,17 +110,30 @@ export default function BillingPage() {
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Billing</h1>
         <p className="text-sm text-brand-muted">
-          View your billing status and keep your payment method up to date.
+          {repairClient
+            ? 'Pay your one-time credit repair fee and keep a card on file.'
+            : 'View your billing status and keep your payment method up to date.'}
         </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
-          label="Current Plan"
-          value={TIER_LABELS[client.package_tier as keyof typeof TIER_LABELS] || client.package_tier}
+          label={repairClient ? 'Service' : 'Current Plan'}
+          value={
+            repairClient
+              ? 'Credit repair'
+              : TIER_LABELS[client.package_tier as keyof typeof TIER_LABELS] || client.package_tier
+          }
           color="accent"
         />
-        <StatCard label="Monthly Rate" value={`$${monthlyPrice.toLocaleString()}`} />
+        <StatCard
+          label={repairClient ? 'Repair fee' : 'Monthly Rate'}
+          value={
+            repairClient
+              ? formatRepairFeeCents(client.repair_fee_cents)
+              : `$${monthlyPrice.toLocaleString()}`
+          }
+        />
         <StatCard
           label="Total Paid"
           value={formatMoneyCents(totalPaid, invoices[0]?.currency || 'usd')}
@@ -127,8 +146,12 @@ export default function BillingPage() {
 
       <div className="grid lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-white border border-brand-border rounded-2xl p-6">
-          <h2 className="text-base font-bold text-brand-text mb-4">Subscription</h2>
-          {client.is_potential ? (
+          <h2 className="text-base font-bold text-brand-text mb-4">
+            {repairClient ? 'Credit repair fee' : 'Subscription'}
+          </h2>
+          {repairClient ? (
+            <BillingPanel client={client} onUpdated={() => void load()} />
+          ) : client.is_potential ? (
             <div className="space-y-2 text-sm text-brand-muted">
               <p>Your account is marked as a potential engagement, so billing is not active yet.</p>
               <p>Your Sunday Harmony admin will activate billing and start your subscription when ready.</p>

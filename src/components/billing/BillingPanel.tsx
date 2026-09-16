@@ -10,6 +10,9 @@ import {
   TIER_LABELS,
   type PackageTier,
 } from '@/lib/stripe-catalog'
+import CreditRepairBillingPanel, {
+  usesCreditRepairBilling,
+} from '@/components/billing/CreditRepairBillingPanel'
 
 export type BillingPanelClient = {
   id: string
@@ -19,6 +22,11 @@ export type BillingPanelClient = {
   package_tier: string
   monthly_price?: number
   billing_status?: string
+  billing_model?: string | null
+  lead_type?: string | null
+  repair_fee_cents?: number | null
+  repair_fee_paid_at?: string | null
+  stripe_repair_invoice_id?: string | null
   stripe_customer_id?: string
   stripe_subscription_id?: string
   next_billing_date?: string | null
@@ -43,6 +51,27 @@ type BillingSnapshot = {
 }
 
 export default function BillingPanel({
+  client,
+  adminView = false,
+  onUpdated,
+}: {
+  client: BillingPanelClient
+  adminView?: boolean
+  onUpdated?: () => void
+}) {
+  if (usesCreditRepairBilling(client)) {
+    return (
+      <CreditRepairBillingPanel
+        client={client}
+        adminView={adminView}
+        onUpdated={onUpdated}
+      />
+    )
+  }
+  return <MarketingBillingPanel client={client} adminView={adminView} onUpdated={onUpdated} />
+}
+
+function MarketingBillingPanel({
   client,
   adminView = false,
   onUpdated,

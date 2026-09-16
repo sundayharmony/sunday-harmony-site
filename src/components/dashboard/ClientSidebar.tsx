@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import NotificationBell from '@/components/ui/NotificationBell'
 import BrandLogo from '@/components/BrandLogo'
+import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 
 const navItems = [
   { href: '/dashboard', icon: '◈', label: 'Home' },
@@ -15,9 +16,9 @@ const navItems = [
   { href: '/dashboard/credit-funding', icon: '💳', label: 'Credit & Funding' },
   { href: '/dashboard/meetings', icon: '📅', label: 'My Meetings' },
   { href: '/dashboard/approvals', icon: '📋', label: 'Approvals' },
-  { href: '/dashboard/performance', icon: '📊', label: 'Performance' },
+  { href: '/dashboard/performance', icon: '📊', label: 'Performance', marketingOnly: true },
   { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
-  { href: '/dashboard/package', icon: '📦', label: 'My Package' },
+  { href: '/dashboard/package', icon: '📦', label: 'My Package', marketingOnly: true },
   { href: '/dashboard/billing', icon: '🧾', label: 'Billing' },
   { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
 ]
@@ -25,6 +26,25 @@ const navItems = [
 export default function ClientSidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [hideMarketing, setHideMarketing] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/dashboard/profile')
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled && res.ok) {
+          setHideMarketing(isCreditRepairBillingClient(data))
+        }
+      } catch {
+        if (!cancelled) setHideMarketing(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <>
@@ -69,7 +89,9 @@ export default function ClientSidebar() {
         </div>
 
         <nav className="flex-1 py-4 px-3 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems
+            .filter(item => !(hideMarketing && item.marketingOnly))
+            .map((item) => {
             const active = pathname === item.href
             return (
               <Link key={item.href} href={item.href} onClick={() => setOpen(false)}

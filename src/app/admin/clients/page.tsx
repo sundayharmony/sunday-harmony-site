@@ -12,6 +12,11 @@ interface Client {
   status: string
   is_potential?: boolean
   billing_status?: 'not_started' | 'trial' | 'paid' | 'past_due' | 'unpaid'
+  billing_model?: string | null
+  lead_type?: string | null
+  repair_fee_cents?: number | null
+  repair_fee_paid_at?: string | null
+  stripe_repair_invoice_id?: string | null
   stripe_customer_id?: string
   stripe_subscription_id?: string
   last_payment_at?: string
@@ -503,9 +508,14 @@ export default function ClientsPage() {
             <div className="mb-4">
               <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
               <p className="text-xs text-brand-muted mb-3">
-                Workflow: Save plan, Activate billing, then Start subscription when a card is on file.
+                {selected.billing_model === 'credit_repair_one_time' ||
+                selected.lead_type === 'credit_repair_lead' ||
+                selected.lead_type === 'credit_repair_funding'
+                  ? 'Credit repair clients pay a one-time fee, not a marketing subscription.'
+                  : 'Workflow: Save plan, Activate billing, then Start subscription when a card is on file.'}
               </p>
               <BillingPanel
+                key={selected.id}
                 client={selected}
                 adminView
                 onUpdated={() => void refreshClientsAndReselect(selected.id)}
