@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
-import { disputeLettersFetch, disputeLettersJson } from '@/lib/dispute-letters/api-client'
+import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import { getRoundNumberForSession } from '@/lib/dispute-letters/dispute-lifecycle-db'
@@ -10,10 +10,11 @@ import {
   disputeLettersZipDownloadName,
 } from '@/lib/dispute-letters-storage'
 import {
-  buildLetterPacketZipFiles,
+  buildLetterZipFiles,
+  fetchLetterDocxWithEnclosures,
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
-import { isDocxBytes, zipFiles } from '@/lib/dispute-letters/letter-zip'
+import { zipFiles } from '@/lib/dispute-letters/letter-zip'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -42,34 +43,19 @@ export async function GET(_request: NextRequest, { params }: Params) {
     }
 
     const row = access.session
-    const identityPromise = loadLetterIdentityAttachments(row.application_uuid)
+    const attachments = await loadLetterIdentityAttachments(row.application_uuid)
 
     const letterFiles: { title: string; data: Uint8Array }[] = []
     for (const letter of letters) {
-      const res = await disputeLettersFetch(
-        `/internal/letters/${id}/${letter.id}/download?format=docx`
-      )
-      if (!res.ok) {
-        const text = await res.text()
-        return NextResponse.json({ error: text || 'DOCX download failed' }, { status: res.status })
-      }
-      const data = new Uint8Array(await res.arrayBuffer())
-      if (!isDocxBytes(data)) {
-        return NextResponse.json(
-          { error: 'Letter download was not a Word document. Redeploy the dispute-letters API.' },
-          { status: 502 }
-        )
-      }
+      const data = await fetchLetterDocxWithEnclosures(id, letter.id, attachments)
       letterFiles.push({
         title: letter.title || letter.id,
         data,
       })
     }
 
-    const attachments = await identityPromise
-    const files = buildLetterPacketZipFiles({ letters: letterFiles, attachments })
+    const files = buildLetterZipFiles(letterFiles)
 
-    // Prefer durable lifecycle round number; fall back to chronological session index.
     let round = (await getRoundNumberForSession(id)) || 0
     if (!round && row.application_uuid) {
       const sessions = await listDisputeSessionsForApplication(row.application_uuid)

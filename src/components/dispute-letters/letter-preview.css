@@ -2,51 +2,60 @@
   width: 8.5in;
   min-height: 11in;
   margin: 0 auto;
-  padding: 1in;
+  padding: 0.5in 1in 1in;
   background: #fff;
   box-sizing: border-box;
   color: #000;
   font-family: "Times New Roman", Times, "Liberation Serif", serif;
   font-size: 12pt;
-  line-height: 1.15;
+  line-height: 1.08;
 }
 
 .letter-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 0 0 6pt;
+  margin: 0 0 10pt;
   font-size: 11pt;
 }
 
-.letter-header-date,
+.letter-header-date {
+  font-size: 11pt;
+}
+
 .letter-header-page {
   font-size: 11pt;
+  margin-left: auto;
+  text-align: right;
 }
 
 .letter-body .letter-line,
 .letter-body .letter-spacer {
-  margin: 0 0 8pt;
+  margin: 0 0 6pt;
 }
 
 .letter-body .letter-heading {
   font-weight: 700;
-  margin-top: 12pt;
-  margin-bottom: 8pt;
+  margin-top: 10pt;
+  margin-bottom: 4pt;
 }
 
 .letter-body .letter-name {
   font-weight: 700;
-  margin-bottom: 2pt;
+  margin-bottom: 0;
 }
 
 .letter-body .letter-field,
 .letter-body .letter-tight {
-  margin-bottom: 2pt;
+  margin-bottom: 0;
+}
+
+.letter-body .letter-closing {
+  margin-bottom: 28pt;
 }
 
 .letter-body .letter-bullet {
-  margin: 0 0 4pt 0.25in;
+  margin: 0 0 2pt 0.25in;
   text-indent: -0.2in;
 }
 
@@ -59,5 +68,6 @@
 }
 
 .letter-body .letter-spacer {
-  min-height: 12pt;
+  min-height: 8pt;
+  margin: 0;
 }

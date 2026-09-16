@@ -207,7 +207,7 @@ export interface LetterPlan {
   missing_address?: boolean
 }
 
-export type LetterPreviewVariant = 'heading' | 'name' | 'field' | 'tight' | 'body'
+export type LetterPreviewVariant = 'heading' | 'name' | 'field' | 'tight' | 'body' | 'closing'
 
 export type LetterPreviewBlock =
   | { kind: 'spacer' }

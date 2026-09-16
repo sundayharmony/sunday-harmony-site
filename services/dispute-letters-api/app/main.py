@@ -10,7 +10,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -54,6 +54,7 @@ from app.services.letter_formatter import (
     letter_to_html,
     letters_zip_bytes,
 )
+from app.services.letter_identity import load_application_enclosure_files
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
 from app.services.report_refresh import recover_scores_from_storage, refresh_report_health
@@ -568,6 +569,18 @@ def get_letters(session_id: str, _: None = Depends(verify_internal_secret)) -> d
     return {"session_id": session_id, "letters": cleaned}
 
 
+def _letter_docx_response(letter, enclosure_files: list[tuple[str, bytes]] | None = None):
+    document = letter_to_docx(letter.markdown, enclosure_files=enclosure_files or [])
+    buf = BytesIO()
+    document.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="letter_{letter.id}.docx"'},
+    )
+
+
 @app.get("/internal/letters/{session_id}/{letter_id}/download")
 def download_letter(
     session_id: str,
@@ -586,16 +599,34 @@ def download_letter(
             headers={"Content-Disposition": f'attachment; filename="letter_{letter_id}.txt"'},
         )
     if format == "docx":
-        document = letter_to_docx(letter.markdown)
-        buf = BytesIO()
-        document.save(buf)
-        buf.seek(0)
-        return StreamingResponse(
-            buf,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={"Content-Disposition": f'attachment; filename="letter_{letter_id}.docx"'},
-        )
+        row = get_session_row(session_id) or {}
+        files = load_application_enclosure_files(row.get("application_uuid"))
+        return _letter_docx_response(letter, files)
     raise HTTPException(400, "Unsupported format")
+
+
+@app.post("/internal/letters/{session_id}/{letter_id}/download")
+async def download_letter_with_enclosures(
+    session_id: str,
+    letter_id: str,
+    format: str = "docx",
+    enclosures: list[UploadFile] = File(default_factory=list),
+    _: None = Depends(verify_internal_secret),
+):
+    letter = get_letter(session_id, letter_id)
+    if not letter:
+        raise HTTPException(404, "Letter not found")
+    if format != "docx":
+        raise HTTPException(400, "Unsupported format")
+    files: list[tuple[str, bytes]] = []
+    for upload in enclosures or []:
+        data = await upload.read()
+        if data:
+            files.append((upload.filename or "enclosure.bin", data))
+    if not files:
+        row = get_session_row(session_id) or {}
+        files = load_application_enclosure_files(row.get("application_uuid"))
+    return _letter_docx_response(letter, files)
 
 
 @app.get("/internal/letters/{session_id}/download.zip")

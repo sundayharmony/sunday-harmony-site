@@ -46,6 +46,7 @@ function isSectionHeading(line: string): boolean {
   if (!stripped || stripped.endsWith(':') || stripped.includes('**')) return false
   if (isFieldLabelLine(stripped)) return false
   if (SECTION_HEADINGS.has(stripped)) return true
+  if (stripped.toLowerCase().startsWith('re:')) return false
   if (/\d/.test(stripped)) return false
   if (stripped === stripped.toUpperCase()) return false
   const words = stripped.split(/\s+/)
@@ -63,8 +64,42 @@ function isNameLine(line: string, index: number): boolean {
   return stripped === stripped.toUpperCase() && stripped.includes(' ')
 }
 
-function isTightLine(display: string, heading: boolean, nameLine: boolean, fieldLine: boolean): boolean {
-  return fieldLine || (!heading && !nameLine && display.length < 70 && !display.includes(':'))
+function isClosingLine(display: string): boolean {
+  const normalized = display.trim().toLowerCase().replace(/\.+$/, '')
+  return normalized === 'respectfully,' || normalized === 'respectfully' || normalized === 'sincerely,' || normalized === 'sincerely'
+}
+
+function isRunOn(block: LetterPreviewBlock): boolean {
+  return block.kind === 'line' && (block.variant === 'name' || block.variant === 'field' || block.variant === 'tight')
+}
+
+function compactLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBlock[] {
+  const compacted: LetterPreviewBlock[] = []
+  let i = 0
+  while (i < blocks.length) {
+    const block = blocks[i]
+    if (block.kind === 'spacer') {
+      let j = i + 1
+      while (j < blocks.length && blocks[j].kind === 'spacer') j += 1
+      const next = j < blocks.length ? blocks[j] : undefined
+      const prev = compacted[compacted.length - 1]
+      const skip =
+        (next?.kind === 'line' && next.variant === 'heading') ||
+        (prev?.kind === 'line' && (prev.variant === 'closing' || prev.variant === 'heading'))
+      if (!skip && prev && isRunOn(prev) && next && !isRunOn(next)) {
+        compacted.push({ kind: 'spacer' })
+      }
+      i = j
+      continue
+    }
+    compacted.push(block)
+    i += 1
+  }
+  return compacted
+}
+
+function isTightLine(display: string, heading: boolean, nameLine: boolean, fieldLine: boolean, closing: boolean): boolean {
+  return fieldLine || (!heading && !nameLine && !closing && display.length < 70 && !display.includes(':'))
 }
 
 function extractLetterDate(body: string): string {
@@ -102,14 +137,16 @@ export function letterLayout(text: string): LetterPreviewLayout {
     }
     const heading = isSectionHeading(display)
     const nameLine = isNameLine(display, i)
+    const closing = isClosingLine(display)
     const fieldLine = isFieldLabelLine(display) || display.trim().toLowerCase().replace(/:$/, '') === 'basis of dispute'
-    const tight = isTightLine(display, heading, nameLine, fieldLine)
+    const tight = isTightLine(display, heading, nameLine, fieldLine, closing)
     let variant: LetterPreviewVariant = 'body'
     if (heading) variant = 'heading'
     else if (nameLine) variant = 'name'
+    else if (closing) variant = 'closing'
     else if (fieldLine) variant = 'field'
     else if (tight) variant = 'tight'
     blocks.push({ kind: 'line', text: display, variant, indent: indentLevel(line) })
   }
-  return { date, blocks }
+  return { date, blocks: compactLetterBlocks(blocks) }
 }

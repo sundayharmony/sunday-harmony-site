@@ -40,6 +40,10 @@ Enclosures
       true
     )
     assert.equal(
+      layout.blocks.some((block) => block.kind === 'line' && block.variant === 'closing' && block.text === 'Respectfully,'),
+      true
+    )
+    assert.equal(
       layout.blocks.filter((block) => block.kind === 'bullet').length >= 2,
       true
     )
@@ -75,18 +79,15 @@ describe('letter zip packaging', () => {
   it('zips payloads that inflate back to the original bytes', () => {
     const payload = Buffer.from('PK\x03\x04fake-docx-body')
     const zip = zipFiles([
-      { name: 'Experian — 4 item(s)/Experian.docx', data: payload },
-      { name: 'Experian — 4 item(s)/Government Photo ID.jpg', data: payload },
+      { name: 'Experian — 4 item(s).docx', data: payload },
       { name: 'Kikoff.docx', data: payload },
     ])
     assert.equal(isDocxBytes(payload), true)
     assert.equal(zip.subarray(0, 2).toString(), 'PK')
-    assert.match(zip.toString('binary'), /Experian\.docx/)
-    assert.match(zip.toString('binary'), /Government Photo ID\.jpg/)
     assert.match(zip.toString('binary'), /Kikoff\.docx/)
     assert.equal(zip.includes(Buffer.from('.txt')), false)
 
-    const name = Buffer.from('Experian — 4 item(s)/Experian.docx')
+    const name = Buffer.from('Experian — 4 item(s).docx')
     const nameStart = zip.indexOf(name)
     const headerStart = nameStart - 30
     const compSize = zip.readUInt32LE(headerStart + 18)

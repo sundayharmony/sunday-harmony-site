@@ -85,6 +85,15 @@ export async function disputeLettersFetch(path: string, init?: RequestInit): Pro
   return fetch(url, { ...init, headers })
 }
 
+export async function disputeLettersFetchForm(path: string, form: FormData): Promise<Response> {
+  const url = `${API_BASE()}${path}`
+  return fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${API_SECRET()}` },
+    body: form,
+  })
+}
+
 export async function disputeLettersJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await disputeLettersFetch(path, init)
   if (!res.ok) {

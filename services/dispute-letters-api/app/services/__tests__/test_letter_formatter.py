@@ -60,9 +60,11 @@ def test_html_mirrors_header_and_skips_body_date():
 
 def test_docx_header_contains_date_and_page_fields():
     document = letter_to_docx(SAMPLE)
-    header_text = document.sections[0].header.paragraphs[0].text
-    assert "September 12, 2026" in header_text
-    assert "Page " in header_text
+    xml = document.sections[0].header._element.xml
+    assert "September 12, 2026" in xml
+    assert "PAGE" in xml
+    assert "NUMPAGES" in xml
+    assert "right" in xml.lower()
     body_text = "\n".join(p.text for p in document.paragraphs)
     assert "September 12, 2026" not in body_text
     assert "WIDJI SELPHIN" in body_text
@@ -83,3 +85,36 @@ def test_zip_contains_only_docx():
     ]
     assert all(name.endswith(".docx") for name in names)
     assert not any(name.endswith(".txt") for name in names)
+    assert not any("/" in name for name in names)
+
+
+MINI_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+    b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def test_docx_embeds_identity_images_at_end():
+    sample = (
+        SAMPLE
+        + "\n\nRespectfully,\n\nJane Consumer\n\nEnclosures\n"
+        + "● Copy of government-issued photo identification\n"
+        + "● Proof of current residential address\n"
+    )
+    document = letter_to_docx(
+        sample,
+        enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Proof of Address.png", MINI_PNG)],
+    )
+    assert len(document.inline_shapes) == 2
+    text = "\n".join(p.text for p in document.paragraphs)
+    assert "Enclosures" in text
+    assert "photo identification" not in text.lower()
+    layout = letter_layout(sample)
+    assert any(block.get("variant") == "closing" for block in layout["blocks"])
+
+
+def test_html_marks_closing_and_page_counter():
+    html = letter_to_html(SAMPLE + "\n\nRespectfully,\n\nJane Consumer\n")
+    assert "letter-closing" in html
+    assert 'class="letter-header-page">Page 1/1</span>' in html

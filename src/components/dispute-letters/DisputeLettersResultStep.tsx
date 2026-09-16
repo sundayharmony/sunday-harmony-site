@@ -34,6 +34,7 @@ function lineClassName(block: Extract<LetterPreviewBlock, { kind: 'line' }>) {
   if (indent) classes.push(`letter-indent-${indent}`)
   if (block.variant === 'heading') classes.push('letter-heading')
   else if (block.variant === 'name') classes.push('letter-name')
+  else if (block.variant === 'closing') classes.push('letter-closing')
   else if (block.variant === 'field') classes.push('letter-field')
   else if (block.variant === 'tight') classes.push('letter-tight')
   return classes.join(' ')
@@ -206,7 +207,7 @@ export default function DisputeLettersResultStep({
         </h2>
         <p className={`mt-2 text-sm ${letters.length ? 'text-green-800' : 'text-amber-900'}`}>
           {letters.length
-            ? 'Generate, download the ZIP, then confirm the package was mailed. Each letter folder includes the Word letter plus copies of the client\'s government photo ID and proof of address. Downloading does not mark items Sent.'
+            ? 'Generate, download the ZIP, then confirm the package was mailed. Photo ID and proof of address are placed at the end of each Word letter. Downloading does not mark items Sent.'
             : 'Add missing furnisher addresses on Confirm and generate again.'}
         </p>
         {letters.length > 0 && (
