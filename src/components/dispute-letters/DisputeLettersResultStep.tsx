@@ -1,15 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@/lib/dispute-letters/types'
 import {
+  confirmLetterPackageSent,
   disputeLetterDownloadUrl,
   disputeLettersZipUrl,
   fetchDisputeLetters,
   fetchLetterGenerateStatus,
-  markDisputeLetterSent,
+  fetchLetterPackageForSession,
 } from '@/lib/dispute-letters/client-api'
+import type { LetterPackageSnapshot } from '@/lib/dispute-letters/dispute-lifecycle'
+import { letterPackageDisplayCode } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
@@ -99,22 +102,62 @@ export default function DisputeLettersResultStep({
   const [active, setActive] = useState<GeneratedLetter | null>(null)
   const [error, setError] = useState('')
   const [skipped, setSkipped] = useState<SkippedLetterPlan[]>([])
-  const [sentBusy, setSentBusy] = useState<string | null>(null)
+  const [pkg, setPkg] = useState<LetterPackageSnapshot | null>(null)
+  const [busy, setBusy] = useState<'zip' | 'sent' | null>(null)
 
-  async function markSent(letterId: string) {
-    setSentBusy(letterId)
+  const refreshPackage = useCallback(async () => {
+    try {
+      const snapshot = await fetchLetterPackageForSession(sessionId)
+      setPkg(snapshot.package)
+    } catch {
+      /* package table may not be migrated yet */
+    }
+  }, [sessionId])
+
+  async function downloadZip() {
+    setBusy('zip')
     setError('')
     try {
-      const result = await markDisputeLetterSent(letterId)
-      setLetters((prev) =>
-        prev.map((letter) =>
-          letter.id === letterId ? { ...letter, sent_at: result.sentAt || new Date().toISOString() } : letter
-        )
-      )
+      const res = await fetch(disputeLettersZipUrl(sessionId))
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(typeof body.error === 'string' ? body.error : 'ZIP download failed')
+      }
+      const blob = await res.blob()
+      const header = res.headers.get('content-disposition') || ''
+      const matched = /filename="([^"]+)"/i.exec(header)
+      const filename = matched?.[1] || 'Dispute Letters.zip'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      await refreshPackage()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to mark letter sent')
+      setError(e instanceof Error ? e.message : 'ZIP download failed')
     } finally {
-      setSentBusy(null)
+      setBusy(null)
+    }
+  }
+
+  async function confirmAllSent() {
+    setBusy('sent')
+    setError('')
+    try {
+      const result = await confirmLetterPackageSent({
+        packageId: pkg?.package.id,
+        sessionId,
+      })
+      const sentAt = result.sentAt || new Date().toISOString()
+      setLetters((prev) => prev.map((letter) => ({ ...letter, sent_at: letter.sent_at || sentAt })))
+      await refreshPackage()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to confirm letters sent')
+    } finally {
+      setBusy(null)
     }
   }
 
@@ -133,6 +176,7 @@ export default function DisputeLettersResultStep({
       .catch(() => {
         /* job status is optional */
       })
+    void refreshPackage()
     try {
       const raw = sessionStorage.getItem(`dispute-skipped:${sessionId}`)
       if (raw) {
@@ -142,9 +186,15 @@ export default function DisputeLettersResultStep({
     } catch {
       /* ignore */
     }
-  }, [sessionId])
+  }, [sessionId, refreshPackage])
 
   if (!sessionId) return null
+
+  const generatedCount = pkg?.generatedCount || letters.length
+  const sentCount = pkg?.sentCount ?? letters.filter((letter) => letter.sent_at).length
+  const downloaded = Boolean(pkg?.downloaded)
+  const allSent = pkg?.allSent || (generatedCount > 0 && sentCount >= generatedCount)
+  const workflowLabel = pkg?.workflow.label || (allSent ? 'Complete' : downloaded ? 'Ready to Send' : 'Letters generated')
 
   return (
     <div className={`${embedded ? '' : 'max-w-5xl'} space-y-6`}>
@@ -152,21 +202,46 @@ export default function DisputeLettersResultStep({
 
       <div className={`rounded-xl border p-6 ${letters.length ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
         <h2 className={`text-xl font-semibold ${letters.length ? 'text-green-900' : 'text-amber-950'}`}>
-          {letters.length ? 'Letters ready' : 'No letters generated'}
+          {letters.length ? `Round letter package${pkg ? ` · ${letterPackageDisplayCode(pkg.package.id)}` : ''}` : 'No letters generated'}
         </h2>
         <p className={`mt-2 text-sm ${letters.length ? 'text-green-800' : 'text-amber-900'}`}>
           {letters.length
-            ? 'Mail disputes within 30 days. Keep copies of every letter and your report. Mark each letter Sent after it is mailed — generating a letter does not record a dispute. Certified mail with return receipt is recommended for bureaus. The ZIP contains print-ready Word (.docx) files so formatting is preserved.'
+            ? 'Generate, download the ZIP, then confirm the package was mailed. Downloading does not mark items Sent.'
             : 'Add missing furnisher addresses on Confirm and generate again.'}
         </p>
+        {letters.length > 0 && (
+          <ul className="mt-3 space-y-1 text-sm text-green-900">
+            <li>
+              <span className="font-semibold">{generatedCount} dispute letter{generatedCount === 1 ? '' : 's'} generated</span>
+            </li>
+            <li>{downloaded ? 'ZIP Downloaded ✓' : 'ZIP not downloaded yet'}</li>
+            <li>
+              {allSent
+                ? 'All letters confirmed Sent'
+                : `${workflowLabel}${sentCount ? ` · ${sentCount} of ${generatedCount} Sent` : ''}`}
+            </li>
+          </ul>
+        )}
         <div className="mt-4 flex flex-wrap gap-3">
           {letters.length > 0 && (
-            <a
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-              href={disputeLettersZipUrl(sessionId)}
+            <button
+              type="button"
+              disabled={busy === 'zip'}
+              onClick={() => void downloadZip()}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              Download all (ZIP)
-            </a>
+              {busy === 'zip' ? 'Downloading…' : downloaded ? 'Download again' : 'Download all (ZIP)'}
+            </button>
+          )}
+          {letters.length > 0 && !allSent && (
+            <button
+              type="button"
+              disabled={busy === 'sent'}
+              onClick={() => void confirmAllSent()}
+              className="rounded-lg border border-green-700 bg-white px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-50 disabled:opacity-50"
+            >
+              {busy === 'sent' ? 'Saving…' : 'Confirm All Letters Sent'}
+            </button>
           )}
           {embedded && onBackToAnalysis ? (
             <button
@@ -225,19 +300,13 @@ export default function DisputeLettersResultStep({
                 <a href={disputeLetterDownloadUrl(sessionId, l.id, 'docx')} className="text-accent hover:underline">
                   Download .docx
                 </a>
-                {l.sent_at ? (
+                {l.sent_at || pkg?.members.some((member) => member.letter_id === l.id && member.sent_at) ? (
                   <span className="font-medium text-green-800">
-                    Sent {new Date(l.sent_at).toLocaleDateString()}
+                    Sent
+                    {l.sent_at ? ` ${new Date(l.sent_at).toLocaleDateString()}` : ''}
                   </span>
                 ) : (
-                  <button
-                    type="button"
-                    disabled={sentBusy === l.id}
-                    onClick={() => void markSent(l.id)}
-                    className="font-semibold text-accent hover:underline disabled:opacity-50"
-                  >
-                    {sentBusy === l.id ? 'Saving…' : 'Mark sent'}
-                  </button>
+                  <span className="font-medium text-brand-dim">Generated</span>
                 )}
               </div>
             </div>

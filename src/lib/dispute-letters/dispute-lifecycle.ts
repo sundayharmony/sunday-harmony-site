@@ -142,6 +142,55 @@ export interface DisputeRoundLetter {
   title: string
   sent_at: string | null
   created_at?: string
+  package_id?: string | null
+}
+
+export interface LetterPackageRow {
+  id: string
+  case_id: string
+  round_id: string
+  session_id: string | null
+  version: number
+  is_active: boolean
+  letter_count: number
+  downloaded_at: string | null
+  download_count: number
+  sent_confirmed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LetterPackageMember {
+  package_id: string
+  item_id: string
+  letter_id: string | null
+  letter_type: string
+  sent_at: string | null
+  creditor_name: string
+  bureau: BureauCode
+  account_last4: string
+  letter_title: string | null
+}
+
+export interface RoundWorkflowView {
+  label: string
+  complete: boolean
+  awaiting: number
+  downloaded: boolean
+  generated: number
+  sent: number
+  selected: number
+}
+
+export interface LetterPackageSnapshot {
+  package: LetterPackageRow
+  members: LetterPackageMember[]
+  generatedCount: number
+  sentCount: number
+  pendingCount: number
+  downloaded: boolean
+  allSent: boolean
+  workflow: RoundWorkflowView
 }
 
 export interface DisputeLifecycleSnapshot {
@@ -159,6 +208,9 @@ export interface DisputeLifecycleSnapshot {
   pendingQueue: DisputeItemRow[]
   activeRound: DisputeRoundRow | null
   letters: DisputeRoundLetter[]
+  packages: LetterPackageSnapshot[]
+  activePackage: LetterPackageSnapshot | null
+  roundWorkflow: RoundWorkflowView
   roundSendProgress: { selected: number; sent: number; complete: boolean }
   hasCompletedRound: boolean
 }
@@ -224,6 +276,128 @@ export function isRoundFullySent(params: {
   if (!params.round || !params.roundItemIds.length) return false
   const byId = new Map(params.items.map((item) => [item.id, item]))
   return params.roundItemIds.every((id) => Boolean(byId.get(id)?.sent_at))
+}
+
+/** Short staff-facing package id, e.g. PKG-A1B2C3D4. */
+export function letterPackageDisplayCode(id: string | null | undefined): string {
+  const compact = String(id || '')
+    .replace(/-/g, '')
+    .slice(-8)
+    .toUpperCase()
+  return compact ? `PKG-${compact}` : 'PKG-UNKNOWN'
+}
+
+export function letterIdsSignature(ids: string[]): string {
+  return [...ids].filter(Boolean).sort().join(',')
+}
+
+export function shouldReuseLetterPackage(existingLetterIds: string[], newLetterIds: string[]): boolean {
+  if (!existingLetterIds.length || !newLetterIds.length) return false
+  return letterIdsSignature(existingLetterIds) === letterIdsSignature(newLetterIds)
+}
+
+export function roundWorkflowView(params: {
+  selectedCount: number
+  generatedCount: number
+  downloaded: boolean
+  sentCount: number
+}): RoundWorkflowView {
+  const selected = Math.max(0, params.selectedCount)
+  const generated = Math.max(0, params.generatedCount)
+  const sent = Math.max(0, params.sentCount)
+  const awaiting = Math.max(0, selected - sent)
+  const complete = selected > 0 && sent >= selected
+  if (complete) {
+    return {
+      label: 'Complete',
+      complete: true,
+      awaiting: 0,
+      downloaded: params.downloaded,
+      generated,
+      sent,
+      selected,
+    }
+  }
+  if (generated > 0 && params.downloaded && awaiting > 0) {
+    if (sent === 0) {
+      return {
+        label: 'Ready to Send',
+        complete: false,
+        awaiting,
+        downloaded: true,
+        generated,
+        sent,
+        selected,
+      }
+    }
+    return {
+      label: `Awaiting ${awaiting} Letter${awaiting === 1 ? '' : 's'}`,
+      complete: false,
+      awaiting,
+      downloaded: true,
+      generated,
+      sent,
+      selected,
+    }
+  }
+  if (generated > 0) {
+    return {
+      label: 'Letters generated',
+      complete: false,
+      awaiting,
+      downloaded: params.downloaded,
+      generated,
+      sent,
+      selected,
+    }
+  }
+  if (selected > 0) {
+    return {
+      label: 'Selected',
+      complete: false,
+      awaiting,
+      downloaded: false,
+      generated,
+      sent,
+      selected,
+    }
+  }
+  return {
+    label: 'Draft',
+    complete: false,
+    awaiting: 0,
+    downloaded: false,
+    generated: 0,
+    sent: 0,
+    selected: 0,
+  }
+}
+
+export function buildLetterPackageSnapshot(params: {
+  package: LetterPackageRow
+  members: LetterPackageMember[]
+  selectedCount?: number
+}): LetterPackageSnapshot {
+  const sentCount = params.members.filter((member) => Boolean(member.sent_at)).length
+  const generatedCount = params.package.letter_count || new Set(params.members.map((m) => m.letter_id).filter(Boolean)).size
+  const selectedCount = params.selectedCount ?? params.members.length
+  const downloaded = Boolean(params.package.downloaded_at) || params.package.download_count > 0
+  const workflow = roundWorkflowView({
+    selectedCount,
+    generatedCount,
+    downloaded,
+    sentCount,
+  })
+  return {
+    package: params.package,
+    members: params.members,
+    generatedCount,
+    sentCount,
+    pendingCount: Math.max(0, selectedCount - sentCount),
+    downloaded,
+    allSent: selectedCount > 0 && sentCount >= selectedCount,
+    workflow,
+  }
 }
 
 export function itemWorkflowStage(
@@ -634,17 +808,27 @@ export function roundStatusLabel(status: DisputeRoundStatus): string {
     case 'draft':
       return 'Draft'
     case 'letters_ready':
-      return 'Letters ready'
+      return 'Letters generated'
     case 'mailed':
-      return 'Mailed'
+      return 'Complete'
     case 'awaiting_response':
-      return 'Awaiting response'
+      return 'Complete'
     case 'closed':
       return 'Closed'
     default:
       return status
   }
 }
+
+/** Bureau-reply outcomes only — not generate/sent workflow statuses. */
+export const BUREAU_OUTCOME_STATUSES: DisputeItemStatus[] = [
+  'deleted',
+  'verified',
+  'updated',
+  'no_response',
+  'frivolous',
+  'withdrawn',
+]
 
 /** Industry default: 30 calendar days after delivery (or mail date if delivery unknown). */
 export const BUREAU_RESPONSE_DEADLINE_DAYS = 30

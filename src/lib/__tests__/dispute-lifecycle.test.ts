@@ -5,6 +5,7 @@ import {
   MAX_ITEMS_PER_LETTER,
   ROUND_1_MAX_ITEMS_PER_BUREAU,
   buildCfpbComplaintDraft,
+  buildLetterPackageSnapshot,
   chunkItems,
   comparisonUpdatesForItems,
   computeDeadlineAt,
@@ -20,13 +21,18 @@ import {
   itemStatusLabel,
   itemWorkflowStage,
   letterChunkCount,
+  letterIdsSignature,
+  letterPackageDisplayCode,
   nextRoundNumber,
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
+  roundWorkflowView,
+  shouldReuseLetterPackage,
   splitWorkflowQueues,
   suggestFollowUpLetterType,
   type DisputeItemRow,
+  type LetterPackageRow,
   type RoundSelectionInput,
 } from '../dispute-letters/dispute-lifecycle'
 import type { Tradeline } from '../dispute-letters/types'
@@ -492,11 +498,104 @@ describe('dispute lifecycle rounds', () => {
     assert.equal(planFn.includes('markRoundLettersReady'), false)
     assert.match(db, /export async function markLetterSent/)
     assert.match(db, /export async function onLettersGenerated/)
+    assert.match(db, /export async function upsertLetterPackageOnGenerate/)
+    assert.match(db, /export async function recordLetterPackageDownload/)
+    assert.match(db, /export async function confirmLetterPackageSent/)
     assert.match(db, /export async function repairUnsentDisputedItems/)
     const statusFn = db.slice(
       db.indexOf('export async function updateDisputeItemStatus'),
       db.indexOf('export async function getRoundNumberForSession')
     )
     assert.equal(statusFn.includes('payload.sent_at'), false)
+    const generateHook = db.slice(
+      db.indexOf('export async function onLettersGenerated'),
+      db.indexOf('async function maybeCompleteRoundIfFullySent')
+    )
+    assert.match(generateHook, /upsertLetterPackageOnGenerate/)
+    assert.equal(generateHook.includes("stage: 'sent'"), false)
+  })
+})
+
+describe('letter package workflow', () => {
+  it('labels round progress from selected → generated → ready → awaiting → complete', () => {
+    assert.equal(
+      roundWorkflowView({ selectedCount: 5, generatedCount: 0, downloaded: false, sentCount: 0 }).label,
+      'Selected'
+    )
+    assert.equal(
+      roundWorkflowView({ selectedCount: 5, generatedCount: 5, downloaded: false, sentCount: 0 }).label,
+      'Letters generated'
+    )
+    assert.equal(
+      roundWorkflowView({ selectedCount: 5, generatedCount: 5, downloaded: true, sentCount: 0 }).label,
+      'Ready to Send'
+    )
+    assert.equal(
+      roundWorkflowView({ selectedCount: 5, generatedCount: 5, downloaded: true, sentCount: 4 }).label,
+      'Awaiting 1 Letter'
+    )
+    assert.equal(
+      roundWorkflowView({ selectedCount: 5, generatedCount: 5, downloaded: true, sentCount: 5 }).label,
+      'Complete'
+    )
+  })
+
+  it('reuses a package only when letter IDs match and formats a display code', () => {
+    assert.equal(letterIdsSignature(['b', 'a']), 'a,b')
+    assert.equal(shouldReuseLetterPackage(['a', 'b'], ['b', 'a']), true)
+    assert.equal(shouldReuseLetterPackage(['a'], ['a', 'b']), false)
+    assert.equal(shouldReuseLetterPackage([], ['a']), false)
+    assert.equal(
+      letterPackageDisplayCode('11111111-2222-3333-4444-55555555abcd'),
+      'PKG-5555ABCD'
+    )
+  })
+
+  it('builds a package snapshot without treating download as sent', () => {
+    const pkg: LetterPackageRow = {
+      id: '11111111-2222-3333-4444-55555555abcd',
+      case_id: 'case',
+      round_id: 'round',
+      session_id: 'session',
+      version: 1,
+      is_active: true,
+      letter_count: 2,
+      downloaded_at: '2026-09-16T12:00:00.000Z',
+      download_count: 1,
+      sent_confirmed_at: null,
+      created_at: '2026-09-16T11:00:00.000Z',
+      updated_at: '2026-09-16T12:00:00.000Z',
+    }
+    const snapshot = buildLetterPackageSnapshot({
+      package: pkg,
+      members: [
+        {
+          package_id: pkg.id,
+          item_id: 'cap1',
+          letter_id: 'ltr-1',
+          letter_type: 'bureau',
+          sent_at: null,
+          creditor_name: 'Capital One',
+          bureau: 'TUC',
+          account_last4: '1111',
+          letter_title: 'Capital One Dispute Letter',
+        },
+        {
+          package_id: pkg.id,
+          item_id: 'merrick',
+          letter_id: 'ltr-2',
+          letter_type: 'bureau',
+          sent_at: null,
+          creditor_name: 'Merrick Bank',
+          bureau: 'EXP',
+          account_last4: '2222',
+          letter_title: 'Merrick Bank Dispute Letter',
+        },
+      ],
+    })
+    assert.equal(snapshot.downloaded, true)
+    assert.equal(snapshot.allSent, false)
+    assert.equal(snapshot.workflow.label, 'Ready to Send')
+    assert.equal(snapshot.pendingCount, 2)
   })
 })

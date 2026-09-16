@@ -296,6 +296,38 @@ export async function markDisputeLetterSent(letterId: string) {
   return res.json() as Promise<{ ok: boolean; sentAt?: string; roundComplete?: boolean }>
 }
 
+export async function fetchLetterPackageForSession(sessionId: string) {
+  const res = await fetch(
+    `/api/admin/dispute-letters/lifecycle?sessionId=${encodeURIComponent(sessionId)}`,
+    { cache: 'no-store' }
+  )
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{
+    round: import('@/lib/dispute-letters/dispute-lifecycle').DisputeRoundRow | null
+    package: import('@/lib/dispute-letters/dispute-lifecycle').LetterPackageSnapshot | null
+    letters: import('@/lib/dispute-letters/dispute-lifecycle').DisputeRoundLetter[]
+  }>
+}
+
+export async function confirmLetterPackageSent(params: { packageId?: string; sessionId?: string }) {
+  const res = await fetch('/api/admin/dispute-letters/lifecycle', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      packageId: params.packageId,
+      sessionId: params.sessionId,
+      confirmAllSent: true,
+    }),
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{
+    ok: boolean
+    sentAt?: string
+    roundComplete?: boolean
+    itemCount?: number
+  }>
+}
+
 export function disputeLetterDownloadUrl(sessionId: string, letterId: string, format = 'docx') {
   return `/api/admin/dispute-letters/${sessionId}/letters/${letterId}/download?format=${format}`
 }

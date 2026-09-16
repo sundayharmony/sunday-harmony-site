@@ -71,6 +71,13 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name, round)
     const zip = zipFiles(files)
 
+    try {
+      const { recordLetterPackageDownload } = await import('@/lib/dispute-letters/dispute-lifecycle-db')
+      await recordLetterPackageDownload(id)
+    } catch (hookErr) {
+      console.error('recordLetterPackageDownload hook failed:', hookErr)
+    }
+
     return new Response(new Uint8Array(zip), {
       status: 200,
       headers: {

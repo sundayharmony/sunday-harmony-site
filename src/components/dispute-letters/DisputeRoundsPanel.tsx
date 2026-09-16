@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  BUREAU_OUTCOME_STATUSES,
   daysUntilDeadline,
   formatStatusHistory,
   itemStatusLabel,
+  letterPackageDisplayCode,
   notYetDisputedFromItems,
-  roundStatusLabel,
   type DisputeCfpbEscalationRow,
   type DisputeItemRow,
   type DisputeItemStatus,
@@ -14,24 +15,11 @@ import {
   type DisputeMailMethod,
   type DisputePacketChecklist,
   type DisputeResponseRow,
-  type DisputeRoundLetter,
   type DisputeRoundRow,
-  type DisputeRoundStatus,
+  type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
-import { resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
-
-const ITEM_OUTCOMES: DisputeItemStatus[] = [
-  'pending',
-  'selected_for_round',
-  'disputed',
-  'deleted',
-  'verified',
-  'updated',
-  'no_response',
-  'frivolous',
-  'withdrawn',
-]
+import { confirmLetterPackageSent, disputeLettersZipUrl, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
 
 const MAIL_METHODS: DisputeMailMethod[] = ['certified', 'priority', 'other']
 
@@ -237,7 +225,7 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         <h3 className="text-sm font-bold text-brand-text">Dispute rounds</h3>
         <p className="mt-1 text-sm text-brand-dim">
           No dispute case yet. Build Round 1 letters from a report to start tracking rounds and item
-          status. (Requires migrations 034–036.)
+          status. (Requires migrations 034–039.)
         </p>
         {error && <p className="mt-2 text-sm text-brand-red">{error}</p>}
       </div>
@@ -253,9 +241,9 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         <div>
           <h3 className="text-sm font-bold text-brand-text">Dispute rounds</h3>
           <p className="mt-1 text-sm text-brand-dim">
-            Analysis identifies items. You select a round. Generating letters does not mark items
-            disputed — confirming <span className="font-semibold">Sent</span> does. A round is
-            complete only when every assigned item is Sent.
+            Select items, generate letters, download the ZIP, then confirm the package was mailed.
+            Status follows the package automatically — generating or downloading does not mark items
+            Sent.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -304,20 +292,27 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         {snapshot.rounds.length === 0 ? (
           <span className="text-sm text-brand-dim">No rounds opened yet.</span>
         ) : (
-          snapshot.rounds.map((round) => (
+          snapshot.rounds.map((round) => {
+            const pkg =
+              snapshot.packages?.find((row) => row.package.round_id === round.id && row.package.is_active) ||
+              snapshot.packages?.find((row) => row.package.round_id === round.id) ||
+              (snapshot.activeRound?.id === round.id ? snapshot.activePackage : null) ||
+              null
+            return (
             <RoundCard
               key={round.id}
               round={round}
+              pkg={pkg}
               active={snapshot.activeRound?.id === round.id}
               busy={busy}
               sendProgress={
                 snapshot.activeRound?.id === round.id ? progress : undefined
               }
-              onStatus={(status) => void patch({ roundId: round.id, status })}
               onMail={(payload) => void patch({ roundId: round.id, ...payload })}
               onRelease={() => void patch({ roundId: round.id, releaseToClient: true })}
             />
-          ))
+            )
+          })
         )}
       </div>
 
@@ -355,11 +350,13 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         </div>
       )}
 
-      <LetterSendQueue
-        letters={snapshot.letters || []}
-        progress={progress}
+      <LetterPackageCard
+        pkg={snapshot.activePackage}
+        sessionId={snapshot.activeRound?.session_id || null}
         busy={busy}
-        onSent={(letterId) => void patch({ letterId, sent: true })}
+        onRefresh={() => void load()}
+        onError={setError}
+        setBusy={setBusy}
       />
 
       {!hasCompletedRound && (
@@ -367,8 +364,6 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
           title="Identified"
           empty="No remaining negatives or inquiries from the report."
           items={identified}
-          busy={busy}
-          onStatus={(itemId, status) => void patch({ itemId, status })}
         />
       )}
 
@@ -376,24 +371,18 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         title="Selected for this round"
         empty="Select accounts on Review to assign them to this round."
         items={selected}
-        busy={busy}
-        onStatus={(itemId, status) => void patch({ itemId, status })}
       />
 
       <ItemStatusQueue
         title="Letter generated"
-        empty="Generate letters for the selected items. That does not mark them disputed."
+        empty="Generate letters for the selected items. That does not mark them Sent."
         items={letterGenerated}
-        busy={busy}
-        onStatus={(itemId, status) => void patch({ itemId, status })}
       />
 
       <ItemStatusQueue
         title="Sent"
-        empty="Mark each letter Sent after it is mailed. That is the official dispute."
+        empty="Confirm the letter package after it is mailed. That is the official dispute."
         items={sent}
-        busy={busy}
-        onStatus={(itemId, status) => void patch({ itemId, status })}
       />
 
       <ItemStatusQueue
@@ -405,7 +394,7 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         }
         items={nextRound}
         busy={busy}
-        onStatus={(itemId, status) => void patch({ itemId, status })}
+        onOutcome={(itemId, status) => void patch({ itemId, status })}
       />
 
       <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 space-y-3">
@@ -494,18 +483,18 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
 
 function RoundCard({
   round,
+  pkg,
   active,
   busy,
   sendProgress,
-  onStatus,
   onMail,
   onRelease,
 }: {
   round: DisputeRoundRow
+  pkg: LetterPackageSnapshot | null
   active: boolean
   busy: boolean
   sendProgress?: { selected: number; sent: number; complete: boolean }
-  onStatus: (status: DisputeRoundStatus) => void
   onMail: (payload: Record<string, unknown>) => void
   onRelease: () => void
 }) {
@@ -538,15 +527,27 @@ function RoundCard({
         <div>
           <div className="font-bold text-brand-text">
             Round {round.round_number}
-            <span className="ml-2 font-medium text-brand-dim">{roundStatusLabel(round.status)}</span>
+            <span className="ml-2 font-medium text-brand-dim">
+              {pkg?.workflow.label || (sendProgress?.complete ? 'Complete' : round.status === 'draft' ? 'Draft' : 'Letters generated')}
+            </span>
           </div>
-            {sendProgress && sendProgress.selected > 0 && (
+            {pkg ? (
+              <p className="mt-0.5 text-brand-dim">
+                {pkg.generatedCount} letter{pkg.generatedCount === 1 ? '' : 's'}
+                {pkg.downloaded ? ' · ZIP Downloaded ✓' : ''}
+                {pkg.allSent
+                  ? ' · All sent'
+                  : pkg.pendingCount
+                    ? ` · ${pkg.pendingCount} ready to send`
+                    : ''}
+              </p>
+            ) : sendProgress && sendProgress.selected > 0 ? (
               <p className="mt-0.5 text-brand-dim">
                 {sendProgress.complete
                   ? `Complete — ${sendProgress.sent} of ${sendProgress.selected} Sent`
-                  : `Incomplete — ${sendProgress.sent} of ${sendProgress.selected} Sent`}
+                  : `${sendProgress.sent} of ${sendProgress.selected} Sent`}
               </p>
-            )}
+            ) : null}
           {round.client_released_at && (
             <p className="mt-0.5 text-brand-dim">
               Released to client {new Date(round.client_released_at).toLocaleDateString()}
@@ -564,26 +565,6 @@ function RoundCard({
           )}
         </div>
         <div className="flex flex-wrap gap-1">
-          {round.status !== 'awaiting_response' && round.status !== 'closed' && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onStatus('awaiting_response')}
-              className="rounded px-2 py-0.5 font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
-            >
-              Awaiting reply
-            </button>
-          )}
-          {round.status !== 'closed' && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onStatus('closed')}
-              className="rounded px-2 py-0.5 font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
-            >
-              Close
-            </button>
-          )}
           {!round.client_released_at && (
             <button
               type="button"
@@ -659,23 +640,6 @@ function RoundCard({
               mailMethod,
               trackingNumber: trackingNumber.trim() || null,
               deliveredAt: fromDateInputValue(deliveredAt),
-              mailedAt: round.mailed_at || new Date().toISOString(),
-              status: 'mailed',
-              packetChecklist: checklist,
-            })
-          }
-          className="rounded px-2 py-0.5 font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
-        >
-          Mark mailed
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() =>
-            onMail({
-              mailMethod,
-              trackingNumber: trackingNumber.trim() || null,
-              deliveredAt: fromDateInputValue(deliveredAt),
               packetChecklist: checklist,
             })
           }
@@ -688,54 +652,154 @@ function RoundCard({
   )
 }
 
-function LetterSendQueue({
-  letters,
-  progress,
+function LetterPackageCard({
+  pkg,
+  sessionId,
   busy,
-  onSent,
+  onRefresh,
+  onError,
+  setBusy,
 }: {
-  letters: DisputeRoundLetter[]
-  progress: { selected: number; sent: number; complete: boolean }
+  pkg: LetterPackageSnapshot | null | undefined
+  sessionId: string | null
   busy: boolean
-  onSent: (letterId: string) => void
+  onRefresh: () => void
+  onError: (message: string) => void
+  setBusy: (busy: boolean) => void
 }) {
-  if (!letters.length) return null
+  const [expanded, setExpanded] = useState(true)
+  if (!pkg) return null
+  const workflow = pkg.workflow
+  const display = letterPackageDisplayCode(pkg.package.id)
+  const packageId = pkg.package.id
+  const packageVersion = pkg.package.version
+  const generatedCount = pkg.generatedCount
+  const downloaded = pkg.downloaded
+  const allSent = pkg.allSent
+  const members = pkg.members
+
+  async function downloadZip() {
+    if (!sessionId) return
+    setBusy(true)
+    onError('')
+    try {
+      const res = await fetch(disputeLettersZipUrl(sessionId))
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(typeof body.error === 'string' ? body.error : 'ZIP download failed')
+      }
+      const blob = await res.blob()
+      const header = res.headers.get('content-disposition') || ''
+      const matched = /filename="([^"]+)"/i.exec(header)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = matched?.[1] || 'Dispute Letters.zip'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      onRefresh()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'ZIP download failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function confirmAll() {
+    setBusy(true)
+    onError('')
+    try {
+      await confirmLetterPackageSent({ packageId, sessionId: sessionId || undefined })
+      onRefresh()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Failed to confirm letters sent')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
-        Dispute letters ({letters.length})
-      </p>
-      {progress.selected > 0 && (
-        <p className="text-xs text-brand-dim">
-          {progress.complete
-            ? `Round complete — all ${progress.sent} assigned items are Sent.`
-            : `${progress.sent} of ${progress.selected} assigned items Sent. Generating a letter does not count as disputed.`}
-        </p>
-      )}
-      <ul className="divide-y divide-brand-border rounded-lg border border-brand-border">
-        {letters.map((letter) => (
-          <li key={letter.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs">
-            <span className="font-semibold text-brand-text">{letter.title}</span>
-            {letter.sent_at ? (
-              <span className="rounded bg-green-50 px-1.5 py-0.5 font-medium text-green-800">
-                Sent {new Date(letter.sent_at).toLocaleDateString()}
-              </span>
-            ) : (
-              <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-medium text-brand-dim">
-                Generated
-              </span>
-            )}
+    <div className="rounded-lg border border-brand-border bg-white p-3 space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
+            Letter package {display}
+            {packageVersion > 1 ? ` · v${packageVersion}` : ''}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-brand-text">{workflow.label}</p>
+          <p className="mt-0.5 text-xs text-brand-dim">
+            {generatedCount} letter{generatedCount === 1 ? '' : 's'} generated
+            {downloaded ? ' · ZIP Downloaded ✓' : ''}
+            {allSent ? ' · Sent confirmation recorded' : downloaded ? ' · Ready to Send' : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {sessionId && (
             <button
               type="button"
-              disabled={busy || Boolean(letter.sent_at)}
-              onClick={() => onSent(letter.id)}
-              className="ml-auto rounded px-2 py-1 font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
+              disabled={busy}
+              onClick={() => void downloadZip()}
+              className="rounded px-2 py-1 text-xs font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
             >
-              {letter.sent_at ? 'Sent' : 'Mark sent'}
+              {downloaded ? 'Download again' : 'Download ZIP'}
             </button>
-          </li>
-        ))}
-      </ul>
+          )}
+          {!allSent && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void confirmAll()}
+              className="rounded px-2 py-1 text-xs font-semibold border border-green-700 bg-green-50 text-green-900 hover:bg-green-100 disabled:opacity-50"
+            >
+              Confirm All Letters Sent
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setExpanded((open) => !open)}
+            className="rounded px-2 py-1 text-xs font-semibold text-brand-dim hover:underline"
+          >
+            {expanded ? 'Hide details' : 'Show details'}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-xs">
+            <thead>
+              <tr className="text-left text-brand-dim">
+                <th className="py-1 pr-3 font-semibold">Item</th>
+                <th className="py-1 pr-3 font-semibold">Letter</th>
+                <th className="py-1 font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-border">
+              {members.map((member) => (
+                <tr key={`${member.package_id}-${member.item_id}`}>
+                  <td className="py-1.5 pr-3 text-brand-text">
+                    <span className="font-semibold">{member.creditor_name}</span>
+                    <span className="text-brand-dim">
+                      {' '}
+                      {BUREAU_LABELS[member.bureau]}
+                      {member.account_last4 ? ` ···${member.account_last4}` : ''}
+                    </span>
+                  </td>
+                  <td className="py-1.5 pr-3 text-brand-dim">{member.letter_title || 'Generated'}</td>
+                  <td className="py-1.5">
+                    {member.sent_at ? (
+                      <span className="font-medium text-green-800">✓ Sent</span>
+                    ) : (
+                      <span className="text-brand-dim">Pending</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
@@ -745,13 +809,13 @@ function ItemStatusQueue({
   empty,
   items,
   busy,
-  onStatus,
+  onOutcome,
 }: {
   title: string
   empty: string
   items: DisputeItemRow[]
-  busy: boolean
-  onStatus: (itemId: string, status: DisputeItemStatus) => void
+  busy?: boolean
+  onOutcome?: (itemId: string, status: DisputeItemStatus) => void
 }) {
   if (!items.length) {
     return (
@@ -789,23 +853,26 @@ function ItemStatusQueue({
                     Sent {new Date(item.sent_at).toLocaleDateString()}
                   </span>
                 ) : null}
-                <select
-                  disabled={busy}
-                  className="ml-auto rounded border border-brand-border bg-white px-2 py-1"
-                  value={item.current_status}
-                  onChange={(e) => onStatus(item.id, e.target.value as DisputeItemStatus)}
-                >
-                  {ITEM_OUTCOMES.map((status) => (
-                    <option key={status} value={status}>
-                      {itemStatusLabel(
-                        status,
-                        status === 'disputed' && item.current_status === 'disputed'
-                          ? item.sent_at
-                          : null
-                      )}
-                    </option>
-                  ))}
-                </select>
+                {onOutcome &&
+                (item.sent_at ||
+                  BUREAU_OUTCOME_STATUSES.includes(item.current_status)) ? (
+                  <select
+                    disabled={busy}
+                    className="ml-auto rounded border border-brand-border bg-white px-2 py-1"
+                    value={
+                      BUREAU_OUTCOME_STATUSES.includes(item.current_status)
+                        ? item.current_status
+                        : 'verified'
+                    }
+                    onChange={(e) => onOutcome(item.id, e.target.value as DisputeItemStatus)}
+                  >
+                    {BUREAU_OUTCOME_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {itemStatusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
               </div>
               {history.length > 0 && (
                 <p className="text-[11px] text-brand-muted">{history.join(' → ')}</p>

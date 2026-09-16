@@ -1,7 +1,9 @@
 import { getSupabase } from '@/lib/supabase'
+import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import {
   allIdentitiesFromTradelines,
   appendStatusEvent,
+  buildLetterPackageSnapshot,
   comparisonUpdatesForItems,
   computeDeadlineAt,
   expandTradelineSelections,
@@ -11,6 +13,8 @@ import {
   nextRoundNumber,
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
+  roundWorkflowView,
+  shouldReuseLetterPackage,
   splitWorkflowQueues,
   type DisputeRoundLetter,
   type DisputeCaseRow,
@@ -25,10 +29,17 @@ import {
   type DisputeResponseSource,
   type DisputeRoundRow,
   type DisputeRoundStatus,
+  type LetterPackageMember,
+  type LetterPackageRow,
+  type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { deleteDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import { removeDisputeSessionStorage } from '@/lib/dispute-letters-storage'
 import type { Tradeline } from '@/lib/dispute-letters/types'
+
+function emptyWorkflow() {
+  return roundWorkflowView({ selectedCount: 0, generatedCount: 0, downloaded: false, sentCount: 0 })
+}
 
 function isMissingRelation(error: { message?: string; code?: string } | null): boolean {
   if (!error) return false
@@ -163,6 +174,9 @@ export async function loadDisputeLifecycleForApplication(
     pendingQueue: [],
     activeRound: null,
     letters: [],
+    packages: [],
+    activePackage: null,
+    roundWorkflow: emptyWorkflow(),
     roundSendProgress: { selected: 0, sent: 0, complete: false },
     hasCompletedRound: false,
   }
@@ -206,8 +220,19 @@ export async function loadDisputeLifecycleForApplication(
     .map((r) => r.round_number)
 
   const queues = splitWorkflowQueues(items, activeRound, completedRoundNumbers)
-  const letters = await listRoundLetters(activeRound?.session_id || null)
+  const letters = currentLetters(await listRoundLetters(activeRound?.session_id || null))
   const sentCount = roundItemIds.filter((id) => items.find((i) => i.id === id)?.sent_at).length
+  const packages = await loadPackageSnapshotsForCase(disputeCase.id, items, rounds)
+  const activePackage =
+    packages.find((pkg) => pkg.package.round_id === activeRound?.id && pkg.package.is_active) ||
+    packages.find((pkg) => pkg.package.is_active) ||
+    null
+  const roundWorkflow = roundWorkflowView({
+    selectedCount: roundItemIds.length,
+    generatedCount: activePackage?.generatedCount || letters.length,
+    downloaded: Boolean(activePackage?.downloaded),
+    sentCount,
+  })
 
   return {
     case: disputeCase,
@@ -222,6 +247,9 @@ export async function loadDisputeLifecycleForApplication(
     pendingQueue: queues.nextRound,
     activeRound,
     letters,
+    packages,
+    activePackage,
+    roundWorkflow,
     roundSendProgress: {
       selected: roundItemIds.length,
       sent: sentCount,
@@ -229,6 +257,23 @@ export async function loadDisputeLifecycleForApplication(
     },
     hasCompletedRound: completedRoundNumbers.length > 0,
   }
+}
+
+export async function loadLetterPackageForSession(sessionId: string): Promise<{
+  round: DisputeRoundRow | null
+  package: LetterPackageSnapshot | null
+  letters: DisputeRoundLetter[]
+}> {
+  const round = await findRoundForSession(sessionId)
+  const letters = currentLetters(await listRoundLetters(sessionId))
+  if (!round) return { round: null, package: null, letters }
+  const items = await listItemsForCase(round.case_id)
+  const snapshots = await loadPackageSnapshotsForCase(round.case_id, items, [round])
+  const active =
+    snapshots.find((pkg) => pkg.package.round_id === round.id && pkg.package.is_active) ||
+    snapshots[snapshots.length - 1] ||
+    null
+  return { round, package: active, letters }
 }
 
 async function latestReportTradelines(applicationUuid: string): Promise<Tradeline[]> {
@@ -240,7 +285,7 @@ async function latestReportTradelines(applicationUuid: string): Promise<Tradelin
   return []
 }
 
-/** Insert remaining negatives/inquiries as pending so they get a status dropdown. */
+/** Insert remaining negatives/inquiries as pending so they appear in the identified queue. */
 export async function ensurePendingItemsFromTradelines(params: {
   caseId: string
   tradelines: Tradeline[]
@@ -319,7 +364,7 @@ export async function repairUnsentDisputedItems(caseId: string): Promise<number>
           at: now,
           stage: 'letter_generated',
           roundNumber: item.last_round_number,
-          detail: 'Automatic Disputed stamp cleared; not sent until Mark sent',
+          detail: 'Automatic Disputed stamp cleared; not sent until Confirm All Letters Sent',
         }),
         updated_at: now,
       })
@@ -369,10 +414,23 @@ export async function listRoundLetters(sessionId: string | null): Promise<Disput
   const db = getSupabase()
   const full = await db
     .from('dispute_letters')
-    .select('id, session_id, plan_id, title, sent_at, created_at')
+    .select('id, session_id, plan_id, title, sent_at, created_at, package_id')
     .eq('session_id', sessionId)
     .order('created_at', { ascending: true })
   if (full.error) {
+    if (isMissingColumn(full.error, 'package_id')) {
+      const withoutPkg = await db
+        .from('dispute_letters')
+        .select('id, session_id, plan_id, title, sent_at, created_at')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true })
+      if (!withoutPkg.error && withoutPkg.data) {
+        return (withoutPkg.data as DisputeRoundLetter[]).map((row) => ({
+          ...row,
+          package_id: null,
+        }))
+      }
+    }
     if (isMissingColumn(full.error, 'sent_at')) {
       const basic = await db
         .from('dispute_letters')
@@ -461,6 +519,431 @@ async function findRoundForSession(sessionId: string): Promise<DisputeRoundRow |
   return (round as DisputeRoundRow) || null
 }
 
+async function listPackagesForCase(caseId: string): Promise<LetterPackageRow[]> {
+  const { data, error } = await getSupabase()
+    .from('dispute_letter_packages')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: true })
+  if (error) {
+    if (!isMissingRelation(error)) console.error('listPackagesForCase error:', error)
+    return []
+  }
+  return (data || []) as LetterPackageRow[]
+}
+
+async function listPackageItemRows(packageId: string): Promise<
+  { package_id: string; item_id: string; letter_id: string | null; letter_type: string; sent_at: string | null }[]
+> {
+  const { data, error } = await getSupabase()
+    .from('dispute_letter_package_items')
+    .select('package_id, item_id, letter_id, letter_type, sent_at')
+    .eq('package_id', packageId)
+  if (error) {
+    if (!isMissingRelation(error)) console.error('listPackageItemRows error:', error)
+    return []
+  }
+  return (data || []) as {
+    package_id: string
+    item_id: string
+    letter_id: string | null
+    letter_type: string
+    sent_at: string | null
+  }[]
+}
+
+function hydratePackageMembers(
+  rows: { package_id: string; item_id: string; letter_id: string | null; letter_type: string; sent_at: string | null }[],
+  items: DisputeItemRow[],
+  letters: DisputeRoundLetter[]
+): LetterPackageMember[] {
+  const byItem = new Map(items.map((item) => [item.id, item]))
+  const byLetter = new Map(letters.map((letter) => [letter.id, letter]))
+  return rows.map((row) => {
+    const item = byItem.get(row.item_id)
+    const letter = row.letter_id ? byLetter.get(row.letter_id) : undefined
+    return {
+      package_id: row.package_id,
+      item_id: row.item_id,
+      letter_id: row.letter_id,
+      letter_type: row.letter_type || 'bureau',
+      sent_at: row.sent_at,
+      creditor_name: item?.creditor_name || 'Unknown',
+      bureau: item?.bureau || 'TUC',
+      account_last4: item?.account_last4 || '',
+      letter_title: letter?.title || null,
+    }
+  })
+}
+
+async function loadPackageSnapshotsForCase(
+  caseId: string,
+  items: DisputeItemRow[],
+  rounds: DisputeRoundRow[]
+): Promise<LetterPackageSnapshot[]> {
+  const packages = await listPackagesForCase(caseId)
+  if (!packages.length) return []
+  const lettersBySession = new Map<string, DisputeRoundLetter[]>()
+  const snapshots: LetterPackageSnapshot[] = []
+  for (const pkg of packages) {
+    const sessionId = pkg.session_id || rounds.find((round) => round.id === pkg.round_id)?.session_id || null
+    let letters: DisputeRoundLetter[] = []
+    if (sessionId) {
+      if (!lettersBySession.has(sessionId)) {
+        lettersBySession.set(sessionId, await listRoundLetters(sessionId))
+      }
+      letters = lettersBySession.get(sessionId) || []
+    }
+    const rows = await listPackageItemRows(pkg.id)
+    const members = hydratePackageMembers(rows, items, letters)
+    const selectedCount = rows.length
+    snapshots.push(
+      buildLetterPackageSnapshot({
+        package: pkg,
+        members,
+        selectedCount,
+      })
+    )
+  }
+  return snapshots
+}
+
+async function activePackageForRound(roundId: string): Promise<LetterPackageRow | null> {
+  const { data, error } = await getSupabase()
+    .from('dispute_letter_packages')
+    .select('*')
+    .eq('round_id', roundId)
+    .eq('is_active', true)
+    .maybeSingle()
+  if (error) {
+    if (!isMissingRelation(error)) console.error('activePackageForRound error:', error)
+    return null
+  }
+  return (data as LetterPackageRow) || null
+}
+
+async function replacePackageMembers(params: {
+  packageId: string
+  members: { itemId: string; letterId: string | null; letterType: string; sentAt: string | null }[]
+}): Promise<void> {
+  const db = getSupabase()
+  await db.from('dispute_letter_package_items').delete().eq('package_id', params.packageId)
+  if (!params.members.length) return
+  const now = new Date().toISOString()
+  const { error } = await db.from('dispute_letter_package_items').insert(
+    params.members.map((member) => ({
+      package_id: params.packageId,
+      item_id: member.itemId,
+      letter_id: member.letterId,
+      letter_type: member.letterType,
+      sent_at: member.sentAt,
+      created_at: now,
+    }))
+  )
+  if (error && !isMissingRelation(error)) console.error('replacePackageMembers error:', error)
+}
+
+async function collectPackageMembership(params: {
+  roundId: string
+  sessionId: string
+  items: DisputeItemRow[]
+}): Promise<{
+  letters: DisputeRoundLetter[]
+  members: { itemId: string; letterId: string | null; letterType: string; sentAt: string | null }[]
+}> {
+  const letters = currentLetters(await listRoundLetters(params.sessionId))
+  const plans = await loadSessionPlans(params.sessionId)
+  const planById = new Map(plans.map((plan) => [String(plan.id || ''), plan]))
+  const { data: links } = await getSupabase()
+    .from('dispute_round_items')
+    .select('item_id, letter_id, letter_type, sent_at')
+    .eq('round_id', params.roundId)
+  const byItem = new Map(params.items.map((item) => [item.id, item]))
+  const members: { itemId: string; letterId: string | null; letterType: string; sentAt: string | null }[] = []
+  const seen = new Set<string>()
+
+  for (const row of links || []) {
+    const itemId = row.item_id as string
+    if (!itemId || seen.has(itemId)) continue
+    seen.add(itemId)
+    const item = byItem.get(itemId)
+    members.push({
+      itemId,
+      letterId: (row.letter_id as string | null) || null,
+      letterType: (row.letter_type as string) || 'bureau',
+      sentAt: (row.sent_at as string | null) || item?.sent_at || null,
+    })
+  }
+
+  for (const letter of letters) {
+    const plan = planById.get(letter.plan_id)
+    for (const planItem of plan?.items || []) {
+      for (const item of matchPlanItemToDisputeItem(params.items, planItem)) {
+        const existing = members.find((member) => member.itemId === item.id)
+        if (existing) {
+          if (!existing.letterId) existing.letterId = letter.id
+          continue
+        }
+        members.push({
+          itemId: item.id,
+          letterId: letter.id,
+          letterType: plan?.letter_type || 'bureau',
+          sentAt: item.sent_at || null,
+        })
+      }
+    }
+  }
+
+  return { letters, members }
+}
+
+async function createLetterPackageVersion(params: {
+  round: DisputeRoundRow
+  sessionId: string
+  letters: DisputeRoundLetter[]
+  members: { itemId: string; letterId: string | null; letterType: string; sentAt: string | null }[]
+  previous?: LetterPackageRow | null
+}): Promise<LetterPackageRow | null> {
+  const db = getSupabase()
+  const now = new Date().toISOString()
+  const version = (params.previous?.version || 0) + 1
+  if (params.previous?.id) {
+    await db
+      .from('dispute_letter_packages')
+      .update({ is_active: false, updated_at: now })
+      .eq('id', params.previous.id)
+  }
+
+  const { data, error } = await db
+    .from('dispute_letter_packages')
+    .insert({
+      case_id: params.round.case_id,
+      round_id: params.round.id,
+      session_id: params.sessionId,
+      version,
+      is_active: true,
+      letter_count: params.letters.length,
+      downloaded_at: null,
+      download_count: 0,
+      sent_confirmed_at: params.members.length && params.members.every((m) => m.sentAt) ? now : null,
+      created_at: now,
+      updated_at: now,
+    })
+    .select('*')
+    .single()
+
+  if (error || !data) {
+    if (error && !isMissingRelation(error)) console.error('createLetterPackageVersion error:', error)
+    return null
+  }
+
+  const created = data as LetterPackageRow
+  await replacePackageMembers({ packageId: created.id, members: params.members })
+  if (params.letters.length) {
+    const ids = params.letters.map((letter) => letter.id)
+    const stamped = await db
+      .from('dispute_letters')
+      .update({ package_id: created.id, letter_version: version })
+      .in('id', ids)
+    if (stamped.error && isMissingColumn(stamped.error, 'letter_version')) {
+      await db.from('dispute_letters').update({ package_id: created.id }).in('id', ids)
+    }
+  }
+  const roundUpdate = await db
+    .from('dispute_rounds')
+    .update({ active_package_id: created.id, updated_at: now })
+    .eq('id', params.round.id)
+  if (roundUpdate.error && !isMissingColumn(roundUpdate.error, 'active_package_id') && !isMissingRelation(roundUpdate.error)) {
+    console.error('createLetterPackageVersion round update error:', roundUpdate.error)
+  }
+  return created
+}
+
+/** Create or reuse the active letter package after generation. Does not mark Sent. */
+export async function upsertLetterPackageOnGenerate(params: {
+  round: DisputeRoundRow
+  sessionId: string
+  items: DisputeItemRow[]
+}): Promise<LetterPackageRow | null> {
+  const { letters, members } = await collectPackageMembership({
+    roundId: params.round.id,
+    sessionId: params.sessionId,
+    items: params.items,
+  })
+  if (!letters.length) return activePackageForRound(params.round.id)
+
+  const existing = await activePackageForRound(params.round.id)
+  const existingIds = existing
+    ? (await listPackageItemRows(existing.id)).map((row) => row.letter_id).filter((id): id is string => Boolean(id))
+    : []
+  const newIds = letters.map((letter) => letter.id)
+
+  if (existing && shouldReuseLetterPackage(existingIds, newIds)) {
+    const now = new Date().toISOString()
+    await replacePackageMembers({ packageId: existing.id, members })
+    await getSupabase()
+      .from('dispute_letter_packages')
+      .update({
+        letter_count: letters.length,
+        session_id: params.sessionId,
+        updated_at: now,
+      })
+      .eq('id', existing.id)
+    return existing
+  }
+
+  return createLetterPackageVersion({
+    round: params.round,
+    sessionId: params.sessionId,
+    letters,
+    members,
+    previous: existing,
+  })
+}
+
+/** Record a ZIP download for the active package. Never marks items Sent or creates letters. */
+export async function recordLetterPackageDownload(sessionId: string): Promise<LetterPackageRow | null> {
+  const round = await findRoundForSession(sessionId)
+  if (!round) return null
+  const items = await listItemsForCase(round.case_id)
+  let pkg = await activePackageForRound(round.id)
+  if (!pkg) {
+    pkg = await upsertLetterPackageOnGenerate({ round, sessionId, items })
+  }
+  if (!pkg) return null
+
+  const now = new Date().toISOString()
+  const { data, error } = await getSupabase()
+    .from('dispute_letter_packages')
+    .update({
+      downloaded_at: pkg.downloaded_at || now,
+      download_count: (pkg.download_count || 0) + 1,
+      updated_at: now,
+    })
+    .eq('id', pkg.id)
+    .select('*')
+    .single()
+  if (error) {
+    if (!isMissingRelation(error) && !isMissingColumn(error, 'download_count')) {
+      console.error('recordLetterPackageDownload error:', error)
+    }
+    return pkg
+  }
+  return (data as LetterPackageRow) || pkg
+}
+
+async function stampRoundItemsSent(params: {
+  round: DisputeRoundRow
+  itemIds: string[]
+  letterIdByItem: Map<string, string | null>
+  items: DisputeItemRow[]
+  now: string
+}): Promise<void> {
+  const db = getSupabase()
+  for (const itemId of params.itemIds) {
+    const prev = params.items.find((item) => item.id === itemId)
+    if (prev?.sent_at && prev.last_round_number === params.round.round_number) continue
+    const letterId = params.letterIdByItem.get(itemId) || null
+    await db
+      .from('dispute_items')
+      .update({
+        current_status: 'disputed' satisfies DisputeItemStatus,
+        sent_at: params.now,
+        status_history: appendStatusEvent(prev?.status_history, {
+          at: params.now,
+          stage: 'sent',
+          roundNumber: params.round.round_number,
+          detail: `Round ${params.round.round_number} letter sent`,
+        }),
+        updated_at: params.now,
+      })
+      .eq('id', itemId)
+    const roundItemUpdate: Record<string, unknown> = { sent_at: params.now }
+    if (letterId) roundItemUpdate.letter_id = letterId
+    await db.from('dispute_round_items').update(roundItemUpdate).eq('round_id', params.round.id).eq('item_id', itemId)
+    if (letterId) {
+      await db.from('dispute_letters').update({ sent_at: params.now }).eq('id', letterId)
+    }
+  }
+}
+
+export async function confirmLetterPackageSent(
+  packageId: string
+): Promise<{ ok: true; sentAt: string; roundComplete: boolean; itemCount: number } | { ok: false; error: string }> {
+  const db = getSupabase()
+  const now = new Date().toISOString()
+  const { data: pkg, error: pkgErr } = await db
+    .from('dispute_letter_packages')
+    .select('*')
+    .eq('id', packageId)
+    .maybeSingle()
+  if (pkgErr || !pkg) {
+    if (pkgErr && isMissingRelation(pkgErr)) {
+      return { ok: false, error: 'Run migration 039 for letter packages.' }
+    }
+    return { ok: false, error: pkgErr?.message || 'Letter package not found' }
+  }
+
+  const packageRow = pkg as LetterPackageRow
+  const { data: round } = await db.from('dispute_rounds').select('*').eq('id', packageRow.round_id).maybeSingle()
+  if (!round) return { ok: false, error: 'Dispute round not found' }
+  const roundRow = round as DisputeRoundRow
+  const items = await listItemsForCase(roundRow.case_id)
+  const rows = await listPackageItemRows(packageRow.id)
+  if (!rows.length) return { ok: false, error: 'Letter package has no associated credit items' }
+
+  const letterIdByItem = new Map(rows.map((row) => [row.item_id, row.letter_id]))
+  await stampRoundItemsSent({
+    round: roundRow,
+    itemIds: rows.map((row) => row.item_id),
+    letterIdByItem,
+    items,
+    now,
+  })
+
+  await db
+    .from('dispute_letter_package_items')
+    .update({ sent_at: now })
+    .eq('package_id', packageRow.id)
+    .is('sent_at', null)
+
+  await db
+    .from('dispute_letter_packages')
+    .update({ sent_confirmed_at: packageRow.sent_confirmed_at || now, updated_at: now })
+    .eq('id', packageRow.id)
+
+  const roundComplete = await maybeCompleteRoundIfFullySent(roundRow.id)
+  return { ok: true, sentAt: now, roundComplete, itemCount: rows.length }
+}
+
+export async function confirmAllLettersSentForSession(
+  sessionId: string
+): Promise<
+  | { ok: true; sentAt: string; roundComplete: boolean; itemCount: number }
+  | { ok: false; error: string }
+> {
+  const round = await findRoundForSession(sessionId)
+  if (!round) return { ok: false, error: 'No dispute round for this session' }
+  let pkg = await activePackageForRound(round.id)
+  if (!pkg) {
+    const items = await listItemsForCase(round.case_id)
+    pkg = await upsertLetterPackageOnGenerate({ round, sessionId, items })
+  }
+  if (pkg) return confirmLetterPackageSent(pkg.id)
+
+  const letters = currentLetters(await listRoundLetters(sessionId)).filter((letter) => !letter.sent_at)
+  if (!letters.length) return { ok: false, error: 'No generated letters to confirm' }
+  let roundComplete = false
+  let sentAt = new Date().toISOString()
+  for (const letter of letters) {
+    const result = await markLetterSent(letter.id)
+    if (!result.ok) return result
+    sentAt = result.sentAt
+    roundComplete = result.roundComplete
+  }
+  return { ok: true, sentAt, roundComplete, itemCount: letters.length }
+}
+
 async function linkLettersToRoundItems(
   roundId: string,
   sessionId: string,
@@ -523,6 +1006,7 @@ export async function onLettersGenerated(sessionId: string): Promise<void> {
   const items = await listItemsForCase(round.case_id)
   await linkLettersToRoundItems(round.id, sessionId, items)
   await stampLetterGeneratedHistory(round, items)
+  await upsertLetterPackageOnGenerate({ round, sessionId, items })
 }
 
 async function maybeCompleteRoundIfFullySent(roundId: string): Promise<boolean> {
@@ -625,6 +1109,22 @@ export async function markLetterSent(
       .update({ sent_at: now, letter_id: letterId })
       .eq('round_id', round.id)
       .eq('item_id', itemId)
+  }
+
+  const activePkg = await activePackageForRound(round.id)
+  if (activePkg && targetIds.length) {
+    await db
+      .from('dispute_letter_package_items')
+      .update({ sent_at: now, letter_id: letterId })
+      .eq('package_id', activePkg.id)
+      .in('item_id', targetIds)
+    const rows = await listPackageItemRows(activePkg.id)
+    if (rows.length && rows.every((row) => row.sent_at || targetIds.includes(row.item_id))) {
+      await db
+        .from('dispute_letter_packages')
+        .update({ sent_confirmed_at: activePkg.sent_confirmed_at || now, updated_at: now })
+        .eq('id', activePkg.id)
+    }
   }
 
   const roundComplete = await maybeCompleteRoundIfFullySent(round.id)

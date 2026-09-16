@@ -7,7 +7,10 @@ import type {
   DisputeRoundStatus,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import {
+  confirmAllLettersSentForSession,
+  confirmLetterPackageSent,
   loadDisputeLifecycleForApplication,
+  loadLetterPackageForSession,
   markLetterSent,
   releaseRoundToClient,
   updateDisputeItemStatus,
@@ -18,27 +21,54 @@ import {
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-/** GET ?applicationUuid=... — load rounds + item queue for an application. */
+/** GET ?applicationUuid=... or ?sessionId=... — load rounds, packages, and item queues. */
 export async function GET(request: NextRequest) {
   const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
 
   const applicationUuid = request.nextUrl.searchParams.get('applicationUuid')?.trim()
+  const sessionId = request.nextUrl.searchParams.get('sessionId')?.trim()
+  if (sessionId && !applicationUuid) {
+    const snapshot = await loadLetterPackageForSession(sessionId)
+    return NextResponse.json(snapshot)
+  }
   if (!applicationUuid) {
-    return NextResponse.json({ error: 'applicationUuid is required' }, { status: 400 })
+    return NextResponse.json({ error: 'applicationUuid or sessionId is required' }, { status: 400 })
   }
 
   const snapshot = await loadDisputeLifecycleForApplication(applicationUuid)
   return NextResponse.json(snapshot)
 }
 
-/** PATCH — update round status, mail tracking, client release, or item outcome. */
+/** PATCH — confirm package sent, round status, mail tracking, client release, or item outcome. */
 export async function PATCH(request: NextRequest) {
   const session = await requireCreditFundingStaffSession()
   if (session instanceof NextResponse) return session
 
   try {
     const body = await request.json()
+
+    if (body?.packageId && (body.confirmSent === true || body.confirmAllSent === true)) {
+      const result = await confirmLetterPackageSent(String(body.packageId))
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json({
+        ok: true,
+        sentAt: result.sentAt,
+        roundComplete: result.roundComplete,
+        itemCount: result.itemCount,
+      })
+    }
+
+    if (body?.sessionId && (body.confirmSent === true || body.confirmAllSent === true)) {
+      const result = await confirmAllLettersSentForSession(String(body.sessionId))
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+      return NextResponse.json({
+        ok: true,
+        sentAt: result.sentAt,
+        roundComplete: result.roundComplete,
+        itemCount: result.itemCount,
+      })
+    }
 
     if (body?.letterId && (body.sent === true || body.markSent === true || body.status === 'sent')) {
       const result = await markLetterSent(String(body.letterId))
@@ -98,7 +128,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       {
         error:
-          'Provide letterId+sent, roundId+status, roundId+mail tracking fields, roundId+releaseToClient, or itemId+status',
+          'Provide packageId+confirmSent, sessionId+confirmAllSent, letterId+sent, roundId+status, roundId+mail tracking fields, roundId+releaseToClient, or itemId+status',
       },
       { status: 400 }
     )
