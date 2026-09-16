@@ -734,8 +734,6 @@ export default function CreditIntelligencePanel({
           {intelligence ? (
             <CreditIntelligenceDashboard
               intelligence={intelligence}
-              sessionId={activeId || undefined}
-              onOpenDisputeWorkflow={() => openLetters('health')}
               fundingBlockTitle="Report funding readiness (advisory)"
               fundingBlockSubtitle="Generated from the credit report — does not replace staff assessment on the Funding tab."
             />

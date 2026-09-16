@@ -134,11 +134,7 @@ export default function DisputeHealthStep({
       </div>
 
       {!embedded && intel && (
-        <CreditIntelligenceDashboard
-          intelligence={intel}
-          sessionId={sessionId}
-          showDisputeCta={false}
-        />
+        <CreditIntelligenceDashboard intelligence={intel} />
       )}
 
       {!intel && (h.repair_summary || (h.recommended_actions || []).length > 0) && (
