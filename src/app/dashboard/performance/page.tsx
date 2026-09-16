@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import { clientFacingPackageSummary } from '@/lib/billing-packages'
 
 interface ActivityEntry {
   id: string
@@ -19,6 +20,9 @@ interface ClientData {
   monthly_price: number
   start_date: string
   status: string
+  billing_model?: string | null
+  lead_type?: string | null
+  repair_fee_cents?: number | null
 }
 
 const categoryColors: Record<string, string> = {
@@ -42,14 +46,6 @@ function guessCategory(action: string): string {
   if (lower.includes('website') || lower.includes('speed') || lower.includes('page')) return 'Website'
   if (lower.includes('strategy') || lower.includes('call') || lower.includes('plan')) return 'Strategy'
   return 'General'
-}
-
-const tierLabels: Record<string, string> = {
-  free: 'Free (Testing)',
-  social_essentials: 'Social Essentials',
-  spark: 'Spark',
-  growth: 'Growth',
-  scale: 'Scale',
 }
 
 export default function PerformancePage() {
@@ -78,6 +74,7 @@ export default function PerformancePage() {
   const daysSinceStart = client && client.start_date
     ? Math.floor((Date.now() - new Date(client.start_date).getTime()) / 86400000)
     : 0
+  const summary = client ? clientFacingPackageSummary(client) : null
 
   if (loading) {
     return (
@@ -99,7 +96,7 @@ export default function PerformancePage() {
         <div className="bg-white border border-brand-border rounded-xl p-4">
           <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Package</div>
           <div className="text-lg font-extrabold text-brand-text">
-            {client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+            {summary?.packageLabel || '—'}
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
@@ -107,9 +104,9 @@ export default function PerformancePage() {
           <div className="text-lg font-extrabold text-brand-text">{daysSinceStart}</div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">Monthly Investment</div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim mb-1">{summary?.investmentLabel || 'Monthly Investment'}</div>
           <div className="text-lg font-extrabold text-brand-text">
-            {client ? `$${client.monthly_price.toLocaleString()}` : '—'}
+            {summary?.investmentValue || '—'}
           </div>
         </div>
         <div className="bg-white border border-brand-border rounded-xl p-4">

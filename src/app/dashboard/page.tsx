@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import StatCard from '@/components/ui/StatCard'
 import { getDisplayFirstName } from '@/lib/display-name'
+import { clientFacingPackageSummary } from '@/lib/billing-packages'
 
 interface ClientData {
   id: string
@@ -14,6 +15,9 @@ interface ClientData {
   monthly_price: number
   start_date: string
   status: string
+  billing_model?: string | null
+  lead_type?: string | null
+  repair_fee_cents?: number | null
   deliverables: string[]
   quick_wins: { text: string; done: boolean }[]
 }
@@ -24,14 +28,6 @@ interface MessageData {
   from_name: string
   text: string
   created_at: string
-}
-
-const tierLabels: Record<string, string> = {
-  free: 'Free (Testing)',
-  social_essentials: 'Social Essentials',
-  spark: 'Spark',
-  growth: 'Growth',
-  scale: 'Scale',
 }
 
 function normalizeClientData(data: ClientData): ClientData {
@@ -96,6 +92,8 @@ export default function DashboardHome() {
   const totalWins = quickWins.length
   const winsPercent = totalWins > 0 ? Math.round((completedWins / totalWins) * 100) : 0
 
+  const packageSummary = client ? clientFacingPackageSummary(client) : null
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -112,12 +110,14 @@ export default function DashboardHome() {
           Welcome back, {userName}
         </h1>
         <p className="text-sm text-brand-muted">
-          Here&apos;s what&apos;s happening with your marketing.
+          {packageSummary?.isCreditRepair
+            ? "Here's what's happening with your credit repair."
+            : "Here's what's happening with your marketing."}
         </p>
       </div>
 
       {/* Onboarding Prompt */}
-      {onboardingDone === false && (
+      {onboardingDone === false && !packageSummary?.isCreditRepair && (
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-center gap-4">
           <span className="text-3xl">📝</span>
           <div className="flex-1">
@@ -139,7 +139,7 @@ export default function DashboardHome() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Your Package"
-          value={client ? tierLabels[client.package_tier] || client.package_tier : '—'}
+          value={packageSummary?.packageLabel || '—'}
         />
         <StatCard
           label="Days Active"
@@ -151,8 +151,8 @@ export default function DashboardHome() {
           color="accent"
         />
         <StatCard
-          label="Monthly Investment"
-          value={client ? `$${client.monthly_price.toLocaleString()}` : '—'}
+          label={packageSummary?.investmentLabel || 'Monthly Investment'}
+          value={packageSummary?.investmentValue || '—'}
         />
       </div>
 

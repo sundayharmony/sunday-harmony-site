@@ -7,6 +7,7 @@ import {
   billingPackagePriceLabel,
   CREDIT_REPAIR_PACKAGE,
   currentBillingPackage,
+  clientFacingPackageSummary,
   isCreditRepairPackage,
   isMarketingPackage,
 } from '../billing-packages'
@@ -36,6 +37,38 @@ describe('billing packages', () => {
       'spark'
     )
     assert.equal(currentBillingPackage({ lead_type: 'credit_repair_lead' }), 'credit_repair')
+  })
+
+  it('shows Credit Repair instead of Free on the client dashboard', () => {
+    const summary = clientFacingPackageSummary({
+      billing_model: 'credit_repair_one_time',
+      package_tier: 'free',
+      monthly_price: 0,
+      repair_fee_cents: 25875,
+    })
+    assert.equal(summary.packageLabel, 'Credit Repair')
+    assert.equal(summary.investmentLabel, 'Repair Fee')
+    assert.equal(summary.investmentValue, '$258.75')
+    assert.equal(summary.isCreditRepair, true)
+    const marketing = clientFacingPackageSummary({
+      billing_model: 'marketing_subscription',
+      package_tier: 'growth',
+      monthly_price: 1800,
+    })
+    assert.equal(marketing.packageLabel, 'Growth')
+    assert.equal(marketing.investmentLabel, 'Monthly Investment')
+    assert.equal(marketing.investmentValue, `$${(1800).toLocaleString()}`)
+    assert.equal(marketing.isCreditRepair, false)
+    const home = readFileSync('src/app/dashboard/page.tsx', 'utf8')
+    const pkg = readFileSync('src/app/dashboard/package/page.tsx', 'utf8')
+    const billing = readFileSync('src/app/dashboard/billing/page.tsx', 'utf8')
+    const sidebar = readFileSync('src/components/dashboard/ClientSidebar.tsx', 'utf8')
+    assert.match(home, /clientFacingPackageSummary/)
+    assert.doesNotMatch(home, /tierLabels/)
+    assert.match(pkg, /Credit Repair/)
+    assert.match(billing, /billingPackageLabel\(currentBillingPackage\(client\)\)/)
+    assert.match(sidebar, /label: 'My Package'/)
+    assert.doesNotMatch(sidebar, /label: 'My Package', marketingOnly/)
   })
 })
 

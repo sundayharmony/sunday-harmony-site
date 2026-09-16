@@ -10,7 +10,7 @@ import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 
 const navItems = [
   { href: '/dashboard', icon: '◈', label: 'Home' },
-  { href: '/dashboard/onboarding', icon: '📝', label: 'Getting Started' },
+  { href: '/dashboard/onboarding', icon: '📝', label: 'Getting Started', marketingOnly: true },
   { href: '/dashboard/tasks', icon: '✅', label: 'Tasks' },
   { href: '/dashboard/files', icon: '📁', label: 'Files' },
   { href: '/dashboard/credit-funding', icon: '💳', label: 'Credit & Funding' },
@@ -18,7 +18,7 @@ const navItems = [
   { href: '/dashboard/approvals', icon: '📋', label: 'Approvals' },
   { href: '/dashboard/performance', icon: '📊', label: 'Performance', marketingOnly: true },
   { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
-  { href: '/dashboard/package', icon: '📦', label: 'My Package', marketingOnly: true },
+  { href: '/dashboard/package', icon: '📦', label: 'My Package' },
   { href: '/dashboard/billing', icon: '🧾', label: 'Billing' },
   { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
 ]

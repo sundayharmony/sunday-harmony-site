@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { useState, useEffect, useMemo } from 'react'
 import StatCard from '@/components/ui/StatCard'
 import BillingPanel from '@/components/billing/BillingPanel'
-import { TIER_LABELS } from '@/lib/stripe-catalog'
 import { formatRepairFeeCents, isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+import { billingPackageLabel, currentBillingPackage } from '@/lib/billing-packages'
 
 interface ClientData {
   id: string
@@ -119,11 +119,7 @@ export default function BillingPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           label={repairClient ? 'Service' : 'Current Plan'}
-          value={
-            repairClient
-              ? 'Credit repair'
-              : TIER_LABELS[client.package_tier as keyof typeof TIER_LABELS] || client.package_tier
-          }
+          value={billingPackageLabel(currentBillingPackage(client))}
           color="accent"
         />
         <StatCard

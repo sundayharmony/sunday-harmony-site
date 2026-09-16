@@ -1,4 +1,4 @@
-import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+import { formatRepairFeeCents, isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 import {
   formatTierListPrice,
   PACKAGE_TIERS,
@@ -38,4 +38,28 @@ export function currentBillingPackage(client: {
   if (isCreditRepairBillingClient(client)) return CREDIT_REPAIR_PACKAGE
   if (isMarketingPackage(client.package_tier || '')) return client.package_tier as PackageTier
   return 'spark'
+}
+
+export function clientFacingPackageSummary(client: {
+  billing_model?: string | null
+  lead_type?: string | null
+  package_tier?: string | null
+  monthly_price?: number | null
+  repair_fee_cents?: number | null
+}): { packageLabel: string; investmentLabel: string; investmentValue: string; isCreditRepair: boolean } {
+  const key = currentBillingPackage(client)
+  if (isCreditRepairPackage(key)) {
+    return {
+      packageLabel: billingPackageLabel(key),
+      investmentLabel: 'Repair Fee',
+      investmentValue: formatRepairFeeCents(client.repair_fee_cents),
+      isCreditRepair: true,
+    }
+  }
+  return {
+    packageLabel: billingPackageLabel(key),
+    investmentLabel: 'Monthly Investment',
+    investmentValue: `$${(client.monthly_price || 0).toLocaleString()}`,
+    isCreditRepair: false,
+  }
 }

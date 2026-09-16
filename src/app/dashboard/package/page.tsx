@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { clientFacingPackageSummary } from '@/lib/billing-packages'
 
 interface ClientData {
   id: string
@@ -10,6 +11,9 @@ interface ClientData {
   monthly_price: number
   start_date: string
   status: string
+  billing_model?: string | null
+  lead_type?: string | null
+  repair_fee_cents?: number | null
   deliverables: string[]
   quick_wins: { text: string; done: boolean }[]
 }
@@ -107,8 +111,13 @@ export default function PackagePage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const currentPkg = packages.find(p => p.tier === client?.package_tier)
-  const currentIdx = packages.findIndex(p => p.tier === client?.package_tier)
+  const summary = client ? clientFacingPackageSummary(client) : null
+  const currentPkg = summary?.isCreditRepair
+    ? null
+    : packages.find(p => p.tier === client?.package_tier)
+  const currentIdx = summary?.isCreditRepair
+    ? -1
+    : packages.findIndex(p => p.tier === client?.package_tier)
 
   if (loading) {
     return (
@@ -122,8 +131,71 @@ export default function PackagePage() {
     <div>
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">My Package</h1>
-        <p className="text-sm text-brand-muted">View your current plan and explore upgrade options.</p>
+        <p className="text-sm text-brand-muted">
+          {summary?.isCreditRepair
+            ? 'Your credit repair package is a one-time fee, not a monthly marketing plan.'
+            : 'View your current plan and explore upgrade options.'}
+        </p>
       </div>
+
+      {summary?.isCreditRepair && (
+        <div className="rounded-2xl p-6 mb-8 border bg-accent-soft/40 border-accent/30">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full text-accent bg-accent-soft">
+                Current Plan
+              </span>
+              <h2 className="text-2xl font-extrabold text-brand-text mt-2">Credit Repair</h2>
+              <p className="text-sm text-brand-muted">One-time credit repair service</p>
+            </div>
+            <div className="text-right">
+              <div className="text-3xl font-extrabold text-accent">
+                {summary.investmentValue}
+              </div>
+              <div className="text-xs text-brand-dim">one-time</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mt-4">
+            <div>
+              <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">What&rsquo;s Included</div>
+              <div className="space-y-1.5">
+                {[
+                  'Credit report analysis',
+                  'Dispute letters and follow-up',
+                  'Bureau communications',
+                  'Progress tracking in your portal',
+                ].map((f) => (
+                  <div key={f} className="flex items-center gap-2">
+                    <span className="text-accent text-xs">✓</span>
+                    <span className="text-sm text-brand-text">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Your Deliverables</div>
+              {Array.isArray(client?.deliverables) && client.deliverables.length > 0 ? (
+                <div className="space-y-1.5">
+                  {client.deliverables.map((d, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-accent text-xs">◈</span>
+                      <span className="text-sm text-brand-text">{d}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-brand-dim">Custom deliverables will appear here.</p>
+              )}
+              <div className="mt-4">
+                <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
+                <div className="text-sm text-brand-text">
+                  {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current Package */}
       {currentPkg && (
@@ -191,82 +263,85 @@ export default function PackagePage() {
         </div>
       )}
 
-      {/* All Packages */}
-      <h2 className="text-lg font-bold text-brand-text mb-4">All Packages</h2>
-      <div className="grid grid-cols-2 gap-4">
-        {packages.map((pkg, i) => {
-          const isCurrent = pkg.tier === client?.package_tier
-          const isUpgrade = i > currentIdx
-          return (
-            <div
-              key={pkg.tier}
-              className={`rounded-xl p-5 border transition-all ${
-                isCurrent
-                  ? 'ring-2 ring-offset-2 ring-offset-white'
-                  : 'hover:bg-gray-50'
-              }`}
-              style={{
-                background: isCurrent ? `${pkg.color}08` : 'white',
-                borderColor: isCurrent ? `${pkg.color}30` : '#e5e5e5',
-                ...(isCurrent ? { ['--tw-ring-color' as string]: `${pkg.color}40` } : {}),
-              }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="text-base font-bold text-brand-text">{pkg.name}</div>
-                  <div className="text-xs text-brand-muted">{pkg.tagline}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-extrabold" style={{ color: pkg.color }}>
-                    ${pkg.price}
-                  </div>
-                  <div className="text-[10px] text-brand-dim">/mo</div>
-                </div>
-              </div>
-
-              <div className="space-y-1 mb-3">
-                {pkg.features.slice(0, 4).map((f, fi) => (
-                  <div key={fi} className="flex items-center gap-2">
-                    <span style={{ color: pkg.color }} className="text-[10px]">✓</span>
-                    <span className="text-xs text-brand-muted">{f}</span>
-                  </div>
-                ))}
-                {pkg.features.length > 4 && (
-                  <span className="text-[10px] text-brand-dim">+{pkg.features.length - 4} more</span>
-                )}
-              </div>
-
-              <div className="text-[10px] text-brand-dim mb-3">
-                <span className="font-bold">Ideal for:</span> {pkg.ideal}
-              </div>
-
-              {isCurrent ? (
+      {!summary?.isCreditRepair && (
+        <>
+          <h2 className="text-lg font-bold text-brand-text mb-4">All Packages</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {packages.map((pkg, i) => {
+              const isCurrent = pkg.tier === client?.package_tier
+              const isUpgrade = i > currentIdx
+              return (
                 <div
-                  className="text-center text-xs font-bold py-2 rounded-lg"
-                  style={{ color: pkg.color, background: `${pkg.color}15` }}
-                >
-                  Your Current Plan
-                </div>
-              ) : isUpgrade ? (
-                <a
-                  href="/dashboard/messages"
-                  className="block text-center text-xs font-bold py-2 rounded-lg transition-all hover:opacity-80"
+                  key={pkg.tier}
+                  className={`rounded-xl p-5 border transition-all ${
+                    isCurrent
+                      ? 'ring-2 ring-offset-2 ring-offset-white'
+                      : 'hover:bg-gray-50'
+                  }`}
                   style={{
-                    color: 'white',
-                    background: pkg.color,
+                    background: isCurrent ? `${pkg.color}08` : 'white',
+                    borderColor: isCurrent ? `${pkg.color}30` : '#e5e5e5',
+                    ...(isCurrent ? { ['--tw-ring-color' as string]: `${pkg.color}40` } : {}),
                   }}
                 >
-                  Ask About Upgrading →
-                </a>
-              ) : (
-                <div className="text-center text-[10px] text-brand-dim py-2">
-                  Previous tier
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <div className="text-base font-bold text-brand-text">{pkg.name}</div>
+                      <div className="text-xs text-brand-muted">{pkg.tagline}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-extrabold" style={{ color: pkg.color }}>
+                        ${pkg.price}
+                      </div>
+                      <div className="text-[10px] text-brand-dim">/mo</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 mb-3">
+                    {pkg.features.slice(0, 4).map((f, fi) => (
+                      <div key={fi} className="flex items-center gap-2">
+                        <span style={{ color: pkg.color }} className="text-[10px]">✓</span>
+                        <span className="text-xs text-brand-muted">{f}</span>
+                      </div>
+                    ))}
+                    {pkg.features.length > 4 && (
+                      <span className="text-[10px] text-brand-dim">+{pkg.features.length - 4} more</span>
+                    )}
+                  </div>
+
+                  <div className="text-[10px] text-brand-dim mb-3">
+                    <span className="font-bold">Ideal for:</span> {pkg.ideal}
+                  </div>
+
+                  {isCurrent ? (
+                    <div
+                      className="text-center text-xs font-bold py-2 rounded-lg"
+                      style={{ color: pkg.color, background: `${pkg.color}15` }}
+                    >
+                      Your Current Plan
+                    </div>
+                  ) : isUpgrade ? (
+                    <a
+                      href="/dashboard/messages"
+                      className="block text-center text-xs font-bold py-2 rounded-lg transition-all hover:opacity-80"
+                      style={{
+                        color: 'white',
+                        background: pkg.color,
+                      }}
+                    >
+                      Ask About Upgrading →
+                    </a>
+                  ) : (
+                    <div className="text-center text-[10px] text-brand-dim py-2">
+                      Previous tier
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }
