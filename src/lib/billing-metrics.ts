@@ -1,9 +1,13 @@
+import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+
 export type BillingMetricsClient = {
   status: string
   is_potential?: boolean
   monthly_price: number
   billing_status?: string
   stripe_subscription_id?: string
+  billing_model?: string | null
+  lead_type?: string | null
 }
 
 export type BillingMetrics = {
@@ -14,8 +18,9 @@ export type BillingMetrics = {
   potentialCount: number
 }
 
-/** Active subscribed client with paid or trialing billing (excludes prospects). */
+/** Active subscribed client with paid or trialing billing (excludes prospects and repair-fee clients). */
 export function isPayingClient(c: BillingMetricsClient): boolean {
+  if (isCreditRepairBillingClient(c)) return false
   return (
     c.status === 'active' &&
     !c.is_potential &&
@@ -24,10 +29,10 @@ export function isPayingClient(c: BillingMetricsClient): boolean {
   )
 }
 
-/** Contracted MRR from plan on file (active, billing enabled, not potential). */
+/** Contracted MRR from plan on file (active, billing enabled, not potential, not repair-fee). */
 export function computeContractedMrr(clients: BillingMetricsClient[]): number {
   return clients
-    .filter(c => c.status === 'active' && !c.is_potential)
+    .filter(c => c.status === 'active' && !c.is_potential && !isCreditRepairBillingClient(c))
     .reduce((sum, c) => sum + (c.monthly_price || 0), 0)
 }
 
@@ -38,6 +43,7 @@ export function computeStripeMrr(clients: BillingMetricsClient[]): number {
       c =>
         c.status === 'active' &&
         !c.is_potential &&
+        !isCreditRepairBillingClient(c) &&
         c.stripe_subscription_id?.trim() &&
         (c.billing_status === 'paid' || c.billing_status === 'trial')
     )

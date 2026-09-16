@@ -17,6 +17,14 @@ import {
   SUBSCRIPTION_EXPAND,
   validateSubscriptionPayment,
 } from '@/lib/stripe-subscription-validation'
+import {
+  applyRepairInvoicePaid,
+  billingRequiresActivation,
+  defaultRepairFeeCents,
+  formatRepairFeeCents,
+  isCreditRepairBillingClient,
+  parseRepairFeeToCents,
+} from '@/lib/credit-repair-billing'
 
 export type SubscribeResult =
   | { subscription: Stripe.Subscription }
@@ -60,14 +68,24 @@ export function activateBillingStatusForTier(
 }
 
 function rejectPotential(
-  client: { is_potential?: boolean },
+  client: { is_potential?: boolean; billing_model?: string | null; lead_type?: string | null },
   opts?: BillingClientOpts
 ): { error: string; status: number } | null {
   if (opts?.skipPotentialCheck) return null
-  if (client.is_potential) {
+  if (client.is_potential && billingRequiresActivation(client)) {
     return { error: 'Activate billing for this client before managing subscriptions.', status: 400 }
   }
   return null
+}
+
+function rejectMarketingSubscriptionForRepair(
+  client: { billing_model?: string | null; lead_type?: string | null }
+): { error: string; status: number } | null {
+  if (!isCreditRepairBillingClient(client)) return null
+  return {
+    error: 'This client is billed as a one-time credit repair fee, not a marketing subscription.',
+    status: 400,
+  }
 }
 
 export async function cleanupStripeForClient(clientId: string): Promise<void> {
@@ -172,6 +190,8 @@ export async function createOrUpdateSubscription(
 ): Promise<SubscribeResult> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
+  const repairBlocked = rejectMarketingSubscriptionForRepair(client)
+  if (repairBlocked) return repairBlocked
   const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
@@ -237,6 +257,8 @@ export async function changeSubscriptionTier(
 ): Promise<{ subscription: Stripe.Subscription | null } | { error: string; status: number }> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
+  const repairBlocked = rejectMarketingSubscriptionForRepair(client)
+  if (repairBlocked) return repairBlocked
   const blocked = rejectPotential(client, opts)
   if (blocked) return blocked
 
@@ -419,6 +441,8 @@ export async function adminSetClientPlan(
 ): Promise<AdminClientResult> {
   const existing = await readClientOr404(clientId)
   if ('error' in existing) return existing
+  const repairBlocked = rejectMarketingSubscriptionForRepair(existing)
+  if (repairBlocked) return repairBlocked
 
   if (!isFreeTier(tier) && !isStripeBillableTier(tier)) {
     return { error: 'Invalid tier', status: 400 }
@@ -474,6 +498,8 @@ export async function adminStartSubscription(
 ): Promise<AdminClientResult> {
   const client = await readClientOr404(clientId)
   if ('error' in client) return client
+  const repairBlocked = rejectMarketingSubscriptionForRepair(client)
+  if (repairBlocked) return repairBlocked
   if (client.is_potential) {
     return { error: 'Activate billing before starting a subscription.', status: 400 }
   }
@@ -597,7 +623,10 @@ export async function getBillingStatusSnapshot(clientId: string): Promise<Billin
         throw err
       }
     }
-  } else if (client.billing_status === 'trial' || client.billing_status === 'paid') {
+  } else if (
+    !isCreditRepairBillingClient(client) &&
+    (client.billing_status === 'trial' || client.billing_status === 'paid')
+  ) {
     drift.push('Client is marked paid/trial but has no Stripe subscription id.')
   }
 
@@ -616,6 +645,174 @@ export async function getBillingStatusSnapshot(clientId: string): Promise<Billin
       hasDefault: paymentMethodsResult.paymentMethods.some(pm => pm.isDefault),
     },
     drift,
+  }
+}
+
+export type RepairBillingSnapshot =
+  | {
+      client: Client
+      defaultFeeCents: number | null
+      paymentMethods: Array<{
+        id: string
+        brand: string
+        last4: string
+        expMonth: number
+        expYear: number
+        isDefault: boolean
+      }>
+      paid: boolean
+    }
+  | { error: string; status: number }
+
+export async function getRepairBillingSnapshot(clientId: string): Promise<RepairBillingSnapshot> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  if (!isCreditRepairBillingClient(client)) {
+    return { error: 'This client is not a credit repair client.', status: 400 }
+  }
+
+  const paymentMethods = await listPaymentMethods(clientId)
+  if ('error' in paymentMethods) return paymentMethods
+
+  return {
+    client,
+    defaultFeeCents: defaultRepairFeeCents(),
+    paymentMethods: paymentMethods.paymentMethods,
+    paid: Boolean(client.repair_fee_paid_at) || client.billing_status === 'paid',
+  }
+}
+
+export type ChargeRepairFeeResult =
+  | {
+      ok: true
+      client: Client
+      message: string
+      invoiceId: string
+      hostedInvoiceUrl?: string | null
+      status: string
+    }
+  | { error: string; status: number }
+
+export async function adminChargeCreditRepairFee(
+  clientId: string,
+  input: { amount?: unknown; sendInvoice?: boolean; description?: string }
+): Promise<ChargeRepairFeeResult> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  if (!isCreditRepairBillingClient(client)) {
+    return { error: 'This client is not a credit repair client.', status: 400 }
+  }
+  if (client.stripe_subscription_id?.trim()) {
+    return {
+      error: 'This client has a marketing subscription. Cancel it before charging a one-time repair fee.',
+      status: 400,
+    }
+  }
+
+  const parsed = parseRepairFeeToCents(input.amount)
+  if ('error' in parsed) return { error: parsed.error, status: 400 }
+
+  const description = input.description?.trim() || 'Credit repair one-time fee'
+  const sendInvoice = Boolean(input.sendInvoice)
+
+  const ensured = await ensureStripeCustomerForClient(clientId)
+  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
+
+  const pms = await listPaymentMethods(clientId)
+  if ('error' in pms) return pms
+  const defaultPm = pms.paymentMethods.find(pm => pm.isDefault) ?? pms.paymentMethods[0]
+  if (!sendInvoice && !defaultPm) {
+    return {
+      error: 'No card on file. Ask the client to add a card on Billing, or email an invoice instead.',
+      status: 400,
+    }
+  }
+
+  await updateClient(clientId, {
+    billing_model: 'credit_repair_one_time',
+    repair_fee_cents: parsed.cents,
+    monthly_price: 0,
+    package_tier: 'free',
+  })
+
+  const stripe = getStripe()
+  const invoice = await stripe.invoices.create({
+    customer: ensured.stripe_customer_id,
+    currency: 'usd',
+    collection_method: sendInvoice ? 'send_invoice' : 'charge_automatically',
+    auto_advance: false,
+    description,
+    metadata: {
+      client_id: clientId,
+      billing_model: 'credit_repair_one_time',
+    },
+    pending_invoice_items_behavior: 'exclude',
+    ...(sendInvoice ? { days_until_due: 7 } : {}),
+    ...(defaultPm && !sendInvoice ? { default_payment_method: defaultPm.id } : {}),
+  })
+
+  if (!invoice.id) {
+    return { error: 'Failed to create Stripe invoice', status: 500 }
+  }
+
+  await stripe.invoices.addLines(invoice.id, {
+    lines: [
+      {
+        amount: parsed.cents,
+        description,
+        quantity: 1,
+      },
+    ],
+  })
+
+  const finalized = await stripe.invoices.finalizeInvoice(invoice.id)
+
+  if (sendInvoice) {
+    const sent = await stripe.invoices.sendInvoice(finalized.id)
+    await updateClient(clientId, {
+      billing_model: 'credit_repair_one_time',
+      billing_status: 'not_started',
+      stripe_repair_invoice_id: sent.id,
+      repair_fee_cents: parsed.cents,
+    })
+    const updated = await readClientOr404(clientId)
+    if ('error' in updated) return updated
+    return {
+      ok: true,
+      client: updated,
+      invoiceId: sent.id,
+      hostedInvoiceUrl: sent.hosted_invoice_url,
+      status: sent.status || 'open',
+      message: `Invoice for ${formatRepairFeeCents(parsed.cents)} emailed to ${client.email}.`,
+    }
+  }
+
+  const paid = await stripe.invoices.pay(finalized.id, {
+    off_session: true,
+    ...(defaultPm ? { payment_method: defaultPm.id } : {}),
+  })
+  if (paid.status === 'paid') {
+    await applyRepairInvoicePaid(clientId, paid)
+  } else {
+    await updateClient(clientId, {
+      stripe_repair_invoice_id: paid.id,
+      repair_fee_cents: parsed.cents,
+      billing_status: paid.status === 'open' ? 'unpaid' : client.billing_status,
+    })
+  }
+
+  const updated = await readClientOr404(clientId)
+  if ('error' in updated) return updated
+  return {
+    ok: true,
+    client: updated,
+    invoiceId: paid.id,
+    hostedInvoiceUrl: paid.hosted_invoice_url,
+    status: paid.status || 'open',
+    message:
+      paid.status === 'paid'
+        ? `Charged ${formatRepairFeeCents(parsed.cents)} for credit repair.`
+        : `Invoice created (${paid.status || 'open'}). Complete payment if authentication is required.`,
   }
 }
 

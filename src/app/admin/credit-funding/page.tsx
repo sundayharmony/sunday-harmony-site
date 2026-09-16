@@ -8,6 +8,7 @@ import AdminApplicationWorkflow, {
 } from '@/components/credit-funding/AdminApplicationWorkflow'
 import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
 import CreditIntelligencePanel from '@/components/credit-funding/CreditIntelligencePanel'
+import CreditRepairBillingPanel from '@/components/billing/CreditRepairBillingPanel'
 import StaffFundingScoresEditor from '@/components/credit-funding/StaffFundingScoresEditor'
 import StaffDraftEditor from '@/components/credit-funding/StaffDraftEditor'
 import {
@@ -75,6 +76,7 @@ interface ApplicationDetail {
   consent_data?: Record<string, boolean>
   typed_signature?: string
   signature_date?: string
+  client_id?: string | null
   status: ApplicationStatus
   service_type?: string
   assigned_specialist?: string
@@ -1018,6 +1020,24 @@ function CreditFundingAdminContent() {
 
               {activeTab === 'overview' && (
                 <>
+                  {(selected.service_type === 'credit_repair' ||
+                    selected.service_type === 'credit_and_funding') && (
+                    <div className="mb-5 p-4 bg-white rounded-xl border border-brand-border">
+                      <h3 className="text-sm font-bold text-brand-text mb-3">Repair fee</h3>
+                      {selected.client_id ? (
+                        <CreditRepairBillingPanel
+                          client={{ id: selected.client_id, email: selected.email }}
+                          applicationId={selected.id}
+                          adminView
+                        />
+                      ) : (
+                        <p className="text-sm text-brand-muted">
+                          No client profile is linked yet, so a repair fee cannot be charged.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {showDocRequestPanel && renderDocRequestPanel()}
 
                   {showDocumentsProminent && !showDocRequestPanel && (

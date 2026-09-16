@@ -266,10 +266,14 @@ export interface Client {
   status: 'active' | 'paused' | 'churned'
   is_potential: boolean
   billing_status: 'not_started' | 'trial' | 'paid' | 'past_due' | 'unpaid'
+  billing_model?: 'marketing_subscription' | 'credit_repair_one_time'
   stripe_customer_id?: string
   stripe_subscription_id?: string
   last_payment_at?: string
   next_billing_date?: string
+  repair_fee_cents?: number | null
+  repair_fee_paid_at?: string | null
+  stripe_repair_invoice_id?: string | null
   lead_type?: string | null
   marketing_lead_status?: string | null
   credit_funding_client_status?: string | null

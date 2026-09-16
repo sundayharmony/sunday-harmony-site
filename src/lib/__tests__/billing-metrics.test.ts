@@ -25,6 +25,14 @@ describe('billing-metrics', () => {
         billing_status: 'past_due',
         stripe_subscription_id: 'sub_2',
       },
+      {
+        status: 'active',
+        is_potential: false,
+        monthly_price: 0,
+        billing_status: 'paid',
+        billing_model: 'credit_repair_one_time',
+        lead_type: 'credit_repair_lead',
+      },
     ]
 
     const m = computeBillingMetrics(clients)
@@ -63,6 +71,16 @@ describe('billing-metrics', () => {
         monthly_price: 0,
         billing_status: 'paid',
         stripe_subscription_id: 'sub_1',
+      }),
+      false
+    )
+    assert.equal(
+      isPayingClient({
+        status: 'active',
+        is_potential: false,
+        monthly_price: 0,
+        billing_status: 'paid',
+        billing_model: 'credit_repair_one_time',
       }),
       false
     )
