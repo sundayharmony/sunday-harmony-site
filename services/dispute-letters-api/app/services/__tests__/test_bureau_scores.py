@@ -123,3 +123,11 @@ def test_fill_missing_scores_from_identityiq_html():
     fill_missing_scores(report, html=IDENTITYIQ_SCORE_HTML, text="")
     assert report.credit_health.scores.tuc == 721
     assert report.credit_health.scores.exp == 698
+
+
+def test_single_bureau_pdf_filename_assigns_lone_score():
+    report = ParsedReport(consumer=ConsumerInfo(name="A"))
+    text = "Experian credit report\nYour FICO Score: 655\nCapital One account"
+    fill_missing_scores(report, text=text, file_name="michael-experian-sep.pdf")
+    assert report.credit_health.scores.exp == 655
+    assert report.credit_health.scores.tuc is None

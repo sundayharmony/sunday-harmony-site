@@ -1,6 +1,7 @@
 import {
   getSessionBureauCoverage,
   perBureauFromReport,
+  resolveSessionBureauScores,
 } from '@/lib/dispute-letters/bureau-coverage'
 import { diffTradelinesForBureau } from '@/lib/dispute-letters/tradeline-progress'
 import type {
@@ -71,10 +72,6 @@ function formatBand(value: string | null | undefined): string | null {
   return value.replace(/_/g, ' ')
 }
 
-function emptyScores(): BureauScores {
-  return { tuc: null, exp: null, eqf: null }
-}
-
 export function snapshotFromSession(session: DisputeSessionListItem): CreditProgressSnapshot | null {
   const intelligence = intelligenceFromSession(session)
   if (!intelligence) return null
@@ -92,7 +89,7 @@ export function snapshotFromSession(session: DisputeSessionListItem): CreditProg
   }
 
   const coverage = getSessionBureauCoverage(session)
-  const scores = health?.scores || emptyScores()
+  const scores = resolveSessionBureauScores(session, intelligence)
 
   return {
     sessionId: session.id,
@@ -401,7 +398,18 @@ export function buildBureauProgressDiff(
   let currentIndex = readyCount - 1
   if (selectedSessionId) {
     const idx = readyWithIntel.findIndex((x) => x.session.id === selectedSessionId)
-    if (idx >= 0) currentIndex = idx
+    if (idx >= 0) {
+      currentIndex = idx
+    } else {
+      const selectedSession = sessions.find((s) => s.id === selectedSessionId)
+      if (selectedSession) {
+        const selectedTime = new Date(selectedSession.created_at).getTime()
+        const eligible = readyWithIntel.filter(
+          (x) => new Date(x.session.created_at).getTime() <= selectedTime
+        )
+        if (eligible.length > 0) currentIndex = eligible.length - 1
+      }
+    }
   }
   const current = readyWithIntel[currentIndex]
   const previous = currentIndex > 0 ? readyWithIntel[currentIndex - 1] : null

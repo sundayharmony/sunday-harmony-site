@@ -405,4 +405,60 @@ describe('buildBureauProgressDiff', () => {
     assert.equal(changes.changed.length, 1)
     assert.ok(changes.changed[0].fields.some((f) => f.field === 'balance'))
   })
+
+  it('uses intelligence average when a follow-up Experian PDF omits credit_health.scores', () => {
+    const triMerge = session(
+      'tri-jul',
+      '2026-07-24T00:00:00.000Z',
+      intelligence({ score: 627, band: 'fair', fundingLevel: 'limited', fundingScore: 35, reportDate: '2026-07-24' }),
+      {
+        total_accounts: 10,
+        negative_count: 5,
+        collection_count: 0,
+        scores: { tuc: 640, exp: 627, eqf: 661 },
+      },
+      'michael-3bureau-jul.pdf'
+    )
+    const expFollowUp = session(
+      'exp-sep',
+      '2026-09-11T00:00:00.000Z',
+      intelligence({ score: 655, band: 'fair', fundingLevel: 'limited', fundingScore: 40, reportDate: '2026-09-11' }),
+      {
+        total_accounts: 8,
+        negative_count: 3,
+        collection_count: 0,
+        scores: { tuc: null, exp: null, eqf: null },
+      },
+      'experian-sep.pdf',
+      [
+        {
+          id: 'e1',
+          creditor: 'GREAT EASTERN RESORT C',
+          account_tu: '',
+          account_exp: '****9999',
+          account_eqf: '',
+          account_type: 'Installment',
+          status: 'Paid',
+          balance: '$0',
+          past_due: '$0',
+          remarks: '',
+          bureaus: ['EXP'],
+          is_collection: false,
+          selected: false,
+          dispute_reason: '',
+          analysis_notes: '',
+          suggested_dispute_reason: '',
+          dispute_bureaus: ['EXP'],
+          dispute_furnisher: true,
+          legal_flags: [],
+          repair_priority: 'none',
+          item_category: 'installment',
+        },
+      ]
+    )
+    const report = buildBureauProgressDiff([expFollowUp, triMerge], 'exp-sep', 'EXP')
+    assert.equal(report.baseline?.bureauScores.exp, 627)
+    assert.equal(report.current?.bureauScores.exp, 655)
+    assert.equal(report.vsBaseline.find((d) => d.field === 'bureau_score')?.to, 655)
+  })
 })
