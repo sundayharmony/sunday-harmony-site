@@ -180,7 +180,11 @@ export default function CreditRepairBillingPanel({
         setError(typeof data.error === 'string' ? data.error : 'Could not charge repair fee')
         return
       }
-      setSuccess(typeof data.message === 'string' ? data.message : 'Repair fee processed.')
+      if (data.emailed === false) {
+        setError(typeof data.message === 'string' ? data.message : 'Invoice created but email did not send.')
+      } else {
+        setSuccess(typeof data.message === 'string' ? data.message : 'Repair fee processed.')
+      }
       if (typeof data.hostedInvoiceUrl === 'string') setHostedInvoiceUrl(data.hostedInvoiceUrl)
       const nextClient = data.client as CreditRepairBillingClient | undefined
       if (nextClient) {
@@ -189,6 +193,36 @@ export default function CreditRepairBillingPanel({
         setStatus(nextClient.billing_status || 'not_started')
       }
       onUpdated?.()
+      void refresh()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const resendInvoiceEmail = async () => {
+    setBusy('resend')
+    setError('')
+    setSuccess('')
+    try {
+      const res = await fetch(chargeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(applicationId ? {} : { clientId: client.id }),
+          resend: true,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not resend invoice email')
+        return
+      }
+      if (typeof data.hostedInvoiceUrl === 'string') setHostedInvoiceUrl(data.hostedInvoiceUrl)
+      if (data.emailed === false) {
+        setError(typeof data.message === 'string' ? data.message : 'Could not email the invoice.')
+      } else {
+        setSuccess(typeof data.message === 'string' ? data.message : 'Invoice emailed.')
+      }
       void refresh()
     } finally {
       setBusy(null)
@@ -266,6 +300,14 @@ export default function CreditRepairBillingPanel({
               className="px-3 py-2 rounded-lg bg-white border border-accent text-accent text-xs font-bold disabled:opacity-50"
             >
               {busy === 'invoice' ? 'Sending…' : 'Email invoice'}
+            </button>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void resendInvoiceEmail()}
+              className="px-3 py-2 rounded-lg bg-white border border-brand-border text-brand-text text-xs font-bold disabled:opacity-50"
+            >
+              {busy === 'resend' ? 'Resending…' : 'Resend invoice email'}
             </button>
           </div>
           {paymentMethods.length === 0 && (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   adminChargeCreditRepairFee,
+  adminResendRepairInvoiceEmail,
   getRepairBillingSnapshot,
   logBillingActivity,
 } from '@/lib/billing-service'
@@ -45,11 +46,16 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await withStripeHandler(() =>
-    adminChargeCreditRepairFee(clientId, {
-      amount: body.amount,
-      sendInvoice: Boolean(body.sendInvoice),
-      description: typeof body.description === 'string' ? body.description : undefined,
-    })
+    body.resend
+      ? adminResendRepairInvoiceEmail(
+          clientId,
+          typeof body.invoiceId === 'string' ? body.invoiceId : undefined
+        )
+      : adminChargeCreditRepairFee(clientId, {
+          amount: body.amount,
+          sendInvoice: Boolean(body.sendInvoice),
+          description: typeof body.description === 'string' ? body.description : undefined,
+        })
   )
   if (result instanceof NextResponse) return result
   if (isServiceError(result)) {

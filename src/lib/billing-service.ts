@@ -1,6 +1,6 @@
 import type Stripe from 'stripe'
-import { getClientById, logActivity, updateClient, type Client } from '@/lib/db'
-import { ensureStripeCustomerForClient } from '@/lib/stripe-customer-utils'
+import { getClientById, getUserByEmail, createNotification, logActivity, updateClient, type Client } from '@/lib/db'
+import { ensureStripeCustomerForClient, syncStripeCustomerContact } from '@/lib/stripe-customer-utils'
 import {
   getStripePriceIdForTier,
   getTierFromPriceId,
@@ -29,6 +29,10 @@ import {
   sendRepairInvoiceEmail,
 } from '@/lib/credit-repair-billing'
 import { normalizeStripeInvoice } from '@/lib/stripe-invoice-utils'
+import {
+  createCreditFundingMessage,
+  getCreditFundingApplicationByClientId,
+} from '@/lib/credit-funding-db'
 
 export type SubscribeResult =
   | { subscription: Stripe.Subscription }
@@ -721,15 +725,25 @@ async function deliverRepairInvoiceCopy(params: {
   invoice: Stripe.Invoice
   amountCents: number
   paid: boolean
-}): Promise<{ invoice: Stripe.Invoice; emailed: boolean }> {
+}): Promise<{ invoice: Stripe.Invoice; emailed: boolean; emailError?: string }> {
   const stripe = getStripe()
   let invoice = params.invoice
-  let emailed = false
+  const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
 
-  if (invoice.status === 'open') {
+  if (customerId) {
+    try {
+      await syncStripeCustomerContact(customerId, {
+        email: params.client.email,
+        name: params.client.name,
+      })
+    } catch (err) {
+      console.error('Stripe customer email sync for repair invoice failed:', err)
+    }
+  }
+
+  if (invoice.status === 'open' && invoice.collection_method === 'send_invoice') {
     try {
       invoice = await stripe.invoices.sendInvoice(invoice.id)
-      emailed = true
     } catch (err) {
       console.error('Stripe sendInvoice for repair fee failed:', err)
     }
@@ -743,21 +757,78 @@ async function deliverRepairInvoiceCopy(params: {
     }
   }
 
+  let emailed = false
+  let emailError: string | undefined
   try {
-    const smtpSent = await sendRepairInvoiceEmail({
-      to: params.client.email,
+    const smtp = await sendRepairInvoiceEmail({
+      to: params.client.email || invoice.customer_email,
       clientName: params.client.name || 'there',
       amountCents: params.amountCents,
       paid: params.paid,
       hostedInvoiceUrl: invoice.hosted_invoice_url,
       invoiceNumber: invoice.number,
     })
-    if (smtpSent) emailed = true
+    emailed = smtp.sent
+    if (!smtp.sent) emailError = smtp.reason
   } catch (err) {
+    emailError = err instanceof Error ? err.message : 'Invoice email failed'
     console.error('SMTP repair invoice email failed:', err)
   }
 
-  return { invoice, emailed }
+  await notifyClientOfRepairInvoice({
+    client: params.client,
+    invoice,
+    amountCents: params.amountCents,
+    paid: params.paid,
+  })
+
+  return { invoice, emailed, emailError }
+}
+
+async function notifyClientOfRepairInvoice(params: {
+  client: Client
+  invoice: Stripe.Invoice
+  amountCents: number
+  paid: boolean
+}): Promise<void> {
+  const amount = formatRepairFeeCents(params.amountCents)
+  const url = params.invoice.hosted_invoice_url?.trim()
+  const title = params.paid ? 'Credit repair receipt' : 'Credit repair invoice'
+  const message = params.paid
+    ? `We received your ${amount} credit repair payment.`
+    : url
+      ? `Your ${amount} credit repair invoice is ready: ${url}`
+      : `Your ${amount} credit repair invoice is ready. Open Billing in your portal to pay.`
+
+  try {
+    const user = params.client.email ? await getUserByEmail(params.client.email) : undefined
+    if (user) {
+      await createNotification({
+        user_id: user.id,
+        title,
+        message,
+        type: 'billing',
+        link: '/dashboard/billing',
+      })
+    }
+  } catch (err) {
+    console.error('Repair invoice portal notification failed:', err)
+  }
+
+  try {
+    const application = await getCreditFundingApplicationByClientId(params.client.id)
+    if (application) {
+      await createCreditFundingMessage({
+        application_uuid: application.id,
+        from_role: 'admin',
+        from_name: 'Sunday Harmony Billing',
+        from_email: 'billing@sundayharmony.com',
+        text: [title, message].join('\n\n'),
+      })
+    }
+  } catch (err) {
+    console.error('Repair invoice portal message failed:', err)
+  }
 }
 
 export async function adminChargeCreditRepairFee(
@@ -868,15 +939,15 @@ export async function adminChargeCreditRepairFee(
 
   const emailedNote = delivered.emailed
     ? ` Invoice emailed to ${client.email}.`
-    : ' Invoice created; email could not be sent — share the invoice link.'
+    : ` Invoice created, but the email did not send${delivered.emailError ? ` (${delivered.emailError})` : ''}. Share the invoice link with the client.`
 
   let message: string
   if (paid) {
     message = `Charged ${formatRepairFeeCents(parsed.cents)} for credit repair.${emailedNote}`
   } else if (!defaultPm && !input.sendInvoice) {
-    message = `No card on file — sent a ${formatRepairFeeCents(parsed.cents)} invoice to ${client.email} instead.`
+    message = `No card on file — created a ${formatRepairFeeCents(parsed.cents)} invoice.${emailedNote}`
   } else {
-    message = `Invoice for ${formatRepairFeeCents(parsed.cents)} emailed to ${client.email}.`
+    message = `Invoice for ${formatRepairFeeCents(parsed.cents)} is ready.${emailedNote}`
   }
 
   return {
@@ -888,6 +959,62 @@ export async function adminChargeCreditRepairFee(
     emailed: delivered.emailed,
     charged: paid,
     message,
+  }
+}
+
+export async function adminResendRepairInvoiceEmail(
+  clientId: string,
+  invoiceId?: string
+): Promise<ChargeRepairFeeResult> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+  if (!isCreditRepairBillingClient(client)) {
+    return { error: 'This client is not a credit repair client.', status: 400 }
+  }
+
+  const stripe = getStripe()
+  const targetId = invoiceId?.trim() || client.stripe_repair_invoice_id?.trim()
+  if (!targetId) {
+    return { error: 'No credit repair invoice is on file to resend.', status: 400 }
+  }
+
+  let invoice: Stripe.Invoice
+  try {
+    invoice = await stripe.invoices.retrieve(targetId)
+  } catch (err) {
+    if (isStripeMissingResource(err)) {
+      return { error: 'The stored invoice no longer exists in Stripe.', status: 404 }
+    }
+    throw err
+  }
+
+  const amountCents =
+    invoice.amount_due > 0 ? invoice.amount_due : invoice.amount_paid || client.repair_fee_cents || 0
+  if (amountCents < 1) {
+    return { error: 'This invoice has no amount to send.', status: 400 }
+  }
+
+  const delivered = await deliverRepairInvoiceCopy({
+    client,
+    invoice,
+    amountCents,
+    paid: invoice.status === 'paid',
+  })
+
+  const updated = await readClientOr404(clientId)
+  if ('error' in updated) return updated
+
+  return {
+    ok: true,
+    client: updated,
+    invoiceId: delivered.invoice.id,
+    hostedInvoiceUrl: delivered.invoice.hosted_invoice_url,
+    status: delivered.invoice.status || invoice.status || 'open',
+    emailed: delivered.emailed,
+    charged: delivered.invoice.status === 'paid',
+    message: delivered.emailed
+      ? `Invoice emailed to ${client.email}.`
+      : `Could not email the invoice${delivered.emailError ? ` (${delivered.emailError})` : ''}. Share the invoice link.`,
   }
 }
 

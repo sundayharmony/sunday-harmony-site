@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
+import { ensureClientFromCreditApplication } from '@/lib/crm-db'
+import { billingModelForCreditApplication } from '@/lib/credit-repair-billing'
 import {
   adminChargeCreditRepairFee,
+  adminResendRepairInvoiceEmail,
   getRepairBillingSnapshot,
   logBillingActivity,
 } from '@/lib/billing-service'
-import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
-import { billingModelForCreditApplication } from '@/lib/credit-repair-billing'
 import { getClientById, updateClient } from '@/lib/db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
@@ -18,7 +20,11 @@ type RouteContext = { params: Promise<{ id: string }> }
 async function clientIdForApplication(id: string): Promise<string | { error: string; status: number }> {
   const application = await getCreditFundingApplicationById(id)
   if (!application) return { error: 'Application not found', status: 404 }
-  const clientId = application.client_id?.trim()
+  let clientId = application.client_id?.trim()
+  if (!clientId) {
+    const ensured = await ensureClientFromCreditApplication(application)
+    clientId = ensured?.id?.trim() || ''
+  }
   if (!clientId) {
     return {
       error: 'No client profile is linked to this application yet.',
@@ -72,11 +78,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const body = await request.json().catch(() => ({}))
   const result = await withStripeHandler(() =>
-    adminChargeCreditRepairFee(clientId, {
-      amount: body.amount,
-      sendInvoice: Boolean(body.sendInvoice),
-      description: typeof body.description === 'string' ? body.description : undefined,
-    })
+    body.resend
+      ? adminResendRepairInvoiceEmail(
+          clientId,
+          typeof body.invoiceId === 'string' ? body.invoiceId : undefined
+        )
+      : adminChargeCreditRepairFee(clientId, {
+          amount: body.amount,
+          sendInvoice: Boolean(body.sendInvoice),
+          description: typeof body.description === 'string' ? body.description : undefined,
+        })
   )
   if (result instanceof NextResponse) return result
   if (isServiceError(result)) {
