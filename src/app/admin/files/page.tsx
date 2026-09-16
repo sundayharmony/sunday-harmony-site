@@ -59,7 +59,8 @@ export default function AdminFilesPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadDisplayName, setUploadDisplayName] = useState('')
   const [uploadCategory, setUploadCategory] = useState<ClientVaultFile['category']>('general')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -107,46 +108,81 @@ export default function AdminFilesPage() {
   const resetUploadForm = () => {
     setUploadDisplayName('')
     setUploadCategory('general')
-    setSelectedFile(null)
+    setSelectedFiles([])
+    setUploadProgress(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const uploadFile = async () => {
+  const handleFileSelection = (fileList: FileList | null) => {
+    const next = fileList ? Array.from(fileList) : []
+    setSelectedFiles(next)
+    if (next.length !== 1) {
+      setUploadDisplayName('')
+    }
+  }
+
+  const uploadFiles = async () => {
     if (!selectedClientId) {
       setError('Select a client first')
       return
     }
-    if (!selectedFile) {
-      setError('Choose a file from your computer')
+    if (selectedFiles.length === 0) {
+      setError('Choose one or more files from your computer')
       return
     }
 
     setUploading(true)
+    setUploadProgress({ done: 0, total: selectedFiles.length })
     setError('')
-    try {
-      const fd = new FormData()
-      fd.append('client_id', selectedClientId)
-      fd.append('file', selectedFile)
-      if (uploadDisplayName.trim()) fd.append('name', uploadDisplayName.trim())
-      fd.append('category', uploadCategory)
+    const uploaded: ClientVaultFile[] = []
+    const failures: string[] = []
 
-      const res = await fetch('/api/admin/files/upload', {
-        method: 'POST',
-        body: fd,
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(typeof body.error === 'string' ? body.error : 'Upload failed')
-        return
+    try {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i]
+        const fd = new FormData()
+        fd.append('client_id', selectedClientId)
+        fd.append('file', file)
+        if (selectedFiles.length === 1 && uploadDisplayName.trim()) {
+          fd.append('name', uploadDisplayName.trim())
+        }
+        fd.append('category', uploadCategory)
+
+        const res = await fetch('/api/admin/files/upload', {
+          method: 'POST',
+          body: fd,
+        })
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          const message = typeof body.error === 'string' ? body.error : 'Upload failed'
+          failures.push(`${file.name}: ${message}`)
+        } else {
+          uploaded.push(body as ClientVaultFile)
+        }
+        setUploadProgress({ done: i + 1, total: selectedFiles.length })
       }
-      setFiles(prev => [...prev, body])
-      resetUploadForm()
-      setShowForm(false)
+
+      if (uploaded.length > 0) {
+        setFiles(prev => [...prev, ...uploaded])
+      }
+
+      if (failures.length === 0) {
+        resetUploadForm()
+        setShowForm(false)
+      } else if (uploaded.length > 0) {
+        setError(
+          `Uploaded ${uploaded.length} of ${selectedFiles.length} file(s). Failed: ${failures.join('; ')}`
+        )
+        setSelectedFiles(selectedFiles.filter((file) => failures.some((msg) => msg.startsWith(`${file.name}:`))))
+      } else {
+        setError(failures.join('; '))
+      }
     } catch (err) {
       console.error(err)
       setError('Upload failed')
     } finally {
       setUploading(false)
+      setUploadProgress(null)
     }
   }
 
@@ -187,7 +223,7 @@ export default function AdminFilesPage() {
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Files</h1>
-          <p className="text-sm text-brand-muted">Upload files to Supabase Storage for the selected client (max 4 MB per file).</p>
+          <p className="text-sm text-brand-muted">Upload one or more files to Supabase Storage for the selected client (max 4 MB per file).</p>
         </div>
         <button
           type="button"
@@ -197,7 +233,7 @@ export default function AdminFilesPage() {
           }}
           className="px-4 py-2.5 rounded-lg bg-brand-text text-white text-sm font-bold hover:-translate-y-0.5 transition-all"
         >
-          + Upload File
+          + Upload Files
         </button>
       </div>
 
@@ -227,35 +263,51 @@ export default function AdminFilesPage() {
 
       {showForm && selectedClientId && (
         <div className="bg-accent-soft border border-brand-border rounded-xl p-6 mb-6">
-          <h3 className="text-sm font-bold text-accent mb-2">Upload file for {selectedClient?.name}</h3>
+          <h3 className="text-sm font-bold text-accent mb-2">Upload files for {selectedClient?.name}</h3>
           <p className="text-xs text-brand-dim mb-4">
-            PDF, images, Word, Excel, CSV, text, or zip. Display name is optional (defaults to the file name).
+            PDF, images, Word, Excel, CSV, text, or zip. Select multiple files at once. Display name is optional for a single file (defaults to the file name).
           </p>
           <div className="space-y-4 max-w-xl">
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-                File *
+                Files *
               </label>
               <input
                 ref={fileInputRef}
                 type="file"
-                onChange={e => setSelectedFile(e.target.files?.[0] ?? null)}
+                multiple
+                onChange={e => handleFileSelection(e.target.files)}
                 className="w-full text-sm text-brand-text file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-brand-text file:text-white file:text-xs file:font-bold"
               />
+              {selectedFiles.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                  {selectedFiles.map((file) => (
+                    <li
+                      key={`${file.name}-${file.size}-${file.lastModified}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-brand-border bg-white px-3 py-2 text-xs"
+                    >
+                      <span className="truncate text-brand-text">{file.name}</span>
+                      <span className="shrink-0 text-brand-dim">{formatFileSize(file.size)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            <div>
-              <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
-                Display name (optional)
-              </label>
-              <input
-                type="text"
-                value={uploadDisplayName}
-                onChange={e => setUploadDisplayName(e.target.value)}
-                maxLength={300}
-                placeholder="Shown in the vault (defaults to file name)"
-                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
-              />
-            </div>
+            {selectedFiles.length === 1 && (
+              <div>
+                <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
+                  Display name (optional)
+                </label>
+                <input
+                  type="text"
+                  value={uploadDisplayName}
+                  onChange={e => setUploadDisplayName(e.target.value)}
+                  maxLength={300}
+                  placeholder="Shown in the vault (defaults to file name)"
+                  className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-brand-text text-sm outline-none focus:border-accent"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">
                 Category
@@ -275,11 +327,17 @@ export default function AdminFilesPage() {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={uploadFile}
-                disabled={uploading || !selectedFile}
+                onClick={uploadFiles}
+                disabled={uploading || selectedFiles.length === 0}
                 className="px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold hover:bg-opacity-90 transition-all disabled:opacity-50"
               >
-                {uploading ? 'Uploading…' : 'Upload'}
+                {uploading
+                  ? uploadProgress
+                    ? `Uploading ${uploadProgress.done}/${uploadProgress.total}…`
+                    : 'Uploading…'
+                  : selectedFiles.length > 1
+                    ? `Upload ${selectedFiles.length} files`
+                    : 'Upload'}
               </button>
               <button
                 type="button"

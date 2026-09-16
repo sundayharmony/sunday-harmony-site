@@ -82,25 +82,16 @@ function RecommendationRow({ rec }: { rec: Recommendation }) {
 
 export default function CreditIntelligenceDashboard({
   intelligence,
-  sessionId,
-  showDisputeCta = true,
-  onOpenDisputeWorkflow,
   fundingBlockTitle = 'Funding readiness',
   fundingBlockSubtitle,
 }: {
   intelligence: CreditIntelligenceReport
-  sessionId?: string
-  showDisputeCta?: boolean
-  onOpenDisputeWorkflow?: () => void
   /** Override title when embedded in Credit & Funding (advisory vs staff scores). */
   fundingBlockTitle?: string
   fundingBlockSubtitle?: string
 }) {
   const overall = intelligence.overall
   const funding = intelligence.funding_readiness
-  const disputeInsights = (intelligence.account_dispute_insights || []).filter(
-    (i) => i.dispute_recommended
-  )
 
   if (!overall) {
     return (
@@ -226,40 +217,6 @@ export default function CreditIntelligenceDashboard({
           ))
         )}
       </div>
-
-      {disputeInsights.length > 0 && (
-        <div className="rounded-xl border border-brand-border bg-white p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div>
-              <h4 className="text-sm font-bold text-brand-text">Account-level dispute recommendations</h4>
-              <p className="text-xs text-brand-dim">{disputeInsights.length} account(s) flagged for review</p>
-            </div>
-            {showDisputeCta && sessionId && onOpenDisputeWorkflow && (
-              <button
-                type="button"
-                onClick={onOpenDisputeWorkflow}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:opacity-90"
-              >
-                Prepare dispute letters
-              </button>
-            )}
-          </div>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
-            {disputeInsights.slice(0, 20).map((i) => (
-              <div key={i.tradeline_id} className="border-b border-brand-border pb-2 last:border-0">
-                <p className="text-sm font-semibold text-brand-text">
-                  {i.creditor}{' '}
-                  <span className="text-xs font-normal text-brand-dim">({i.category})</span>
-                </p>
-                <p className="text-xs text-brand-muted mt-0.5">{i.rationale}</p>
-                {i.legal_citations && i.legal_citations.length > 0 && (
-                  <p className="text-[11px] text-brand-dim mt-1">{i.legal_citations.join(' · ')}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {intelligence.recommended_next_steps.length > 0 && (
         <div className="rounded-xl border border-brand-border bg-neutral-50 p-4">
