@@ -151,24 +151,6 @@ function directionColor(direction: string): string {
   return COLORS.muted
 }
 
-/** Skip aggregate rows when account-level detail is already on the page. */
-function pdfMetricDeltas(
-  deltas: CreditProgressDelta[],
-  hasAccountDetail: boolean
-): CreditProgressDelta[] {
-  const filtered = deltas.filter((d) => d.field !== 'bureau_score')
-  if (!hasAccountDetail) return filtered
-  // Negative/collection counts are explained by the account list below.
-  return filtered.filter((d) => d.field !== 'negative_count' && d.field !== 'collection_count')
-}
-
-function formatMetricSummary(deltas: CreditProgressDelta[]): string | null {
-  const parts = deltas
-    .filter((d) => d.from !== d.to && (d.from != null || d.to != null))
-    .map((d) => `${d.label}: ${formatDeltaValue(d.from)} -> ${formatDeltaValue(d.to)}`)
-  return parts.length ? parts.join('  |  ') : null
-}
-
 /**
  * Build a client-facing credit repair before/after PDF.
  * Scores + account changes only — no funding eligibility content.
@@ -227,7 +209,7 @@ export function buildCreditRepairProgressPdfBuffer(
       .fillColor(COLORS.muted)
       .text(
         safe(
-          'Each following page is one bureau, comparing the earliest report on file to the latest report for that bureau.'
+          'This report summarizes credit score movement and specific account-level changes between the compared credit reports. It is for educational progress tracking only and is not a credit score product, funding decision, or legal advice.'
         ),
         { width: contentWidth(doc), lineGap: 3 }
       )
@@ -264,16 +246,10 @@ export function buildCreditRepairProgressPdfBuffer(
       doc.moveDown(0.25)
       const fromLabel = safe(formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt))
       const toLabel = safe(formatProgressDate(toSnap?.reportDate || toSnap?.createdAt))
+      const fromFile = fromSnap?.fileName ? ` | ${safe(fromSnap.fileName)}` : ''
+      const toFile = toSnap?.fileName ? ` | ${safe(toSnap.fileName)}` : ''
       doc.font('Helvetica').fontSize(9).fillColor(COLORS.dim)
-      doc.text(safe(`Before: ${fromLabel}    After: ${toLabel}`), { lineGap: 2 })
-      const fileLine = [fromSnap?.fileName, toSnap?.fileName]
-        .filter(Boolean)
-        .map((name) => safe(name))
-        .filter((name, index, all) => all.indexOf(name) === index)
-        .join('  |  ')
-      if (fileLine) {
-        doc.fontSize(8).fillColor(COLORS.dim).text(fileLine, { lineGap: 2 })
-      }
+      doc.text(safe(`${fromLabel}${fromFile} -> ${toLabel}${toFile}`), { lineGap: 2 })
       doc.moveDown(SECTION_GAP)
 
       // Score hero row
@@ -322,15 +298,28 @@ export function buildCreditRepairProgressPdfBuffer(
       doc.y = boxY + boxH + 18
       doc.x = doc.page.margins.left
 
-      const diff = accounts
-      const metricDeltas = pdfMetricDeltas(deltas, hasAccounts)
-      const metricSummary = formatMetricSummary(metricDeltas)
-      if (metricSummary) {
-        doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted).text(metricSummary, { lineGap: 2 })
+      // Profile metrics (exclude funding)
+      const metricDeltas = deltas.filter((d) => d.field !== 'bureau_score')
+      if (metricDeltas.length) {
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('PROFILE METRICS')
+        doc.moveDown(SUBSECTION_GAP)
+        for (const d of metricDeltas) {
+          ensureSpace(doc, 18)
+          doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
+          const left = safe(`${d.label}: ${formatDeltaValue(d.from)} -> ${formatDeltaValue(d.to)}`)
+          doc.text(left, { continued: true, lineGap: 2 })
+          doc.fillColor(directionColor(d.direction)).text(
+            d.direction === 'unchanged' ? '  (same)' : `  (${d.direction})`
+          )
+          doc.moveDown(0.12)
+        }
         doc.moveDown(SECTION_GAP)
       }
 
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('WHAT CHANGED ON ACCOUNTS')
+      // Account changes
+      const diff = accounts
+
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('ACCOUNT CHANGES')
       doc.moveDown(SUBSECTION_GAP)
 
       if (!hasAccounts) {
@@ -341,8 +330,8 @@ export function buildCreditRepairProgressPdfBuffer(
           .text(
             safe(
               diff?.matchConfidence === 'low'
-                ? 'Could not match accounts between these two reports.'
-                : 'No account-level changes for this bureau.'
+                ? 'Could not match accounts reliably between reports. Score change above still applies.'
+                : 'No account-level changes detected for this bureau.'
             ),
             { lineGap: 2 }
           )
@@ -431,7 +420,7 @@ export function buildCreditRepairProgressPdfBuffer(
           .fillColor(COLORS.dim)
           .text(
             safe(
-              'Educational progress tracking only. Not a credit score, funding decision, or legal advice. Bureau data can differ by report and update date.'
+              'Disclaimer: Sunday Harmony provides credit education and dispute support. This document is not a FICO Score, VantageScore, credit counseling substitute, or guarantee of score improvement. Credit bureau data can differ across reports and may update on different schedules.'
             ),
             { width: contentWidth(doc), lineGap: 2 }
           )
