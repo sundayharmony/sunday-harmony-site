@@ -13,6 +13,7 @@ import {
   rebuildDisputeIntelligence,
   analyzeReport,
   deleteDisputeSession,
+  resetApplicationDisputeWork,
 } from '@/lib/dispute-letters/client-api'
 import {
   buildAllBureauProgress,
@@ -156,7 +157,7 @@ export default function CreditIntelligencePanel({
     if (sessions.length === 0) return
     if (
       !window.confirm(
-        `Remove all ${sessions.length} report(s) from history for this client? You can upload again to start fresh.`
+        `Remove all ${sessions.length} report(s), generated letters, and dispute round history for this client? This returns Credit Intelligence to before the first report was uploaded.`
       )
     ) {
       return
@@ -165,23 +166,12 @@ export default function CreditIntelligencePanel({
     setError('')
     setSuccess('')
     try {
-      const failures: string[] = []
-      for (const s of sessions) {
-        try {
-          await deleteDisputeSession(s.id)
-        } catch {
-          failures.push(shortFileName(s.file_name))
-        }
-      }
+      await resetApplicationDisputeWork(applicationId)
       await load()
       setActiveId(null)
       setIntelligence(null)
       setView('analysis')
-      if (failures.length > 0) {
-        setError(`Could not remove: ${failures.join(', ')}`)
-      } else {
-        setSuccess('Report history cleared.')
-      }
+      setSuccess('Report, letter, and round history cleared.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to clear history')
     } finally {

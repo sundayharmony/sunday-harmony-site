@@ -15,3 +15,20 @@ describe('letter generate client uses start+poll', () => {
     assert.doesNotMatch(pythonMain, /upload_storage_bytes/)
   })
 })
+
+describe('application dispute work reset', () => {
+  it('wires a full wipe of reports, letters, and rounds', () => {
+    const db = readFileSync('src/lib/dispute-letters/dispute-lifecycle-db.ts', 'utf8')
+    const route = readFileSync(
+      'src/app/api/admin/credit-funding/[id]/reset-dispute-work/route.ts',
+      'utf8'
+    )
+    const panel = readFileSync('src/components/credit-funding/CreditIntelligencePanel.tsx', 'utf8')
+    const rounds = readFileSync('src/components/dispute-letters/DisputeRoundsPanel.tsx', 'utf8')
+    assert.match(db, /export async function resetDisputeWorkForApplication/)
+    assert.match(db, /from\('dispute_cases'\)\.delete\(\)/)
+    assert.match(route, /resetDisputeWorkForApplication/)
+    assert.match(panel, /resetApplicationDisputeWork/)
+    assert.match(rounds, /Reset to before first report/)
+  })
+})

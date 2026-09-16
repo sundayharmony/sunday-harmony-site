@@ -26,7 +26,8 @@ import {
   type DisputeRoundRow,
   type DisputeRoundStatus,
 } from '@/lib/dispute-letters/dispute-lifecycle'
-import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
+import { deleteDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
+import { removeDisputeSessionStorage } from '@/lib/dispute-letters-storage'
 import type { Tradeline } from '@/lib/dispute-letters/types'
 
 function isMissingRelation(error: { message?: string; code?: string } | null): boolean {
@@ -1130,4 +1131,55 @@ export async function loadReleasedRoundsForApplication(
     responses.push(...(await listResponsesForRound(round.id)))
   }
   return { rounds: roundRows, items, responses }
+}
+
+/**
+ * Wipe reports, generated letters, rounds, and item history for an application
+ * so staff can start over as if the first report was never uploaded.
+ */
+export async function resetDisputeWorkForApplication(applicationUuid: string): Promise<{
+  ok: true
+  sessionsDeleted: number
+  caseDeleted: boolean
+} | { ok: false; error: string }> {
+  if (!applicationUuid.trim()) return { ok: false, error: 'applicationUuid is required' }
+
+  const db = getSupabase()
+  const { data: sessionRows, error: sessionErr } = await db
+    .from('dispute_sessions')
+    .select('id, storage_path')
+    .eq('application_uuid', applicationUuid)
+    .limit(100)
+
+  if (sessionErr && !isMissingRelation(sessionErr)) {
+    return { ok: false, error: sessionErr.message }
+  }
+
+  const sessions = sessionRows || []
+  for (const row of sessions) {
+    await removeDisputeSessionStorage(String(row.id), row.storage_path as string | null)
+    const deleted = await deleteDisputeSession(String(row.id))
+    if (!deleted.ok) return { ok: false, error: deleted.error }
+  }
+
+  const { data: caseRow, error: caseErr } = await db
+    .from('dispute_cases')
+    .select('id')
+    .eq('application_uuid', applicationUuid)
+    .maybeSingle()
+
+  if (caseErr && !isMissingRelation(caseErr)) {
+    return { ok: false, error: caseErr.message }
+  }
+
+  let caseDeleted = false
+  if (caseRow?.id) {
+    const { error: delErr } = await db.from('dispute_cases').delete().eq('id', caseRow.id)
+    if (delErr && !isMissingRelation(delErr)) {
+      return { ok: false, error: delErr.message }
+    }
+    caseDeleted = !delErr
+  }
+
+  return { ok: true, sessionsDeleted: sessions.length, caseDeleted }
 }

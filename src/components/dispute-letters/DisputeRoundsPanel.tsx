@@ -19,6 +19,7 @@ import {
   type DisputeRoundStatus,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
+import { resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
 
 const ITEM_OUTCOMES: DisputeItemStatus[] = [
   'pending',
@@ -257,14 +258,44 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
             complete only when every assigned item is Sent.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void load()}
-          className="text-xs font-semibold text-brand-dim hover:underline disabled:opacity-50"
-        >
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void load()}
+            className="text-xs font-semibold text-brand-dim hover:underline disabled:opacity-50"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  'Delete all uploaded reports, generated letters, and dispute round history for this client? This returns to before the first report was uploaded.'
+                )
+              ) {
+                return
+              }
+              void (async () => {
+                setBusy(true)
+                setError('')
+                try {
+                  await resetApplicationDisputeWork(applicationId)
+                  await load()
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to reset dispute work')
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }}
+            className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50"
+          >
+            Reset to before first report
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-brand-red">{error}</p>}

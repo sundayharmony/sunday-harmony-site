@@ -123,6 +123,18 @@ export async function deleteDisputeSession(sessionId: string): Promise<void> {
   if (!res.ok) throw new Error(await parseError(res))
 }
 
+/** Delete all reports, generated letters, rounds, and item history for an application. */
+export async function resetApplicationDisputeWork(applicationUuid: string): Promise<{
+  sessionsDeleted: number
+  caseDeleted: boolean
+}> {
+  const res = await fetch(`/api/admin/credit-funding/${applicationUuid}/reset-dispute-work`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{ sessionsDeleted: number; caseDeleted: boolean }>
+}
+
 export async function fetchDisputeHealth(sessionId: string) {
   const res = await fetch(`/api/admin/dispute-letters/${sessionId}/health`)
   if (!res.ok) throw new Error(await parseError(res))
