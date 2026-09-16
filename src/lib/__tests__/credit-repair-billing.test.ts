@@ -141,5 +141,8 @@ describe('credit repair billing wiring', () => {
     assert.match(service, /listRepairInvoicesForCustomer/)
     assert.match(service, /deliverRepairInvoiceCopy/)
     assert.match(service, /sendRepairInvoiceEmail/)
+    assert.match(service, /type: 'link'/)
+    assert.match(service, /recoverCustomerWithSavedCards/)
+    assert.match(service, /usage: 'off_session'/)
   })
 })

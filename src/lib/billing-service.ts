@@ -1,6 +1,6 @@
 import type Stripe from 'stripe'
-import { getClientById, logActivity, updateClient, type Client } from '@/lib/db'
-import { ensureStripeCustomerForClient } from '@/lib/stripe-customer-utils'
+import { getClientById, getClientsByStripeCustomerId, logActivity, updateClient, type Client } from '@/lib/db'
+import { ensureStripeCustomerForClient, escapeEmailForStripeSearch } from '@/lib/stripe-customer-utils'
 import {
   getStripePriceIdForTier,
   getTierFromPriceId,
@@ -124,11 +124,16 @@ export async function createSetupIntentForClient(
   const blocked = rejectPotential(client)
   if (blocked) return blocked
 
+  const listed = await listPaymentMethods(clientId)
+  if ('error' in listed) return listed
+
   const ensured = await ensureStripeCustomerForClient(clientId)
   if (!ensured.ok) return { error: ensured.error, status: ensured.status }
 
   const intent = await getStripe().setupIntents.create({
     customer: ensured.stripe_customer_id,
+    usage: 'off_session',
+    payment_method_types: ['card'],
     metadata: { client_id: clientId },
   })
 
@@ -343,47 +348,109 @@ export async function cancelSubscription(
   return { subscription }
 }
 
-export async function listPaymentMethods(
-  clientId: string
-): Promise<
-  | {
-      paymentMethods: Array<{
-        id: string
-        brand: string
-        last4: string
-        expMonth: number
-        expYear: number
-        isDefault: boolean
-      }>
-    }
-  | { error: string; status: number }
-> {
-  const client = await getClientById(clientId)
-  if (!client) return { error: 'Client not found', status: 404 }
-  const customerId = client.stripe_customer_id?.trim()
-  if (!customerId) return { paymentMethods: [] }
+type PaymentMethodRow = {
+  id: string
+  brand: string
+  last4: string
+  expMonth: number
+  expYear: number
+  isDefault: boolean
+}
 
+function defaultPaymentMethodId(customer: Stripe.Customer | Stripe.DeletedCustomer | string): string | undefined {
+  if (typeof customer === 'string' || customer.deleted) return undefined
+  const raw = customer.invoice_settings?.default_payment_method
+  if (typeof raw === 'string') return raw
+  return raw?.id
+}
+
+function toPaymentMethodRow(pm: Stripe.PaymentMethod, defaultPm?: string): PaymentMethodRow {
+  if (pm.card) {
+    return {
+      id: pm.id,
+      brand: pm.card.brand || 'card',
+      last4: pm.card.last4 || '????',
+      expMonth: pm.card.exp_month || 0,
+      expYear: pm.card.exp_year || 0,
+      isDefault: pm.id === defaultPm,
+    }
+  }
+  return {
+    id: pm.id,
+    brand: pm.type === 'link' ? 'Link' : pm.type,
+    last4: pm.type === 'link' ? 'saved' : pm.type,
+    expMonth: 0,
+    expYear: 0,
+    isDefault: pm.id === defaultPm,
+  }
+}
+
+async function listMappedPaymentMethodsForCustomer(customerId: string): Promise<PaymentMethodRow[]> {
   const stripe = getStripe()
   const customer = await stripe.customers.retrieve(customerId)
-  const defaultPm =
-    typeof customer !== 'string' && !customer.deleted
-      ? (typeof customer.invoice_settings?.default_payment_method === 'string'
-          ? customer.invoice_settings.default_payment_method
-          : customer.invoice_settings?.default_payment_method?.id)
-      : undefined
-
-  const list = await stripe.paymentMethods.list({ customer: customerId, type: 'card' })
-
-  return {
-    paymentMethods: list.data.map(pm => ({
-      id: pm.id,
-      brand: pm.card?.brand || 'card',
-      last4: pm.card?.last4 || '????',
-      expMonth: pm.card?.exp_month || 0,
-      expYear: pm.card?.exp_year || 0,
-      isDefault: pm.id === defaultPm,
-    })),
+  const defaultPm = defaultPaymentMethodId(customer)
+  const [cards, links] = await Promise.all([
+    stripe.paymentMethods.list({ customer: customerId, type: 'card', limit: 20 }),
+    stripe.paymentMethods.list({ customer: customerId, type: 'link', limit: 10 }),
+  ])
+  const byId = new Map<string, Stripe.PaymentMethod>()
+  for (const pm of [...cards.data, ...links.data]) byId.set(pm.id, pm)
+  if (defaultPm && !byId.has(defaultPm)) {
+    try {
+      const retrieved = await stripe.paymentMethods.retrieve(defaultPm)
+      byId.set(retrieved.id, retrieved)
+    } catch {
+      // Default method may have been detached.
+    }
   }
+  return [...byId.values()].map(pm => toPaymentMethodRow(pm, defaultPm))
+}
+
+async function recoverCustomerWithSavedCards(client: Client): Promise<string | null> {
+  const email = client.email?.trim().toLowerCase()
+  if (!email) return null
+
+  const stripe = getStripe()
+  let candidates: Stripe.Customer[] = []
+  try {
+    const search = await stripe.customers.search({
+      query: `email:'${escapeEmailForStripeSearch(email)}'`,
+      limit: 10,
+    })
+    candidates = search.data
+  } catch (err) {
+    console.warn('Stripe customer search for saved cards failed:', err)
+    return null
+  }
+
+  for (const candidate of candidates) {
+    if (client.stripe_customer_id?.trim() === candidate.id) continue
+    const linked = await getClientsByStripeCustomerId(candidate.id)
+    if (linked.some(row => row.id !== client.id)) continue
+    const methods = await listMappedPaymentMethodsForCustomer(candidate.id)
+    if (methods.length === 0) continue
+    await updateClient(client.id, { stripe_customer_id: candidate.id })
+    return candidate.id
+  }
+  return null
+}
+
+export async function listPaymentMethods(
+  clientId: string
+): Promise<{ paymentMethods: PaymentMethodRow[] } | { error: string; status: number }> {
+  const client = await getClientById(clientId)
+  if (!client) return { error: 'Client not found', status: 404 }
+
+  const customerId = client.stripe_customer_id?.trim()
+  let paymentMethods = customerId ? await listMappedPaymentMethodsForCustomer(customerId) : []
+  if (paymentMethods.length === 0) {
+    const recoveredId = await recoverCustomerWithSavedCards(client)
+    if (recoveredId) {
+      paymentMethods = await listMappedPaymentMethodsForCustomer(recoveredId)
+    }
+  }
+
+  return { paymentMethods }
 }
 
 export async function setDefaultPaymentMethod(
@@ -781,9 +848,6 @@ export async function adminChargeCreditRepairFee(
 
   const description = input.description?.trim() || 'Credit repair one-time fee'
 
-  const ensured = await ensureStripeCustomerForClient(clientId)
-  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
-
   const pms = await listPaymentMethods(clientId)
   if ('error' in pms) return pms
   const defaultPm = pms.paymentMethods.find(pm => pm.isDefault) ?? pms.paymentMethods[0]
@@ -792,6 +856,9 @@ export async function adminChargeCreditRepairFee(
     hasCard: Boolean(defaultPm),
   })
   const chargeCard = mode === 'charge_card'
+
+  const ensured = await ensureStripeCustomerForClient(clientId)
+  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
 
   await updateClient(clientId, {
     billing_model: 'credit_repair_one_time',

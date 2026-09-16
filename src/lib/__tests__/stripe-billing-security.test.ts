@@ -40,11 +40,15 @@ describe('Area 10 Stripe billing security', () => {
   it('does not adopt a Stripe customer linked to another client', () => {
     const customerUtils = source('src/lib/stripe-customer-utils.ts')
     const webhook = source('src/app/api/stripe/webhook/route.ts')
+    const service = source('src/lib/billing-service.ts')
     assert.match(customerUtils, /getClientsByStripeCustomerId/)
     assert.match(customerUtils, /linkedToAnotherClient/)
     assert.match(customerUtils, /row\.id !== clientId/)
     assert.match(customerUtils, /decideStripeCustomerAttach/)
     assert.match(webhook, /attachStripeCustomerFromSetupIntent/)
+    assert.match(service, /recoverCustomerWithSavedCards/)
+    assert.match(service, /getClientsByStripeCustomerId/)
+    assert.match(service, /linked.some\(row => row.id !== client.id\)/)
   })
 
   it('adds partial unique indexes for non-empty Stripe customer and subscription ids', () => {

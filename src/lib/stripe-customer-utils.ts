@@ -58,7 +58,7 @@ export async function attachStripeCustomerFromSetupIntent(
   return 'attached'
 }
 
-function escapeEmailForStripeSearch(email: string): string {
+export function escapeEmailForStripeSearch(email: string): string {
   return email.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
