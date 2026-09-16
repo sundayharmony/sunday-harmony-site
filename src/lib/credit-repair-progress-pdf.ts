@@ -58,12 +58,15 @@ export function parseCreditRepairCompareMode(value: unknown): CreditRepairCompar
 
 type Doc = PDFKit.PDFDocument
 
-const PAGE_MARGINS = { top: 52, bottom: 56, left: 56, right: 56 }
+const PAGE_MARGINS = { top: 26, bottom: 26, left: 56, right: 56 }
 const CARD_RADIUS = 8
 const CARD_PAD = 5
 const ACCOUNT_CARD_GAP = 6
-const TITLE_ROW_H = 9
-const FIELD_ROW_H = 13
+const TITLE_ROW_H = 10
+/** Field rows keep the same footprint: taller gap, shorter text block. */
+const FIELD_TEXT_H = 10
+const FIELD_ROW_GAP = 5
+const FIELD_ROW_H = FIELD_TEXT_H + FIELD_ROW_GAP
 const FIELD_LABEL_W = 56
 
 function contentWidth(doc: Doc) {
@@ -114,7 +117,7 @@ function drawFooter(doc: Doc, pageNumber: number) {
       .text(
         safe(`Page ${pageNumber}  -  Credit Progress Report  -  Sunday Harmony`),
         doc.page.margins.left,
-        doc.page.height - 34,
+        doc.page.height - 18,
         {
           width: contentWidth(doc),
           align: 'center',
@@ -269,7 +272,8 @@ function drawMetricPills(doc: Doc, deltas: CreditProgressDelta[]) {
 }
 
 function accountCardHeight(fieldCount: number): number {
-  return CARD_PAD * 2 + TITLE_ROW_H + fieldCount * FIELD_ROW_H
+  const rows = fieldCount * FIELD_TEXT_H + Math.max(fieldCount - 1, 0) * FIELD_ROW_GAP
+  return CARD_PAD * 2 + TITLE_ROW_H + rows
 }
 
 function drawAccountCard(
