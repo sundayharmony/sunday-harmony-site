@@ -18,9 +18,9 @@ import { SUBSCRIPTION_EXPAND } from '@/lib/stripe-subscription-validation'
 import {
   applyRepairInvoicePaid,
   isRepairInvoice,
-  sendRepairInvoiceEmail,
   shouldEmailRepairReceiptOnPay,
 } from '@/lib/credit-repair-billing'
+import { sendRepairInvoiceEmail } from '@/lib/credit-repair-invoice-email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

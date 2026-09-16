@@ -11,9 +11,9 @@ import {
   parseRepairFeeToCents,
   repairInvoiceMetadata,
   resolveRepairCollectionMode,
-  sendRepairInvoiceEmail,
   shouldEmailRepairReceiptOnPay,
 } from '../credit-repair-billing'
+import { sendRepairInvoiceEmail } from '../credit-repair-invoice-email'
 
 describe('credit repair billing helpers', () => {
   it('classifies repair-only and repair+funding as one-time billing', () => {
@@ -151,5 +151,18 @@ describe('credit repair billing wiring', () => {
     assert.match(service, /usage: 'off_session'/)
     assert.match(service, /decideSavedPaymentMethodCustomer/)
     assert.match(service, /customers.list/)
+  })
+
+  it('keeps nodemailer off the client-imported billing helpers', () => {
+    const helpers = readFileSync('src/lib/credit-repair-billing.ts', 'utf8')
+    const email = readFileSync('src/lib/credit-repair-invoice-email.ts', 'utf8')
+    const panel = readFileSync('src/components/billing/CreditRepairBillingPanel.tsx', 'utf8')
+    const sidebar = readFileSync('src/components/dashboard/ClientSidebar.tsx', 'utf8')
+    assert.doesNotMatch(helpers, /from ['"]@\/lib\/smtp-mail['"]|from ['"]nodemailer['"]|export async function sendRepairInvoiceEmail/)
+    assert.match(email, /from '@\/lib\/smtp-mail'/)
+    assert.match(panel, /from '@\/lib\/credit-repair-billing'/)
+    assert.doesNotMatch(panel, /credit-repair-invoice-email|smtp-mail/)
+    assert.match(sidebar, /from '@\/lib\/credit-repair-billing'/)
+    assert.doesNotMatch(sidebar, /credit-repair-invoice-email|smtp-mail/)
   })
 })
