@@ -66,4 +66,12 @@ describe('credit repair billing wiring', () => {
     assert.match(panel, /Charge card on file/)
     assert.match(cfPage, /CreditRepairBillingPanel/)
   })
+
+  it('does not send both amount and quantity on repair invoice lines', () => {
+    const service = readFileSync('src/lib/billing-service.ts', 'utf8')
+    const addLines = service.slice(service.indexOf('invoices.addLines'))
+    const block = addLines.slice(0, addLines.indexOf('finalizeInvoice'))
+    assert.match(block, /amount: parsed\.cents/)
+    assert.doesNotMatch(block, /quantity/)
+  })
 })
