@@ -9,6 +9,7 @@ import type {
   CreditProgressDelta,
   CreditProgressReport,
   DisputeSessionListItem,
+  TradelineFieldChange,
   TradelineProgressDiff,
 } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
@@ -20,6 +21,7 @@ const COLORS = {
   accent: '#b8943f',
   border: '#e5e2dc',
   softBg: '#faf9f7',
+  cardBg: '#f7f6f3',
   white: '#ffffff',
   emerald: '#047857',
   emeraldSoft: '#ecfdf5',
@@ -31,7 +33,6 @@ const COLORS = {
 
 const BUREAU_ORDER: BureauCode[] = ['TUC', 'EXP', 'EQF']
 
-/** Credit-profile metrics only — never include funding_* fields. */
 const CREDIT_METRIC_FIELDS = new Set([
   'bureau_score',
   'negative_count',
@@ -56,10 +57,11 @@ export function parseCreditRepairCompareMode(value: unknown): CreditRepairCompar
 
 type Doc = PDFKit.PDFDocument
 
-const PAGE_MARGINS = { top: 56, bottom: 58, left: 54, right: 54 }
-const SECTION_GAP = 0.55
-const SUBSECTION_GAP = 0.35
-const ITEM_GAP = 0.28
+const PAGE_MARGINS = { top: 52, bottom: 56, left: 56, right: 56 }
+const CARD_RADIUS = 8
+const CARD_PAD = 14
+const ACCOUNT_CARD_GAP = 14
+const FIELD_ROW_H = 30
 
 function contentWidth(doc: Doc) {
   return doc.page.width - doc.page.margins.left - doc.page.margins.right
@@ -67,6 +69,22 @@ function contentWidth(doc: Doc) {
 
 function safe(value: unknown, fallback = ''): string {
   return pdfSafeText(asText(value, fallback))
+}
+
+/** Never pipe-separate mask dots — show a clean last-four suffix. */
+export function formatAccountMaskForPdf(mask: string | null | undefined): string {
+  const raw = (mask || '').trim()
+  if (!raw || raw === '-' || raw === '—') return ''
+  const digits = raw.replace(/[^\d]/g, '')
+  if (digits.length >= 4) return `#${digits.slice(-4)}`
+  if (digits.length > 0) return `#${digits}`
+  return ''
+}
+
+function truncateFilename(name: string, max = 48): string {
+  const cleaned = safe(name)
+  if (cleaned.length <= max) return cleaned
+  return `${cleaned.slice(0, max - 3)}...`
 }
 
 function ensureSpace(doc: Doc, needed: number) {
@@ -91,9 +109,9 @@ function drawFooter(doc: Doc, pageNumber: number) {
       .fontSize(8)
       .fillColor(COLORS.dim)
       .text(
-        safe(`Page ${pageNumber} | Credit Progress Report | Sunday Harmony`),
+        safe(`Page ${pageNumber}  -  Credit Progress Report  -  Sunday Harmony`),
         doc.page.margins.left,
-        doc.page.height - 36,
+        doc.page.height - 34,
         {
           width: contentWidth(doc),
           align: 'center',
@@ -107,7 +125,192 @@ function drawFooter(doc: Doc, pageNumber: number) {
   }
 }
 
-function scoreForBureau(report: CreditProgressReport, which: 'from' | 'to', compareMode: CreditRepairCompareMode): number | null {
+/** Vector arrow (Helvetica has no reliable Unicode arrow glyph). */
+function drawArrow(doc: Doc, x1: number, y: number, x2: number, color = COLORS.dim) {
+  const tip = 3.5
+  doc.save()
+  doc.strokeColor(color).lineWidth(1.1).lineCap('round').lineJoin('round')
+  doc.moveTo(x1, y).lineTo(x2 - tip, y).stroke()
+  doc.moveTo(x2 - tip, y - tip).lineTo(x2, y).lineTo(x2 - tip, y + tip).stroke()
+  doc.restore()
+}
+
+function directionColor(direction: string): string {
+  if (direction === 'improved') return COLORS.emerald
+  if (direction === 'worsened') return COLORS.red
+  return COLORS.text
+}
+
+function drawSectionTitle(doc: Doc, title: string) {
+  doc.moveDown(0.35)
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.text).text(title)
+  doc.moveDown(0.45)
+}
+
+function drawMutedCaption(doc: Doc, text: string) {
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.dim).text(safe(text), { lineGap: 4 })
+}
+
+function drawBeforeAfterRow(
+  doc: Doc,
+  label: string,
+  from: string,
+  to: string,
+  direction: string
+): void {
+  const left = doc.page.margins.left + CARD_PAD
+  const width = contentWidth(doc) - CARD_PAD * 2
+  const labelW = 62
+  const arrowW = 22
+  const gap = 8
+  const valueW = (width - labelW - arrowW - gap * 2) / 2
+  const y = doc.y
+
+  doc.font('Helvetica').fontSize(8).fillColor(COLORS.dim)
+  doc.text(safe(label), left, y, { width: labelW, lineBreak: false })
+
+  const fromX = left + labelW
+  doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted)
+  doc.text(safe(from), fromX, y, { width: valueW, lineGap: 3 })
+
+  const arrowX = fromX + valueW + gap
+  drawArrow(doc, arrowX, y + 5, arrowX + arrowW, COLORS.border)
+
+  const toX = arrowX + arrowW + gap
+  doc.font('Helvetica').fontSize(9).fillColor(directionColor(direction))
+  doc.text(safe(to), toX, y, { width: valueW, lineGap: 3 })
+
+  doc.y = y + FIELD_ROW_H
+  doc.x = doc.page.margins.left
+}
+
+function drawScoreHero(
+  doc: Doc,
+  fromScore: number | null,
+  toScore: number | null,
+  scoreDelta: number | null,
+  scoreColor: string
+) {
+  const boxY = doc.y
+  const boxH = 76
+  const boxW = contentWidth(doc)
+  doc.roundedRect(doc.page.margins.left, boxY, boxW, boxH, CARD_RADIUS).fill(COLORS.softBg)
+
+  const col1 = doc.page.margins.left + 24
+  const col2 = doc.page.margins.left + boxW * 0.38
+  const col3 = doc.page.margins.left + boxW * 0.72
+  const scoreY = boxY + 34
+
+  doc.fillColor(COLORS.dim).font('Helvetica').fontSize(9)
+  doc.text('Before', col1, boxY + 16, { lineBreak: false })
+  doc.text('After', col2, boxY + 16, { lineBreak: false })
+  if (scoreDelta != null) {
+    doc.text('Change', col3, boxY + 16, { lineBreak: false })
+  }
+
+  doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(28)
+  doc.text(fromScore != null ? String(fromScore) : '-', col1, scoreY, { lineBreak: false })
+  doc.text(toScore != null ? String(toScore) : '-', col2, scoreY, { lineBreak: false })
+
+  const arrowY = scoreY + 10
+  drawArrow(doc, col1 + 52, arrowY, col2 - 12, COLORS.accent)
+
+  if (scoreDelta != null) {
+    const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
+    doc.fillColor(scoreColor).font('Helvetica-Bold').fontSize(22)
+    doc.text(safe(`${label} pts`), col3, scoreY + 2, { lineBreak: false })
+  }
+
+  doc.y = boxY + boxH + 22
+  doc.x = doc.page.margins.left
+}
+
+function drawMetricPills(doc: Doc, deltas: CreditProgressDelta[]) {
+  const changed = deltas.filter((d) => d.from !== d.to)
+  if (!changed.length) return
+
+  const pillGap = 10
+  const pillW = (contentWidth(doc) - pillGap * (changed.length - 1)) / changed.length
+  const pillH = 44
+  ensureSpace(doc, pillH + 16)
+  const y = doc.y
+
+  changed.forEach((d, i) => {
+    const x = doc.page.margins.left + i * (pillW + pillGap)
+    doc.roundedRect(x, y, pillW, pillH, 6).fill(COLORS.cardBg)
+    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
+    doc.text(safe(d.label), x + 10, y + 10, { width: pillW - 20, lineBreak: false })
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text)
+    const from = formatDeltaValue(d.from)
+    const to = formatDeltaValue(d.to)
+    const midY = y + 24
+    doc.text(from, x + 10, midY, { width: pillW * 0.38, lineBreak: false })
+    drawArrow(doc, x + pillW * 0.42, midY + 4, x + pillW * 0.56, COLORS.border)
+    doc.fillColor(directionColor(d.direction))
+    doc.text(to, x + pillW * 0.58, midY, { width: pillW * 0.34, lineBreak: false })
+  })
+
+  doc.y = y + pillH + 20
+  doc.x = doc.page.margins.left
+}
+
+function accountCardHeight(fieldCount: number): number {
+  return CARD_PAD * 2 + 16 + fieldCount * FIELD_ROW_H
+}
+
+function drawAccountCard(
+  doc: Doc,
+  creditor: string,
+  mask: string,
+  fields: TradelineFieldChange['fields']
+) {
+  const cardH = accountCardHeight(fields.length)
+  ensureSpace(doc, cardH + ACCOUNT_CARD_GAP)
+  const x = doc.page.margins.left
+  const w = contentWidth(doc)
+  const y = doc.y
+
+  doc.roundedRect(x, y, w, cardH, CARD_RADIUS).fillAndStroke(COLORS.white, COLORS.border)
+
+  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(COLORS.text)
+  const maskLabel = formatAccountMaskForPdf(mask)
+  const title = maskLabel ? `${safe(creditor)}  ${maskLabel}` : safe(creditor)
+  doc.text(title, x + CARD_PAD, y + CARD_PAD, { width: w - CARD_PAD * 2 })
+
+  doc.y = y + CARD_PAD + 18
+  doc.x = doc.page.margins.left
+  for (const f of fields) {
+    drawBeforeAfterRow(doc, f.label, f.from, f.to, f.direction)
+  }
+
+  doc.y = y + cardH + ACCOUNT_CARD_GAP
+  doc.x = doc.page.margins.left
+}
+
+function drawSimpleAccountList(
+  doc: Doc,
+  items: { creditor: string; accountMask: string }[],
+  title: string,
+  titleColor: string
+) {
+  if (!items.length) return
+  drawSectionTitle(doc, title)
+  doc.font('Helvetica').fontSize(10).fillColor(titleColor)
+  for (const item of items) {
+    ensureSpace(doc, 20)
+    const mask = formatAccountMaskForPdf(item.accountMask)
+    const line = mask ? `${safe(item.creditor)}  ${mask}` : safe(item.creditor)
+    doc.text(line, { lineGap: 6 })
+    doc.moveDown(0.15)
+  }
+  doc.moveDown(0.35)
+}
+
+function scoreForBureau(
+  report: CreditProgressReport,
+  which: 'from' | 'to',
+  compareMode: CreditRepairCompareMode
+): number | null {
   const bureau = report.bureau
   if (!bureau) return null
   const snap =
@@ -145,10 +348,23 @@ function formatDeltaValue(value: string | number | null | undefined): string {
   return safe(String(value))
 }
 
-function directionColor(direction: string): string {
-  if (direction === 'improved') return COLORS.emerald
-  if (direction === 'worsened') return COLORS.red
-  return COLORS.muted
+function drawReportRange(
+  doc: Doc,
+  fromSnap: CreditProgressReport['baseline'],
+  toSnap: CreditProgressReport['current']
+) {
+  const fromLabel = safe(formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt))
+  const toLabel = safe(formatProgressDate(toSnap?.reportDate || toSnap?.createdAt))
+  drawMutedCaption(doc, `Before: ${fromLabel}`)
+  drawMutedCaption(doc, `After: ${toLabel}`)
+  const files = [fromSnap?.fileName, toSnap?.fileName]
+    .filter(Boolean)
+    .map((n) => truncateFilename(n!))
+    .filter((n, i, all) => all.indexOf(n) === i)
+  if (files.length) {
+    doc.fontSize(8).fillColor(COLORS.dim).text(files.join('   /   '), { lineGap: 3 })
+  }
+  doc.moveDown(0.55)
 }
 
 /**
@@ -183,37 +399,29 @@ export function buildCreditRepairProgressPdfBuffer(
 
     const client = displayClientName(input.clientName, 'Client')
     const compareLabel =
-      input.compareMode === 'previous' ? 'Previous report -> Current' : 'First report -> Current'
+      input.compareMode === 'previous' ? 'Previous report to current' : 'First report to current'
     const generated = safe(formatProgressDate(input.generatedAt || new Date().toISOString()))
 
-    // Cover page
-    doc.font('Helvetica-Bold').fontSize(20).fillColor(COLORS.text).text('Sunday Harmony')
-    doc.moveDown(0.35)
-    doc.font('Helvetica-Bold').fontSize(16).fillColor(COLORS.accent).text('Credit Progress Report')
-    doc.moveDown(0.45)
+    doc.font('Helvetica-Bold').fontSize(22).fillColor(COLORS.text).text('Sunday Harmony')
+    doc.moveDown(0.4)
+    doc.font('Helvetica-Bold').fontSize(17).fillColor(COLORS.accent).text('Credit Progress Report')
+    doc.moveDown(0.55)
     doc.font('Helvetica').fontSize(11).fillColor(COLORS.muted)
-    doc.text(safe(`Prepared for ${client}`), { lineGap: 4 })
-    doc.text(safe(`Comparison: ${compareLabel}`), { lineGap: 4 })
-    doc.text(safe(`Generated ${generated}`), { lineGap: 4 })
-    doc.moveDown(0.65)
+    doc.text(safe(`Prepared for ${client}`), { lineGap: 5 })
+    doc.text(safe(`Comparison: ${compareLabel}`), { lineGap: 5 })
+    doc.text(safe(`Generated ${generated}`), { lineGap: 5 })
+    doc.moveDown(0.75)
     doc
       .moveTo(doc.page.margins.left, doc.y)
       .lineTo(doc.page.margins.left + contentWidth(doc), doc.y)
       .strokeColor(COLORS.border)
       .stroke()
-    doc.moveDown(0.75)
-
-    doc
-      .font('Helvetica')
-      .fontSize(10)
-      .fillColor(COLORS.muted)
-      .text(
-        safe(
-          'This report summarizes credit score movement and specific account-level changes between the compared credit reports. It is for educational progress tracking only and is not a credit score product, funding decision, or legal advice.'
-        ),
-        { width: contentWidth(doc), lineGap: 3 }
-      )
-    doc.moveDown(0.9)
+    doc.moveDown(0.85)
+    drawMutedCaption(
+      doc,
+      'Each following page compares one bureau from the earliest report on file to the latest report for that bureau.'
+    )
+    doc.moveDown(1)
 
     const bureaus = BUREAU_ORDER.filter((b) => {
       const report = input.progressByBureau[b]
@@ -242,188 +450,65 @@ export function buildCreditRepairProgressPdfBuffer(
 
       startBureauPage(doc)
 
-      doc.font('Helvetica-Bold').fontSize(15).fillColor(COLORS.text).text(BUREAU_LABELS[bureau])
-      doc.moveDown(0.25)
-      const fromLabel = safe(formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt))
-      const toLabel = safe(formatProgressDate(toSnap?.reportDate || toSnap?.createdAt))
-      const fromFile = fromSnap?.fileName ? ` | ${safe(fromSnap.fileName)}` : ''
-      const toFile = toSnap?.fileName ? ` | ${safe(toSnap.fileName)}` : ''
-      doc.font('Helvetica').fontSize(9).fillColor(COLORS.dim)
-      doc.text(safe(`${fromLabel}${fromFile} -> ${toLabel}${toFile}`), { lineGap: 2 })
-      doc.moveDown(SECTION_GAP)
+      doc.font('Helvetica-Bold').fontSize(18).fillColor(COLORS.text).text(BUREAU_LABELS[bureau])
+      doc.moveDown(0.35)
+      drawReportRange(doc, fromSnap, toSnap)
 
-      // Score hero row
-      const scoreDelta =
-        fromScore != null && toScore != null ? toScore - fromScore : null
+      const scoreDelta = fromScore != null && toScore != null ? toScore - fromScore : null
       const scoreColor =
         scoreDelta == null ? COLORS.text : scoreDelta > 0 ? COLORS.emerald : scoreDelta < 0 ? COLORS.red : COLORS.text
 
-      const boxY = doc.y
-      const boxH = 62
-      doc.roundedRect(doc.page.margins.left, boxY, contentWidth(doc), boxH, 8).fill(COLORS.softBg)
-      doc.fillColor(COLORS.dim).font('Helvetica').fontSize(9)
-      doc.text('BEFORE', doc.page.margins.left + 18, boxY + 14, { lineBreak: false })
-      doc.text('AFTER', doc.page.margins.left + 140, boxY + 14, { lineBreak: false })
-      if (scoreDelta != null) {
-        doc.text('CHANGE', doc.page.margins.left + 270, boxY + 14, { lineBreak: false })
-      }
-      doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(24)
-      doc.text(fromScore != null ? String(fromScore) : '-', doc.page.margins.left + 18, boxY + 30, {
-        lineBreak: false,
-      })
-      doc.text(toScore != null ? String(toScore) : '-', doc.page.margins.left + 140, boxY + 30, {
-        lineBreak: false,
-      })
+      drawScoreHero(doc, fromScore, toScore, scoreDelta, scoreColor)
+
       if (toScore == null && hasAccounts) {
         doc
           .font('Helvetica')
-          .fontSize(8)
+          .fontSize(9)
           .fillColor(COLORS.amber)
           .text(
-            safe(
-              'Score not found in the newer report file - account changes below still apply.'
-            ),
-            doc.page.margins.left + 18,
-            boxY + boxH + 6,
-            { width: contentWidth(doc) - 36, lineGap: 2 }
+            safe('Score was not extracted from the newer report file. Account changes below still apply.'),
+            { width: contentWidth(doc), lineGap: 4 }
           )
-        doc.y = Math.max(doc.y, boxY + boxH + 20)
+        doc.moveDown(0.5)
       }
-      if (scoreDelta != null) {
-        const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
-        doc.fillColor(scoreColor).text(safe(`${label} pts`), doc.page.margins.left + 270, boxY + 30, {
-          lineBreak: false,
-        })
-      }
-      doc.y = boxY + boxH + 18
-      doc.x = doc.page.margins.left
 
-      // Profile metrics (exclude funding)
       const metricDeltas = deltas.filter((d) => d.field !== 'bureau_score')
       if (metricDeltas.length) {
-        doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('PROFILE METRICS')
-        doc.moveDown(SUBSECTION_GAP)
-        for (const d of metricDeltas) {
-          ensureSpace(doc, 18)
-          doc.font('Helvetica').fontSize(10).fillColor(COLORS.text)
-          const left = safe(`${d.label}: ${formatDeltaValue(d.from)} -> ${formatDeltaValue(d.to)}`)
-          doc.text(left, { continued: true, lineGap: 2 })
-          doc.fillColor(directionColor(d.direction)).text(
-            d.direction === 'unchanged' ? '  (same)' : `  (${d.direction})`
-          )
-          doc.moveDown(0.12)
-        }
-        doc.moveDown(SECTION_GAP)
+        drawSectionTitle(doc, 'Profile summary')
+        drawMetricPills(doc, metricDeltas)
       }
 
-      // Account changes
       const diff = accounts
-
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('ACCOUNT CHANGES')
-      doc.moveDown(SUBSECTION_GAP)
+      drawSectionTitle(doc, 'Account changes')
 
       if (!hasAccounts) {
-        doc
-          .font('Helvetica')
-          .fontSize(10)
-          .fillColor(COLORS.dim)
-          .text(
-            safe(
-              diff?.matchConfidence === 'low'
-                ? 'Could not match accounts reliably between reports. Score change above still applies.'
-                : 'No account-level changes detected for this bureau.'
-            ),
-            { lineGap: 2 }
-          )
-        doc.moveDown(SECTION_GAP)
+        drawMutedCaption(
+          doc,
+          diff?.matchConfidence === 'low'
+            ? 'Could not match accounts between these two reports.'
+            : 'No account-level changes for this bureau.'
+        )
+        doc.moveDown(0.5)
       } else {
         if (diff!.changed.length > 0) {
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.text).text('Updated accounts')
-          doc.moveDown(SUBSECTION_GAP)
+          doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('Updated')
+          doc.moveDown(0.5)
           for (const item of diff!.changed) {
-            ensureSpace(doc, 36 + item.fields.length * 16)
-            const mask =
-              item.accountMask && item.accountMask !== '-' && item.accountMask !== '—'
-                ? ` ${safe(item.accountMask)}`
-                : ''
-            doc
-              .font('Helvetica-Bold')
-              .fontSize(10)
-              .fillColor(COLORS.text)
-              .text(safe(`${item.creditor}${mask}`))
-            doc.moveDown(0.1)
-            for (const f of item.fields) {
-              doc
-                .font('Helvetica')
-                .fontSize(9)
-                .fillColor(COLORS.muted)
-                .text(safe(`  ${f.label}: ${f.from} -> `), { continued: true })
-              doc
-                .fillColor(
-                  directionColor(
-                    f.direction === 'improved'
-                      ? 'improved'
-                      : f.direction === 'worsened'
-                        ? 'worsened'
-                        : 'unchanged'
-                  )
-                )
-                .text(safe(f.to))
-            }
-            doc.moveDown(ITEM_GAP)
+            drawAccountCard(doc, item.creditor, item.accountMask, item.fields)
           }
-          doc.moveDown(0.2)
         }
 
-        if (diff!.removed.length > 0) {
-          ensureSpace(doc, 24 + diff!.removed.length * 14)
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.emerald).text('Removed from report')
-          doc.moveDown(SUBSECTION_GAP)
-          for (const item of diff!.removed) {
-            const mask =
-              item.accountMask && item.accountMask !== '-' && item.accountMask !== '—'
-                ? ` ${safe(item.accountMask)}`
-                : ''
-            doc
-              .font('Helvetica')
-              .fontSize(10)
-              .fillColor(COLORS.text)
-              .text(safe(`- ${item.creditor}${mask}`), { lineGap: 2 })
-          }
-          doc.moveDown(SECTION_GAP)
-        }
-
-        if (diff!.added.length > 0) {
-          ensureSpace(doc, 24 + diff!.added.length * 14)
-          doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.amber).text('New on report')
-          doc.moveDown(SUBSECTION_GAP)
-          for (const item of diff!.added) {
-            const mask =
-              item.accountMask && item.accountMask !== '-' && item.accountMask !== '—'
-                ? ` ${safe(item.accountMask)}`
-                : ''
-            doc
-              .font('Helvetica')
-              .fontSize(10)
-              .fillColor(COLORS.text)
-              .text(safe(`- ${item.creditor}${mask}`), { lineGap: 2 })
-          }
-          doc.moveDown(SECTION_GAP)
-        }
+        drawSimpleAccountList(doc, diff!.removed, 'Removed from report', COLORS.emerald)
+        drawSimpleAccountList(doc, diff!.added, 'New on report', COLORS.amber)
       }
 
       if (bureauIndex === bureaus.length - 1) {
-        ensureSpace(doc, 52)
-        doc
-          .font('Helvetica')
-          .fontSize(8)
-          .fillColor(COLORS.dim)
-          .text(
-            safe(
-              'Disclaimer: Sunday Harmony provides credit education and dispute support. This document is not a FICO Score, VantageScore, credit counseling substitute, or guarantee of score improvement. Credit bureau data can differ across reports and may update on different schedules.'
-            ),
-            { width: contentWidth(doc), lineGap: 2 }
-          )
+        ensureSpace(doc, 48)
+        doc.moveDown(0.5)
+        drawMutedCaption(
+          doc,
+          'Educational progress tracking only. Not a credit score, funding decision, or legal advice.'
+        )
       }
     }
 
@@ -458,7 +543,6 @@ export function buildCreditRepairProgressPdfInput(params: {
     'Client'
 
   const compareMode = params.compareMode || 'baseline'
-  // Fall back to baseline when previous is unavailable
   const canPrevious = Object.values(progressByBureau).some(
     (p) => p?.previous && (p.vsPrevious?.length || 0) > 0
   )

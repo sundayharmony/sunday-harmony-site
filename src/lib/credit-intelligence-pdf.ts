@@ -54,7 +54,7 @@ export function pdfSafeText(value: string): string {
     .replace(/\u2192/g, '->')
     .replace(/\u2014/g, '-')
     .replace(/\u2013/g, '-')
-    .replace(/\u00B7/g, ' | ')
+    .replace(/\u00B7+/g, '.')
     .replace(/\u2022/g, '-')
     .replace(/\u00AE/g, '')
     .replace(/\u2122/g, '')

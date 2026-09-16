@@ -4,6 +4,7 @@ import { pdfSafeText } from '../credit-intelligence-pdf'
 import {
   buildCreditRepairProgressPdfBuffer,
   buildCreditRepairProgressPdfInput,
+  formatAccountMaskForPdf,
 } from '../credit-repair-progress-pdf'
 import {
   creditRepairProgressPdfFilename,
@@ -212,6 +213,14 @@ describe('pdfSafeText', () => {
     assert.ok(!/[\u2192\u2014\u00B7\u00AE]/.test(safe))
     assert.match(safe, /First report -> Current/)
     assert.match(safe, /FICO Score - 655/)
+  })
+})
+
+describe('formatAccountMaskForPdf', () => {
+  it('formats bureau mask dots as a clean last-four suffix', () => {
+    assert.equal(formatAccountMaskForPdf('···6684'), '#6684')
+    assert.equal(formatAccountMaskForPdf('—'), '')
+    assert.ok(!formatAccountMaskForPdf('···1853').includes('|'))
   })
 })
 
