@@ -99,15 +99,14 @@ describe('credit repair billing helpers', () => {
   })
 
   it('skips SMTP when the client has no email', async () => {
-    assert.equal(
-      await sendRepairInvoiceEmail({
-        to: '',
-        clientName: 'Charlie',
-        amountCents: 25875,
-        paid: false,
-      }),
-      false
-    )
+    const result = await sendRepairInvoiceEmail({
+      to: '',
+      clientName: 'Charlie',
+      amountCents: 25875,
+      paid: false,
+    })
+    assert.equal(result.sent, false)
+    assert.match(result.reason || '', /email is missing/i)
   })
 })
 
@@ -127,9 +126,15 @@ describe('credit repair billing wiring', () => {
     assert.match(webhook, /shouldEmailRepairReceiptOnPay/)
     assert.match(migration, /credit_repair_one_time/)
     assert.match(panel, /Payment history/)
-    assert.match(panel, /Charge or email invoice/)
+    assert.match(panel, /Resend invoice email/)
     assert.match(cfPage, /CreditRepairBillingPanel/)
-    assert.doesNotMatch(service, /No card on file\. Ask the client to add a card/)
+    assert.match(service, /adminResendRepairInvoiceEmail/)
+    assert.match(service, /syncStripeCustomerContact/)
+    assert.match(service, /delivered\.emailError/)
+    assert.doesNotMatch(
+      service.slice(service.indexOf('async function deliverRepairInvoiceCopy')),
+      /emailed = true/
+    )
   })
 
   it('does not send both amount and quantity on repair invoice lines', () => {

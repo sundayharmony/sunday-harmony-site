@@ -718,6 +718,21 @@ export async function getCreditFundingApplicationByEmail(email: string): Promise
   return data as CreditFundingApplication | undefined
 }
 
+export async function getCreditFundingApplicationByClientId(
+  clientId: string
+): Promise<CreditFundingApplication | undefined> {
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return undefined
+  return data as CreditFundingApplication | undefined
+}
+
 export async function getCreditFundingApplicationByUserId(userId: string): Promise<CreditFundingApplication | undefined> {
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')

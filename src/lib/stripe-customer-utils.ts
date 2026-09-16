@@ -79,6 +79,24 @@ export function escapeEmailForStripeSearch(email: string): string {
   return email.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
 }
 
+/** Stripe sendInvoice silently no-ops without a customer email. Keep it in sync with the client record. */
+export async function syncStripeCustomerContact(
+  customerId: string,
+  contact: { email?: string | null; name?: string | null }
+): Promise<void> {
+  const email = contact.email?.trim().toLowerCase()
+  if (!email) return
+  const stripe = getStripe()
+  const existing = await stripe.customers.retrieve(customerId)
+  if (!existing || ('deleted' in existing && existing.deleted)) return
+  const patch: { email?: string; name?: string } = {}
+  if ((existing.email || '').trim().toLowerCase() !== email) patch.email = email
+  const name = contact.name?.trim()
+  if (name && existing.name !== name) patch.name = name
+  if (Object.keys(patch).length === 0) return
+  await stripe.customers.update(customerId, patch)
+}
+
 export type EnsureStripeCustomerOutcome = 'existing' | 'linked' | 'created'
 
 export async function ensureStripeCustomerForClient(
@@ -100,6 +118,10 @@ export async function ensureStripeCustomerForClient(
     try {
       const existing = await stripe.customers.retrieve(client.stripe_customer_id)
       if (existing && !('deleted' in existing && existing.deleted)) {
+        await syncStripeCustomerContact(client.stripe_customer_id, {
+          email: normalizedEmail,
+          name: client.name,
+        })
         return { ok: true, stripe_customer_id: client.stripe_customer_id, outcome: 'existing' }
       }
     } catch {

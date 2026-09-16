@@ -129,9 +129,12 @@ export async function sendRepairInvoiceEmail(input: {
   paid: boolean
   hostedInvoiceUrl?: string | null
   invoiceNumber?: string | null
-}): Promise<boolean> {
+}): Promise<{ sent: boolean; reason?: string }> {
   const to = input.to?.trim()
-  if (!to || !isEmailConfigured()) return false
+  if (!to) return { sent: false, reason: 'Client email is missing.' }
+  if (!isEmailConfigured()) {
+    return { sent: false, reason: 'SMTP is not configured, so the invoice email could not be sent.' }
+  }
   const copy = buildRepairInvoiceEmail({
     clientName: input.clientName,
     amountCents: input.amountCents,
@@ -140,7 +143,7 @@ export async function sendRepairInvoiceEmail(input: {
     invoiceNumber: input.invoiceNumber,
   })
   await sendEmail({ to, subject: copy.subject, html: copy.html })
-  return true
+  return { sent: true }
 }
 
 function escInvoiceHtml(value: string): string {

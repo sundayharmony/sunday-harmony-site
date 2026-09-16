@@ -26,7 +26,8 @@ Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **A
 1. Enter the fee. If a card is on file, **Charge card on file** bills it immediately. If there is no card, that same action emails a Stripe invoice instead of erroring.
 2. **Email invoice** always sends a pay link (even when a card is on file).
 3. Every charge or emailed invoice creates a Stripe Invoice. Admin **Payment history** and the client **Billing** page list each one (open, paid, or failed).
-4. The client always gets an invoice or receipt email: Stripe `sendInvoice` plus SMTP when configured. Paying the emailed link later still emails a receipt (`invoice.paid` webhook).
+4. The client always gets a Sunday Harmony invoice/receipt email via SMTP. Stripe `sendInvoice` is also called so the hosted pay link exists. Paying the emailed link later still emails a receipt (`invoice.paid` webhook). If SMTP is not configured, staff see an error and can copy/resend the invoice link.
+5. Use **Resend invoice email** to send the latest invoice again.
 5. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`) and updates the latest fee amount.
 6. Charging looks up **card and Link** methods, including the Stripe customer's default. If the linked Stripe customer has no method, we search other customers with the same email (never stealing another client's customer) and use the one that already has a card. Saving a card on `/dashboard/billing` stores the Stripe customer the payment method actually landed on, so a later charge uses that same card.
 

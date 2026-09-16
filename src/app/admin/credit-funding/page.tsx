@@ -1024,17 +1024,11 @@ function CreditFundingAdminContent() {
                     selected.service_type === 'credit_and_funding') && (
                     <div className="mb-5 p-4 bg-white rounded-xl border border-brand-border">
                       <h3 className="text-sm font-bold text-brand-text mb-3">Repair fee</h3>
-                      {selected.client_id ? (
-                        <CreditRepairBillingPanel
-                          client={{ id: selected.client_id, email: selected.email }}
-                          applicationId={selected.id}
-                          adminView
-                        />
-                      ) : (
-                        <p className="text-sm text-brand-muted">
-                          No client profile is linked yet, so a repair fee cannot be charged.
-                        </p>
-                      )}
+                      <CreditRepairBillingPanel
+                        client={{ id: selected.client_id || '', email: selected.email }}
+                        applicationId={selected.id}
+                        adminView
+                      />
                     </div>
                   )}
 
