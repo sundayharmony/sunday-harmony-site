@@ -14,6 +14,7 @@ import {
   enforceRound1BureauCaps,
   expandTradelineSelections,
   enrichPlanSelectionsWithItemStatus,
+  formatStatusHistory,
   isFollowUpOutcomeStatus,
   isRoundClosedForNext,
   isRoundFullySent,
@@ -28,6 +29,7 @@ import {
   pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
   roundWorkflowView,
+  shouldAppendStatusEvent,
   shouldReuseLetterPackage,
   splitWorkflowQueues,
   suggestFollowUpLetterType,
@@ -597,5 +599,63 @@ describe('letter package workflow', () => {
     assert.equal(snapshot.allSent, false)
     assert.equal(snapshot.workflow.label, 'Ready to Send')
     assert.equal(snapshot.pendingCount, 2)
+  })
+})
+
+describe('formatStatusHistory', () => {
+  it('does not repeat stage label and detail for the same action', () => {
+    const lines = formatStatusHistory([
+      {
+        at: '2026-09-15T12:00:00.000Z',
+        stage: 'selected',
+        roundNumber: 1,
+        detail: 'Selected for Round 1',
+      },
+    ])
+    assert.equal(lines.length, 1)
+    assert.match(lines[0], /09\/15\/2026/)
+    assert.match(lines[0], /Round 1/)
+    assert.match(lines[0], /Selected for Round 1/)
+    assert.ok(!lines[0].includes('Selected for round · Selected for Round 1'))
+  })
+
+  it('collapses consecutive duplicate events from repeated round syncs', () => {
+    const event = {
+      at: '2026-09-15T12:00:00.000Z',
+      stage: 'selected' as const,
+      roundNumber: 1,
+      detail: 'Selected for Round 1',
+    }
+    const lines = formatStatusHistory([event, event, event, event])
+    assert.equal(lines.length, 1)
+  })
+})
+
+describe('shouldAppendStatusEvent', () => {
+  it('blocks back-to-back identical events', () => {
+    const history = [
+      {
+        at: '2026-09-15T12:00:00.000Z',
+        stage: 'selected' as const,
+        roundNumber: 1,
+        detail: 'Selected for Round 1',
+      },
+    ]
+    assert.equal(
+      shouldAppendStatusEvent(history, {
+        stage: 'selected',
+        roundNumber: 1,
+        detail: 'Selected for Round 1',
+      }),
+      false
+    )
+    assert.equal(
+      shouldAppendStatusEvent(history, {
+        stage: 'letter_generated',
+        roundNumber: 1,
+        detail: 'Round 1 letter generated',
+      }),
+      true
+    )
   })
 })

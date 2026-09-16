@@ -497,7 +497,23 @@ export function appendStatusEvent(
   history: DisputeStatusEvent[] | null | undefined,
   event: Omit<DisputeStatusEvent, 'at'> & { at?: string }
 ): DisputeStatusEvent[] {
+  if (!shouldAppendStatusEvent(history, event)) return history || []
   return [...(history || []), { at: event.at || new Date().toISOString(), ...event }]
+}
+
+/** Skip back-to-back identical workflow events (e.g. re-syncing round selections). */
+export function shouldAppendStatusEvent(
+  history: DisputeStatusEvent[] | null | undefined,
+  event: Omit<DisputeStatusEvent, 'at'> & { at?: string }
+): boolean {
+  const rows = history || []
+  const last = rows[rows.length - 1]
+  if (!last) return true
+  return !(
+    last.stage === event.stage &&
+    (last.roundNumber ?? null) === (event.roundNumber ?? null) &&
+    (last.detail || '').trim() === (event.detail || '').trim()
+  )
 }
 
 export function nextRoundNumber(rounds: { round_number: number }[]): number {
@@ -655,28 +671,48 @@ export function comparisonUpdatesForItems(params: {
   return updates
 }
 
-export function formatStatusHistory(events: DisputeStatusEvent[] | null | undefined): string[] {
-  return (events || []).map((event) => {
-    const date = event.at
-      ? new Date(event.at).toLocaleDateString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-          year: 'numeric',
-        })
-      : ''
-    const stage =
-      event.stage === 'identified' ||
-      event.stage === 'selected' ||
-      event.stage === 'letter_generated' ||
-      event.stage === 'sent' ||
-      event.stage === 'still_appears' ||
-      event.stage === 'resolved' ||
-      event.stage === 'withdrawn'
-        ? workflowStageLabel(event.stage)
-        : event.stage
-    const round = event.roundNumber ? `Round ${event.roundNumber}` : ''
-    return [date, round, stage, event.detail].filter(Boolean).join(' · ')
+function formatStatusHistoryDate(at: string | undefined): string {
+  if (!at) return ''
+  return new Date(at).toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
   })
+}
+
+function statusHistoryAction(event: DisputeStatusEvent): string {
+  const detail = (event.detail || '').trim()
+  const stage =
+    event.stage === 'identified' ||
+    event.stage === 'selected' ||
+    event.stage === 'letter_generated' ||
+    event.stage === 'sent' ||
+    event.stage === 'still_appears' ||
+    event.stage === 'resolved' ||
+    event.stage === 'withdrawn'
+      ? workflowStageLabel(event.stage)
+      : event.stage
+
+  if (!detail) return stage
+  if (!stage) return detail
+
+  const detailLower = detail.toLowerCase()
+  const stageLower = stage.toLowerCase()
+  if (detailLower === stageLower || detailLower.includes(stageLower)) return detail
+  return `${stage}: ${detail}`
+}
+
+export function formatStatusHistory(events: DisputeStatusEvent[] | null | undefined): string[] {
+  const lines: string[] = []
+  for (const event of events || []) {
+    const date = formatStatusHistoryDate(event.at)
+    const round = event.roundNumber ? `Round ${event.roundNumber}` : ''
+    const line = [date, round, statusHistoryAction(event)].filter(Boolean).join(' · ')
+    if (!line) continue
+    if (lines.length > 0 && lines[lines.length - 1] === line) continue
+    lines.push(line)
+  }
+  return lines
 }
 
 export function countSelectionsPerBureau(

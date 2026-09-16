@@ -1209,6 +1209,13 @@ export async function upsertRoundItemsFromTradelines(params: {
       let itemId = (existing as DisputeItemRow | null)?.id
       if (itemId) {
         const prev = existing as DisputeItemRow
+        const selectedEvent = {
+          at: now,
+          stage: 'selected' as const,
+          roundNumber: params.roundNumber,
+          detail: `Selected for Round ${params.roundNumber}`,
+        }
+        const history = appendStatusEvent(prev.status_history, selectedEvent)
         await db
           .from('dispute_items')
           .update({
@@ -1218,12 +1225,7 @@ export async function upsertRoundItemsFromTradelines(params: {
             current_status: 'selected_for_round' satisfies DisputeItemStatus,
             last_round_number: params.roundNumber,
             last_letter_type: 'bureau',
-            status_history: appendStatusEvent(prev.status_history, {
-              at: now,
-              stage: 'selected',
-              roundNumber: params.roundNumber,
-              detail: `Selected for Round ${params.roundNumber}`,
-            }),
+            status_history: history,
             updated_at: now,
           })
           .eq('id', itemId)
