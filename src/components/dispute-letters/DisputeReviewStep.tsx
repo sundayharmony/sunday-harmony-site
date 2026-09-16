@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type MutableRefObject } from 'react'
 import Link from 'next/link'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import { EmptyState } from '@/components/dispute-letters/EmptyState'
-import { TradelineCard } from '@/components/dispute-letters/TradelineCard'
+import { TRADELINE_CARD_GRID, TradelineCard } from '@/components/dispute-letters/TradelineCard'
 import {
   buildDisputePlan,
   fetchDisputeReport,
@@ -211,23 +211,25 @@ export default function DisputeReviewStep({
     return (
       <section className="space-y-3">
         <h3 className="text-lg font-semibold text-brand-text">{title}</h3>
-        {items.map((t) => (
-          <TradelineCard
-            key={t.id}
-            tradeline={t}
-            selected={t.selected}
-            onSelect={(checked) =>
-              update(t.id, {
-                selected: checked,
-                dispute_reason: checked ? t.dispute_reason || resolvedDisputeReason(t) : t.dispute_reason,
-              })
-            }
-            onChange={(patch) => update(t.id, patch)}
-            onToggleBureau={(b, c) => toggleDisputeBureau(t.id, b, c)}
-            showTargets
-            showReason
-          />
-        ))}
+        <div className={TRADELINE_CARD_GRID}>
+          {items.map((t) => (
+            <TradelineCard
+              key={t.id}
+              tradeline={t}
+              selected={t.selected}
+              onSelect={(checked) =>
+                update(t.id, {
+                  selected: checked,
+                  dispute_reason: checked ? t.dispute_reason || resolvedDisputeReason(t) : t.dispute_reason,
+                })
+              }
+              onChange={(patch) => update(t.id, patch)}
+              onToggleBureau={(b, c) => toggleDisputeBureau(t.id, b, c)}
+              showTargets
+              showReason
+            />
+          ))}
+        </div>
       </section>
     )
   }

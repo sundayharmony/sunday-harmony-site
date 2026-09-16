@@ -7,7 +7,7 @@ import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLet
 import { EmptyState } from '@/components/dispute-letters/EmptyState'
 import { ScoreCard } from '@/components/dispute-letters/ScoreCard'
 import { StatCard } from '@/components/dispute-letters/StatCard'
-import { TradelineCard } from '@/components/dispute-letters/TradelineCard'
+import { TRADELINE_CARD_GRID, TradelineCard } from '@/components/dispute-letters/TradelineCard'
 import { fetchDisputeHealth, patchDisputeTradelines } from '@/lib/dispute-letters/client-api'
 import { applyRecommendedSelection } from '@/lib/dispute-letters/dispute-selection'
 import { sourceLabel, type Tradeline } from '@/lib/dispute-letters/types'
@@ -165,7 +165,7 @@ export default function DisputeHealthStep({
             message="Try uploading a different report format or check the file quality."
           />
         ) : (
-          <div className="space-y-3">
+          <div className={TRADELINE_CARD_GRID}>
             {tradelines.map((t) => (
               <TradelineCard
                 key={t.id}

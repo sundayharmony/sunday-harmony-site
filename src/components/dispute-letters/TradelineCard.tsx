@@ -1,6 +1,12 @@
+'use client'
+
+import type { MouseEvent } from 'react'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { SeverityBadge } from '@/components/dispute-letters/SeverityBadge'
+
+export const TRADELINE_CARD_GRID =
+  'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch'
 
 type TradelineCardProps = {
   tradeline: Tradeline
@@ -13,6 +19,10 @@ type TradelineCardProps = {
   compact?: boolean
 }
 
+function isNestedControl(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest('input, textarea, select, button, a, label'))
+}
+
 export function TradelineCard({
   tradeline: t,
   selected,
@@ -23,11 +33,17 @@ export function TradelineCard({
   showReason = false,
   compact = false,
 }: TradelineCardProps) {
+  function handleCardClick(event: MouseEvent<HTMLDivElement>) {
+    if (!onSelect || isNestedControl(event.target)) return
+    onSelect(!selected)
+  }
+
   return (
     <div
-      className={`rounded-xl border bg-white p-4 shadow-sm ${
+      className={`h-full rounded-xl border bg-white p-4 shadow-sm ${
         selected ? 'border-accent ring-1 ring-accent/30' : 'border-brand-border'
-      }`}
+      } ${onSelect ? 'cursor-pointer hover:border-accent/50' : ''}`}
+      onClick={onSelect ? handleCardClick : undefined}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
@@ -36,6 +52,8 @@ export function TradelineCard({
               type="checkbox"
               className="mt-1 h-4 w-4 accent-accent"
               checked={!!selected}
+              aria-label={`Select ${t.creditor || 'account'}`}
+              onClick={(event) => event.stopPropagation()}
               onChange={(e) => onSelect(e.target.checked)}
             />
           )}
