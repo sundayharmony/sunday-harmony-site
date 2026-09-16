@@ -21,6 +21,7 @@ import {
   shouldEmailRepairReceiptOnPay,
 } from '@/lib/credit-repair-billing'
 import { sendRepairInvoiceEmail } from '@/lib/credit-repair-billing-email'
+import { sendPaymentProcessedAdminEmail } from '@/lib/billing-payment-email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -140,8 +141,8 @@ export async function POST(req: NextRequest) {
       const invoice = event.data.object as Stripe.Invoice
       const stripeCustomerId = String(invoice.customer || '')
       const client = stripeCustomerId ? await getClientByStripeCustomerId(stripeCustomerId) : undefined
+      const subscriptionId = subscriptionIdFromInvoice(invoice)
       if (client) {
-        const subscriptionId = subscriptionIdFromInvoice(invoice)
         if (subscriptionId) {
           const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
           await applySubscriptionToClient(client.id, subscription)
@@ -175,6 +176,19 @@ export async function POST(req: NextRequest) {
             last_payment_at: paidAtSec ? new Date(paidAtSec * 1000).toISOString() : new Date().toISOString(),
           })
         }
+      }
+      try {
+        await sendPaymentProcessedAdminEmail({
+          invoice,
+          client,
+          kind: subscriptionId
+            ? 'subscription'
+            : isRepairInvoice(invoice, client)
+              ? 'credit_repair'
+              : 'payment',
+        })
+      } catch (err) {
+        console.error('SMTP admin payment confirmation on invoice.paid failed:', err)
       }
     }
 

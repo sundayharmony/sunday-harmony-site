@@ -13,6 +13,8 @@
    - `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
    - `invoice.paid`, `invoice.payment_failed`, `invoice.payment_action_required`
    - `setup_intent.succeeded`, `customer.subscription.trial_will_end`
+
+`invoice.paid` emails `NOTIFY_EMAIL` (default `sales@sundayharmony.com`) a payment-received confirmation for credit-repair fees and marketing subscriptions, in addition to the client SMTP receipt.
 4. Run Supabase migrations `003` (billing columns) and `005` (webhook idempotency).
 
 No routine work in the Stripe Dashboard is required after setup.
@@ -28,8 +30,8 @@ Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **A
 3. Every charge or emailed invoice creates a Stripe Invoice. Admin **Payment history** and the client **Billing** page list each one (open, paid, or failed).
 4. The client always gets a Sunday Harmony invoice/receipt email via SMTP. Stripe `sendInvoice` is also called so the hosted pay link exists. Paying the emailed link later still emails a receipt (`invoice.paid` webhook). If SMTP is not configured, staff see an error and can copy/resend the invoice link.
 5. Use **Resend invoice email** to send the latest invoice again.
-5. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`) and updates the latest fee amount.
-6. Charging looks up **card and Link** methods, including the Stripe customer's default. If the linked Stripe customer has no method, we search other customers with the same email (never stealing another client's customer) and use the one that already has a card. Saving a card on `/dashboard/billing` stores the Stripe customer the payment method actually landed on, so a later charge uses that same card.
+6. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`) and updates the latest fee amount. The same webhook emails `NOTIFY_EMAIL` a payment-received confirmation (card-on-file charges and hosted invoice payments).
+7. Charging looks up **card and Link** methods, including the Stripe customer's default. If the linked Stripe customer has no method, we search other customers with the same email (never stealing another client's customer) and use the one that already has a card. Saving a card on `/dashboard/billing` stores the Stripe customer the payment method actually landed on, so a later charge uses that same card.
 
 Optional env: `CREDIT_REPAIR_DEFAULT_FEE_CENTS` (USD cents) as the amount prefill.
 
