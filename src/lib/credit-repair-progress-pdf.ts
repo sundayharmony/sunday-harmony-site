@@ -60,10 +60,11 @@ type Doc = PDFKit.PDFDocument
 
 const PAGE_MARGINS = { top: 52, bottom: 56, left: 56, right: 56 }
 const CARD_RADIUS = 8
-const CARD_PAD = 7
-const ACCOUNT_CARD_GAP = 8
-const FIELD_ROW_H = 15
-const FIELD_LABEL_W = 58
+const CARD_PAD = 5
+const ACCOUNT_CARD_GAP = 6
+const TITLE_ROW_H = 9
+const FIELD_ROW_H = 13
+const FIELD_LABEL_W = 56
 
 function contentWidth(doc: Doc) {
   return doc.page.width - doc.page.margins.left - doc.page.margins.right
@@ -144,9 +145,9 @@ function directionColor(direction: string): string {
 }
 
 function drawSectionTitle(doc: Doc, title: string) {
-  doc.moveDown(0.35)
+  doc.moveDown(0.25)
   doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.text).text(title)
-  doc.moveDown(0.45)
+  doc.moveDown(0.3)
 }
 
 function drawMutedCaption(doc: Doc, text: string) {
@@ -168,20 +169,20 @@ function drawBeforeAfterRow(
 ): void {
   const left = doc.page.margins.left + CARD_PAD
   const width = contentWidth(doc) - CARD_PAD * 2
-  const arrowW = 18
-  const gap = 6
+  const arrowW = 16
+  const gap = 5
   const valueW = (width - FIELD_LABEL_W - arrowW - gap * 2) / 2
   const y = doc.y
 
   doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
-  doc.text(safe(label), left, y + 1, { width: FIELD_LABEL_W, lineBreak: false })
+  doc.text(safe(label), left, y, { width: FIELD_LABEL_W, lineBreak: false })
 
   const fromX = left + FIELD_LABEL_W
   doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.muted)
   doc.text(truncateField(from), fromX, y, { width: valueW, lineBreak: false })
 
   const arrowX = fromX + valueW + gap
-  drawArrow(doc, arrowX, y + 4, arrowX + arrowW, COLORS.border)
+  drawArrow(doc, arrowX, y + 3.5, arrowX + arrowW, COLORS.border)
 
   const toX = arrowX + arrowW + gap
   doc.font('Helvetica').fontSize(8.5).fillColor(directionColor(direction))
@@ -199,36 +200,36 @@ function drawScoreHero(
   scoreColor: string
 ) {
   const boxY = doc.y
-  const boxH = 76
+  const boxH = 62
   const boxW = contentWidth(doc)
   doc.roundedRect(doc.page.margins.left, boxY, boxW, boxH, CARD_RADIUS).fill(COLORS.softBg)
 
-  const col1 = doc.page.margins.left + 24
+  const col1 = doc.page.margins.left + 18
   const col2 = doc.page.margins.left + boxW * 0.38
   const col3 = doc.page.margins.left + boxW * 0.72
-  const scoreY = boxY + 34
+  const scoreY = boxY + 28
 
-  doc.fillColor(COLORS.dim).font('Helvetica').fontSize(9)
-  doc.text('Before', col1, boxY + 16, { lineBreak: false })
-  doc.text('After', col2, boxY + 16, { lineBreak: false })
+  doc.fillColor(COLORS.dim).font('Helvetica').fontSize(8.5)
+  doc.text('Before', col1, boxY + 10, { lineBreak: false })
+  doc.text('After', col2, boxY + 10, { lineBreak: false })
   if (scoreDelta != null) {
-    doc.text('Change', col3, boxY + 16, { lineBreak: false })
+    doc.text('Change', col3, boxY + 10, { lineBreak: false })
   }
 
-  doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(28)
+  doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(26)
   doc.text(fromScore != null ? String(fromScore) : '-', col1, scoreY, { lineBreak: false })
   doc.text(toScore != null ? String(toScore) : '-', col2, scoreY, { lineBreak: false })
 
-  const arrowY = scoreY + 10
-  drawArrow(doc, col1 + 52, arrowY, col2 - 12, COLORS.accent)
+  const arrowY = scoreY + 9
+  drawArrow(doc, col1 + 48, arrowY, col2 - 10, COLORS.accent)
 
   if (scoreDelta != null) {
     const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
-    doc.fillColor(scoreColor).font('Helvetica-Bold').fontSize(22)
-    doc.text(safe(`${label} pts`), col3, scoreY + 2, { lineBreak: false })
+    doc.fillColor(scoreColor).font('Helvetica-Bold').fontSize(20)
+    doc.text(safe(`${label} pts`), col3, scoreY + 1, { lineBreak: false })
   }
 
-  doc.y = boxY + boxH + 22
+  doc.y = boxY + boxH + 14
   doc.x = doc.page.margins.left
 }
 
@@ -236,33 +237,39 @@ function drawMetricPills(doc: Doc, deltas: CreditProgressDelta[]) {
   const changed = deltas.filter((d) => d.from !== d.to)
   if (!changed.length) return
 
-  const pillGap = 10
-  const pillW = (contentWidth(doc) - pillGap * (changed.length - 1)) / changed.length
-  const pillH = 44
-  ensureSpace(doc, pillH + 16)
-  const y = doc.y
+  const cols = changed.length > 3 ? 2 : changed.length
+  const rows = Math.ceil(changed.length / cols)
+  const pillGap = 8
+  const rowGap = 6
+  const pillW = (contentWidth(doc) - pillGap * (cols - 1)) / cols
+  const pillH = 32
+  ensureSpace(doc, rows * pillH + (rows - 1) * rowGap + 10)
+  const startY = doc.y
 
   changed.forEach((d, i) => {
-    const x = doc.page.margins.left + i * (pillW + pillGap)
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const x = doc.page.margins.left + col * (pillW + pillGap)
+    const y = startY + row * (pillH + rowGap)
     doc.roundedRect(x, y, pillW, pillH, 6).fill(COLORS.cardBg)
     doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
-    doc.text(safe(d.label), x + 10, y + 10, { width: pillW - 20, lineBreak: false })
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text)
+    doc.text(safe(d.label), x + 8, y + 5, { width: pillW - 16, lineBreak: false })
+    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.text)
     const from = formatDeltaValue(d.from)
     const to = formatDeltaValue(d.to)
-    const midY = y + 24
-    doc.text(from, x + 10, midY, { width: pillW * 0.38, lineBreak: false })
-    drawArrow(doc, x + pillW * 0.42, midY + 4, x + pillW * 0.56, COLORS.border)
+    const midY = y + 17
+    doc.text(from, x + 8, midY, { width: pillW * 0.38, lineBreak: false })
+    drawArrow(doc, x + pillW * 0.42, midY + 3.5, x + pillW * 0.56, COLORS.border)
     doc.fillColor(directionColor(d.direction))
     doc.text(to, x + pillW * 0.58, midY, { width: pillW * 0.34, lineBreak: false })
   })
 
-  doc.y = y + pillH + 20
+  doc.y = startY + rows * pillH + (rows - 1) * rowGap + 12
   doc.x = doc.page.margins.left
 }
 
 function accountCardHeight(fieldCount: number): number {
-  return CARD_PAD * 2 + 11 + fieldCount * FIELD_ROW_H
+  return CARD_PAD * 2 + TITLE_ROW_H + fieldCount * FIELD_ROW_H
 }
 
 function drawAccountCard(
@@ -279,12 +286,12 @@ function drawAccountCard(
 
   doc.roundedRect(x, y, w, cardH, CARD_RADIUS).fillAndStroke(COLORS.white, COLORS.border)
 
-  doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text)
+  doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.text)
   const maskLabel = formatAccountMaskForPdf(mask)
   const title = maskLabel ? `${safe(creditor)}  ${maskLabel}` : safe(creditor)
   doc.text(title, x + CARD_PAD, y + CARD_PAD, { width: w - CARD_PAD * 2, lineBreak: false })
 
-  doc.y = y + CARD_PAD + 11
+  doc.y = y + CARD_PAD + TITLE_ROW_H
   doc.x = doc.page.margins.left
   for (const f of fields) {
     drawBeforeAfterRow(doc, f.label, f.from, f.to, f.direction)
@@ -375,7 +382,7 @@ function drawReportRange(
   if (files.length) {
     doc.fontSize(8).fillColor(COLORS.dim).text(files.join('   /   '), { lineGap: 3 })
   }
-  doc.moveDown(0.55)
+  doc.moveDown(0.4)
 }
 
 /**
@@ -503,7 +510,7 @@ export function buildCreditRepairProgressPdfBuffer(
       } else {
         if (diff!.changed.length > 0) {
           doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('Updated')
-          doc.moveDown(0.5)
+          doc.moveDown(0.3)
           for (const item of diff!.changed) {
             drawAccountCard(doc, item.creditor, item.accountMask, item.fields)
           }
