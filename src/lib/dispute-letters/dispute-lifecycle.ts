@@ -417,15 +417,14 @@ export function comparisonUpdatesForItems(params: {
   for (const item of params.items) {
     const onFile = params.latestMatchKeys.has(item.match_key)
     const candidate = params.latestCandidateKeys.has(item.match_key)
-    const wasDisputed =
-      Boolean(item.sent_at) ||
-      item.current_status === 'disputed' ||
+    const wasDisputed = Boolean(item.sent_at) ||
       item.current_status === 'verified' ||
       item.current_status === 'updated' ||
       item.current_status === 'no_response'
 
     if (!onFile) {
       if (item.current_status === 'deleted' || item.current_status === 'withdrawn') continue
+      if (!wasDisputed) continue
       updates.push({
         id: item.id,
         nextStatus: 'deleted',
@@ -584,14 +583,14 @@ export function disputeLettersZipDownloadNameForRound(
   return `${cleaned} round ${round} Letters.zip`
 }
 
-export function itemStatusLabel(status: DisputeItemStatus): string {
+export function itemStatusLabel(status: DisputeItemStatus, sentAt?: string | null): string {
   switch (status) {
     case 'pending':
       return 'Identified'
     case 'selected_for_round':
       return 'Selected for round'
     case 'disputed':
-      return 'Sent'
+      return sentAt ? 'Sent' : 'Letter generated'
     case 'deleted':
       return 'Deleted'
     case 'verified':

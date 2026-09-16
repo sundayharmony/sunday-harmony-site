@@ -17,6 +17,7 @@ import {
   isRoundClosedForNext,
   isRoundFullySent,
   itemIdentityFromTradeline,
+  itemStatusLabel,
   itemWorkflowStage,
   letterChunkCount,
   nextRoundNumber,
@@ -458,6 +459,25 @@ describe('dispute lifecycle rounds', () => {
     assert.equal(updates.find((u) => u.id === 'stay')?.event.stage, 'still_appears')
   })
 
+  it('does not treat unsent disputed rows as mailed', () => {
+    const stamped = item({
+      id: 'legacy',
+      match_key: 'legacy-key',
+      current_status: 'disputed',
+    })
+    const updates = comparisonUpdatesForItems({
+      items: [stamped],
+      latestMatchKeys: new Set(['legacy-key']),
+      latestCandidateKeys: new Set(['legacy-key']),
+    })
+    assert.equal(updates.length, 0)
+  })
+
+  it('labels disputed as Letter generated until sent_at exists', () => {
+    assert.equal(itemStatusLabel('disputed'), 'Letter generated')
+    assert.equal(itemStatusLabel('disputed', '2026-09-15T12:00:00.000Z'), 'Sent')
+  })
+
   it('does not stamp items disputed at plan time; Sent is a separate action', () => {
     const db = readFileSync('src/lib/dispute-letters/dispute-lifecycle-db.ts', 'utf8')
     const readyFn = db.slice(
@@ -472,5 +492,11 @@ describe('dispute lifecycle rounds', () => {
     assert.equal(planFn.includes('markRoundLettersReady'), false)
     assert.match(db, /export async function markLetterSent/)
     assert.match(db, /export async function onLettersGenerated/)
+    assert.match(db, /export async function repairUnsentDisputedItems/)
+    const statusFn = db.slice(
+      db.indexOf('export async function updateDisputeItemStatus'),
+      db.indexOf('export async function getRoundNumberForSession')
+    )
+    assert.equal(statusFn.includes('payload.sent_at'), false)
   })
 })

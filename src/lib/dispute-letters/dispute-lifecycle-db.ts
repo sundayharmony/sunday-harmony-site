@@ -181,6 +181,7 @@ export async function loadDisputeLifecycleForApplication(
 
   const disputeCase = caseRow as DisputeCaseRow
   await seedPendingItemsFromLatestReport(applicationUuid, disputeCase.id)
+  await repairUnsentDisputedItems(disputeCase.id)
   await applyComparisonFromLatestReport(applicationUuid, disputeCase.id)
   const rounds = await listRoundsForCase(disputeCase.id)
   const items = await listItemsForCase(disputeCase.id)
@@ -297,6 +298,35 @@ async function seedPendingItemsFromLatestReport(
   const tradelines = await latestReportTradelines(applicationUuid)
   if (!tradelines.length) return
   await ensurePendingItemsFromTradelines({ caseId, tradelines })
+}
+
+/** Legacy plan-time stamps used status disputed without sent_at. That is not Sent. */
+export async function repairUnsentDisputedItems(caseId: string): Promise<number> {
+  const items = await listItemsForCase(caseId)
+  const now = new Date().toISOString()
+  const db = getSupabase()
+  let repaired = 0
+  for (const item of items) {
+    if (item.current_status !== 'disputed' || item.sent_at) continue
+    const history = (item.status_history || []).filter(
+      (event) => event.stage !== 'still_appears' && event.stage !== 'sent'
+    )
+    const { error } = await db
+      .from('dispute_items')
+      .update({
+        current_status: 'selected_for_round' satisfies DisputeItemStatus,
+        status_history: appendStatusEvent(history, {
+          at: now,
+          stage: 'letter_generated',
+          roundNumber: item.last_round_number,
+          detail: 'Automatic Disputed stamp cleared; not sent until Mark sent',
+        }),
+        updated_at: now,
+      })
+      .eq('id', item.id)
+    if (!error) repaired += 1
+  }
+  return repaired
 }
 
 export async function applyComparisonFromLatestReport(
@@ -825,7 +855,7 @@ export async function updateDisputeItemStatus(
       : status === 'selected_for_round'
         ? 'selected'
         : status === 'disputed'
-          ? 'sent'
+          ? 'letter_generated'
           : status === 'deleted'
             ? 'resolved'
             : status === 'withdrawn' || status === 'frivolous'
@@ -842,7 +872,6 @@ export async function updateDisputeItemStatus(
     }),
   }
   if (notes !== undefined) payload.notes = notes
-  if (status === 'disputed' && !prev?.sent_at) payload.sent_at = now
   const { error } = await db.from('dispute_items').update(payload).eq('id', itemId)
   if (error) {
     if (isMissingColumn(error, 'status_history') || isMissingColumn(error, 'sent_at')) {

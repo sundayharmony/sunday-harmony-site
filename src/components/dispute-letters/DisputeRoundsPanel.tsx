@@ -444,7 +444,7 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
                         {' '}
                         {BUREAU_LABELS[item.bureau]}
                         {item.account_last4 ? ` ···${item.account_last4}` : ''} —{' '}
-                        {itemStatusLabel(item.current_status)}
+                        {itemStatusLabel(item.current_status, item.sent_at)}
                       </span>
                     </span>
                   </label>
@@ -779,9 +779,7 @@ function ItemStatusQueue({
                   {item.account_last4 ? ` ···${item.account_last4}` : ''}
                 </span>
                 <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-medium text-brand-dim">
-                  {item.current_status === 'disputed' && !item.sent_at
-                    ? 'Letter generated'
-                    : itemStatusLabel(item.current_status)}
+                  {itemStatusLabel(item.current_status, item.sent_at)}
                 </span>
                 {item.last_round_number ? (
                   <span className="text-brand-muted">R{item.last_round_number}</span>
@@ -799,7 +797,12 @@ function ItemStatusQueue({
                 >
                   {ITEM_OUTCOMES.map((status) => (
                     <option key={status} value={status}>
-                      {itemStatusLabel(status)}
+                      {itemStatusLabel(
+                        status,
+                        status === 'disputed' && item.current_status === 'disputed'
+                          ? item.sent_at
+                          : null
+                      )}
                     </option>
                   ))}
                 </select>
