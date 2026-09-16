@@ -24,7 +24,11 @@ import {
   formatRepairFeeCents,
   isCreditRepairBillingClient,
   parseRepairFeeToCents,
+  repairInvoiceMetadata,
+  resolveRepairCollectionMode,
+  sendRepairInvoiceEmail,
 } from '@/lib/credit-repair-billing'
+import { normalizeStripeInvoice } from '@/lib/stripe-invoice-utils'
 
 export type SubscribeResult =
   | { subscription: Stripe.Subscription }
@@ -660,9 +664,22 @@ export type RepairBillingSnapshot =
         expYear: number
         isDefault: boolean
       }>
+      invoices: ReturnType<typeof normalizeStripeInvoice>[]
       paid: boolean
     }
   | { error: string; status: number }
+
+function isTrackedRepairInvoice(invoice: Stripe.Invoice): boolean {
+  if (invoice.status === 'draft' || invoice.status === 'void') return false
+  if (invoice.metadata?.billing_model === 'credit_repair_one_time') return true
+  const parentSub = invoice.parent?.subscription_details?.subscription
+  return !parentSub
+}
+
+async function listRepairInvoicesForCustomer(customerId: string) {
+  const list = await getStripe().invoices.list({ customer: customerId, limit: 24 })
+  return list.data.filter(isTrackedRepairInvoice).map(normalizeStripeInvoice)
+}
 
 export async function getRepairBillingSnapshot(clientId: string): Promise<RepairBillingSnapshot> {
   const client = await getClientById(clientId)
@@ -674,10 +691,14 @@ export async function getRepairBillingSnapshot(clientId: string): Promise<Repair
   const paymentMethods = await listPaymentMethods(clientId)
   if ('error' in paymentMethods) return paymentMethods
 
+  const customerId = client.stripe_customer_id?.trim()
+  const invoices = customerId ? await listRepairInvoicesForCustomer(customerId) : []
+
   return {
     client,
     defaultFeeCents: defaultRepairFeeCents(),
     paymentMethods: paymentMethods.paymentMethods,
+    invoices,
     paid: Boolean(client.repair_fee_paid_at) || client.billing_status === 'paid',
   }
 }
@@ -690,8 +711,54 @@ export type ChargeRepairFeeResult =
       invoiceId: string
       hostedInvoiceUrl?: string | null
       status: string
+      emailed: boolean
+      charged: boolean
     }
   | { error: string; status: number }
+
+async function deliverRepairInvoiceCopy(params: {
+  client: Client
+  invoice: Stripe.Invoice
+  amountCents: number
+  paid: boolean
+}): Promise<{ invoice: Stripe.Invoice; emailed: boolean }> {
+  const stripe = getStripe()
+  let invoice = params.invoice
+  let emailed = false
+
+  if (invoice.status === 'open') {
+    try {
+      invoice = await stripe.invoices.sendInvoice(invoice.id)
+      emailed = true
+    } catch (err) {
+      console.error('Stripe sendInvoice for repair fee failed:', err)
+    }
+  }
+
+  if (!invoice.hosted_invoice_url && invoice.id) {
+    try {
+      invoice = await stripe.invoices.retrieve(invoice.id)
+    } catch (err) {
+      console.error('Stripe retrieve repair invoice failed:', err)
+    }
+  }
+
+  try {
+    const smtpSent = await sendRepairInvoiceEmail({
+      to: params.client.email,
+      clientName: params.client.name || 'there',
+      amountCents: params.amountCents,
+      paid: params.paid,
+      hostedInvoiceUrl: invoice.hosted_invoice_url,
+      invoiceNumber: invoice.number,
+    })
+    if (smtpSent) emailed = true
+  } catch (err) {
+    console.error('SMTP repair invoice email failed:', err)
+  }
+
+  return { invoice, emailed }
+}
 
 export async function adminChargeCreditRepairFee(
   clientId: string,
@@ -713,7 +780,6 @@ export async function adminChargeCreditRepairFee(
   if ('error' in parsed) return { error: parsed.error, status: 400 }
 
   const description = input.description?.trim() || 'Credit repair one-time fee'
-  const sendInvoice = Boolean(input.sendInvoice)
 
   const ensured = await ensureStripeCustomerForClient(clientId)
   if (!ensured.ok) return { error: ensured.error, status: ensured.status }
@@ -721,12 +787,11 @@ export async function adminChargeCreditRepairFee(
   const pms = await listPaymentMethods(clientId)
   if ('error' in pms) return pms
   const defaultPm = pms.paymentMethods.find(pm => pm.isDefault) ?? pms.paymentMethods[0]
-  if (!sendInvoice && !defaultPm) {
-    return {
-      error: 'No card on file. Ask the client to add a card on Billing, or email an invoice instead.',
-      status: 400,
-    }
-  }
+  const mode = resolveRepairCollectionMode({
+    preferSendInvoice: Boolean(input.sendInvoice),
+    hasCard: Boolean(defaultPm),
+  })
+  const chargeCard = mode === 'charge_card'
 
   await updateClient(clientId, {
     billing_model: 'credit_repair_one_time',
@@ -739,16 +804,16 @@ export async function adminChargeCreditRepairFee(
   const invoice = await stripe.invoices.create({
     customer: ensured.stripe_customer_id,
     currency: 'usd',
-    collection_method: sendInvoice ? 'send_invoice' : 'charge_automatically',
+    collection_method: chargeCard ? 'charge_automatically' : 'send_invoice',
     auto_advance: false,
     description,
-    metadata: {
-      client_id: clientId,
-      billing_model: 'credit_repair_one_time',
-    },
+    metadata: repairInvoiceMetadata({
+      clientId,
+      emailReceiptOnPay: !chargeCard,
+    }),
     pending_invoice_items_behavior: 'exclude',
-    ...(sendInvoice ? { days_until_due: 7 } : {}),
-    ...(defaultPm && !sendInvoice ? { default_payment_method: defaultPm.id } : {}),
+    ...(!chargeCard ? { days_until_due: 7 } : {}),
+    ...(defaultPm && chargeCard ? { default_payment_method: defaultPm.id } : {}),
   })
 
   if (!invoice.id) {
@@ -764,54 +829,65 @@ export async function adminChargeCreditRepairFee(
     ],
   })
 
-  const finalized = await stripe.invoices.finalizeInvoice(invoice.id)
+  let current: Stripe.Invoice = await stripe.invoices.finalizeInvoice(invoice.id)
 
-  if (sendInvoice) {
-    const sent = await stripe.invoices.sendInvoice(finalized.id)
+  if (chargeCard && defaultPm) {
+    current = await stripe.invoices.pay(current.id, {
+      off_session: true,
+      payment_method: defaultPm.id,
+    })
+    if (current.status === 'paid') {
+      await applyRepairInvoicePaid(clientId, current)
+    } else {
+      await updateClient(clientId, {
+        stripe_repair_invoice_id: current.id,
+        repair_fee_cents: parsed.cents,
+        billing_status: current.status === 'open' ? 'unpaid' : client.billing_status,
+      })
+    }
+  } else {
     await updateClient(clientId, {
       billing_model: 'credit_repair_one_time',
       billing_status: 'not_started',
-      stripe_repair_invoice_id: sent.id,
+      stripe_repair_invoice_id: current.id,
       repair_fee_cents: parsed.cents,
     })
-    const updated = await readClientOr404(clientId)
-    if ('error' in updated) return updated
-    return {
-      ok: true,
-      client: updated,
-      invoiceId: sent.id,
-      hostedInvoiceUrl: sent.hosted_invoice_url,
-      status: sent.status || 'open',
-      message: `Invoice for ${formatRepairFeeCents(parsed.cents)} emailed to ${client.email}.`,
-    }
   }
 
-  const paid = await stripe.invoices.pay(finalized.id, {
-    off_session: true,
-    ...(defaultPm ? { payment_method: defaultPm.id } : {}),
+  const paid = current.status === 'paid'
+  const delivered = await deliverRepairInvoiceCopy({
+    client,
+    invoice: current,
+    amountCents: parsed.cents,
+    paid,
   })
-  if (paid.status === 'paid') {
-    await applyRepairInvoicePaid(clientId, paid)
-  } else {
-    await updateClient(clientId, {
-      stripe_repair_invoice_id: paid.id,
-      repair_fee_cents: parsed.cents,
-      billing_status: paid.status === 'open' ? 'unpaid' : client.billing_status,
-    })
-  }
+  current = delivered.invoice
 
   const updated = await readClientOr404(clientId)
   if ('error' in updated) return updated
+
+  const emailedNote = delivered.emailed
+    ? ` Invoice emailed to ${client.email}.`
+    : ' Invoice created; email could not be sent — share the invoice link.'
+
+  let message: string
+  if (paid) {
+    message = `Charged ${formatRepairFeeCents(parsed.cents)} for credit repair.${emailedNote}`
+  } else if (!defaultPm && !input.sendInvoice) {
+    message = `No card on file — sent a ${formatRepairFeeCents(parsed.cents)} invoice to ${client.email} instead.`
+  } else {
+    message = `Invoice for ${formatRepairFeeCents(parsed.cents)} emailed to ${client.email}.`
+  }
+
   return {
     ok: true,
     client: updated,
-    invoiceId: paid.id,
-    hostedInvoiceUrl: paid.hosted_invoice_url,
-    status: paid.status || 'open',
-    message:
-      paid.status === 'paid'
-        ? `Charged ${formatRepairFeeCents(parsed.cents)} for credit repair.`
-        : `Invoice created (${paid.status || 'open'}). Complete payment if authentication is required.`,
+    invoiceId: current.id,
+    hostedInvoiceUrl: current.hosted_invoice_url,
+    status: current.status || 'open',
+    emailed: delivered.emailed,
+    charged: paid,
+    message,
   }
 }
 

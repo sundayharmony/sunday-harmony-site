@@ -1,5 +1,6 @@
 import type Stripe from 'stripe'
 import type { Client } from '@/lib/db'
+import { isEmailConfigured, sendEmail } from '@/lib/smtp-mail'
 import { updateClientForStripeSync } from '@/lib/stripe-subscription-sync'
 
 export const BILLING_MODELS = ['marketing_subscription', 'credit_repair_one_time'] as const
@@ -95,6 +96,98 @@ function validateRepairFeeCents(cents: number): { cents: number } | { error: str
     return { error: 'Repair fee cannot exceed $50,000.' }
   }
   return { cents }
+}
+
+export function resolveRepairCollectionMode(input: {
+  preferSendInvoice?: boolean
+  hasCard: boolean
+}): 'charge_card' | 'send_invoice' {
+  if (input.preferSendInvoice || !input.hasCard) return 'send_invoice'
+  return 'charge_card'
+}
+
+export function repairInvoiceMetadata(input: {
+  clientId: string
+  emailReceiptOnPay: boolean
+}): Record<string, string> {
+  return {
+    client_id: input.clientId,
+    billing_model: 'credit_repair_one_time',
+    email_receipt_on_pay: input.emailReceiptOnPay ? 'true' : 'false',
+  }
+}
+
+/** Webhook sends a receipt when the client pays an emailed invoice later. Card-on-file charges email in-request. */
+export function shouldEmailRepairReceiptOnPay(invoice: Stripe.Invoice): boolean {
+  return invoice.metadata?.email_receipt_on_pay !== 'false'
+}
+
+export async function sendRepairInvoiceEmail(input: {
+  to?: string | null
+  clientName: string
+  amountCents: number
+  paid: boolean
+  hostedInvoiceUrl?: string | null
+  invoiceNumber?: string | null
+}): Promise<boolean> {
+  const to = input.to?.trim()
+  if (!to || !isEmailConfigured()) return false
+  const copy = buildRepairInvoiceEmail({
+    clientName: input.clientName,
+    amountCents: input.amountCents,
+    paid: input.paid,
+    hostedInvoiceUrl: input.hostedInvoiceUrl,
+    invoiceNumber: input.invoiceNumber,
+  })
+  await sendEmail({ to, subject: copy.subject, html: copy.html })
+  return true
+}
+
+function escInvoiceHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+export function buildRepairInvoiceEmail(input: {
+  clientName: string
+  amountCents: number
+  paid: boolean
+  hostedInvoiceUrl?: string | null
+  invoiceNumber?: string | null
+}): { subject: string; html: string } {
+  const amount = formatRepairFeeCents(input.amountCents)
+  const first = escInvoiceHtml(input.clientName.trim().split(/\s+/)[0] || 'there')
+  const numberLabel = input.invoiceNumber ? `Invoice ${escInvoiceHtml(input.invoiceNumber)}` : 'Your invoice'
+  const subject = input.paid
+    ? `Receipt: ${amount} credit repair — Sunday Harmony`
+    : `Invoice: ${amount} credit repair — Sunday Harmony`
+  const intro = input.paid
+    ? `We received your ${amount} credit repair payment. Keep this email as your receipt.`
+    : `Here is your ${amount} credit repair invoice. Pay securely with the button below.`
+  const cta = input.paid ? 'View receipt' : 'Pay invoice'
+  const url = input.hostedInvoiceUrl?.trim() || ''
+  const button = url
+    ? `<p style="text-align:center;margin:28px 0">
+        <a href="${escInvoiceHtml(url)}" style="background:#c9a96e;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">${escInvoiceHtml(cta)}</a>
+      </p>`
+    : ''
+
+  return {
+    subject,
+    html: `
+      <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
+        <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">Credit repair ${input.paid ? 'receipt' : 'invoice'}</h2>
+        <p>Hi ${first},</p>
+        <p>${escInvoiceHtml(intro)}</p>
+        <p style="padding:12px;background:#fafafa;border-radius:8px;font-size:14px"><strong>${numberLabel}</strong> · ${escInvoiceHtml(amount)}</p>
+        ${button}
+        <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">&mdash; Sunday Harmony</p>
+      </div>
+    `,
+  }
 }
 
 export function isRepairInvoice(invoice: Stripe.Invoice, client?: { billing_model?: string | null; lead_type?: string | null }): boolean {

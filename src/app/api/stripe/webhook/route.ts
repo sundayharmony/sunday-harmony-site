@@ -15,7 +15,12 @@ import {
 } from '@/lib/stripe-subscription-sync'
 import { attachStripeCustomerFromSetupIntent } from '@/lib/stripe-customer-utils'
 import { SUBSCRIPTION_EXPAND } from '@/lib/stripe-subscription-validation'
-import { applyRepairInvoicePaid, isRepairInvoice } from '@/lib/credit-repair-billing'
+import {
+  applyRepairInvoicePaid,
+  isRepairInvoice,
+  sendRepairInvoiceEmail,
+  shouldEmailRepairReceiptOnPay,
+} from '@/lib/credit-repair-billing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -148,6 +153,20 @@ export async function POST(req: NextRequest) {
           })
         } else if (isRepairInvoice(invoice, client)) {
           await applyRepairInvoicePaid(client.id, invoice)
+          if (shouldEmailRepairReceiptOnPay(invoice)) {
+            try {
+              await sendRepairInvoiceEmail({
+                to: client.email,
+                clientName: client.name || 'there',
+                amountCents: invoice.amount_paid > 0 ? invoice.amount_paid : invoice.amount_due,
+                paid: true,
+                hostedInvoiceUrl: invoice.hosted_invoice_url,
+                invoiceNumber: invoice.number,
+              })
+            } catch (err) {
+              console.error('SMTP repair receipt on invoice.paid failed:', err)
+            }
+          }
         } else {
           const paidAtRaw = invoice.status_transitions?.paid_at
           const paidAtSec = typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw) ? paidAtRaw : null

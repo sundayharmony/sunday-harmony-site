@@ -4,10 +4,15 @@ import { readFileSync } from 'node:fs'
 import {
   billingModelForCreditApplication,
   billingRequiresActivation,
+  buildRepairInvoiceEmail,
   formatRepairFeeCents,
   isCreditRepairBillingClient,
   isCreditRepairLeadType,
   parseRepairFeeToCents,
+  repairInvoiceMetadata,
+  resolveRepairCollectionMode,
+  sendRepairInvoiceEmail,
+  shouldEmailRepairReceiptOnPay,
 } from '../credit-repair-billing'
 
 describe('credit repair billing helpers', () => {
@@ -48,6 +53,62 @@ describe('credit repair billing helpers', () => {
     assert.equal('error' in parseRepairFeeToCents(''), true)
     assert.equal(formatRepairFeeCents(49900), '$499.00')
   })
+
+  it('emails an invoice when no card is on file instead of charging', () => {
+    assert.equal(resolveRepairCollectionMode({ hasCard: false }), 'send_invoice')
+    assert.equal(resolveRepairCollectionMode({ hasCard: true, preferSendInvoice: true }), 'send_invoice')
+    assert.equal(resolveRepairCollectionMode({ hasCard: true, preferSendInvoice: false }), 'charge_card')
+  })
+
+  it('builds a client invoice/receipt email with a pay or receipt link', () => {
+    const unpaid = buildRepairInvoiceEmail({
+      clientName: 'Charlie McNichol',
+      amountCents: 25875,
+      paid: false,
+      hostedInvoiceUrl: 'https://invoice.stripe.com/i/test',
+      invoiceNumber: 'ABC-1',
+    })
+    assert.match(unpaid.subject, /Invoice: \$258\.75/)
+    assert.match(unpaid.html, /Pay invoice/)
+    assert.match(unpaid.html, /https:\/\/invoice\.stripe\.com\/i\/test/)
+
+    const paid = buildRepairInvoiceEmail({
+      clientName: 'Charlie McNichol',
+      amountCents: 25875,
+      paid: true,
+      hostedInvoiceUrl: 'https://invoice.stripe.com/i/paid',
+      invoiceNumber: 'ABC-1',
+    })
+    assert.match(paid.subject, /Receipt/)
+    assert.match(paid.html, /View receipt/)
+  })
+
+  it('marks card-on-file charges so the webhook does not send a second receipt', () => {
+    const chargeMeta = repairInvoiceMetadata({ clientId: 'c1', emailReceiptOnPay: false })
+    const invoiceMeta = repairInvoiceMetadata({ clientId: 'c1', emailReceiptOnPay: true })
+    assert.equal(chargeMeta.email_receipt_on_pay, 'false')
+    assert.equal(invoiceMeta.email_receipt_on_pay, 'true')
+    assert.equal(
+      shouldEmailRepairReceiptOnPay({ metadata: chargeMeta } as never),
+      false
+    )
+    assert.equal(
+      shouldEmailRepairReceiptOnPay({ metadata: invoiceMeta } as never),
+      true
+    )
+  })
+
+  it('skips SMTP when the client has no email', async () => {
+    assert.equal(
+      await sendRepairInvoiceEmail({
+        to: '',
+        clientName: 'Charlie',
+        amountCents: 25875,
+        paid: false,
+      }),
+      false
+    )
+  })
 })
 
 describe('credit repair billing wiring', () => {
@@ -62,9 +123,13 @@ describe('credit repair billing wiring', () => {
     assert.match(service, /This client is billed as a one-time credit repair fee/)
     assert.match(webhook, /applyRepairInvoicePaid/)
     assert.match(webhook, /isRepairInvoice/)
+    assert.match(webhook, /sendRepairInvoiceEmail/)
+    assert.match(webhook, /shouldEmailRepairReceiptOnPay/)
     assert.match(migration, /credit_repair_one_time/)
-    assert.match(panel, /Charge card on file/)
+    assert.match(panel, /Payment history/)
+    assert.match(panel, /Charge or email invoice/)
     assert.match(cfPage, /CreditRepairBillingPanel/)
+    assert.doesNotMatch(service, /No card on file\. Ask the client to add a card/)
   })
 
   it('does not send both amount and quantity on repair invoice lines', () => {
@@ -73,5 +138,8 @@ describe('credit repair billing wiring', () => {
     const block = addLines.slice(0, addLines.indexOf('finalizeInvoice'))
     assert.match(block, /amount: parsed\.cents/)
     assert.doesNotMatch(block, /quantity/)
+    assert.match(service, /listRepairInvoicesForCustomer/)
+    assert.match(service, /deliverRepairInvoiceCopy/)
+    assert.match(service, /sendRepairInvoiceEmail/)
   })
 })

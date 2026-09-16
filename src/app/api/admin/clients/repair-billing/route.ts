@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
     client: result.client,
     defaultFeeCents: result.defaultFeeCents,
     paymentMethods: result.paymentMethods,
+    invoices: result.invoices,
     paid: result.paid,
   })
 }
@@ -62,5 +63,7 @@ export async function POST(req: NextRequest) {
     invoiceId: result.invoiceId,
     hostedInvoiceUrl: result.hostedInvoiceUrl,
     status: result.status,
+    emailed: result.emailed,
+    charged: result.charged,
   })
 }

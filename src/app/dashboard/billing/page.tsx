@@ -203,7 +203,7 @@ export default function BillingPage() {
                             rel="noopener noreferrer"
                             className="text-xs text-accent font-semibold hover:underline"
                           >
-                            Receipt
+                            {inv.status === 'paid' ? 'Receipt' : 'Invoice'}
                           </a>
                         </div>
                       )}

@@ -55,6 +55,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     client: result.client,
     defaultFeeCents: result.defaultFeeCents,
     paymentMethods: result.paymentMethods,
+    invoices: result.invoices,
     paid: result.paid,
   })
 }
@@ -90,5 +91,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     invoiceId: result.invoiceId,
     hostedInvoiceUrl: result.hostedInvoiceUrl,
     status: result.status,
+    emailed: result.emailed,
+    charged: result.charged,
   })
 }

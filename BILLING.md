@@ -23,9 +23,11 @@ Credit repair clients are **not** marketing subscribers. Intake sets `clients.bi
 
 Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **Admin → Clients**:
 
-1. Client adds a card on `/dashboard/billing` (Payment Element; card data never hits this server).
-2. Staff enter the fee and click **Charge card on file**, or **Email invoice** if there is no card yet.
-3. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`).
+1. Enter the fee. If a card is on file, **Charge card on file** bills it immediately. If there is no card, that same action emails a Stripe invoice instead of erroring.
+2. **Email invoice** always sends a pay link (even when a card is on file).
+3. Every charge or emailed invoice creates a Stripe Invoice. Admin **Payment history** and the client **Billing** page list each one (open, paid, or failed).
+4. The client always gets an invoice or receipt email: Stripe `sendInvoice` plus SMTP when configured. Paying the emailed link later still emails a receipt (`invoice.paid` webhook).
+5. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`) and updates the latest fee amount.
 
 Optional env: `CREDIT_REPAIR_DEFAULT_FEE_CENTS` (USD cents) as the amount prefill.
 

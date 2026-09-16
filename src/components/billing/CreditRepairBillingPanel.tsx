@@ -14,6 +14,19 @@ type PaymentMethodRow = {
   isDefault: boolean
 }
 
+type InvoiceRow = {
+  id: string
+  number: string | null
+  status: string | null
+  amount_paid: number
+  amount_due: number
+  currency: string
+  hosted_invoice_url: string | null
+  invoice_pdf?: string | null
+  created: number
+  paid_at?: string | null
+}
+
 export type CreditRepairBillingClient = {
   id: string
   email?: string
@@ -39,11 +52,14 @@ export default function CreditRepairBillingPanel({
   adminView?: boolean
   onUpdated?: () => void
 }) {
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(
+    client.repair_fee_cents != null ? (client.repair_fee_cents / 100).toFixed(2) : ''
+  )
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [paidAt, setPaidAt] = useState(client.repair_fee_paid_at || '')
   const [feeCents, setFeeCents] = useState(client.repair_fee_cents ?? null)
   const [status, setStatus] = useState(client.billing_status || 'not_started')
@@ -67,13 +83,21 @@ export default function CreditRepairBillingPanel({
     if (!adminView) {
       const q = `?clientId=${encodeURIComponent(client.id)}`
       try {
-        const res = await fetch(`/api/billing/payment-methods${q}`)
-        const data = await res.json().catch(() => ({}))
-        if (res.ok && Array.isArray(data.paymentMethods)) {
-          setPaymentMethods(data.paymentMethods)
+        const [pmRes, invRes] = await Promise.all([
+          fetch(`/api/billing/payment-methods${q}`),
+          fetch('/api/dashboard/billing/invoices'),
+        ])
+        const pmData = await pmRes.json().catch(() => ({}))
+        const invData = await invRes.json().catch(() => ({}))
+        if (pmRes.ok && Array.isArray(pmData.paymentMethods)) {
+          setPaymentMethods(pmData.paymentMethods)
+        }
+        if (invRes.ok && Array.isArray(invData.invoices)) {
+          setInvoices(invData.invoices)
         }
       } catch {
         setPaymentMethods([])
+        setInvoices([])
       }
       return
     }
@@ -86,15 +110,24 @@ export default function CreditRepairBillingPanel({
         return
       }
       if (Array.isArray(data.paymentMethods)) setPaymentMethods(data.paymentMethods)
+      if (Array.isArray(data.invoices)) setInvoices(data.invoices)
       const nextClient = data.client as CreditRepairBillingClient | undefined
       if (nextClient) {
         setPaidAt(nextClient.repair_fee_paid_at || '')
         setFeeCents(nextClient.repair_fee_cents ?? null)
         setStatus(nextClient.billing_status || 'not_started')
       }
-      if (typeof data.defaultFeeCents === 'number' && !defaultLoaded) {
-        setAmount((data.defaultFeeCents / 100).toFixed(2))
-        setDefaultLoaded(true)
+      if (!defaultLoaded) {
+        const cents =
+          typeof nextClient?.repair_fee_cents === 'number'
+            ? nextClient.repair_fee_cents
+            : typeof data.defaultFeeCents === 'number'
+              ? data.defaultFeeCents
+              : null
+        if (cents != null) {
+          setAmount((cents / 100).toFixed(2))
+          setDefaultLoaded(true)
+        }
       }
     } catch {
       setError('Could not load repair billing')
@@ -176,7 +209,8 @@ export default function CreditRepairBillingPanel({
       <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 space-y-1">
         <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-dim">Credit repair billing</p>
         <p className="text-xs text-brand-muted">
-          This client is not on a marketing subscription. Charge a one-time repair fee, or email a Stripe invoice.
+          Credit repair is a one-time fee, not a marketing subscription. If a card is on file it is charged;
+          otherwise we email a Stripe invoice they can pay. They always get an invoice or receipt.
         </p>
         <div className="text-xs text-brand-text pt-1">
           Status: <span className="font-semibold">{paid ? 'Paid' : status.replace(/_/g, ' ')}</span>
@@ -223,7 +257,7 @@ export default function CreditRepairBillingPanel({
               onClick={() => void charge(false)}
               className="px-3 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-50"
             >
-              {busy === 'charge' ? 'Charging…' : 'Charge card on file'}
+              {busy === 'charge' ? 'Charging…' : paymentMethods.length > 0 ? 'Charge card on file' : 'Charge or email invoice'}
             </button>
             <button
               type="button"
@@ -234,6 +268,11 @@ export default function CreditRepairBillingPanel({
               {busy === 'invoice' ? 'Sending…' : 'Email invoice'}
             </button>
           </div>
+          {paymentMethods.length === 0 && (
+            <p className="text-xs text-brand-muted">
+              No card on file. Sending an invoice emails a pay link and saves it in payment history.
+            </p>
+          )}
           <div className="rounded-lg border border-brand-border bg-white p-3 space-y-2">
             <p className="text-xs text-brand-muted">
               Card details must be entered by the client. Copy this billing link:
@@ -309,6 +348,54 @@ export default function CreditRepairBillingPanel({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      {invoices.length > 0 ? (
+        <div>
+          <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Payment history</div>
+          <ul className="space-y-1.5">
+            {invoices.map(inv => {
+              const cents = inv.amount_paid > 0 ? inv.amount_paid : inv.amount_due
+              const when = inv.paid_at
+                ? new Date(inv.paid_at).toLocaleDateString()
+                : inv.created
+                  ? new Date(inv.created * 1000).toLocaleDateString()
+                  : '—'
+              return (
+                <li
+                  key={inv.id}
+                  className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-gray-50 border border-brand-border text-xs"
+                >
+                  <div>
+                    <div className="font-semibold text-brand-text">{inv.number || inv.id}</div>
+                    <div className="text-brand-dim">
+                      {when} · {(inv.status || 'open').replace(/_/g, ' ')}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold">{formatRepairFeeCents(cents)}</div>
+                    {inv.hosted_invoice_url && (
+                      <a
+                        href={inv.hosted_invoice_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent font-semibold hover:underline"
+                      >
+                        {inv.status === 'paid' ? 'Receipt' : 'Invoice'}
+                      </a>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : (
+        <div>
+          <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Payment history</div>
+          <p className="text-xs text-brand-muted">
+            No invoices yet. Charging a card or emailing an invoice will show each payment here.
+          </p>
         </div>
       )}
     </div>
