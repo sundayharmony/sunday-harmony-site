@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { pdfSafeText } from '../credit-intelligence-pdf'
 import {
   buildCreditRepairProgressPdfBuffer,
   buildCreditRepairProgressPdfInput,
@@ -204,6 +205,16 @@ describe('buildCreditRepairProgressPdfInput', () => {
   })
 })
 
+describe('pdfSafeText', () => {
+  it('replaces Unicode punctuation that breaks Helvetica PDF rendering', () => {
+    const raw = 'First report \u2192 Current | FICO\u00AE Score \u2014 655 \u00B7 Sunday Harmony'
+    const safe = pdfSafeText(raw)
+    assert.ok(!/[\u2192\u2014\u00B7\u00AE]/.test(safe))
+    assert.match(safe, /First report -> Current/)
+    assert.match(safe, /FICO Score - 655/)
+  })
+})
+
 describe('credit repair progress PDF render', () => {
   it('renders a valid PDF buffer and filename', async () => {
     const first = session(
@@ -251,5 +262,43 @@ describe('credit repair progress PDF render', () => {
     // Also exercise the buffer builder directly
     const direct = await buildCreditRepairProgressPdfBuffer(prepared)
     assert.equal(direct.subarray(0, 5).toString(), '%PDF-')
+
+    const pdfText = direct.toString('latin1')
+    assert.ok(!pdfText.includes("!'"), `unexpected garbled chars in PDF: ${pdfText.slice(0, 500)}`)
+  })
+
+  it('starts each comparable bureau on its own page after the cover', async () => {
+    const mk = (id: string, createdAt: string, bureau: 'tuc' | 'exp' | 'eqf', score: number) => {
+      const scores: { tuc: number | null; exp: number | null; eqf: number | null } = {
+        tuc: null,
+        exp: null,
+        eqf: null,
+      }
+      scores[bureau] = score
+      return session(
+        id,
+        createdAt,
+        intelligence({ score, band: 'fair', fundingLevel: 'moderate', fundingScore: 50, reportDate: createdAt.slice(0, 10) }),
+        scores
+      )
+    }
+
+    const sessions = [
+      mk('exp-mar', '2026-03-01T00:00:00.000Z', 'exp', 640),
+      mk('exp-jan', '2026-01-01T00:00:00.000Z', 'exp', 580),
+      mk('tuc-mar', '2026-03-01T00:00:00.000Z', 'tuc', 650),
+      mk('tuc-jan', '2026-01-01T00:00:00.000Z', 'tuc', 600),
+    ]
+
+    const prepared = buildCreditRepairProgressPdfInput({
+      sessions,
+      selectedSessionId: 'exp-mar',
+    })
+    assert.ok(!('error' in prepared))
+
+    const buf = await buildCreditRepairProgressPdfBuffer(prepared)
+    const pageCount = (buf.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length
+    // Cover + one page per comparable bureau (EXP and TUC here).
+    assert.equal(pageCount, 3)
   })
 })

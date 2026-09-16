@@ -48,6 +48,22 @@ export function asText(value: unknown, fallback = ''): string {
   return fallback
 }
 
+/** PDFKit standard fonts only support WinAnsi — map common Unicode punctuation to ASCII. */
+export function pdfSafeText(value: string): string {
+  return value
+    .replace(/\u2192/g, '->')
+    .replace(/\u2014/g, '-')
+    .replace(/\u2013/g, '-')
+    .replace(/\u00B7/g, ' | ')
+    .replace(/\u2022/g, '-')
+    .replace(/\u00AE/g, '')
+    .replace(/\u2122/g, '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/\u2026/g, '...')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, '')
+}
+
 function asTextList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.map((v) => asText(v)).filter((v) => v.length > 0)
