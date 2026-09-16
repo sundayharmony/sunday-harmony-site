@@ -659,8 +659,7 @@ export default function CreditIntelligencePanel({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-brand-text">Client progress PDF</p>
                 <p className="text-xs text-brand-muted">
-                  Compares each bureau separately: first tri-merge vs latest report for that bureau
-                  (individual bureau uploads count). Scores and account changes only — no funding eligibility.
+                  Downloads the same before/after view shown above (scores and account changes per bureau).
                 </p>
               </div>
               <div className="flex rounded-lg border border-brand-border overflow-hidden">
