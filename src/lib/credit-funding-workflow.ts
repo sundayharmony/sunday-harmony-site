@@ -19,6 +19,7 @@ import {
   type ApplicationStatus,
   type CreditFundingApplication,
 } from '@/lib/credit-funding-types'
+import { syncReferralFromApplicationStatus } from '@/lib/referral-service'
 
 export interface WorkflowAttachmentInput {
   buffer: Buffer
@@ -156,6 +157,8 @@ export async function applyWorkflowStatusUpdate(
     await cleanupUploadedRecords(uploadedRecords)
     throw new Error('Failed to update application status')
   }
+
+  await syncReferralFromApplicationStatus(application.id, status)
 
   const hasClientContent = Boolean(statusNotes?.trim()) || attachmentNames.length > 0
   let messageCreated = false

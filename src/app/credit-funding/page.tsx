@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import PublicPageLayout from '@/components/layout/PublicPageLayout'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
+import { normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
 
 export const metadata: Metadata = {
   title: 'Credit & Funding',
@@ -18,7 +20,20 @@ export const metadata: Metadata = {
   },
 }
 
-export default function CreditFundingPage() {
+export default async function CreditFundingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string; invite?: string }>
+}) {
+  const params = await searchParams
+  const code = normalizeReferralCode(params.ref)
+  if (code) {
+    const nextParams = new URLSearchParams()
+    if (params.invite?.trim()) nextParams.set('invite', params.invite.trim())
+    const qs = nextParams.toString()
+    const nextPath = safeReferralLandingPath(qs ? `/credit-funding?${qs}` : '/credit-funding')
+    redirect(`/api/referrals/track?code=${encodeURIComponent(code)}&next=${encodeURIComponent(nextPath)}`)
+  }
   return (
     <PublicPageLayout
       maxWidthClass="max-w-[800px]"

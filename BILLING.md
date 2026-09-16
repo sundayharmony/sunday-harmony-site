@@ -13,6 +13,7 @@
    - `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
    - `invoice.paid`, `invoice.payment_failed`, `invoice.payment_action_required`
    - `setup_intent.succeeded`, `customer.subscription.trial_will_end`
+   - `account.updated`, `transfer.created`, `transfer.updated`, `transfer.paid`, `transfer.failed`, `transfer.reversed` (Stripe Connect referral payouts)
 
 `invoice.paid` emails `NOTIFY_EMAIL` (default `sales@sundayharmony.com`) a payment-received confirmation for credit-repair fees and marketing subscriptions, in addition to the client SMTP receipt.
 4. Run Supabase migrations `003` (billing columns) and `005` (webhook idempotency).
@@ -30,12 +31,20 @@ Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **A
 3. Every charge or emailed invoice creates a Stripe Invoice. Admin **Payment history** and the client **Billing** page list each one (open, paid, or failed).
 4. The client always gets a Sunday Harmony invoice/receipt email via SMTP. Stripe `sendInvoice` is also called so the hosted pay link exists. Paying the emailed link later still emails a receipt (`invoice.paid` webhook). If SMTP is not configured, staff see an error and can copy/resend the invoice link.
 5. Use **Resend invoice email** to send the latest invoice again.
-6. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`) and updates the latest fee amount. The same webhook emails `NOTIFY_EMAIL` a payment-received confirmation (card-on-file charges and hosted invoice payments).
+6. `invoice.paid` marks the client paid (`repair_fee_paid_at`, `billing_status = paid`) and updates the latest fee amount. The same webhook emails `NOTIFY_EMAIL` a payment-received confirmation (card-on-file charges and hosted invoice payments). If the client was attributed to a referral, this is also where the $50 commission is created (once per Stripe invoice id).
 7. Charging looks up **card and Link** methods, including the Stripe customer's default. If the linked Stripe customer has no method, we search other customers with the same email (never stealing another client's customer) and use the one that already has a card. Saving a card on `/dashboard/billing` stores the Stripe customer the payment method actually landed on, so a later charge uses that same card.
 
 Optional env: `CREDIT_REPAIR_DEFAULT_FEE_CENTS` (USD cents) as the amount prefill.
 
-One-time repair fees are excluded from marketing MRR. Run migration `037`.
+One-time repair fees are excluded from marketing MRR. Run migration `037`. Run migration `038` for referral profiles, commissions, and payouts.
+
+## Credit repair referrals
+
+Eligible credit repair clients get a unique link (`/credit-funding?ref=CODE`, also available at `/credit-funding-application?ref=CODE`). Attribution is stored in a signed httpOnly cookie for 60 days and attached to the Credit & Funding application on submit. A $50 commission is created only after `invoice.paid` for a qualifying one-time credit repair invoice, once per invoice and once per referred client.
+
+Payouts use Stripe Connect Express (tokenized account ids only) with a manual-payout fallback. Failed transfers return commissions to **available**. Client UI: `/dashboard/referrals`. Admin UI: `/admin/referrals`.
+
+Optional env: `CREDIT_REPAIR_REFERRAL_COMMISSION_CENTS`, `CREDIT_REPAIR_REFERRAL_ATTRIBUTION_DAYS`, `CREDIT_REPAIR_REFERRAL_HOLD_DAYS`.
 
 ## How billing works in the app
 

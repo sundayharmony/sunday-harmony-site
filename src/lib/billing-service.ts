@@ -33,6 +33,7 @@ import {
   resolveRepairCollectionMode,
 } from '@/lib/credit-repair-billing'
 import { sendRepairInvoiceEmail } from '@/lib/credit-repair-billing-email'
+import { awardReferralCommissionForPaidClient } from '@/lib/referral-service'
 import { normalizeStripeInvoice } from '@/lib/stripe-invoice-utils'
 import {
   createCreditFundingMessage,
@@ -1045,6 +1046,17 @@ export async function adminChargeCreditRepairFee(
     })
     if (current.status === 'paid') {
       await applyRepairInvoicePaid(clientId, current)
+      try {
+        await awardReferralCommissionForPaidClient(clientId, {
+          qualifyingPaymentId: current.id,
+          paidAt:
+            typeof current.status_transitions?.paid_at === 'number'
+              ? new Date(current.status_transitions.paid_at * 1000).toISOString()
+              : new Date().toISOString(),
+        })
+      } catch (err) {
+        console.error('referral commission award failed:', err)
+      }
     } else {
       await updateClient(clientId, {
         stripe_repair_invoice_id: current.id,

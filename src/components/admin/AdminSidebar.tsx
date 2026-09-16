@@ -14,6 +14,7 @@ const allNavItems = [
   { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
   { href: '/admin/case-studies', icon: '\u{1F4C4}', label: 'Case Studies' },
   { href: '/admin/billing', icon: '\u{1F4B3}', label: 'Billing' },
+  { href: '/admin/referrals', icon: '\u{1F517}', label: 'Referrals' },
   { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
   { href: '/admin/team-messages', icon: '\u{1F91D}', label: 'Team Chat' },
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },

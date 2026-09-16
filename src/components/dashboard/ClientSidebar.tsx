@@ -8,7 +8,13 @@ import NotificationBell from '@/components/ui/NotificationBell'
 import BrandLogo from '@/components/BrandLogo'
 import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 
-const navItems = [
+const navItems: Array<{
+  href: string
+  icon: string
+  label: string
+  marketingOnly?: boolean
+  repairOnly?: boolean
+}> = [
   { href: '/dashboard', icon: '◈', label: 'Home' },
   { href: '/dashboard/onboarding', icon: '📝', label: 'Getting Started', marketingOnly: true },
   { href: '/dashboard/tasks', icon: '✅', label: 'Tasks' },
@@ -20,6 +26,7 @@ const navItems = [
   { href: '/dashboard/messages', icon: '💬', label: 'Messages' },
   { href: '/dashboard/package', icon: '📦', label: 'My Package' },
   { href: '/dashboard/billing', icon: '🧾', label: 'Billing' },
+  { href: '/dashboard/referrals', icon: '🔗', label: 'Referrals', repairOnly: true },
   { href: '/dashboard/settings', icon: '⚙️', label: 'Settings' },
 ]
 
@@ -91,6 +98,7 @@ export default function ClientSidebar() {
         <nav className="flex-1 py-4 px-3 overflow-y-auto">
           {navItems
             .filter(item => !(hideMarketing && item.marketingOnly))
+            .filter(item => !item.repairOnly || hideMarketing)
             .map((item) => {
             const active = pathname === item.href
             return (

@@ -178,6 +178,7 @@ export default function CreditFundingForm() {
   const [step, setStep] = useState(0)
   const searchParams = useSearchParams()
   const inviteTokenFromUrl = searchParams.get('invite')?.trim() || ''
+  const referralCodeFromUrl = searchParams.get('ref')?.trim() || ''
   const [inviteToken, setInviteToken] = useState('')
   const [inviteEmailLocked, setInviteEmailLocked] = useState(false)
   const [inviteBanner, setInviteBanner] = useState('')
@@ -245,6 +246,16 @@ export default function CreditFundingForm() {
   useEffect(() => {
     setStep((s) => Math.min(s, stepFlow.length - 1))
   }, [stepFlow.length])
+
+  useEffect(() => {
+    if (!referralCodeFromUrl) return
+    void fetch('/api/referrals/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: referralCodeFromUrl }),
+      credentials: 'include',
+    }).catch(() => {})
+  }, [referralCodeFromUrl])
 
   useEffect(() => {
     if (!inviteTokenFromUrl) {

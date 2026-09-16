@@ -7,6 +7,7 @@ import {
 } from '@/lib/credit-funding-applicant-onboarding'
 import type { CreditFundingApplication } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
+import { ensureReferralProfileIfRepairClient } from '@/lib/referral-service'
 import {
   getAdminNotifyEmail,
   sanitizeEmailSubjectPart,
@@ -54,6 +55,11 @@ export async function runCreditFundingSubmissionSideEffects(params: {
   })
 
   const client = await ensureClientFromCreditApplication(application)
+  try {
+    await ensureReferralProfileIfRepairClient(client)
+  } catch (err) {
+    console.error('ensureReferralProfileIfRepairClient failed:', err)
+  }
   const appWithClient = client ? { ...application, client_id: client.id } : application
 
   const portal = await ensurePortalUserForCreditApplication(appWithClient)

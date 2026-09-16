@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getClientById } from '@/lib/db'
 import { requireClientSession, getClientIdFromSession } from '@/lib/client-auth'
+import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+import { ensureReferralProfileIfRepairClient } from '@/lib/referral-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +13,12 @@ export async function GET() {
   const client = await getClientById(getClientIdFromSession(session))
   if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+  }
+
+  try {
+    await ensureReferralProfileIfRepairClient(client)
+  } catch (err) {
+    console.error('ensureReferralProfileIfRepairClient failed:', err)
   }
 
   return NextResponse.json({

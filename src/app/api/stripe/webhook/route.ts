@@ -22,6 +22,7 @@ import {
 } from '@/lib/credit-repair-billing'
 import { sendRepairInvoiceEmail } from '@/lib/credit-repair-billing-email'
 import { sendPaymentProcessedAdminEmail } from '@/lib/billing-payment-email'
+import { awardReferralCommissionForPaidClient, handleStripePayoutEvent } from '@/lib/referral-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -154,6 +155,17 @@ export async function POST(req: NextRequest) {
           })
         } else if (isRepairInvoice(invoice, client)) {
           await applyRepairInvoicePaid(client.id, invoice)
+          try {
+            await awardReferralCommissionForPaidClient(client.id, {
+              qualifyingPaymentId: invoice.id,
+              paidAt:
+                typeof invoice.status_transitions?.paid_at === 'number'
+                  ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+                  : new Date().toISOString(),
+            })
+          } catch (err) {
+            console.error('referral commission award failed:', err)
+          }
           if (shouldEmailRepairReceiptOnPay(invoice)) {
             try {
               await sendRepairInvoiceEmail({
@@ -215,6 +227,15 @@ export async function POST(req: NextRequest) {
       const client = await getClientByStripeSubscriptionId(subscription.id)
       if (client && subscription.status === 'trialing') {
         await updateClientForStripeSync(client.id, { billing_status: 'trial' })
+      }
+    }
+
+    if (event.type === 'account.updated' || event.type.startsWith('transfer.')) {
+      const object = event.data.object as { id?: string; metadata?: Record<string, string> | null }
+      try {
+        await handleStripePayoutEvent(event.type, object)
+      } catch (err) {
+        console.error('referral payout webhook failed:', err)
       }
     }
   } catch (err) {

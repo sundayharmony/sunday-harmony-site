@@ -18,6 +18,7 @@ import {
   updateCreditFundingApplicationStatus,
 } from '@/lib/credit-funding-db'
 import { runCreditFundingSubmissionSideEffects } from '@/lib/credit-funding-finalize'
+import { attachReferralToApplication } from '@/lib/referral-service'
 import {
   mergeIntakePayloadWithExistingSecrets,
   type InviteSecretSetFlags,
@@ -268,10 +269,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await runCreditFundingSubmissionSideEffects({
+    const finalized = await runCreditFundingSubmissionSideEffects({
       application,
       payload,
     })
+
+    try {
+      await attachReferralToApplication({
+        req,
+        application: {
+          id: finalized.application.id,
+          email: finalized.application.email,
+          client_id: finalized.application.client_id,
+          status: finalized.application.status,
+        },
+      })
+    } catch (err) {
+      console.error('attachReferralToApplication failed:', err)
+    }
 
     const successBody = {
       success: true,

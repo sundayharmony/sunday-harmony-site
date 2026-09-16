@@ -13,6 +13,7 @@ import {
   sendCreditFundingSubmissionEmail,
 } from '@/lib/credit-funding-applicant-onboarding'
 import { applyWorkflowStatusUpdate } from '@/lib/credit-funding-workflow'
+import { getReferralSummaryForApplication } from '@/lib/referral-service'
 import {
   getCreditFundingApplications,
   getCreditFundingApplicationById,
@@ -66,11 +67,12 @@ export async function GET(req: NextRequest) {
         await syncStaffSharedDocumentsFromStorage(id)
       }
 
-      const [documents, history, messages, docRequests] = await Promise.all([
+      const [documents, history, messages, docRequests, referral] = await Promise.all([
         includeDocs ? getDocumentsByApplicationUuid(id) : Promise.resolve([]),
         getStatusHistory(id),
         getCreditFundingMessages(id),
         getDocumentRequests(id),
+        getReferralSummaryForApplication(id),
       ])
 
       let docsWithUrls = documents
@@ -89,6 +91,7 @@ export async function GET(req: NextRequest) {
         history,
         messages,
         docRequests,
+        referral,
       })
     }
 

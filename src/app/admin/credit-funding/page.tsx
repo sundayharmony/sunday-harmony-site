@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import StatusBadge from '@/components/ui/StatusBadge'
 import AdminApplicationWorkflow, {
   type WorkflowStepPayload,
@@ -197,6 +198,13 @@ function CreditFundingAdminContent() {
   const [inviteNotice, setInviteNotice] = useState('')
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
   const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
+  const [referral, setReferral] = useState<{
+    referralId: string
+    code: string | null
+    referrerName: string
+    referrerClientId: string | null
+    status: string
+  } | null>(null)
 
   const selectApplication = (id: string) => {
     const listed = applications.find((a) => a.id === id)
@@ -265,6 +273,7 @@ function CreditFundingAdminContent() {
       setHistory(data.history || [])
       setMessages(data.messages || [])
       setDocRequests(data.docRequests || [])
+      setReferral(data.referral || null)
       setEditFields({
         assigned_specialist: app.assigned_specialist || '',
         internal_notes: app.internal_notes || '',
@@ -947,6 +956,19 @@ function CreditFundingAdminContent() {
                   <div className="min-w-0">
                   <h2 className="text-xl font-bold text-brand-text">{selected.full_name}</h2>
                   <p className="text-sm text-brand-dim">{selected.application_id} · {selected.service_type?.replace(/_/g, ' ')}</p>
+                  {referral && (
+                    <p className="text-xs text-brand-muted mt-1">
+                      Referred by{' '}
+                      {referral.referrerClientId ? (
+                        <Link href={`/admin/referrals/${referral.referrerClientId}`} className="text-accent hover:underline">
+                          {referral.referrerName}
+                        </Link>
+                      ) : (
+                        referral.referrerName
+                      )}
+                      {referral.code ? ` · ${referral.code}` : ''} · {referral.status.replace(/_/g, ' ')}
+                    </p>
+                  )}
                   </div>
                 </div>
                 <button

@@ -56,6 +56,15 @@ const nextConfig = {
     ]
   },
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: '/credit-funding-application',
+        destination: '/credit-funding',
+        permanent: false,
+      },
+    ]
+  },
 }
 
 module.exports = nextConfig

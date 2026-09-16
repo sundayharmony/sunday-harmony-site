@@ -535,6 +535,7 @@ export interface CreditFundingApplication {
   lead_type?: string | null
   credit_funding_client_status?: string | null
   lead_id?: string | null
+  referral_id?: string | null
   invite_expires_at?: string | null
   invite_personal_message?: string | null
   created_by_staff_email?: string | null
