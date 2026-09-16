@@ -32,3 +32,11 @@ describe('application dispute work reset', () => {
     assert.match(rounds, /Reset to before first report/)
   })
 })
+
+describe('credit analysis letter entry', () => {
+  it('opens letters from the Dispute letters tab only', () => {
+    const panel = readFileSync('src/components/credit-funding/CreditIntelligencePanel.tsx', 'utf8')
+    assert.match(panel, /Dispute letters/)
+    assert.doesNotMatch(panel, /Prepare letters/)
+  })
+})

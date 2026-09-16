@@ -643,13 +643,6 @@ export default function CreditIntelligencePanel({
                     >
                       Send to client
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openLetters('health')}
-                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-brand-border text-brand-text hover:bg-neutral-50"
-                    >
-                      Prepare letters
-                    </button>
                   </>
                 )}
               </div>
