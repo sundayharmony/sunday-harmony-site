@@ -11,9 +11,9 @@ import {
   parseRepairFeeToCents,
   repairInvoiceMetadata,
   resolveRepairCollectionMode,
-  sendRepairInvoiceEmail,
   shouldEmailRepairReceiptOnPay,
 } from '../credit-repair-billing'
+import { sendRepairInvoiceEmail } from '../credit-repair-billing-email'
 
 describe('credit repair billing helpers', () => {
   it('classifies repair-only and repair+funding as one-time billing', () => {
@@ -146,6 +146,8 @@ describe('credit repair billing wiring', () => {
     assert.match(service, /listRepairInvoicesForCustomer/)
     assert.match(service, /deliverRepairInvoiceCopy/)
     assert.match(service, /sendRepairInvoiceEmail/)
+    assert.match(service, /credit-repair-billing-email/)
+    assert.doesNotMatch(readFileSync('src/lib/credit-repair-billing.ts', 'utf8'), /smtp-mail/)
     assert.match(service, /type: 'link'/)
     assert.match(service, /recoverCustomerWithSavedCards/)
     assert.match(service, /usage: 'off_session'/)

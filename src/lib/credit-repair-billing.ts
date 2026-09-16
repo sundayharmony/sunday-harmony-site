@@ -1,6 +1,5 @@
 import type Stripe from 'stripe'
 import type { Client } from '@/lib/db'
-import { isEmailConfigured, sendEmail } from '@/lib/smtp-mail'
 import { updateClientForStripeSync } from '@/lib/stripe-subscription-sync'
 
 export const BILLING_MODELS = ['marketing_subscription', 'credit_repair_one_time'] as const
@@ -120,30 +119,6 @@ export function repairInvoiceMetadata(input: {
 /** Webhook sends a receipt when the client pays an emailed invoice later. Card-on-file charges email in-request. */
 export function shouldEmailRepairReceiptOnPay(invoice: Stripe.Invoice): boolean {
   return invoice.metadata?.email_receipt_on_pay !== 'false'
-}
-
-export async function sendRepairInvoiceEmail(input: {
-  to?: string | null
-  clientName: string
-  amountCents: number
-  paid: boolean
-  hostedInvoiceUrl?: string | null
-  invoiceNumber?: string | null
-}): Promise<{ sent: boolean; reason?: string }> {
-  const to = input.to?.trim()
-  if (!to) return { sent: false, reason: 'Client email is missing.' }
-  if (!isEmailConfigured()) {
-    return { sent: false, reason: 'SMTP is not configured, so the invoice email could not be sent.' }
-  }
-  const copy = buildRepairInvoiceEmail({
-    clientName: input.clientName,
-    amountCents: input.amountCents,
-    paid: input.paid,
-    hostedInvoiceUrl: input.hostedInvoiceUrl,
-    invoiceNumber: input.invoiceNumber,
-  })
-  await sendEmail({ to, subject: copy.subject, html: copy.html })
-  return { sent: true }
 }
 
 function escInvoiceHtml(value: string): string {

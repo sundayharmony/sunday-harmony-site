@@ -31,8 +31,8 @@ import {
   parseRepairFeeToCents,
   repairInvoiceMetadata,
   resolveRepairCollectionMode,
-  sendRepairInvoiceEmail,
 } from '@/lib/credit-repair-billing'
+import { sendRepairInvoiceEmail } from '@/lib/credit-repair-billing-email'
 import { normalizeStripeInvoice } from '@/lib/stripe-invoice-utils'
 import {
   createCreditFundingMessage,
