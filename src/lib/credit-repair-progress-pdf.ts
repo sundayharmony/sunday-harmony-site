@@ -210,19 +210,21 @@ export function buildCreditRepairProgressPdfBuffer(
       const toScore = scoreForBureau(report, 'to', input.compareMode)
       const deltas = activeDeltas(report, input.compareMode)
       const accounts = activeAccountDiff(report, input.compareMode)
+      const hasAccounts =
+        !!accounts &&
+        (accounts.removed.length > 0 || accounts.added.length > 0 || accounts.changed.length > 0)
       const fromSnap =
         input.compareMode === 'previous' && report.previous ? report.previous : report.baseline
       const toSnap = report.current
 
       ensureSpace(doc, 120)
       doc.font('Helvetica-Bold').fontSize(12).fillColor(COLORS.text).text(BUREAU_LABELS[bureau])
-      doc
-        .font('Helvetica')
-        .fontSize(8)
-        .fillColor(COLORS.dim)
-        .text(
-          `${formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt)} → ${formatProgressDate(toSnap?.reportDate || toSnap?.createdAt)}`
-        )
+      const fromLabel = formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt)
+      const toLabel = formatProgressDate(toSnap?.reportDate || toSnap?.createdAt)
+      const fromFile = fromSnap?.fileName ? ` · ${fromSnap.fileName}` : ''
+      const toFile = toSnap?.fileName ? ` · ${toSnap.fileName}` : ''
+      doc.font('Helvetica').fontSize(8).fillColor(COLORS.dim)
+      doc.text(`${fromLabel}${fromFile} → ${toLabel}${toFile}`)
       doc.moveDown(0.35)
 
       // Score hero row
@@ -248,6 +250,19 @@ export function buildCreditRepairProgressPdfBuffer(
       doc.text(toScore != null ? String(toScore) : '—', doc.page.margins.left + 120, boxY + 22, {
         lineBreak: false,
       })
+      if (toScore == null && hasAccounts) {
+        doc
+          .font('Helvetica')
+          .fontSize(7)
+          .fillColor(COLORS.amber)
+          .text(
+            'Score not found in the newer report file — account changes below still apply.',
+            doc.page.margins.left + 14,
+            boxY + boxH + 2,
+            { width: contentWidth(doc) - 28, lineBreak: true }
+          )
+        doc.y = Math.max(doc.y, boxY + boxH + 14)
+      }
       if (scoreDelta != null) {
         const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
         doc.fillColor(scoreColor).text(`${label} pts`, doc.page.margins.left + 230, boxY + 22, {
@@ -277,8 +292,6 @@ export function buildCreditRepairProgressPdfBuffer(
 
       // Account changes
       const diff = accounts
-      const hasAccounts =
-        !!diff && (diff.removed.length > 0 || diff.added.length > 0 || diff.changed.length > 0)
 
       ensureSpace(doc, 28)
       doc.font('Helvetica-Bold').fontSize(9).fillColor(COLORS.muted).text('ACCOUNT CHANGES')

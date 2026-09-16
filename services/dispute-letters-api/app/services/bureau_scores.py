@@ -108,7 +108,60 @@ def _scores_from_header_row(text: str, scores: BureauScores) -> None:
         scores.eqf = eqf
 
 
-def fill_missing_scores(report: ParsedReport, *, html: str = "", text: str = "") -> ParsedReport:
+_FILENAME_BUREAU_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("exp", re.compile(r"experian|(?:^|[\s_\-./])exp(?:[\s_\-./]|$)", re.I)),
+    (
+        "tuc",
+        re.compile(r"trans[\s_\-]*union|(?:^|[\s_\-./])tu(?:[\s_\-./]|$)|(?:^|[\s_\-./])tuc(?:[\s_\-./]|$)", re.I),
+    ),
+    ("eqf", re.compile(r"equifax|(?:^|[\s_\-./])eqf(?:[\s_\-./]|$)", re.I)),
+)
+_SINGLE_BUREAU_SCORE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(?:fico|vantage|credit)\s*score[^\d]{0,40}(\d{3})", re.I),
+    re.compile(r"your\s+score[^\d]{0,30}(\d{3})", re.I),
+    re.compile(r"score[\s:]+(\d{3})", re.I),
+)
+
+
+def infer_bureau_key_from_filename(file_name: str) -> str | None:
+    name = (file_name or "").strip()
+    if not name:
+        return None
+    if re.search(r"3[\s_-]*bureau|tri[\s_-]*merge|credit[\s_-]*hero", name, re.I):
+        return None
+    for attr, pattern in _FILENAME_BUREAU_PATTERNS:
+        if pattern.search(name):
+            return attr
+    return None
+
+
+def scores_from_single_bureau_document(text: str, file_name: str = "") -> BureauScores:
+    """Assign a lone credit score to the bureau implied by the upload filename."""
+    bureau_key = infer_bureau_key_from_filename(file_name)
+    if not bureau_key or not text:
+        return BureauScores()
+    scores = scores_from_text(text)
+    if not scores_missing(scores):
+        return scores
+    out = BureauScores()
+    for pattern in _SINGLE_BUREAU_SCORE_PATTERNS:
+        match = pattern.search(text)
+        if not match:
+            continue
+        parsed = parse_score_value(match.group(1))
+        if parsed is not None:
+            setattr(out, bureau_key, parsed)
+            break
+    return out
+
+
+def fill_missing_scores(
+    report: ParsedReport,
+    *,
+    html: str = "",
+    text: str = "",
+    file_name: str = "",
+) -> ParsedReport:
     if report.credit_health is None:
         from app.models import CreditHealthSummary
 
@@ -122,4 +175,7 @@ def fill_missing_scores(report: ParsedReport, *, html: str = "", text: str = "")
         apply_scores_if_missing(current, scores_from_text(html))
     if text:
         apply_scores_if_missing(current, scores_from_text(text))
+    combined = f"{html}\n{text}".strip()
+    if file_name and combined:
+        apply_scores_if_missing(current, scores_from_single_bureau_document(combined, file_name))
     return report

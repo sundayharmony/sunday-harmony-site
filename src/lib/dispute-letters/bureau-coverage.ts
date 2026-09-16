@@ -2,6 +2,8 @@ import type {
   BureauCode,
   BureauCoverage,
   BureauCoverageKind,
+  BureauScores,
+  CreditIntelligenceReport,
   CreditProgressHealthCounts,
   DisputeSessionListItem,
   ParsedReport,
@@ -22,8 +24,56 @@ const FILENAME_PATTERNS: { bureau: BureauCode; re: RegExp }[] = [
   { bureau: 'EQF', re: /equifax|(?:^|[\s_\-./])eqf(?:[\s_\-./]|$)/i },
 ]
 
-function scorePresent(value: number | null | undefined): boolean {
+export function scorePresent(value: number | null | undefined): boolean {
   return typeof value === 'number' && value >= 300 && value <= 850
+}
+
+function bureauScoreKey(bureau: BureauCode): keyof BureauScores {
+  if (bureau === 'EXP') return 'exp'
+  if (bureau === 'TUC') return 'tuc'
+  return 'eqf'
+}
+
+/**
+ * Resolve per-bureau scores for progress tracking.
+ * Follow-up single-bureau uploads often parse tradelines but miss credit_health.scores;
+ * in that case the intelligence overall average is that bureau's score.
+ */
+export function resolveSessionBureauScores(
+  session: DisputeSessionListItem,
+  intelligence: CreditIntelligenceReport
+): BureauScores {
+  const raw = session.report_json?.credit_health?.scores
+  const scores: BureauScores = {
+    tuc: raw?.tuc ?? null,
+    exp: raw?.exp ?? null,
+    eqf: raw?.eqf ?? null,
+  }
+
+  const avg = intelligence.overall?.average_score
+  if (!scorePresent(avg)) return scores
+
+  const coverage = getSessionBureauCoverage(session)
+
+  // Single-bureau follow-up (Experian-only PDF, etc.): map overall average to that bureau.
+  if (coverage.bureaus.length === 1) {
+    const key = bureauScoreKey(coverage.bureaus[0])
+    if (!scorePresent(scores[key])) {
+      scores[key] = avg
+    }
+    return scores
+  }
+
+  // Tri-merge / multi-bureau: fill only missing slots when exactly one bureau score is present
+  // alongside a matching average (guards odd partial extracts).
+  const missing = coverage.bureaus.filter((b) => !scorePresent(scores[bureauScoreKey(b)]))
+  const present = coverage.bureaus.filter((b) => scorePresent(scores[bureauScoreKey(b)]))
+  if (missing.length === 1 && present.length >= 1 && coverage.bureaus.length >= 2) {
+    const key = bureauScoreKey(missing[0])
+    if (!scorePresent(scores[key])) scores[key] = avg
+  }
+
+  return scores
 }
 
 export function accountForBureau(tl: Tradeline, bureau: BureauCode): string {

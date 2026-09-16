@@ -44,5 +44,5 @@ def recover_scores_from_storage(report: ParsedReport, row: dict | None) -> Parse
     except Exception:
         return report
     html = text if suffix in {".html", ".htm"} else ""
-    fill_missing_scores(report, html=html, text=text)
+    fill_missing_scores(report, html=html, text=text, file_name=file_name)
     return report
