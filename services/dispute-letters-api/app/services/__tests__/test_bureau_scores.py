@@ -131,3 +131,30 @@ def test_single_bureau_pdf_filename_assigns_lone_score():
     fill_missing_scores(report, text=text, file_name="michael-experian-sep.pdf")
     assert report.credit_health.scores.exp == 655
     assert report.credit_health.scores.tuc is None
+
+
+def test_fico_score_8_model_number_before_value():
+    report = ParsedReport(consumer=ConsumerInfo(name="A"))
+    text = (
+        "Experian credit report\n"
+        "FICO® Score 8\n"
+        "655\n"
+        "Score Range: 300-850\n"
+        "CITIZENS BANK account"
+    )
+    fill_missing_scores(report, text=text, file_name="Mike Webb Experian 9-12-2026.pdf")
+    assert report.credit_health.scores.exp == 655
+    assert report.credit_health.scores.tuc is None
+
+
+def test_vantage_score_model_number_before_value():
+    report = ParsedReport(consumer=ConsumerInfo(name="A"))
+    text = "TransUnion report\nVantageScore 3.0\n661\nCapital One"
+    fill_missing_scores(report, text=text, file_name="mike-transunion.pdf")
+    assert report.credit_health.scores.tuc == 661
+
+
+def test_scores_from_text_does_not_pick_score_range():
+    text = "Experian credit score\nScore Range: 300-850\nFICO Score 8\n655"
+    scores = scores_from_text(text)
+    assert scores.exp == 655

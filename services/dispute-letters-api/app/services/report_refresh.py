@@ -26,7 +26,7 @@ def refresh_report_health(report: ParsedReport, file_name: str = "") -> ParsedRe
 
 
 def recover_scores_from_storage(report: ParsedReport, row: dict | None) -> ParsedReport:
-    """If health refresh already wiped scores, re-read them from the original HTML/TXT upload."""
+    """Re-read bureau scores from the stored upload when report_json is missing them."""
     if not scores_missing(report.credit_health.scores):
         return report
     if not row:
@@ -34,15 +34,27 @@ def recover_scores_from_storage(report: ParsedReport, row: dict | None) -> Parse
     storage_path = str(row.get("storage_path") or "")
     file_name = str(row.get("file_name") or storage_path)
     suffix = Path(file_name).suffix.lower() or Path(storage_path).suffix.lower()
-    if suffix not in {".html", ".htm", ".txt"}:
+    if suffix not in {".html", ".htm", ".txt", ".pdf"}:
         return report
     try:
-        from app.storage import download_storage_bytes
+        if suffix == ".pdf":
+            from app.ingest.pdf import extract_pdf
+            from app.storage import write_temp_report
 
-        raw = download_storage_bytes(storage_path)
-        text = raw.decode("utf-8", errors="ignore") if isinstance(raw, (bytes, bytearray)) else str(raw)
+            tmp = write_temp_report(storage_path, suffix)
+            try:
+                doc = extract_pdf(tmp)
+                text = doc.text or ""
+            finally:
+                tmp.unlink(missing_ok=True)
+            html = ""
+        else:
+            from app.storage import download_storage_bytes
+
+            raw = download_storage_bytes(storage_path)
+            text = raw.decode("utf-8", errors="ignore") if isinstance(raw, (bytes, bytearray)) else str(raw)
+            html = text if suffix in {".html", ".htm"} else ""
     except Exception:
         return report
-    html = text if suffix in {".html", ".htm"} else ""
     fill_missing_scores(report, html=html, text=text, file_name=file_name)
     return report

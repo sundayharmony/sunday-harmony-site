@@ -16,6 +16,15 @@ _SCORE_CONTEXT = re.compile(
     r"(?:credit\s+)?(?:fico\s*)?(?:vantage\s*)?score|vantagescore",
     re.I,
 )
+# FICO Score 8 / VantageScore 3.0 put a model digit between "score" and the 3-digit value.
+_SCORE_VALUE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"fico(?:\s*®)?\s*score\s*[\d.]+[^\d]{0,60}(\d{3})", re.I),
+    re.compile(r"vantage\s*score\s*[\d.]+[^\d]{0,60}(\d{3})", re.I),
+    re.compile(r"(?:credit\s+)?score(?!\s*range)[:\s]+(\d{3})(?!\s*[-–])", re.I),
+    re.compile(r"your\s+(?:fico\s+)?score(?:\s+is)?[^\d]{0,30}(\d{3})", re.I),
+    re.compile(r"\b(\d{3})\b[^\d]{0,50}fico", re.I),
+    re.compile(r"fico[^\d]{0,80}?(\d{3})\b", re.I),
+)
 
 
 def parse_score_value(value: object) -> int | None:
@@ -59,19 +68,37 @@ def apply_scores_if_missing(target: BureauScores, incoming: BureauScores | None)
     return target
 
 
+def _first_score_from_patterns(text: str, patterns: tuple[re.Pattern[str], ...] = _SCORE_VALUE_PATTERNS) -> int | None:
+    for pattern in patterns:
+        match = pattern.search(text)
+        if not match:
+            continue
+        parsed = parse_score_value(match.group(1))
+        if parsed is not None:
+            return parsed
+    return None
+
+
 def scores_from_text(text: str) -> BureauScores:
     scores = BureauScores()
     if not text:
         return scores
     for attr, pattern in _BUREAU_PATTERNS:
         for match in pattern.finditer(text):
-            ctx = text[max(0, match.start() - 100) : match.end() + 80]
-            if not _SCORE_CONTEXT.search(ctx):
+            after = text[match.end() : match.end() + 120]
+            before = text[max(0, match.start() - 120) : match.start()]
+            if not _SCORE_CONTEXT.search(f"{before}{after}"):
                 continue
-            token = _SCORE_TOKEN.search(text[match.end() : match.end() + 80])
-            if not token:
-                continue
-            parsed = parse_score_value(token.group(1))
+            parsed = _first_score_from_patterns(after)
+            if parsed is None:
+                parsed = _first_score_from_patterns(before)
+            if parsed is None:
+                token = _SCORE_TOKEN.search(after)
+                if not token:
+                    token = _SCORE_TOKEN.search(before)
+                if not token:
+                    continue
+                parsed = parse_score_value(token.group(1))
             if parsed is not None:
                 setattr(scores, attr, parsed)
                 break
@@ -116,11 +143,6 @@ _FILENAME_BUREAU_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     ("eqf", re.compile(r"equifax|(?:^|[\s_\-./])eqf(?:[\s_\-./]|$)", re.I)),
 )
-_SINGLE_BUREAU_SCORE_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?:fico|vantage|credit)\s*score[^\d]{0,40}(\d{3})", re.I),
-    re.compile(r"your\s+score[^\d]{0,30}(\d{3})", re.I),
-    re.compile(r"score[\s:]+(\d{3})", re.I),
-)
 
 
 def infer_bureau_key_from_filename(file_name: str) -> str | None:
@@ -143,16 +165,12 @@ def scores_from_single_bureau_document(text: str, file_name: str = "") -> Bureau
     scores = scores_from_text(text)
     if not scores_missing(scores):
         return scores
-    out = BureauScores()
-    for pattern in _SINGLE_BUREAU_SCORE_PATTERNS:
-        match = pattern.search(text)
-        if not match:
-            continue
-        parsed = parse_score_value(match.group(1))
-        if parsed is not None:
-            setattr(out, bureau_key, parsed)
-            break
-    return out
+    parsed = _first_score_from_patterns(text)
+    if parsed is not None:
+        out = BureauScores()
+        setattr(out, bureau_key, parsed)
+        return out
+    return BureauScores()
 
 
 def fill_missing_scores(
