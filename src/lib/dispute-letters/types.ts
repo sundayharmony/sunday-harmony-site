@@ -11,6 +11,7 @@ export interface PerBureauHealth {
   total_accounts: number
   negative_count: number
   collection_count: number
+  inquiry_count?: number
 }
 
 export type BureauCoverageKind = 'single' | 'dual' | 'tri_merge'
@@ -292,6 +293,7 @@ export interface CreditProgressHealthCounts {
   total_accounts: number | null
   negative_count: number | null
   collection_count: number | null
+  inquiry_count: number | null
 }
 
 export interface CreditProgressSnapshot {

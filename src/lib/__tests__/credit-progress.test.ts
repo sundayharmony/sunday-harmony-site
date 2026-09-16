@@ -158,12 +158,12 @@ describe('diffSnapshots direction heuristics', () => {
       fundingLevel: 'limited',
       fundingScore: 35,
       factorBands: { payment_history: 'fair', collections: 'poor' },
-      healthCounts: { total_accounts: 10, negative_count: 5, collection_count: 2 },
+      healthCounts: { total_accounts: 10, negative_count: 5, collection_count: 2, inquiry_count: 1 },
       bureauCoverage: ['EXP'],
       coverageKind: 'single',
       bureauScores: { tuc: null, exp: 600, eqf: null },
       perBureauHealth: {
-        EXP: { total_accounts: 10, negative_count: 5, collection_count: 2 },
+        EXP: { total_accounts: 10, negative_count: 5, collection_count: 2, inquiry_count: 1 },
       },
       ...overrides,
     }
@@ -179,7 +179,7 @@ describe('diffSnapshots direction heuristics', () => {
         fundingLevel: 'moderate',
         fundingScore: 55,
         factorBands: { payment_history: 'good', collections: 'fair' },
-        healthCounts: { total_accounts: 11, negative_count: 2, collection_count: 0 },
+        healthCounts: { total_accounts: 11, negative_count: 2, collection_count: 0, inquiry_count: 0 },
       })
     )
     const byField = Object.fromEntries(deltas.map((d) => [d.field, d]))
@@ -202,7 +202,7 @@ describe('diffSnapshots direction heuristics', () => {
         overallBand: 'fair',
         fundingScore: 40,
         fundingLevel: 'limited',
-        healthCounts: { total_accounts: 10, negative_count: 8, collection_count: 3 },
+        healthCounts: { total_accounts: 10, negative_count: 8, collection_count: 3, inquiry_count: 2 },
       })
     )
     const byField = Object.fromEntries(deltas.map((d) => [d.field, d]))

@@ -81,6 +81,7 @@ export function snapshotFromSession(session: DisputeSessionListItem): CreditProg
     total_accounts: health?.total_accounts ?? null,
     negative_count: health?.negative_count ?? null,
     collection_count: health?.collection_count ?? null,
+    inquiry_count: null,
   }
 
   const factorBands: Record<string, string> = {}
@@ -167,6 +168,7 @@ function healthForBureau(
       total_accounts: null,
       negative_count: null,
       collection_count: null,
+      inquiry_count: null,
     }
   )
 }
@@ -306,6 +308,14 @@ export function diffBureauSnapshots(
       : fromHealth.total_accounts === toHealth.total_accounts
         ? 'unchanged'
         : 'unknown'
+  )
+  pushDelta(
+    deltas,
+    'inquiry_count',
+    'Hard inquiries',
+    fromHealth.inquiry_count,
+    toHealth.inquiry_count,
+    numericDirection(fromHealth.inquiry_count, toHealth.inquiry_count, false)
   )
 
   return deltas

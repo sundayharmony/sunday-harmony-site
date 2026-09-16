@@ -194,4 +194,17 @@ describe('perBureauFromReport', () => {
     assert.equal(exp?.collection_count, 1)
     assert.equal(bureauHealthCounts(report, 'EXP').negative_count, 1)
   })
+
+  it('counts hard inquiries separately from negative tradelines', () => {
+    const report = emptyReport({
+      tradelines: [
+        tl({ id: 'inq', status: 'Inquiry', account_type: 'Hard Inquiry', item_category: 'inquiry', account_exp: '1111' }),
+        tl({ id: 'open', status: 'Open', remarks: 'Never late', account_exp: '2222' }),
+      ],
+    })
+    const counts = bureauHealthCounts(report, 'EXP')
+    assert.equal(counts.inquiry_count, 1)
+    assert.equal(counts.negative_count, 0)
+    assert.equal(counts.total_accounts, 2)
+  })
 })

@@ -1,3 +1,4 @@
+import { isInquiryTradeline } from '@/lib/dispute-letters/dispute-reasons'
 import type {
   BureauCode,
   BureauCoverage,
@@ -116,6 +117,7 @@ export function bureauHealthCounts(
     collection_count: tradelines.filter(
       (tl) => tl.is_collection || tl.item_category === 'collection'
     ).length,
+    inquiry_count: tradelines.filter(isInquiryTradeline).length,
   }
 }
 
@@ -215,6 +217,7 @@ export function perBureauFromReport(
         total_accounts: row.total_accounts ?? null,
         negative_count: row.negative_count ?? null,
         collection_count: row.collection_count ?? null,
+        inquiry_count: row.inquiry_count ?? null,
       }
     }
   }

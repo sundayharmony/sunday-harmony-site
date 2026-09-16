@@ -37,6 +37,7 @@ const CREDIT_METRIC_FIELDS = new Set([
   'bureau_score',
   'negative_count',
   'collection_count',
+  'inquiry_count',
   'total_accounts',
   'average_score',
   'overall_band',
@@ -59,9 +60,10 @@ type Doc = PDFKit.PDFDocument
 
 const PAGE_MARGINS = { top: 52, bottom: 56, left: 56, right: 56 }
 const CARD_RADIUS = 8
-const CARD_PAD = 14
-const ACCOUNT_CARD_GAP = 14
-const FIELD_ROW_H = 30
+const CARD_PAD = 7
+const ACCOUNT_CARD_GAP = 8
+const FIELD_ROW_H = 15
+const FIELD_LABEL_W = 58
 
 function contentWidth(doc: Doc) {
   return doc.page.width - doc.page.margins.left - doc.page.margins.right
@@ -151,6 +153,12 @@ function drawMutedCaption(doc: Doc, text: string) {
   doc.font('Helvetica').fontSize(9).fillColor(COLORS.dim).text(safe(text), { lineGap: 4 })
 }
 
+function truncateField(value: string, max = 46): string {
+  const text = safe(value)
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 3)}...`
+}
+
 function drawBeforeAfterRow(
   doc: Doc,
   label: string,
@@ -160,25 +168,24 @@ function drawBeforeAfterRow(
 ): void {
   const left = doc.page.margins.left + CARD_PAD
   const width = contentWidth(doc) - CARD_PAD * 2
-  const labelW = 62
-  const arrowW = 22
-  const gap = 8
-  const valueW = (width - labelW - arrowW - gap * 2) / 2
+  const arrowW = 18
+  const gap = 6
+  const valueW = (width - FIELD_LABEL_W - arrowW - gap * 2) / 2
   const y = doc.y
 
-  doc.font('Helvetica').fontSize(8).fillColor(COLORS.dim)
-  doc.text(safe(label), left, y, { width: labelW, lineBreak: false })
+  doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
+  doc.text(safe(label), left, y + 1, { width: FIELD_LABEL_W, lineBreak: false })
 
-  const fromX = left + labelW
-  doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted)
-  doc.text(safe(from), fromX, y, { width: valueW, lineGap: 3 })
+  const fromX = left + FIELD_LABEL_W
+  doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.muted)
+  doc.text(truncateField(from), fromX, y, { width: valueW, lineBreak: false })
 
   const arrowX = fromX + valueW + gap
-  drawArrow(doc, arrowX, y + 5, arrowX + arrowW, COLORS.border)
+  drawArrow(doc, arrowX, y + 4, arrowX + arrowW, COLORS.border)
 
   const toX = arrowX + arrowW + gap
-  doc.font('Helvetica').fontSize(9).fillColor(directionColor(direction))
-  doc.text(safe(to), toX, y, { width: valueW, lineGap: 3 })
+  doc.font('Helvetica').fontSize(8.5).fillColor(directionColor(direction))
+  doc.text(truncateField(to), toX, y, { width: valueW, lineBreak: false })
 
   doc.y = y + FIELD_ROW_H
   doc.x = doc.page.margins.left
@@ -255,7 +262,7 @@ function drawMetricPills(doc: Doc, deltas: CreditProgressDelta[]) {
 }
 
 function accountCardHeight(fieldCount: number): number {
-  return CARD_PAD * 2 + 16 + fieldCount * FIELD_ROW_H
+  return CARD_PAD * 2 + 11 + fieldCount * FIELD_ROW_H
 }
 
 function drawAccountCard(
@@ -272,12 +279,12 @@ function drawAccountCard(
 
   doc.roundedRect(x, y, w, cardH, CARD_RADIUS).fillAndStroke(COLORS.white, COLORS.border)
 
-  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(COLORS.text)
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text)
   const maskLabel = formatAccountMaskForPdf(mask)
   const title = maskLabel ? `${safe(creditor)}  ${maskLabel}` : safe(creditor)
-  doc.text(title, x + CARD_PAD, y + CARD_PAD, { width: w - CARD_PAD * 2 })
+  doc.text(title, x + CARD_PAD, y + CARD_PAD, { width: w - CARD_PAD * 2, lineBreak: false })
 
-  doc.y = y + CARD_PAD + 18
+  doc.y = y + CARD_PAD + 11
   doc.x = doc.page.margins.left
   for (const f of fields) {
     drawBeforeAfterRow(doc, f.label, f.from, f.to, f.direction)
@@ -289,21 +296,25 @@ function drawAccountCard(
 
 function drawSimpleAccountList(
   doc: Doc,
-  items: { creditor: string; accountMask: string }[],
+  items: { creditor: string; accountMask: string; category?: string }[],
   title: string,
   titleColor: string
 ) {
   if (!items.length) return
   drawSectionTitle(doc, title)
-  doc.font('Helvetica').fontSize(10).fillColor(titleColor)
+  doc.font('Helvetica').fontSize(9).fillColor(titleColor)
   for (const item of items) {
-    ensureSpace(doc, 20)
+    ensureSpace(doc, 16)
     const mask = formatAccountMaskForPdf(item.accountMask)
-    const line = mask ? `${safe(item.creditor)}  ${mask}` : safe(item.creditor)
-    doc.text(line, { lineGap: 6 })
-    doc.moveDown(0.15)
+    const inquiryTag =
+      item.category === 'inquiry' || /inquir/i.test(item.category || '') ? ' (Inquiry)' : ''
+    const line = mask
+      ? `${safe(item.creditor)}  ${mask}${inquiryTag}`
+      : `${safe(item.creditor)}${inquiryTag}`
+    doc.text(line, { lineGap: 3 })
+    doc.moveDown(0.08)
   }
-  doc.moveDown(0.35)
+  doc.moveDown(0.25)
 }
 
 function scoreForBureau(
