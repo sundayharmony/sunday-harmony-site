@@ -41,8 +41,22 @@ describe('credit repair billing helpers', () => {
     assert.equal(isCreditRepairLeadType('credit_repair_lead'), true)
     assert.equal(isCreditRepairBillingClient({ lead_type: 'credit_repair_lead' }), true)
     assert.equal(isCreditRepairBillingClient({ billing_model: 'marketing_subscription' }), false)
+    assert.equal(
+      isCreditRepairBillingClient({
+        billing_model: 'marketing_subscription',
+        lead_type: 'credit_repair_lead',
+      }),
+      false
+    )
     assert.equal(billingRequiresActivation({ lead_type: 'credit_repair_lead' }), false)
     assert.equal(billingRequiresActivation({ billing_model: 'marketing_subscription' }), true)
+    assert.equal(
+      billingRequiresActivation({
+        billing_model: 'marketing_subscription',
+        lead_type: 'credit_repair_lead',
+      }),
+      true
+    )
   })
 
   it('parses staff-entered dollar amounts into cents', () => {

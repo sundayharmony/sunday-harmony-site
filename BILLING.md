@@ -23,7 +23,7 @@ No routine work in the Stripe Dashboard is required after setup.
 
 Credit repair clients are **not** marketing subscribers. Intake sets `clients.billing_model = credit_repair_one_time`.
 
-Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **Admin → Clients**:
+Staff charge from **Admin → Credit & Funding** (Repair fee on Overview) or **Admin → Clients**. Both surfaces include a **Credit Repair** package option next to the marketing plans. Switching a repair client to Social Essentials / Spark / Growth / Scale sets `billing_model` back to `marketing_subscription` so you can activate billing and start a subscription. Switching the other way requires canceling any active marketing subscription first.
 
 1. Enter the fee. If a card is on file, **Charge card on file** bills it immediately. If there is no card, that same action emails a Stripe invoice instead of erroring.
 2. **Email invoice** always sends a pay link (even when a card is on file).

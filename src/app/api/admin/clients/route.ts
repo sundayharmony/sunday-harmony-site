@@ -16,6 +16,7 @@ import { cleanupStripeForClient } from '@/lib/billing-service'
 import { syncClientFromLead } from '@/lib/crm-db'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { isFreeTier, TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
+import { billingPackageLabel, isCreditRepairPackage, isMarketingPackage } from '@/lib/billing-packages'
 import { getPublicSiteUrl, escHtml, isEmailConfigured, sanitizeEmailSubjectPart, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
 
 export const dynamic = 'force-dynamic'
@@ -76,13 +77,7 @@ function sendNewClientWelcomeEmail(params: {
   })
 }
 
-const tierLabels: Record<string, string> = {
-  free: 'Free (Testing)',
-  social_essentials: 'Social Essentials',
-  spark: 'Spark',
-  growth: 'Growth',
-  scale: 'Scale',
-}
+
 
 export async function GET() {
   const session = await requireAdminSession()
@@ -110,8 +105,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate package_tier is one of allowed values
-  const allowedTiers = ['free', 'social_essentials', 'spark', 'growth', 'scale']
-  if (!allowedTiers.includes(packageTier)) {
+  const creditRepair = isCreditRepairPackage(packageTier)
+  if (!creditRepair && !isMarketingPackage(packageTier)) {
     return NextResponse.json({ error: 'Invalid package tier' }, { status: 400 })
   }
 
@@ -120,10 +115,11 @@ export async function POST(req: NextRequest) {
   }
 
   const normalizedIsPotential = Boolean(isPotential)
-  const isFree = packageTier === 'free'
-  const normalizedMonthlyPrice = isFree
+  const storedTier: PackageTier = creditRepair ? 'free' : packageTier
+  const isFree = isFreeTier(storedTier)
+  const normalizedMonthlyPrice = creditRepair || isFree
     ? 0
-    : (monthlyPrice ?? TIER_LIST_PRICES[packageTier as PackageTier] ?? 0)
+    : (monthlyPrice ?? TIER_LIST_PRICES[storedTier] ?? 0)
 
   const client = await createClient({
     name,
@@ -131,12 +127,13 @@ export async function POST(req: NextRequest) {
     email,
     phone,
     industry,
-    package_tier: packageTier,
+    package_tier: storedTier,
     monthly_price: normalizedMonthlyPrice,
     start_date: new Date().toISOString(),
     status: 'active',
     is_potential: normalizedIsPotential,
-    billing_status: isFree ? 'paid' : 'not_started',
+    billing_status: isFree && !creditRepair ? 'paid' : 'not_started',
+    billing_model: creditRepair ? 'credit_repair_one_time' : 'marketing_subscription',
     notes: '',
     deliverables: deliverables || [],
     quick_wins: quickWins || [],
@@ -153,7 +150,7 @@ export async function POST(req: NextRequest) {
     entity_type: 'client',
     entity_id: client.id,
     actor_email: session.user.email || 'admin',
-    details: `Created client "${name}" (${business}) on ${tierLabels[packageTier] || packageTier} plan`,
+    details: `Created client "${name}" (${business}) on ${billingPackageLabel(packageTier)} plan`,
   })
 
   const trimmedPassword = typeof loginPassword === 'string' ? loginPassword.trim() : ''
@@ -180,7 +177,7 @@ export async function POST(req: NextRequest) {
         to: email,
         clientName: name,
         business,
-        tierLabel: tierLabels[packageTier] || packageTier,
+        tierLabel: billingPackageLabel(packageTier),
         siteUrl: getPublicSiteUrl(),
         isPotential: normalizedIsPotential,
         accountCreated: Boolean(trimmedPassword),

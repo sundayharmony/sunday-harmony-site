@@ -4,6 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import StripeElementsProvider from '@/components/billing/StripeElementsProvider'
 import EmbeddedSubscribeForm from '@/components/billing/EmbeddedSubscribeForm'
 import { formatRepairFeeCents, isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+import AdminBillingPackagePicker from '@/components/billing/AdminBillingPackagePicker'
+import {
+  billingPackageLabel,
+  CREDIT_REPAIR_PACKAGE,
+  currentBillingPackage,
+  isCreditRepairPackage,
+  type BillingPackageKey,
+} from '@/lib/billing-packages'
 
 type PaymentMethodRow = {
   id: string
@@ -39,6 +47,8 @@ export type CreditRepairBillingClient = {
   stripe_repair_invoice_id?: string | null
   last_payment_at?: string | null
   stripe_customer_id?: string
+  package_tier?: string | null
+  stripe_subscription_id?: string | null
 }
 
 export default function CreditRepairBillingPanel({
@@ -68,6 +78,16 @@ export default function CreditRepairBillingPanel({
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [setupLoading, setSetupLoading] = useState(false)
   const [defaultLoaded, setDefaultLoaded] = useState(false)
+  const [packageKey, setPackageKey] = useState<BillingPackageKey>(
+    applicationId && !client.billing_model && !client.lead_type
+      ? CREDIT_REPAIR_PACKAGE
+      : currentBillingPackage(client)
+  )
+  const [snapshotClient, setSnapshotClient] = useState<CreditRepairBillingClient>(
+    applicationId && !client.billing_model && !client.lead_type
+      ? { ...client, billing_model: 'credit_repair_one_time' }
+      : client
+  )
 
   const snapshotUrl = applicationId
     ? `/api/admin/credit-funding/${encodeURIComponent(applicationId)}/repair-billing`
@@ -113,6 +133,8 @@ export default function CreditRepairBillingPanel({
       if (Array.isArray(data.invoices)) setInvoices(data.invoices)
       const nextClient = data.client as CreditRepairBillingClient | undefined
       if (nextClient) {
+        setSnapshotClient(nextClient)
+        setPackageKey(currentBillingPackage(nextClient))
         setPaidAt(nextClient.repair_fee_paid_at || '')
         setFeeCents(nextClient.repair_fee_cents ?? null)
         setStatus(nextClient.billing_status || 'not_started')
@@ -188,6 +210,7 @@ export default function CreditRepairBillingPanel({
       if (typeof data.hostedInvoiceUrl === 'string') setHostedInvoiceUrl(data.hostedInvoiceUrl)
       const nextClient = data.client as CreditRepairBillingClient | undefined
       if (nextClient) {
+        setSnapshotClient(nextClient)
         setPaidAt(nextClient.repair_fee_paid_at || '')
         setFeeCents(nextClient.repair_fee_cents ?? null)
         setStatus(nextClient.billing_status || 'not_started')
@@ -229,7 +252,46 @@ export default function CreditRepairBillingPanel({
     }
   }
 
+  const savePackage = async () => {
+    const clientId = snapshotClient.id || client.id
+    if (!clientId) {
+      setError('No client profile is linked yet.')
+      return
+    }
+    setBusy('package')
+    setError('')
+    setSuccess('')
+    try {
+      const res = await fetch('/api/admin/clients/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId,
+          tier: packageKey,
+          hasSubscription: Boolean(snapshotClient.stripe_subscription_id?.trim()),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof data.error === 'string' ? data.error : 'Could not change package')
+        return
+      }
+      setSuccess(typeof data.message === 'string' ? data.message : 'Package saved.')
+      const nextClient = data.client as CreditRepairBillingClient | undefined
+      if (nextClient) {
+        setSnapshotClient(nextClient)
+        setPackageKey(currentBillingPackage(nextClient))
+      }
+      onUpdated?.()
+      void refresh()
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const paid = Boolean(paidAt) || status === 'paid'
+  const stillRepair = isCreditRepairBillingClient(snapshotClient)
+  const packageDirty = packageKey !== currentBillingPackage(snapshotClient)
 
   return (
     <div className="space-y-4 text-sm">
@@ -240,11 +302,38 @@ export default function CreditRepairBillingPanel({
         <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-green-800 text-xs">{success}</div>
       )}
 
+      {adminView && (
+        <div className="space-y-2">
+          <AdminBillingPackagePicker
+            selected={packageKey}
+            onSelect={setPackageKey}
+            disabled={busy !== null}
+          />
+          {packageDirty && (
+            <button
+              type="button"
+              disabled={busy !== null || !(snapshotClient.id || client.id)}
+              onClick={() => void savePackage()}
+              className="px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold disabled:opacity-50"
+            >
+              {busy === 'package'
+                ? 'Saving…'
+                : isCreditRepairPackage(packageKey)
+                  ? 'Switch to credit repair'
+                  : `Switch to ${billingPackageLabel(packageKey)}`}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-dim">Credit repair billing</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-dim">
+          {stillRepair ? 'Credit repair billing' : billingPackageLabel(currentBillingPackage(snapshotClient))}
+        </p>
         <p className="text-xs text-brand-muted">
-          Credit repair is a one-time fee, not a marketing subscription. If a card is on file it is charged;
-          otherwise we email a Stripe invoice they can pay. They always get an invoice or receipt.
+          {stillRepair
+            ? 'Credit repair is a one-time fee, not a marketing subscription. If a card is on file it is charged; otherwise we email a Stripe invoice they can pay. They always get an invoice or receipt. Switch the package above to move them onto a marketing plan.'
+            : 'This client is on a marketing package. Activate billing and start the subscription from Admin → Clients if needed. You can switch them back to credit repair with the package buttons above.'}
         </p>
         <div className="text-xs text-brand-text pt-1">
           Status: <span className="font-semibold">{paid ? 'Paid' : status.replace(/_/g, ' ')}</span>
@@ -271,7 +360,7 @@ export default function CreditRepairBillingPanel({
         )}
       </div>
 
-      {adminView && (
+      {adminView && stillRepair && (
         <>
           <div>
             <label className="text-[10px] font-bold uppercase text-brand-dim block mb-1">Repair fee (USD)</label>

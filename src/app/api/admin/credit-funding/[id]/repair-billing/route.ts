@@ -33,7 +33,7 @@ async function clientIdForApplication(id: string): Promise<string | { error: str
   }
   if (billingModelForCreditApplication(application) === 'credit_repair_one_time') {
     const client = await getClientById(clientId)
-    if (client && !client.stripe_subscription_id?.trim() && client.billing_model !== 'credit_repair_one_time') {
+    if (client && !client.stripe_subscription_id?.trim() && !client.billing_model) {
       await updateClient(clientId, { billing_model: 'credit_repair_one_time' })
     }
   }

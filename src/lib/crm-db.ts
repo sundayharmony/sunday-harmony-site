@@ -612,11 +612,13 @@ function creditRepairClientPatch(app: CreditFundingApplication, existing?: Clien
     lead_type: leadType,
     service_type: app.service_type,
   })
-  const keepMarketingSub = Boolean(existing?.stripe_subscription_id?.trim())
+  const keepMarketingBilling =
+    Boolean(existing?.stripe_subscription_id?.trim()) ||
+    existing?.billing_model === 'marketing_subscription'
   return {
     lead_type: leadType,
     credit_funding_client_status: mapApplicationStatusToCfClientStatus(app.status),
-    ...(keepMarketingSub ? {} : { billing_model: billingModel }),
+    ...(keepMarketingBilling ? {} : { billing_model: billingModel }),
     updated_at: new Date().toISOString(),
   }
 }

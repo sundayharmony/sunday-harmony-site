@@ -4,15 +4,20 @@ import { useCallback, useEffect, useState } from 'react'
 import StripeElementsProvider from '@/components/billing/StripeElementsProvider'
 import EmbeddedSubscribeForm from '@/components/billing/EmbeddedSubscribeForm'
 import {
-  formatTierListPrice,
   isFreeTier,
-  PACKAGE_TIERS,
   TIER_LABELS,
   type PackageTier,
 } from '@/lib/stripe-catalog'
 import CreditRepairBillingPanel, {
   usesCreditRepairBilling,
 } from '@/components/billing/CreditRepairBillingPanel'
+import AdminBillingPackagePicker from '@/components/billing/AdminBillingPackagePicker'
+import {
+  currentBillingPackage,
+  isCreditRepairPackage,
+  isMarketingPackage,
+  type BillingPackageKey,
+} from '@/lib/billing-packages'
 
 export type BillingPanelClient = {
   id: string
@@ -80,9 +85,7 @@ function MarketingBillingPanel({
   adminView?: boolean
   onUpdated?: () => void
 }) {
-  const [tier, setTier] = useState<PackageTier>(
-    (client.package_tier as PackageTier) || 'spark'
-  )
+  const [packageKey, setPackageKey] = useState<BillingPackageKey>(currentBillingPackage(client))
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [setupLoading, setSetupLoading] = useState(false)
@@ -152,8 +155,8 @@ function MarketingBillingPanel({
   }, [client.is_potential, clientIdParam])
 
   useEffect(() => {
-    setTier((client.package_tier as PackageTier) || 'spark')
-  }, [client.package_tier])
+    setPackageKey(currentBillingPackage(client))
+  }, [client.package_tier, client.billing_model, client.lead_type])
 
   useEffect(() => {
     void refreshPaymentMethods()
@@ -204,10 +207,13 @@ function MarketingBillingPanel({
     if (!clientSecret) void loadSetupIntent()
   }
 
-  const clientOnFree = isFreeTier(client.package_tier)
+  const marketingTier: PackageTier = isMarketingPackage(packageKey)
+    ? packageKey
+    : ((client.package_tier as PackageTier) || 'spark')
+  const clientOnFree = isFreeTier(client.package_tier) && !isCreditRepairPackage(packageKey)
 
   const runChangePlan = async () => {
-    if (!client.stripe_subscription_id?.trim()) return
+    if (!client.stripe_subscription_id?.trim() || !isMarketingPackage(packageKey)) return
     setBusy('change_plan')
     setError('')
     setSuccessMessage('')
@@ -217,7 +223,7 @@ function MarketingBillingPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...(clientIdParam ? { clientId: clientIdParam } : {}),
-          tier,
+          tier: marketingTier,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -243,8 +249,8 @@ function MarketingBillingPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: client.id,
-          tier,
-          hasSubscription: Boolean(client.stripe_subscription_id?.trim()),
+          tier: packageKey,
+          hasSubscription: Boolean(client.stripe_subscription_id?.trim()) && isMarketingPackage(packageKey),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -295,7 +301,7 @@ function MarketingBillingPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: client.id,
-          tier,
+          tier: marketingTier,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -329,12 +335,18 @@ function MarketingBillingPanel({
     void refreshPaymentMethods()
   }
 
-  const planDirty = tier !== client.package_tier
+  const planDirty = packageKey !== currentBillingPackage(client)
   const hasSubscription = Boolean(client.stripe_subscription_id?.trim())
   const hasCards = paymentMethods.length > 0
   const showAdminSave = adminView && planDirty
-  const showAdminActivate = adminView && Boolean(client.is_potential)
-  const showAdminStart = adminView && !client.is_potential && !clientOnFree && !hasSubscription
+  const showAdminActivate =
+    adminView && Boolean(client.is_potential) && isMarketingPackage(packageKey)
+  const showAdminStart =
+    adminView &&
+    !client.is_potential &&
+    isMarketingPackage(packageKey) &&
+    !isFreeTier(marketingTier) &&
+    !hasSubscription
 
   const ensureStripeCustomer = async () => {
     setBusy('customer')
@@ -460,44 +472,41 @@ function MarketingBillingPanel({
       )}
 
       <div>
-        <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">
-          {adminView ? 'Plan' : 'Current plan'}
-        </div>
         {adminView ? (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {PACKAGE_TIERS.map(key => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTier(key)}
-                className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${
-                  tier === key
-                    ? 'bg-accent-soft text-accent border border-accent'
-                    : 'bg-gray-50 text-brand-dim border border-brand-border'
-                }`}
-              >
-                {TIER_LABELS[key]} ({formatTierListPrice(key)})
-              </button>
-            ))}
+          <div className="mb-2">
+            <AdminBillingPackagePicker
+              selected={packageKey}
+              onSelect={setPackageKey}
+              disabled={busy !== null}
+            />
           </div>
         ) : (
-          <div className="text-sm font-semibold text-brand-text">
-            {TIER_LABELS[client.package_tier as PackageTier] || client.package_tier}
-          </div>
+          <>
+            <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Current plan</div>
+            <div className="text-sm font-semibold text-brand-text">
+              {TIER_LABELS[client.package_tier as PackageTier] || client.package_tier}
+            </div>
+          </>
         )}
 
         {showAdminSave && (
           <button
             type="button"
             disabled={busy !== null}
-            onClick={() => void (hasSubscription ? runChangePlan() : runAdminSavePlan())}
-            className="px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold disabled:opacity-50"
+            onClick={() =>
+              void (hasSubscription && isMarketingPackage(packageKey)
+                ? runChangePlan()
+                : runAdminSavePlan())
+            }
+            className="mt-2 px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold disabled:opacity-50"
           >
             {busy === 'admin_plan' || busy === 'change_plan'
               ? 'Saving…'
-              : hasSubscription
+              : hasSubscription && isMarketingPackage(packageKey)
                 ? 'Save plan (updates Stripe)'
-                : 'Save plan'}
+                : isCreditRepairPackage(packageKey)
+                  ? 'Switch to credit repair'
+                  : 'Save plan'}
           </button>
         )}
         {showAdminActivate && (
@@ -507,7 +516,7 @@ function MarketingBillingPanel({
             onClick={() => void runAdminActivateBilling()}
             className="mt-2 w-full px-3 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-50"
           >
-            {busy === 'admin_activate' ? 'Activating…' : `Activate billing — ${TIER_LABELS[tier]}`}
+            {busy === 'admin_activate' ? 'Activating…' : `Activate billing — ${TIER_LABELS[marketingTier]}`}
           </button>
         )}
         {showAdminStart && (

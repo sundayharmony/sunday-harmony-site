@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { adminSetClientPlan, changeSubscriptionTier, logBillingActivity } from '@/lib/billing-service'
-import { PACKAGE_TIERS, type PackageTier } from '@/lib/stripe-catalog'
+import { adminSetClientPlan, adminSetClientToCreditRepair, changeSubscriptionTier, logBillingActivity } from '@/lib/billing-service'
+import { isCreditRepairPackage, isMarketingPackage } from '@/lib/billing-packages'
+import { type PackageTier } from '@/lib/stripe-catalog'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
@@ -18,7 +19,21 @@ export async function POST(req: NextRequest) {
   if (!clientId) {
     return NextResponse.json({ error: 'clientId is required' }, { status: 400 })
   }
-  if (!PACKAGE_TIERS.includes(tier as PackageTier)) {
+  if (isCreditRepairPackage(tier)) {
+    const result = await withStripeHandler(() => adminSetClientToCreditRepair(clientId))
+    if (result instanceof NextResponse) return result
+    if (isServiceError(result)) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
+    const actor = session.user.email || 'admin'
+    await logBillingActivity(clientId, actor, result.message)
+    return NextResponse.json({
+      client: result.client,
+      message: result.message,
+      subscriptionId: null,
+    })
+  }
+  if (!isMarketingPackage(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 })
   }
 

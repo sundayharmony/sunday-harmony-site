@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { computeBillingMetrics, isPayingClient } from '@/lib/billing-metrics'
-import { TIER_LABELS } from '@/lib/stripe-catalog'
+import { billingPackageLabel, currentBillingPackage } from '@/lib/billing-packages'
+import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 
 interface ClientRow {
   id: string
@@ -14,6 +15,8 @@ interface ClientRow {
   status: string
   is_potential?: boolean
   billing_status?: string
+  billing_model?: string | null
+  lead_type?: string | null
   stripe_subscription_id?: string
   stripe_customer_id?: string
   next_billing_date?: string
@@ -138,12 +141,14 @@ export default function AdminBillingPage() {
                     <div className="text-xs text-brand-muted">{c.business}</div>
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {TIER_LABELS[c.package_tier as keyof typeof TIER_LABELS] || c.package_tier}
+                    {billingPackageLabel(currentBillingPackage(c))}
                     {c.is_potential && (
                       <span className="ml-1 text-[10px] text-amber-700">(potential)</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">${(c.monthly_price || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    {isCreditRepairBillingClient(c) ? 'one-time' : `$${(c.monthly_price || 0).toLocaleString()}`}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full border capitalize ${billingBadge(c.billing_status)}`}
