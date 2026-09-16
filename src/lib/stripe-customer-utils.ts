@@ -35,6 +35,23 @@ export function decideStripeCustomerAttach(params: {
   return { attach: true }
 }
 
+/** When a client saves a card, the payment method's Stripe customer is the source of truth. */
+export function decideSavedPaymentMethodCustomer(params: {
+  clientId: string
+  storedCustomerId?: string | null
+  paymentMethodCustomerId?: string | null
+  clientsLinkedToPmCustomer: { id: string }[]
+}): { ok: true; customerId: string | null } | { ok: false; error: string } {
+  const pmCustomer = params.paymentMethodCustomerId?.trim() || ''
+  if (!pmCustomer) {
+    return { ok: true, customerId: params.storedCustomerId?.trim() || null }
+  }
+  if (params.clientsLinkedToPmCustomer.some(row => row.id !== params.clientId)) {
+    return { ok: false, error: 'This card is already linked to another client.' }
+  }
+  return { ok: true, customerId: pmCustomer }
+}
+
 export async function attachStripeCustomerFromSetupIntent(
   clientId: string,
   stripeCustomerId: string
@@ -96,16 +113,26 @@ export async function ensureStripeCustomerForClient(
   try {
     const search = await stripe.customers.search({
       query: `email:'${escapeEmailForStripeSearch(normalizedEmail)}'`,
-      limit: 1,
+      limit: 10,
     })
-    if (search.data.length > 0) {
-      const candidateId = search.data[0].id
-      const linkedClients = await getClientsByStripeCustomerId(candidateId)
-      const linkedToAnotherClient = linkedClients.some((row) => row.id !== clientId)
-      if (!linkedToAnotherClient) {
-        stripeCustomerId = candidateId
+    let fallbackId: string | null = null
+    for (const candidate of search.data) {
+      const linkedClients = await getClientsByStripeCustomerId(candidate.id)
+      if (linkedClients.some((row) => row.id !== clientId)) continue
+      if (!fallbackId) fallbackId = candidate.id
+      const [cards, links] = await Promise.all([
+        stripe.paymentMethods.list({ customer: candidate.id, type: 'card', limit: 1 }),
+        stripe.paymentMethods.list({ customer: candidate.id, type: 'link', limit: 1 }),
+      ])
+      if (cards.data.length > 0 || links.data.length > 0) {
+        stripeCustomerId = candidate.id
         outcome = 'linked'
+        break
       }
+    }
+    if (!stripeCustomerId && fallbackId) {
+      stripeCustomerId = fallbackId
+      outcome = 'linked'
     }
   } catch (err) {
     console.warn('Stripe customer search failed, creating new customer:', err)

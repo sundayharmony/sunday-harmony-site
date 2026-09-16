@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { mapStripeError } from '../stripe-errors'
-import { decideStripeCustomerAttach } from '../stripe-customer-utils'
+import {
+  decideSavedPaymentMethodCustomer,
+  decideStripeCustomerAttach,
+} from '../stripe-customer-utils'
 
 function source(path: string): string {
   return readFileSync(path, 'utf8')
@@ -42,9 +45,10 @@ describe('Area 10 Stripe billing security', () => {
     const webhook = source('src/app/api/stripe/webhook/route.ts')
     const service = source('src/lib/billing-service.ts')
     assert.match(customerUtils, /getClientsByStripeCustomerId/)
-    assert.match(customerUtils, /linkedToAnotherClient/)
     assert.match(customerUtils, /row\.id !== clientId/)
     assert.match(customerUtils, /decideStripeCustomerAttach/)
+    assert.match(customerUtils, /decideSavedPaymentMethodCustomer/)
+    assert.match(customerUtils, /limit: 10/)
     assert.match(webhook, /attachStripeCustomerFromSetupIntent/)
     assert.match(service, /recoverCustomerWithSavedCards/)
     assert.match(service, /getClientsByStripeCustomerId/)
@@ -134,6 +138,44 @@ describe('setup_intent customer attach ownership', () => {
         clientsAlreadyLinkedToCustomer: [{ id: 'client-a' }],
       }),
       { attach: false, reason: 'already_attached' }
+    )
+  })
+})
+
+describe('saved card follows the payment method customer', () => {
+  it('uses the Stripe customer the card was actually saved on', () => {
+    assert.deepEqual(
+      decideSavedPaymentMethodCustomer({
+        clientId: 'client-a',
+        storedCustomerId: 'cus_empty',
+        paymentMethodCustomerId: 'cus_with_card',
+        clientsLinkedToPmCustomer: [],
+      }),
+      { ok: true, customerId: 'cus_with_card' }
+    )
+  })
+
+  it('does not steal a card attached to another client', () => {
+    assert.deepEqual(
+      decideSavedPaymentMethodCustomer({
+        clientId: 'client-a',
+        storedCustomerId: 'cus_a',
+        paymentMethodCustomerId: 'cus_b',
+        clientsLinkedToPmCustomer: [{ id: 'client-b' }],
+      }),
+      { ok: false, error: 'This card is already linked to another client.' }
+    )
+  })
+
+  it('falls back to the stored customer when the payment method has none yet', () => {
+    assert.deepEqual(
+      decideSavedPaymentMethodCustomer({
+        clientId: 'client-a',
+        storedCustomerId: 'cus_stored',
+        paymentMethodCustomerId: null,
+        clientsLinkedToPmCustomer: [],
+      }),
+      { ok: true, customerId: 'cus_stored' }
     )
   })
 })

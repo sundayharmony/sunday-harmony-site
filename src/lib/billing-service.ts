@@ -1,6 +1,10 @@
 import type Stripe from 'stripe'
 import { getClientById, getClientsByStripeCustomerId, logActivity, updateClient, type Client } from '@/lib/db'
-import { ensureStripeCustomerForClient, escapeEmailForStripeSearch } from '@/lib/stripe-customer-utils'
+import {
+  decideSavedPaymentMethodCustomer,
+  ensureStripeCustomerForClient,
+  escapeEmailForStripeSearch,
+} from '@/lib/stripe-customer-utils'
 import {
   getStripePriceIdForTier,
   getTierFromPriceId,
@@ -420,7 +424,13 @@ async function recoverCustomerWithSavedCards(client: Client): Promise<string | n
     candidates = search.data
   } catch (err) {
     console.warn('Stripe customer search for saved cards failed:', err)
-    return null
+    try {
+      const listed = await stripe.customers.list({ email, limit: 10 })
+      candidates = listed.data
+    } catch (listErr) {
+      console.warn('Stripe customer list for saved cards failed:', listErr)
+      return null
+    }
   }
 
   for (const candidate of candidates) {
@@ -625,9 +635,31 @@ export async function savePaymentMethodForClient(
   const blocked = rejectPotential(client)
   if (blocked) return blocked
 
-  const ensured = await ensureStripeCustomerForClient(clientId)
-  if (!ensured.ok) return { error: ensured.error, status: ensured.status }
-  await attachDefaultPaymentMethod(ensured.stripe_customer_id, paymentMethodId)
+  const stripe = getStripe()
+  const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId)
+  const pmCustomerId =
+    typeof paymentMethod.customer === 'string'
+      ? paymentMethod.customer
+      : paymentMethod.customer?.id || null
+  const linked = pmCustomerId ? await getClientsByStripeCustomerId(pmCustomerId) : []
+  const decision = decideSavedPaymentMethodCustomer({
+    clientId,
+    storedCustomerId: client.stripe_customer_id,
+    paymentMethodCustomerId: pmCustomerId,
+    clientsLinkedToPmCustomer: linked,
+  })
+  if (!decision.ok) return { error: decision.error, status: 409 }
+
+  let customerId = decision.customerId
+  if (!customerId) {
+    const ensured = await ensureStripeCustomerForClient(clientId)
+    if (!ensured.ok) return { error: ensured.error, status: ensured.status }
+    customerId = ensured.stripe_customer_id
+  } else if (client.stripe_customer_id?.trim() !== customerId) {
+    await updateClient(clientId, { stripe_customer_id: customerId })
+  }
+
+  await attachDefaultPaymentMethod(customerId, paymentMethodId)
   return { ok: true }
 }
 
