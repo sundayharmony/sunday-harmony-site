@@ -5,10 +5,12 @@ const SECTION_HEADINGS = new Set([
   'Disputed Tradelines',
   'Statutory Reinvestigation Requirements',
   'Requested Outcome',
+  'Enclosures',
   'CONSUMER INFORMATION',
   'DISPUTED ITEMS',
   'STATUTORY REINVESTIGATION REQUIREMENTS',
   'REQUESTED OUTCOME',
+  'ENCLOSURES',
 ])
 
 const BULLET_RE = /^(?:●|•|▪|◦|[-*+])\s+/

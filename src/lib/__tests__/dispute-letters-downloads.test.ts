@@ -36,9 +36,12 @@ describe('dispute letter downloads and preview', () => {
     assert.match(zipRoute, /format=docx/)
     assert.doesNotMatch(zipRoute, /download\.zip/)
     assert.match(zipRoute, /zipFiles/)
+    assert.match(zipRoute, /loadLetterIdentityAttachments/)
+    assert.match(zipRoute, /buildLetterPacketZipFiles/)
     assert.match(zipRoute, /recordLetterPackageDownload/)
     assert.doesNotMatch(zipRoute, /markLetterSent/)
     assert.doesNotMatch(zipRoute, /sent_at/)
+    assert.match(ui, /photo ID and proof of address/)
   })
 
   it('styles the preview like the Word page', () => {
@@ -56,6 +59,7 @@ describe('dispute letter downloads and preview', () => {
     assert.match(panel, /Confirm All Letters Sent/)
     assert.match(panel, /Letter package/)
     assert.match(panel, /Download again/)
+    assert.match(panel, /photo ID and proof of address/)
     assert.doesNotMatch(panel, /ITEM_OUTCOMES/)
     assert.doesNotMatch(panel, /Mark sent/)
     assert.match(panel, /BUREAU_OUTCOME_STATUSES/)

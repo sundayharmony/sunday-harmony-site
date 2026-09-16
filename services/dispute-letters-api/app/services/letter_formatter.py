@@ -12,10 +12,12 @@ SECTION_HEADINGS = frozenset(
         "Disputed Tradelines",
         "Statutory Reinvestigation Requirements",
         "Requested Outcome",
+        "Enclosures",
         "CONSUMER INFORMATION",
         "DISPUTED ITEMS",
         "STATUTORY REINVESTIGATION REQUIREMENTS",
         "REQUESTED OUTCOME",
+        "ENCLOSURES",
     }
 )
 

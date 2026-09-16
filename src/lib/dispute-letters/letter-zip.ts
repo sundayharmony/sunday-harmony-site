@@ -23,8 +23,12 @@ function u32(value: number): Buffer {
   return buf
 }
 
-export function uniqueDocxFilename(stem: string, used: Set<string>): string {
-  const safe = (stem || 'letter').replace(/[<>:"/\\|?*]/g, '-').trim().slice(0, 60) || 'letter'
+function safeZipStem(stem: string, fallback: string): string {
+  return (stem || fallback).replace(/[<>:"/\\|?*]/g, '-').trim().slice(0, 60) || fallback
+}
+
+export function uniqueZipFolderName(stem: string, used: Set<string>): string {
+  const safe = safeZipStem(stem, 'letter')
   let name = safe
   let n = 2
   while (used.has(name.toLowerCase())) {
@@ -32,7 +36,16 @@ export function uniqueDocxFilename(stem: string, used: Set<string>): string {
     n += 1
   }
   used.add(name.toLowerCase())
-  return `${name}.docx`
+  return name
+}
+
+export function uniqueZipFilename(stem: string, ext: string, used: Set<string>): string {
+  const normalizedExt = (ext || 'bin').replace(/^\./, '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
+  return `${uniqueZipFolderName(stem, used)}.${normalizedExt}`
+}
+
+export function uniqueDocxFilename(stem: string, used: Set<string>): string {
+  return uniqueZipFilename(stem || 'letter', 'docx', used)
 }
 
 export function isDocxBytes(data: Uint8Array): boolean {

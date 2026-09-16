@@ -395,3 +395,19 @@ export async function getCreditFundingDocumentSignedUrl(
   }
   return data.signedUrl
 }
+
+export async function downloadCreditFundingDocument(
+  storagePath: string
+): Promise<{ ok: true; data: Uint8Array } | { ok: false; error: string }> {
+  if (!storagePath || !hasSafeStoragePathSegments(storagePath)) {
+    return { ok: false, error: 'Invalid storage path' }
+  }
+
+  const { data, error } = await getSupabase().storage.from(CREDIT_FUNDING_BUCKET).download(storagePath)
+  if (error || !data) {
+    console.error('Credit funding document download error:', error)
+    return { ok: false, error: error?.message || 'Download failed' }
+  }
+
+  return { ok: true, data: new Uint8Array(await data.arrayBuffer()) }
+}

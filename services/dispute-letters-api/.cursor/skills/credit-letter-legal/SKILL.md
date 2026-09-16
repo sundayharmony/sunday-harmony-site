@@ -52,10 +52,11 @@ Source provenance: `knowledge/sources.json`
 Match a formal mailed dispute letter:
 
 - Date, ALL-CAPS consumer name, consumer address, recipient block, `Re:` line, `Dear Sir or Madam:`
-- Title Case sections: `Consumer Identification`, `Disputed Tradelines`, `Statutory Reinvestigation Requirements`, `Requested Outcome`
+- Title Case sections: `Consumer Identification`, `Disputed Tradelines`, `Statutory Reinvestigation Requirements`, `Requested Outcome`, `Enclosures`
 - Per tradeline: bold creditor name, then `Account Number` / `Reported Status` / `Reported Balance` / `Basis of Dispute`
 - Use `●` bullets for additional addresses and statutory duty lists
 - Close with `Respectfully,` and the consumer name
+- After the signature, list enclosures: government-issued photo identification and proof of current residential address
 
 ## Clean-profile priority
 

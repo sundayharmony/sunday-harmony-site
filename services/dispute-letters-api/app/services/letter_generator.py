@@ -171,6 +171,10 @@ Basis of Dispute:
 
 12) Closing paragraph thanking them and expecting FCRA compliance.
 13) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS).
+14) After the signature, section heading: Enclosures
+    Then always include both bullets (the mailing packet attaches these copies):
+    ● Copy of government-issued photo identification
+    ● Proof of current residential address
 
 Rules:
 - Professional tone suitable for certified mail. No legal-advice disclaimer in the letter body.
@@ -422,6 +426,10 @@ Respectfully,
 
 
 {name_sign}
+
+Enclosures
+● Copy of government-issued photo identification
+● Proof of current residential address
 """
 
 

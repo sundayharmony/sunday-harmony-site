@@ -729,6 +729,7 @@ function LetterPackageCard({
             {generatedCount} letter{generatedCount === 1 ? '' : 's'} generated
             {downloaded ? ' · ZIP Downloaded ✓' : ''}
             {allSent ? ' · Sent confirmation recorded' : downloaded ? ' · Ready to Send' : ''}
+            {' · Each folder includes photo ID and proof of address'}
           </p>
         </div>
         <div className="flex flex-wrap gap-1">

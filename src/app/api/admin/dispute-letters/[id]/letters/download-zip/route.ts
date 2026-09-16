@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
-import { getDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
+import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import { getRoundNumberForSession } from '@/lib/dispute-letters/dispute-lifecycle-db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import {
   disputeLetterRoundIndex,
   disputeLettersZipDownloadName,
 } from '@/lib/dispute-letters-storage'
-import { isDocxBytes, uniqueDocxFilename, zipFiles } from '@/lib/dispute-letters/letter-zip'
+import {
+  buildLetterPacketZipFiles,
+  loadLetterIdentityAttachments,
+} from '@/lib/dispute-letters/letter-identity-attachments'
+import { isDocxBytes, zipFiles } from '@/lib/dispute-letters/letter-zip'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -37,8 +41,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'No letters' }, { status: 404 })
     }
 
-    const used = new Set<string>()
-    const files: { name: string; data: Uint8Array }[] = []
+    const row = access.session
+    const identityPromise = loadLetterIdentityAttachments(row.application_uuid)
+
+    const letterFiles: { title: string; data: Uint8Array }[] = []
     for (const letter of letters) {
       const res = await disputeLettersFetch(
         `/internal/letters/${id}/${letter.id}/download?format=docx`
@@ -54,21 +60,23 @@ export async function GET(_request: NextRequest, { params }: Params) {
           { status: 502 }
         )
       }
-      files.push({
-        name: uniqueDocxFilename(letter.title || letter.id, used),
+      letterFiles.push({
+        title: letter.title || letter.id,
         data,
       })
     }
 
-    const row = await getDisputeSession(id, email)
+    const attachments = await identityPromise
+    const files = buildLetterPacketZipFiles({ letters: letterFiles, attachments })
+
     // Prefer durable lifecycle round number; fall back to chronological session index.
     let round = (await getRoundNumberForSession(id)) || 0
-    if (!round && row?.application_uuid) {
+    if (!round && row.application_uuid) {
       const sessions = await listDisputeSessionsForApplication(row.application_uuid)
       round = disputeLetterRoundIndex(sessions, id)
     }
     if (!round) round = 1
-    const filename = disputeLettersZipDownloadName(row?.report_json?.consumer?.name, round)
+    const filename = disputeLettersZipDownloadName(row.report_json?.consumer?.name, round)
     const zip = zipFiles(files)
 
     try {

@@ -24,6 +24,27 @@ Disputed Tradelines
 `
 
 describe('letterLayout', () => {
+  it('treats Enclosures as a section heading', () => {
+    const layout = letterLayout(`${SAMPLE}
+Respectfully,
+
+
+Jane Consumer
+
+Enclosures
+● Copy of government-issued photo identification
+● Proof of current residential address
+`)
+    assert.equal(
+      layout.blocks.some((block) => block.kind === 'line' && block.variant === 'heading' && block.text === 'Enclosures'),
+      true
+    )
+    assert.equal(
+      layout.blocks.filter((block) => block.kind === 'bullet').length >= 2,
+      true
+    )
+  })
+
   it('puts the date in the header and not the body', () => {
     const layout = letterLayout(SAMPLE)
     assert.equal(layout.date, 'September 12, 2026')
@@ -54,16 +75,18 @@ describe('letter zip packaging', () => {
   it('zips payloads that inflate back to the original bytes', () => {
     const payload = Buffer.from('PK\x03\x04fake-docx-body')
     const zip = zipFiles([
-      { name: 'Experian.docx', data: payload },
+      { name: 'Experian — 4 item(s)/Experian.docx', data: payload },
+      { name: 'Experian — 4 item(s)/Government Photo ID.jpg', data: payload },
       { name: 'Kikoff.docx', data: payload },
     ])
     assert.equal(isDocxBytes(payload), true)
     assert.equal(zip.subarray(0, 2).toString(), 'PK')
     assert.match(zip.toString('binary'), /Experian\.docx/)
+    assert.match(zip.toString('binary'), /Government Photo ID\.jpg/)
     assert.match(zip.toString('binary'), /Kikoff\.docx/)
     assert.equal(zip.includes(Buffer.from('.txt')), false)
 
-    const name = Buffer.from('Experian.docx')
+    const name = Buffer.from('Experian — 4 item(s)/Experian.docx')
     const nameStart = zip.indexOf(name)
     const headerStart = nameStart - 30
     const compSize = zip.readUInt32LE(headerStart + 18)
