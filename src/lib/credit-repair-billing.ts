@@ -47,6 +47,7 @@ export function isCreditRepairBillingClient(client: {
   billing_model?: string | null
   lead_type?: string | null
 }): boolean {
+  if (client.billing_model === 'marketing_subscription') return false
   if (client.billing_model === 'credit_repair_one_time') return true
   return isCreditRepairLeadType(client.lead_type)
 }

@@ -5,6 +5,14 @@ import StatusBadge from '@/components/ui/StatusBadge'
 import BillingPanel from '@/components/billing/BillingPanel'
 import { computeBillingMetrics } from '@/lib/billing-metrics'
 import { TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
+import {
+  BILLING_PACKAGE_KEYS,
+  billingPackageLabel,
+  billingPackagePriceLabel,
+  currentBillingPackage,
+  isCreditRepairPackage,
+} from '@/lib/billing-packages'
+import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
@@ -24,14 +32,7 @@ interface Client {
   notes: string; deliverables: string[]; quick_wins: { text: string; done: boolean }[]
 }
 
-const tierLabels: Record<string, string> = {
-  free: 'Free (Testing)',
-  social_essentials: 'Social Essentials',
-  spark: 'Spark',
-  growth: 'Growth',
-  scale: 'Scale',
-}
-
+const packageOptions = BILLING_PACKAGE_KEYS
 const tierPrices = TIER_LIST_PRICES
 
 export default function ClientsPage() {
@@ -153,7 +154,9 @@ export default function ClientsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
-          monthlyPrice: tierPrices[form.packageTier as PackageTier],
+          monthlyPrice: isCreditRepairPackage(form.packageTier)
+            ? 0
+            : tierPrices[form.packageTier as PackageTier],
         }),
       })
       if (!res.ok) {
@@ -249,7 +252,9 @@ export default function ClientsPage() {
     const headers = ['Name', 'Business', 'Email', 'Phone', 'Industry', 'Package', 'Monthly Price', 'Status', 'Start Date', 'Notes']
     const rows = filtered.map(c => [
       c.name || '', c.business || '', c.email || '', c.phone || '', c.industry || '',
-      tierLabels[c.package_tier] || c.package_tier || '', `$${(c.monthly_price || 0).toLocaleString()}`, c.status || '',
+      billingPackageLabel(currentBillingPackage(c)),
+      isCreditRepairBillingClient(c) ? 'one-time' : `$${(c.monthly_price || 0).toLocaleString()}`,
+      c.status || '',
       c.start_date ? new Date(c.start_date).toLocaleDateString() : '', c.notes || '',
     ])
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -328,20 +333,19 @@ export default function ClientsPage() {
           </div>
           <div className="mb-4">
             <label className="block text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-1">Package</label>
-            <div className="flex gap-2">
-              {Object.entries(tierLabels).map(([key, label]) => (
+            <div className="flex flex-wrap gap-2">
+              {packageOptions.map(key => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setForm(f => ({ ...f, packageTier: key }))}
-                  disabled={form.isPotential}
                   className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
                     form.packageTier === key
                       ? 'bg-accent-soft text-accent border border-accent'
                       : 'bg-gray-50 text-brand-dim border border-brand-border'
-                  } disabled:opacity-50`}
+                  }`}
                 >
-                  {label} (${tierPrices[key as PackageTier]})
+                  {billingPackageLabel(key)} ({billingPackagePriceLabel(key)})
                 </button>
               ))}
             </div>
@@ -402,8 +406,14 @@ export default function ClientsPage() {
                     >
                       <td className="px-4 py-3 text-sm font-medium text-brand-text">{client.name}</td>
                       <td className="px-4 py-3 text-sm text-brand-muted">{client.business}</td>
-                      <td className="px-4 py-3 text-xs text-accent font-semibold">{tierLabels[client.package_tier] || client.package_tier}</td>
-                      <td className="px-4 py-3 text-sm text-brand-text">${(client.monthly_price || 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-xs text-accent font-semibold">
+                        {billingPackageLabel(currentBillingPackage(client))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-brand-text">
+                        {isCreditRepairBillingClient(client)
+                          ? 'one-time'
+                          : `$${(client.monthly_price || 0).toLocaleString()}`}
+                      </td>
                       <td className="px-4 py-3 text-[10px] font-semibold uppercase text-brand-muted">
                         {(client.billing_status || 'not_started').replace('_', ' ')}
                       </td>
@@ -495,7 +505,7 @@ export default function ClientsPage() {
                 ['Email', selected.email],
                 ['Phone', selected.phone],
                 ['Industry', selected.industry],
-                ['Package', tierLabels[selected.package_tier]],
+                ['Package', billingPackageLabel(currentBillingPackage(selected))],
               ].map(([label, val]) => val ? (
                 <div key={label as string}>
                   <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim">{label}</div>
@@ -508,11 +518,9 @@ export default function ClientsPage() {
             <div className="mb-4">
               <div className="text-[10px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Billing</div>
               <p className="text-xs text-brand-muted mb-3">
-                {selected.billing_model === 'credit_repair_one_time' ||
-                selected.lead_type === 'credit_repair_lead' ||
-                selected.lead_type === 'credit_repair_funding'
-                  ? 'Credit repair clients pay a one-time fee, not a marketing subscription.'
-                  : 'Workflow: Save plan, Activate billing, then Start subscription when a card is on file.'}
+                {isCreditRepairBillingClient(selected)
+                  ? 'Credit Repair is a one-time fee. Use the package buttons in Billing to switch this client onto a marketing plan.'
+                  : 'Workflow: Save plan, Activate billing, then Start subscription when a card is on file. You can also switch them to Credit Repair.'}
               </p>
               <BillingPanel
                 key={selected.id}

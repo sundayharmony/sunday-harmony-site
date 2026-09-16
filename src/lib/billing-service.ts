@@ -527,8 +527,14 @@ export async function adminSetClientPlan(
 ): Promise<AdminClientResult> {
   const existing = await readClientOr404(clientId)
   if ('error' in existing) return existing
-  const repairBlocked = rejectMarketingSubscriptionForRepair(existing)
-  if (repairBlocked) return repairBlocked
+  const wasRepair = isCreditRepairBillingClient(existing)
+
+  if (wasRepair) {
+    await updateClient(clientId, { billing_model: 'marketing_subscription' })
+  } else {
+    const repairBlocked = rejectMarketingSubscriptionForRepair(existing)
+    if (repairBlocked) return repairBlocked
+  }
 
   if (!isFreeTier(tier) && !isStripeBillableTier(tier)) {
     return { error: 'Invalid tier', status: 400 }
@@ -542,13 +548,16 @@ export async function adminSetClientPlan(
     return {
       ok: true,
       client: updated,
-      message: 'Plan saved as Free (testing).',
+      message: wasRepair
+        ? 'Switched from credit repair to Free (testing).'
+        : 'Plan saved as Free (testing).',
     }
   }
 
   await updateClient(clientId, {
     package_tier: tier,
     monthly_price: contractedMonthlyPriceForTier(tier),
+    ...(wasRepair ? { billing_status: 'not_started' } : {}),
   })
 
   const updated = await readClientOr404(clientId)
@@ -557,7 +566,37 @@ export async function adminSetClientPlan(
   return {
     ok: true,
     client: updated,
-    message: `Plan set to ${tier.replace(/_/g, ' ')} ($${contractedMonthlyPriceForTier(tier).toLocaleString()}/mo).`,
+    message: wasRepair
+      ? `Switched from credit repair to ${tier.replace(/_/g, ' ')} ($${contractedMonthlyPriceForTier(tier).toLocaleString()}/mo). Activate billing, then start the subscription when a card is on file.`
+      : `Plan set to ${tier.replace(/_/g, ' ')} ($${contractedMonthlyPriceForTier(tier).toLocaleString()}/mo).`,
+  }
+}
+
+export async function adminSetClientToCreditRepair(clientId: string): Promise<AdminClientResult> {
+  const existing = await readClientOr404(clientId)
+  if ('error' in existing) return existing
+  if (existing.stripe_subscription_id?.trim()) {
+    return {
+      error: 'Cancel the marketing subscription before switching to the credit repair package.',
+      status: 400,
+    }
+  }
+
+  await updateClient(clientId, {
+    billing_model: 'credit_repair_one_time',
+    package_tier: 'free',
+    monthly_price: 0,
+    stripe_subscription_id: '',
+    next_billing_date: undefined,
+    billing_status: existing.repair_fee_paid_at ? 'paid' : 'not_started',
+  })
+
+  const updated = await readClientOr404(clientId)
+  if ('error' in updated) return updated
+  return {
+    ok: true,
+    client: updated,
+    message: 'Switched to the credit repair package (one-time fee). Enter the fee to charge or email an invoice.',
   }
 }
 
@@ -788,9 +827,6 @@ async function listRepairInvoicesForCustomer(customerId: string) {
 export async function getRepairBillingSnapshot(clientId: string): Promise<RepairBillingSnapshot> {
   const client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
-  if (!isCreditRepairBillingClient(client)) {
-    return { error: 'This client is not a credit repair client.', status: 400 }
-  }
 
   const paymentMethods = await listPaymentMethods(clientId)
   if ('error' in paymentMethods) return paymentMethods
