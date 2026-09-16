@@ -760,7 +760,6 @@ export async function adminChargeCreditRepairFee(
       {
         amount: parsed.cents,
         description,
-        quantity: 1,
       },
     ],
   })
