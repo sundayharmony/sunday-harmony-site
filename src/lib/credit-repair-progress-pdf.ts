@@ -62,15 +62,32 @@ const PAGE_MARGINS = { top: 26, bottom: 26, left: 56, right: 56 }
 const CARD_RADIUS = 8
 const CARD_PAD = 5
 const ACCOUNT_CARD_GAP = 6
+/** Horizontal gutter between account cards when they are laid out in columns. */
+const CARD_COLUMN_GAP = 10
 const TITLE_ROW_H = 10
 /** Field rows keep the same footprint: taller gap, shorter text block. */
 const FIELD_TEXT_H = 10
 const FIELD_ROW_GAP = 5
 const FIELD_ROW_H = FIELD_TEXT_H + FIELD_ROW_GAP
 const FIELD_LABEL_W = 56
+/** Below this card width the field rows switch to their compact metrics. */
+const NARROW_CARD_W = 300
+const HERO_H = 62
+const PILL_H = 32
+const PILL_ROW_GAP = 6
+/**
+ * Breathing room kept below the last block on a page. PDFKit starts a new page
+ * as soon as a text line would cross the bottom margin, so absolute layouts
+ * must stop short of it.
+ */
+const SECTION_BOTTOM_INSET = 8
 
 function contentWidth(doc: Doc) {
   return doc.page.width - doc.page.margins.left - doc.page.margins.right
+}
+
+function sectionHeight(doc: Doc) {
+  return doc.page.height - PAGE_MARGINS.top - PAGE_MARGINS.bottom - SECTION_BOTTOM_INSET
 }
 
 function safe(value: unknown, fallback = ''): string {
@@ -93,9 +110,33 @@ function truncateFilename(name: string, max = 48): string {
   return `${cleaned.slice(0, max - 3)}...`
 }
 
-function ensureSpace(doc: Doc, needed: number) {
-  const bottom = doc.page.height - doc.page.margins.bottom
-  if (doc.y + needed > bottom) doc.addPage()
+/** Trim to the widest prefix that fits, measured with the caller's current font. */
+export function truncateToWidth(
+  text: string,
+  width: number,
+  measure: (value: string) => number
+): string {
+  if (!text || width <= 0) return ''
+  if (measure(text) <= width) return text
+  const ellipsis = '...'
+  let lo = 0
+  let hi = text.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (measure(text.slice(0, mid) + ellipsis) <= width) lo = mid
+    else hi = mid - 1
+  }
+  if (lo <= 0) return ''
+  return `${text.slice(0, lo).trimEnd()}${ellipsis}`
+}
+
+function fitText(doc: Doc, value: unknown, width: number): string {
+  return truncateToWidth(safe(value), width, (s) => doc.widthOfString(s))
+}
+
+function lineHeightOf(doc: Doc, font: string, size: number): number {
+  doc.font(font).fontSize(size)
+  return doc.currentLineHeight(false)
 }
 
 function startBureauPage(doc: Doc) {
@@ -147,185 +188,601 @@ function directionColor(direction: string): string {
   return COLORS.text
 }
 
-function drawSectionTitle(doc: Doc, title: string) {
-  doc.moveDown(0.25)
-  doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.text).text(title)
-  doc.moveDown(0.3)
-}
-
 function drawMutedCaption(doc: Doc, text: string) {
   doc.font('Helvetica').fontSize(9).fillColor(COLORS.dim).text(safe(text), { lineGap: 4 })
 }
 
-function truncateField(value: string, max = 46): string {
-  const text = safe(value)
-  if (text.length <= max) return text
-  return `${text.slice(0, max - 3)}...`
+/* ------------------------------------------------------------------ *
+ * Layout engine
+ *
+ * A bureau section is described as an ordered list of blocks with
+ * measurable heights before anything is drawn. That lets us pick the
+ * account-card column count, split the section across pages evenly and
+ * spread leftover space into the gaps — all from one set of heights.
+ * ------------------------------------------------------------------ */
+
+export type ElasticItem = { weight: number; max: number }
+
+/**
+ * Hand out `slack` between elastic items proportionally to their weight,
+ * never giving any single item more than its `max`.
+ */
+export function distributeSlack(items: ElasticItem[], slack: number): number[] {
+  const out = items.map(() => 0)
+  let remaining = Math.max(0, slack)
+  if (remaining <= 0) return out
+
+  let active = items
+    .map((item, index) => (item.weight > 0 && item.max > 0 ? index : -1))
+    .filter((index) => index >= 0)
+
+  for (let pass = 0; pass < 6 && remaining > 0.01 && active.length > 0; pass += 1) {
+    const totalWeight = active.reduce((sum, index) => sum + items[index].weight, 0)
+    if (totalWeight <= 0) break
+    const pool = remaining
+    let used = 0
+    const next: number[] = []
+    for (const index of active) {
+      const want = (pool * items[index].weight) / totalWeight
+      const room = items[index].max - out[index]
+      const give = Math.min(want, room)
+      out[index] += give
+      used += give
+      if (room - give > 0.01) next.push(index)
+    }
+    remaining -= used
+    active = next
+    if (used <= 0.01) break
+  }
+
+  return out
 }
 
-function drawBeforeAfterRow(
+export type PackItem = {
+  height: number
+  gapAfter: number
+  /** Block may not be separated from the following block by a page break. */
+  keepWithNext?: boolean
+}
+
+type Atom = { indexes: number[]; height: number; gapAfter: number }
+
+function toAtoms(items: PackItem[]): Atom[] {
+  const atoms: Atom[] = []
+  let start = 0
+  while (start < items.length) {
+    let end = start
+    let height = items[start].height
+    while (items[end].keepWithNext && end + 1 < items.length) {
+      height += items[end].gapAfter + items[end + 1].height
+      end += 1
+    }
+    const indexes: number[] = []
+    for (let i = start; i <= end; i += 1) indexes.push(i)
+    atoms.push({ indexes, height, gapAfter: items[end].gapAfter })
+    start = end + 1
+  }
+  return atoms
+}
+
+function packAtoms(atoms: Atom[], limit: number): Atom[][] {
+  const pages: Atom[][] = []
+  let current: Atom[] = []
+  let used = 0
+  for (const atom of atoms) {
+    if (current.length === 0) {
+      current = [atom]
+      used = atom.height
+      continue
+    }
+    const gap = current[current.length - 1].gapAfter
+    if (used + gap + atom.height > limit) {
+      pages.push(current)
+      current = [atom]
+      used = atom.height
+    } else {
+      used += gap + atom.height
+      current.push(atom)
+    }
+  }
+  if (current.length > 0) pages.push(current)
+  return pages
+}
+
+/**
+ * Fill each page towards an even share of what is left rather than to the
+ * brim, so the final page of a section is never left nearly empty.
+ */
+function packAtomsBalanced(atoms: Atom[], limit: number, pageCount: number): Atom[][] {
+  const pages: Atom[][] = []
+  let remaining = atoms.reduce(
+    (sum, atom, index) => sum + atom.height + (index < atoms.length - 1 ? atom.gapAfter : 0),
+    0
+  )
+  let remainingPages = pageCount
+  let index = 0
+
+  while (index < atoms.length) {
+    const isLast = remainingPages <= 1
+    const target = isLast ? limit : remaining / remainingPages
+    const page: Atom[] = []
+    let used = 0
+    while (index < atoms.length) {
+      const gap = page.length > 0 ? atoms[index - 1].gapAfter : 0
+      const next = used + gap + atoms[index].height
+      if (page.length > 0 && next > limit) break
+      // Stop once the page is closer to its share without the next atom.
+      if (page.length > 0 && !isLast && Math.abs(next - target) > Math.abs(used - target)) break
+      page.push(atoms[index])
+      used = next
+      index += 1
+    }
+    pages.push(page)
+    remaining -= used + (index < atoms.length ? atoms[index - 1].gapAfter : 0)
+    remainingPages -= 1
+  }
+
+  return pages
+}
+
+/**
+ * Split blocks into pages using the fewest pages possible, then even out the
+ * fill across those pages.
+ */
+export function packSectionPages(items: PackItem[], pageHeight: number): number[][] {
+  if (items.length === 0) return []
+  const atoms = toAtoms(items)
+  const expand = (pages: Atom[][]) => pages.map((page) => page.flatMap((atom) => atom.indexes))
+
+  const tight = packAtoms(atoms, pageHeight)
+  if (tight.length <= 1) return expand(tight)
+
+  const balanced = packAtomsBalanced(atoms, pageHeight, tight.length)
+  return expand(balanced.length === tight.length ? balanced : tight)
+}
+
+type SectionBlock = {
+  height: number
+  /** Weight for absorbing leftover page space into the block itself. */
+  grow: number
+  growMax: number
+  gap: number
+  /** Weight for absorbing leftover page space into the gap that follows. */
+  gapGrow: number
+  gapGrowMax: number
+  keepWithNext: boolean
+  draw: (y: number, height: number) => void
+}
+
+type BlockSpec = {
+  height: number
+  draw: (y: number, height: number) => void
+  grow?: number
+  growMax?: number
+  gap?: number
+  gapGrow?: number
+  gapGrowMax?: number
+  keepWithNext?: boolean
+}
+
+function block(spec: BlockSpec): SectionBlock {
+  return {
+    height: spec.height,
+    grow: spec.grow ?? 0,
+    growMax: spec.growMax ?? 0,
+    gap: spec.gap ?? 0,
+    gapGrow: spec.gapGrow ?? 0,
+    gapGrowMax: spec.gapGrowMax ?? 0,
+    keepWithNext: spec.keepWithNext ?? false,
+    draw: spec.draw,
+  }
+}
+
+/** Widen the gap that leads into the next section heading. */
+function openSectionGap(blocks: SectionBlock[], gap: number, grow: number, growMax: number) {
+  const last = blocks[blocks.length - 1]
+  if (!last) return
+  last.gap = gap
+  last.gapGrow = grow
+  last.gapGrowMax = growMax
+}
+
+function drawBlockPage(doc: Doc, blocks: SectionBlock[], top: number, pageHeight: number) {
+  const natural = blocks.reduce(
+    (sum, b, index) => sum + b.height + (index < blocks.length - 1 ? b.gap : 0),
+    0
+  )
+  const elastics: ElasticItem[] = []
+  blocks.forEach((b, index) => {
+    elastics.push({ weight: b.grow, max: b.growMax })
+    if (index < blocks.length - 1) elastics.push({ weight: b.gapGrow, max: b.gapGrowMax })
+  })
+  const extra = distributeSlack(elastics, pageHeight - natural)
+
+  let y = top
+  blocks.forEach((b, index) => {
+    const height = b.height + extra[index * 2]
+    b.draw(y, height)
+    y += height
+    if (index < blocks.length - 1) y += b.gap + extra[index * 2 + 1]
+  })
+}
+
+/** Each bureau section owns its pages, so every page starts at the top margin. */
+function renderSection(doc: Doc, blocks: SectionBlock[]) {
+  const pageHeight = sectionHeight(doc)
+  const pages = packSectionPages(
+    blocks.map((b) => ({ height: b.height, gapAfter: b.gap, keepWithNext: b.keepWithNext })),
+    pageHeight
+  )
+  pages.forEach((indexes) => {
+    startBureauPage(doc)
+    // Blocks are positioned absolutely, so suspend PDFKit's own page flow.
+    const savedBottom = doc.page.margins.bottom
+    doc.page.margins.bottom = 0
+    try {
+      drawBlockPage(
+        doc,
+        indexes.map((index) => blocks[index]),
+        PAGE_MARGINS.top,
+        pageHeight
+      )
+    } finally {
+      doc.page.margins.bottom = savedBottom
+    }
+  })
+}
+
+/* ------------------------------------------------------------------ *
+ * Block builders
+ * ------------------------------------------------------------------ */
+
+function textBlock(
   doc: Doc,
-  label: string,
-  from: string,
-  to: string,
-  direction: string
-): void {
-  const left = doc.page.margins.left + CARD_PAD
-  const width = contentWidth(doc) - CARD_PAD * 2
-  const arrowW = 16
-  const gap = 5
-  const valueW = (width - FIELD_LABEL_W - arrowW - gap * 2) / 2
-  const y = doc.y
-
-  doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
-  doc.text(safe(label), left, y, { width: FIELD_LABEL_W, lineBreak: false })
-
-  const fromX = left + FIELD_LABEL_W
-  doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.muted)
-  doc.text(truncateField(from), fromX, y, { width: valueW, lineBreak: false })
-
-  const arrowX = fromX + valueW + gap
-  drawArrow(doc, arrowX, y + 3.5, arrowX + arrowW, COLORS.border)
-
-  const toX = arrowX + arrowW + gap
-  doc.font('Helvetica').fontSize(8.5).fillColor(directionColor(direction))
-  doc.text(truncateField(to), toX, y, { width: valueW, lineBreak: false })
-
-  doc.y = y + FIELD_ROW_H
-  doc.x = doc.page.margins.left
+  text: string,
+  opts: {
+    font?: string
+    size?: number
+    color?: string
+    gap?: number
+    gapGrow?: number
+    gapGrowMax?: number
+    keepWithNext?: boolean
+  } = {}
+): SectionBlock {
+  const font = opts.font || 'Helvetica'
+  const size = opts.size ?? 9
+  const color = opts.color || COLORS.text
+  const height = lineHeightOf(doc, font, size)
+  const value = safe(text)
+  return block({
+    height,
+    gap: opts.gap ?? 0,
+    gapGrow: opts.gapGrow ?? 0,
+    gapGrowMax: opts.gapGrowMax ?? 0,
+    keepWithNext: opts.keepWithNext,
+    draw: (y) => {
+      doc.font(font).fontSize(size).fillColor(color)
+      doc.text(value, doc.page.margins.left, y, { width: contentWidth(doc), lineBreak: false })
+    },
+  })
 }
 
-function drawScoreHero(
+function paragraphBlock(
+  doc: Doc,
+  text: string,
+  opts: { size?: number; color?: string; lineGap?: number; gap?: number } = {}
+): SectionBlock {
+  const size = opts.size ?? 9
+  const lineGap = opts.lineGap ?? 4
+  const color = opts.color || COLORS.dim
+  const value = safe(text)
+  doc.font('Helvetica').fontSize(size)
+  const height = doc.heightOfString(value, { width: contentWidth(doc), lineGap })
+  return block({
+    height,
+    gap: opts.gap ?? 0,
+    draw: (y) => {
+      doc.font('Helvetica').fontSize(size).fillColor(color)
+      doc.text(value, doc.page.margins.left, y, { width: contentWidth(doc), lineGap })
+    },
+  })
+}
+
+function reportRangeBlock(
+  doc: Doc,
+  fromSnap: CreditProgressReport['baseline'],
+  toSnap: CreditProgressReport['current']
+): SectionBlock {
+  const fromLabel = safe(formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt))
+  const toLabel = safe(formatProgressDate(toSnap?.reportDate || toSnap?.createdAt))
+  const files = [fromSnap?.fileName, toSnap?.fileName]
+    .filter(Boolean)
+    .map((n) => truncateFilename(n!))
+    .filter((n, i, all) => all.indexOf(n) === i)
+
+  const lines: { text: string; size: number }[] = [
+    { text: `Before: ${fromLabel}`, size: 9 },
+    { text: `After: ${toLabel}`, size: 9 },
+  ]
+  if (files.length) lines.push({ text: files.join('   /   '), size: 8 })
+
+  const rowGap = 3.5
+  const heights = lines.map((line) => lineHeightOf(doc, 'Helvetica', line.size))
+  const height = heights.reduce((sum, h) => sum + h, 0) + rowGap * (lines.length - 1)
+
+  return block({
+    height,
+    gap: 10,
+    gapGrow: 0.7,
+    gapGrowMax: 16,
+    draw: (y) => {
+      let cursor = y
+      lines.forEach((line, index) => {
+        doc.font('Helvetica').fontSize(line.size).fillColor(COLORS.dim)
+        doc.text(safe(line.text), doc.page.margins.left, cursor, {
+          width: contentWidth(doc),
+          lineBreak: false,
+        })
+        cursor += heights[index] + rowGap
+      })
+    },
+  })
+}
+
+function scoreHeroBlock(
   doc: Doc,
   fromScore: number | null,
   toScore: number | null,
   scoreDelta: number | null,
   scoreColor: string
-) {
-  const boxY = doc.y
-  const boxH = 62
-  const boxW = contentWidth(doc)
-  doc.roundedRect(doc.page.margins.left, boxY, boxW, boxH, CARD_RADIUS).fill(COLORS.softBg)
+): SectionBlock {
+  return block({
+    height: HERO_H,
+    grow: 1,
+    growMax: 34,
+    gap: 14,
+    gapGrow: 1.4,
+    gapGrowMax: 30,
+    draw: (y, height) => {
+      const boxW = contentWidth(doc)
+      const left = doc.page.margins.left
+      doc.roundedRect(left, y, boxW, height, CARD_RADIUS).fill(COLORS.softBg)
 
-  const col1 = doc.page.margins.left + 18
-  const col2 = doc.page.margins.left + boxW * 0.38
-  const col3 = doc.page.margins.left + boxW * 0.72
-  const scoreY = boxY + 28
+      const col1 = left + 18
+      const col2 = left + boxW * 0.38
+      const col3 = left + boxW * 0.72
+      const labelY = y + Math.max(8, (height - 44) / 2)
+      const scoreY = labelY + 18
 
-  doc.fillColor(COLORS.dim).font('Helvetica').fontSize(8.5)
-  doc.text('Before', col1, boxY + 10, { lineBreak: false })
-  doc.text('After', col2, boxY + 10, { lineBreak: false })
-  if (scoreDelta != null) {
-    doc.text('Change', col3, boxY + 10, { lineBreak: false })
-  }
+      doc.fillColor(COLORS.dim).font('Helvetica').fontSize(8.5)
+      doc.text('Before', col1, labelY, { lineBreak: false })
+      doc.text('After', col2, labelY, { lineBreak: false })
+      if (scoreDelta != null) doc.text('Change', col3, labelY, { lineBreak: false })
 
-  doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(26)
-  doc.text(fromScore != null ? String(fromScore) : '-', col1, scoreY, { lineBreak: false })
-  doc.text(toScore != null ? String(toScore) : '-', col2, scoreY, { lineBreak: false })
+      doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(26)
+      doc.text(fromScore != null ? String(fromScore) : '-', col1, scoreY, { lineBreak: false })
+      doc.text(toScore != null ? String(toScore) : '-', col2, scoreY, { lineBreak: false })
 
-  const arrowY = scoreY + 9
-  drawArrow(doc, col1 + 48, arrowY, col2 - 10, COLORS.accent)
+      drawArrow(doc, col1 + 48, scoreY + 9, col2 - 10, COLORS.accent)
 
-  if (scoreDelta != null) {
-    const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
-    doc.fillColor(scoreColor).font('Helvetica-Bold').fontSize(20)
-    doc.text(safe(`${label} pts`), col3, scoreY + 1, { lineBreak: false })
-  }
-
-  doc.y = boxY + boxH + 14
-  doc.x = doc.page.margins.left
+      if (scoreDelta != null) {
+        const label = scoreDelta > 0 ? `+${scoreDelta}` : String(scoreDelta)
+        doc.fillColor(scoreColor).font('Helvetica-Bold').fontSize(20)
+        doc.text(safe(`${label} pts`), col3, scoreY + 1, { lineBreak: false })
+      }
+    },
+  })
 }
 
-function drawMetricPills(doc: Doc, deltas: CreditProgressDelta[]) {
+function metricPillsBlock(doc: Doc, deltas: CreditProgressDelta[]): SectionBlock | null {
   const changed = deltas.filter((d) => d.from !== d.to)
-  if (!changed.length) return
+  if (!changed.length) return null
 
   const cols = changed.length > 3 ? 2 : changed.length
   const rows = Math.ceil(changed.length / cols)
   const pillGap = 8
-  const rowGap = 6
-  const pillW = (contentWidth(doc) - pillGap * (cols - 1)) / cols
-  const pillH = 32
-  ensureSpace(doc, rows * pillH + (rows - 1) * rowGap + 10)
-  const startY = doc.y
+  const height = rows * PILL_H + (rows - 1) * PILL_ROW_GAP
 
-  changed.forEach((d, i) => {
-    const col = i % cols
-    const row = Math.floor(i / cols)
-    const x = doc.page.margins.left + col * (pillW + pillGap)
-    const y = startY + row * (pillH + rowGap)
-    doc.roundedRect(x, y, pillW, pillH, 6).fill(COLORS.cardBg)
-    doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
-    doc.text(safe(d.label), x + 8, y + 5, { width: pillW - 16, lineBreak: false })
-    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.text)
-    const from = formatDeltaValue(d.from)
-    const to = formatDeltaValue(d.to)
-    const midY = y + 17
-    doc.text(from, x + 8, midY, { width: pillW * 0.38, lineBreak: false })
-    drawArrow(doc, x + pillW * 0.42, midY + 3.5, x + pillW * 0.56, COLORS.border)
-    doc.fillColor(directionColor(d.direction))
-    doc.text(to, x + pillW * 0.58, midY, { width: pillW * 0.34, lineBreak: false })
+  return block({
+    height,
+    grow: 0.7,
+    growMax: rows * 10,
+    gap: 14,
+    gapGrow: 1.4,
+    gapGrowMax: 30,
+    draw: (y, totalHeight) => {
+      const pillW = (contentWidth(doc) - pillGap * (cols - 1)) / cols
+      const pillH = (totalHeight - (rows - 1) * PILL_ROW_GAP) / rows
+      changed.forEach((d, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        const x = doc.page.margins.left + col * (pillW + pillGap)
+        const pillY = y + row * (pillH + PILL_ROW_GAP)
+        doc.roundedRect(x, pillY, pillW, pillH, 6).fill(COLORS.cardBg)
+        const labelY = pillY + Math.max(4, (pillH - 22) / 2)
+        doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
+        doc.text(fitText(doc, d.label, pillW - 16), x + 8, labelY, {
+          width: pillW - 16,
+          lineBreak: false,
+        })
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.text)
+        const valueY = labelY + 12
+        doc.text(formatDeltaValue(d.from), x + 8, valueY, {
+          width: pillW * 0.38,
+          lineBreak: false,
+        })
+        drawArrow(doc, x + pillW * 0.42, valueY + 3.5, x + pillW * 0.56, COLORS.border)
+        doc.fillColor(directionColor(d.direction))
+        doc.text(formatDeltaValue(d.to), x + pillW * 0.58, valueY, {
+          width: pillW * 0.34,
+          lineBreak: false,
+        })
+      })
+    },
   })
-
-  doc.y = startY + rows * pillH + (rows - 1) * rowGap + 12
-  doc.x = doc.page.margins.left
 }
 
-function accountCardHeight(fieldCount: number): number {
+export function accountCardHeight(fieldCount: number): number {
   const rows = fieldCount * FIELD_TEXT_H + Math.max(fieldCount - 1, 0) * FIELD_ROW_GAP
   return CARD_PAD * 2 + TITLE_ROW_H + rows
 }
 
-function drawAccountCard(
-  doc: Doc,
-  creditor: string,
-  mask: string,
-  fields: TradelineFieldChange['fields']
-) {
-  const cardH = accountCardHeight(fields.length)
-  ensureSpace(doc, cardH + ACCOUNT_CARD_GAP)
-  const x = doc.page.margins.left
-  const w = contentWidth(doc)
-  const y = doc.y
-
-  doc.roundedRect(x, y, w, cardH, CARD_RADIUS).fillAndStroke(COLORS.white, COLORS.border)
-
-  doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.text)
-  const maskLabel = formatAccountMaskForPdf(mask)
-  const title = maskLabel ? `${safe(creditor)}  ${maskLabel}` : safe(creditor)
-  doc.text(title, x + CARD_PAD, y + CARD_PAD, { width: w - CARD_PAD * 2, lineBreak: false })
-
-  doc.y = y + CARD_PAD + TITLE_ROW_H
-  doc.x = doc.page.margins.left
-  for (const f of fields) {
-    drawBeforeAfterRow(doc, f.label, f.from, f.to, f.direction)
+/**
+ * Group cards into rows of `columns`. Cards of equal height are paired so a
+ * multi-column grid wastes almost no vertical space, and the tallest rows
+ * lead so the grid reads top-heavy instead of ragged.
+ */
+export function planAccountCardRows(heights: number[], columns: number): number[][] {
+  if (columns <= 1) return heights.map((_, index) => [index])
+  const ordered = heights
+    .map((height, index) => ({ height, index }))
+    .sort((a, b) => b.height - a.height || a.index - b.index)
+  const rows: number[][] = []
+  for (let i = 0; i < ordered.length; i += columns) {
+    rows.push(
+      ordered
+        .slice(i, i + columns)
+        .map((entry) => entry.index)
+        .sort((a, b) => a - b)
+    )
   }
-
-  doc.y = y + cardH + ACCOUNT_CARD_GAP
-  doc.x = doc.page.margins.left
+  return rows
 }
 
-function drawSimpleAccountList(
+/**
+ * One label column for the whole grid: wide enough for the longest label in
+ * play, so narrow cards spend their width on values instead of blank gutter.
+ */
+function fieldLabelWidth(doc: Doc, cards: TradelineFieldChange[], innerWidth: number): number {
+  doc.font('Helvetica').fontSize(7.5)
+  let widest = 0
+  for (const card of cards) {
+    for (const field of card.fields) {
+      widest = Math.max(widest, doc.widthOfString(safe(field.label)))
+    }
+  }
+  const cap = Math.min(FIELD_LABEL_W, Math.max(30, innerWidth * 0.3))
+  return Math.min(cap, widest + 6)
+}
+
+function drawFieldRow(
+  doc: Doc,
+  x: number,
+  y: number,
+  width: number,
+  labelW: number,
+  field: TradelineFieldChange['fields'][number]
+) {
+  const narrow = width < NARROW_CARD_W
+  const arrowW = narrow ? 12 : 16
+  const gap = 5
+  const valueW = (width - labelW - arrowW - gap * 2) / 2
+  const valueSize = narrow ? 8 : 8.5
+
+  doc.font('Helvetica').fontSize(7.5).fillColor(COLORS.dim)
+  doc.text(fitText(doc, field.label, labelW), x, y, { width: labelW, lineBreak: false })
+
+  const fromX = x + labelW
+  doc.font('Helvetica').fontSize(valueSize).fillColor(COLORS.muted)
+  doc.text(fitText(doc, field.from, valueW), fromX, y, { width: valueW, lineBreak: false })
+
+  const arrowX = fromX + valueW + gap
+  drawArrow(doc, arrowX, y + 3.5, arrowX + arrowW, COLORS.border)
+
+  const toX = arrowX + arrowW + gap
+  doc.font('Helvetica').fontSize(valueSize).fillColor(directionColor(field.direction))
+  doc.text(fitText(doc, field.to, valueW), toX, y, { width: valueW, lineBreak: false })
+}
+
+function drawAccountCard(
+  doc: Doc,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  card: TradelineFieldChange,
+  labelW: number
+) {
+  doc.roundedRect(x, y, width, height, CARD_RADIUS).fillAndStroke(COLORS.white, COLORS.border)
+
+  const innerW = width - CARD_PAD * 2
+  doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COLORS.text)
+  const maskLabel = formatAccountMaskForPdf(card.accountMask)
+  const maskW = maskLabel ? doc.widthOfString(`  ${maskLabel}`) : 0
+  const creditor = fitText(doc, card.creditor, innerW - maskW)
+  const title = maskLabel ? `${creditor}  ${maskLabel}` : creditor
+  doc.text(title, x + CARD_PAD, y + CARD_PAD, { width: innerW, lineBreak: false })
+
+  let rowY = y + CARD_PAD + TITLE_ROW_H
+  for (const field of card.fields) {
+    drawFieldRow(doc, x + CARD_PAD, rowY, innerW, labelW, field)
+    rowY += FIELD_ROW_H
+  }
+}
+
+function accountCardBlocks(
+  doc: Doc,
+  cards: TradelineFieldChange[],
+  columns: number
+): SectionBlock[] {
+  const heights = cards.map((card) => accountCardHeight(card.fields.length))
+  const rows = planAccountCardRows(heights, columns)
+  const cardW = (contentWidth(doc) - CARD_COLUMN_GAP * (columns - 1)) / columns
+  const labelW = fieldLabelWidth(doc, cards, cardW - CARD_PAD * 2)
+
+  return rows.map((row) =>
+    block({
+      height: Math.max(...row.map((index) => heights[index])),
+      gap: ACCOUNT_CARD_GAP,
+      gapGrow: 0.55,
+      gapGrowMax: 14,
+      draw: (y, height) => {
+        row.forEach((cardIndex, col) => {
+          const x = doc.page.margins.left + col * (cardW + CARD_COLUMN_GAP)
+          drawAccountCard(doc, x, y, cardW, height, cards[cardIndex], labelW)
+        })
+      },
+    })
+  )
+}
+
+function simpleListBlocks(
   doc: Doc,
   items: { creditor: string; accountMask: string; category?: string }[],
   title: string,
-  titleColor: string
-) {
-  if (!items.length) return
-  drawSectionTitle(doc, title)
-  doc.font('Helvetica').fontSize(9).fillColor(titleColor)
-  for (const item of items) {
-    ensureSpace(doc, 16)
+  itemColor: string
+): SectionBlock[] {
+  if (!items.length) return []
+  const blocks: SectionBlock[] = [
+    textBlock(doc, title, {
+      font: 'Helvetica-Bold',
+      size: 11,
+      color: COLORS.text,
+      gap: 5,
+      gapGrow: 0.2,
+      gapGrowMax: 6,
+      keepWithNext: true,
+    }),
+  ]
+  items.forEach((item) => {
     const mask = formatAccountMaskForPdf(item.accountMask)
     const inquiryTag =
       item.category === 'inquiry' || /inquir/i.test(item.category || '') ? ' (Inquiry)' : ''
     const line = mask
       ? `${safe(item.creditor)}  ${mask}${inquiryTag}`
       : `${safe(item.creditor)}${inquiryTag}`
-    doc.text(line, { lineGap: 3 })
-    doc.moveDown(0.08)
-  }
-  doc.moveDown(0.25)
+    blocks.push(
+      textBlock(doc, line, {
+        size: 9,
+        color: itemColor,
+        gap: 4,
+        gapGrow: 0.35,
+        gapGrowMax: 8,
+      })
+    )
+  })
+  return blocks
 }
 
 function scoreForBureau(
@@ -370,23 +827,140 @@ function formatDeltaValue(value: string | number | null | undefined): string {
   return safe(String(value))
 }
 
-function drawReportRange(
-  doc: Doc,
-  fromSnap: CreditProgressReport['baseline'],
+type BureauSectionData = {
+  label: string
+  fromSnap: CreditProgressReport['baseline']
   toSnap: CreditProgressReport['current']
-) {
-  const fromLabel = safe(formatProgressDate(fromSnap?.reportDate || fromSnap?.createdAt))
-  const toLabel = safe(formatProgressDate(toSnap?.reportDate || toSnap?.createdAt))
-  drawMutedCaption(doc, `Before: ${fromLabel}`)
-  drawMutedCaption(doc, `After: ${toLabel}`)
-  const files = [fromSnap?.fileName, toSnap?.fileName]
-    .filter(Boolean)
-    .map((n) => truncateFilename(n!))
-    .filter((n, i, all) => all.indexOf(n) === i)
-  if (files.length) {
-    doc.fontSize(8).fillColor(COLORS.dim).text(files.join('   /   '), { lineGap: 3 })
+  fromScore: number | null
+  toScore: number | null
+  metricDeltas: CreditProgressDelta[]
+  diff: TradelineProgressDiff | null | undefined
+  hasAccounts: boolean
+  includeDisclaimer: boolean
+}
+
+function buildBureauBlocks(doc: Doc, data: BureauSectionData, columns: number): SectionBlock[] {
+  const blocks: SectionBlock[] = []
+
+  blocks.push(
+    textBlock(doc, data.label, {
+      font: 'Helvetica-Bold',
+      size: 18,
+      color: COLORS.text,
+      gap: 7,
+      gapGrow: 0.35,
+      gapGrowMax: 10,
+    })
+  )
+  blocks.push(reportRangeBlock(doc, data.fromSnap, data.toSnap))
+
+  const scoreDelta =
+    data.fromScore != null && data.toScore != null ? data.toScore - data.fromScore : null
+  const scoreColor =
+    scoreDelta == null
+      ? COLORS.text
+      : scoreDelta > 0
+        ? COLORS.emerald
+        : scoreDelta < 0
+          ? COLORS.red
+          : COLORS.text
+  blocks.push(scoreHeroBlock(doc, data.fromScore, data.toScore, scoreDelta, scoreColor))
+
+  if (data.toScore == null && data.hasAccounts) {
+    blocks.push(
+      paragraphBlock(
+        doc,
+        'Score was not extracted from the newer report file. Account changes below still apply.',
+        { color: COLORS.amber, gap: 12 }
+      )
+    )
+    openSectionGap(blocks, 12, 0.8, 18)
   }
-  doc.moveDown(0.4)
+
+  const pills = metricPillsBlock(doc, data.metricDeltas)
+  if (pills) {
+    blocks.push(
+      textBlock(doc, 'Profile summary', {
+        font: 'Helvetica-Bold',
+        size: 11,
+        gap: 6,
+        gapGrow: 0.2,
+        gapGrowMax: 6,
+        keepWithNext: true,
+      })
+    )
+    blocks.push(pills)
+  }
+
+  blocks.push(
+    textBlock(doc, 'Account changes', {
+      font: 'Helvetica-Bold',
+      size: 11,
+      gap: 6,
+      gapGrow: 0.2,
+      gapGrowMax: 6,
+      keepWithNext: true,
+    })
+  )
+
+  if (!data.hasAccounts) {
+    blocks.push(
+      paragraphBlock(
+        doc,
+        data.diff?.matchConfidence === 'low'
+          ? 'Could not match accounts between these two reports.'
+          : 'No account-level changes for this bureau.',
+        { gap: 14 }
+      )
+    )
+  } else {
+    const diff = data.diff!
+    if (diff.changed.length > 0) {
+      blocks.push(
+        textBlock(doc, 'Updated', {
+          font: 'Helvetica-Bold',
+          size: 10,
+          color: COLORS.muted,
+          gap: 5,
+          keepWithNext: true,
+        })
+      )
+      blocks.push(...accountCardBlocks(doc, diff.changed, columns))
+    }
+
+    const removed = simpleListBlocks(doc, diff.removed, 'Removed from report', COLORS.emerald)
+    if (removed.length) {
+      openSectionGap(blocks, 14, 1.1, 26)
+      blocks.push(...removed)
+    }
+    const added = simpleListBlocks(doc, diff.added, 'New on report', COLORS.amber)
+    if (added.length) {
+      openSectionGap(blocks, 14, 1.1, 26)
+      blocks.push(...added)
+    }
+  }
+
+  if (data.includeDisclaimer) {
+    openSectionGap(blocks, 16, 1, 24)
+    const last = blocks[blocks.length - 1]
+    if (last) last.keepWithNext = true
+    blocks.push(
+      paragraphBlock(
+        doc,
+        'Educational progress tracking only. Not a credit score, funding decision, or legal advice.'
+      )
+    )
+  }
+
+  const tail = blocks[blocks.length - 1]
+  if (tail) {
+    tail.gap = 0
+    tail.gapGrow = 0
+    tail.gapGrowMax = 0
+    tail.keepWithNext = false
+  }
+
+  return blocks
 }
 
 /**
@@ -456,82 +1030,45 @@ export function buildCreditRepairProgressPdfBuffer(
       return
     }
 
+    const pageHeight = sectionHeight(doc)
+
     for (let bureauIndex = 0; bureauIndex < bureaus.length; bureauIndex += 1) {
       const bureau = bureaus[bureauIndex]
       const report = input.progressByBureau[bureau]!
-      const fromScore = scoreForBureau(report, 'from', input.compareMode)
-      const toScore = scoreForBureau(report, 'to', input.compareMode)
-      const deltas = activeDeltas(report, input.compareMode)
       const accounts = activeAccountDiff(report, input.compareMode)
-      const hasAccounts =
-        !!accounts &&
-        (accounts.removed.length > 0 || accounts.added.length > 0 || accounts.changed.length > 0)
-      const fromSnap =
-        input.compareMode === 'previous' && report.previous ? report.previous : report.baseline
-      const toSnap = report.current
-
-      startBureauPage(doc)
-
-      doc.font('Helvetica-Bold').fontSize(18).fillColor(COLORS.text).text(BUREAU_LABELS[bureau])
-      doc.moveDown(0.35)
-      drawReportRange(doc, fromSnap, toSnap)
-
-      const scoreDelta = fromScore != null && toScore != null ? toScore - fromScore : null
-      const scoreColor =
-        scoreDelta == null ? COLORS.text : scoreDelta > 0 ? COLORS.emerald : scoreDelta < 0 ? COLORS.red : COLORS.text
-
-      drawScoreHero(doc, fromScore, toScore, scoreDelta, scoreColor)
-
-      if (toScore == null && hasAccounts) {
-        doc
-          .font('Helvetica')
-          .fontSize(9)
-          .fillColor(COLORS.amber)
-          .text(
-            safe('Score was not extracted from the newer report file. Account changes below still apply.'),
-            { width: contentWidth(doc), lineGap: 4 }
-          )
-        doc.moveDown(0.5)
+      const deltas = activeDeltas(report, input.compareMode)
+      const data: BureauSectionData = {
+        label: BUREAU_LABELS[bureau],
+        fromSnap:
+          input.compareMode === 'previous' && report.previous ? report.previous : report.baseline,
+        toSnap: report.current,
+        fromScore: scoreForBureau(report, 'from', input.compareMode),
+        toScore: scoreForBureau(report, 'to', input.compareMode),
+        metricDeltas: deltas.filter((d) => d.field !== 'bureau_score'),
+        diff: accounts,
+        hasAccounts:
+          !!accounts &&
+          (accounts.removed.length > 0 ||
+            accounts.added.length > 0 ||
+            accounts.changed.length > 0),
+        includeDisclaimer: bureauIndex === bureaus.length - 1,
       }
 
-      const metricDeltas = deltas.filter((d) => d.field !== 'bureau_score')
-      if (metricDeltas.length) {
-        drawSectionTitle(doc, 'Profile summary')
-        drawMetricPills(doc, metricDeltas)
-      }
+      const toPackItems = (blocks: SectionBlock[]): PackItem[] =>
+        blocks.map((b) => ({ height: b.height, gapAfter: b.gap, keepWithNext: b.keepWithNext }))
 
-      const diff = accounts
-      drawSectionTitle(doc, 'Account changes')
-
-      if (!hasAccounts) {
-        drawMutedCaption(
-          doc,
-          diff?.matchConfidence === 'low'
-            ? 'Could not match accounts between these two reports.'
-            : 'No account-level changes for this bureau.'
-        )
-        doc.moveDown(0.5)
-      } else {
-        if (diff!.changed.length > 0) {
-          doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.muted).text('Updated')
-          doc.moveDown(0.3)
-          for (const item of diff!.changed) {
-            drawAccountCard(doc, item.creditor, item.accountMask, item.fields)
-          }
+      let blocks = buildBureauBlocks(doc, data, 1)
+      let pages = packSectionPages(toPackItems(blocks), pageHeight).length
+      if (pages > 1 && (accounts?.changed.length || 0) > 1) {
+        const wide = buildBureauBlocks(doc, data, 2)
+        const widePages = packSectionPages(toPackItems(wide), pageHeight).length
+        if (widePages < pages) {
+          blocks = wide
+          pages = widePages
         }
-
-        drawSimpleAccountList(doc, diff!.removed, 'Removed from report', COLORS.emerald)
-        drawSimpleAccountList(doc, diff!.added, 'New on report', COLORS.amber)
       }
 
-      if (bureauIndex === bureaus.length - 1) {
-        ensureSpace(doc, 48)
-        doc.moveDown(0.5)
-        drawMutedCaption(
-          doc,
-          'Educational progress tracking only. Not a credit score, funding decision, or legal advice.'
-        )
-      }
+      renderSection(doc, blocks)
     }
 
     doc.end()
