@@ -156,6 +156,17 @@ export function bureauHealthCounts(
   }
 }
 
+export function filenameBureauHint(fileName = ''): BureauCode[] {
+  const name = (fileName || '').trim()
+  if (!name) return []
+  if (TRI_MERGE_RE.test(name)) return [...BUREAU_ORDER]
+  const found = new Set<BureauCode>()
+  for (const { bureau, re } of FILENAME_PATTERNS) {
+    if (re.test(name)) found.add(bureau)
+  }
+  return BUREAU_ORDER.filter((bureau) => found.has(bureau))
+}
+
 export function detectBureauCoverage(
   report: ParsedReport | null | undefined,
   fileName = ''

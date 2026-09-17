@@ -1,7 +1,6 @@
 import { getSupabase } from '@/lib/supabase'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import {
-  allIdentitiesFromTradelines,
   appendStatusEvent,
   buildLetterPackageSnapshot,
   comparisonUpdatesForItems,
@@ -10,6 +9,7 @@ import {
   isRoundClosedForNext,
   isRoundFullySent,
   itemIdentityFromTradeline,
+  type ItemIdentity,
   nextRoundNumber,
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
@@ -35,6 +35,16 @@ import {
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { deleteDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import { removeDisputeSessionStorage } from '@/lib/dispute-letters-storage'
+import {
+  comparisonKeysFromSessions,
+  DEFAULT_ROUND1_REPORT_DATE,
+  followUpResponseNote,
+  followUpSessionsAfterRound1,
+  latestPendingIdentitiesFromSessions,
+  pickHistoricalRound1Session,
+  selectTradelinesForHistoricalRound1,
+  type HistoricalPlan,
+} from '@/lib/dispute-letters/round1-backfill'
 import type { Tradeline } from '@/lib/dispute-letters/types'
 
 function emptyWorkflow() {
@@ -285,21 +295,19 @@ async function latestReportTradelines(applicationUuid: string): Promise<Tradelin
   return []
 }
 
-/** Insert remaining negatives/inquiries as pending so they appear in the identified queue. */
-export async function ensurePendingItemsFromTradelines(params: {
-  caseId: string
-  tradelines: Tradeline[]
-}): Promise<{ inserted: number; error?: string }> {
-  const identities = pendingIdentitiesFromTradelines(params.tradelines)
+async function insertPendingIdentities(
+  caseId: string,
+  identities: ItemIdentity[]
+): Promise<{ inserted: number; error?: string }> {
   if (!identities.length) return { inserted: 0 }
 
-  const existing = await listItemsForCase(params.caseId)
+  const existing = await listItemsForCase(caseId)
   const existingKeys = new Set(existing.map((item) => item.match_key))
   const now = new Date().toISOString()
   const rows = identities
     .filter((identity) => !existingKeys.has(identity.matchKey))
     .map((identity) => ({
-      case_id: params.caseId,
+      case_id: caseId,
       match_key: identity.matchKey,
       creditor_name: identity.creditorName,
       account_last4: identity.accountLast4,
@@ -328,7 +336,6 @@ export async function ensurePendingItemsFromTradelines(params: {
       }
       return { inserted: rows.length }
     }
-    // Parallel page loads can race the unique (case_id, match_key) insert.
     if (error.code === '23505') return { inserted: 0 }
     console.error('ensurePendingItemsFromTradelines error:', error)
     return { inserted: 0, error: error.message }
@@ -336,10 +343,24 @@ export async function ensurePendingItemsFromTradelines(params: {
   return { inserted: rows.length }
 }
 
+/** Insert remaining negatives/inquiries as pending so they appear in the identified queue. */
+export async function ensurePendingItemsFromTradelines(params: {
+  caseId: string
+  tradelines: Tradeline[]
+}): Promise<{ inserted: number; error?: string }> {
+  return insertPendingIdentities(params.caseId, pendingIdentitiesFromTradelines(params.tradelines))
+}
+
 async function seedPendingItemsFromLatestReport(
   applicationUuid: string,
   caseId: string
 ): Promise<void> {
+  const sessions = await listDisputeSessionsForApplication(applicationUuid)
+  const identities = latestPendingIdentitiesFromSessions(sessions)
+  if (identities.length) {
+    await insertPendingIdentities(caseId, identities)
+    return
+  }
   const tradelines = await latestReportTradelines(applicationUuid)
   if (!tradelines.length) return
   await ensurePendingItemsFromTradelines({ caseId, tradelines })
@@ -378,10 +399,10 @@ export async function applyComparisonFromLatestReport(
   applicationUuid: string,
   caseId: string
 ): Promise<void> {
-  const latest = await latestReportTradelines(applicationUuid)
-  if (!latest.length) return
-  const latestMatchKeys = new Set(allIdentitiesFromTradelines(latest).map((i) => i.matchKey))
-  const latestCandidateKeys = new Set(pendingIdentitiesFromTradelines(latest).map((i) => i.matchKey))
+  const sessions = await listDisputeSessionsForApplication(applicationUuid)
+  const { matchKeys: latestMatchKeys, candidateKeys: latestCandidateKeys } =
+    comparisonKeysFromSessions(sessions)
+  if (!latestMatchKeys.size && !latestCandidateKeys.size) return
   const items = await listItemsForCase(caseId)
   const updates = comparisonUpdatesForItems({ items, latestMatchKeys, latestCandidateKeys })
   if (!updates.length) return
@@ -1662,6 +1683,252 @@ export async function loadReleasedRoundsForApplication(
     responses.push(...(await listResponsesForRound(round.id)))
   }
   return { rounds: roundRows, items, responses }
+}
+
+export type HistoricalRound1BackfillSummary = {
+  applicationUuid: string
+  round1SessionId: string
+  round1FileName: string
+  roundId: string
+  itemCount: number
+  letterCount: number
+  followUpCount: number
+  responseCount: number
+  alreadyComplete: boolean
+}
+
+export async function findApplicationUuidByConsumerName(name: string): Promise<string | null> {
+  const needle = name.trim().replace(/[%_]/g, '')
+  if (!needle) return null
+  const db = getSupabase()
+  const sessions = await db
+    .from('dispute_sessions')
+    .select('application_uuid, file_name')
+    .ilike('file_name', `%${needle}%`)
+    .not('application_uuid', 'is', null)
+    .limit(20)
+  const fromFile = (sessions.data || []).find((row) => row.application_uuid)
+  if (fromFile?.application_uuid) return String(fromFile.application_uuid)
+
+  const apps = await db.from('credit_funding_applications').select('id, full_name').ilike('full_name', `%${needle}%`).limit(10)
+  const rows = apps.data || []
+  if (rows.length === 1) return String(rows[0].id)
+  const exact = rows.find((row) => String(row.full_name || '').trim().toLowerCase() === needle.toLowerCase())
+  return exact ? String(exact.id) : rows[0] ? String(rows[0].id) : null
+}
+
+async function ensureRound1Row(params: {
+  caseId: string
+  sessionId: string
+  startedAt: string
+}): Promise<DisputeRoundRow | { error: string }> {
+  const existing = (await listRoundsForCase(params.caseId)).find((round) => round.round_number === 1)
+  const db = getSupabase()
+  const now = new Date().toISOString()
+  if (existing) {
+    const { data, error } = await db
+      .from('dispute_rounds')
+      .update({
+        session_id: params.sessionId,
+        updated_at: now,
+        notes:
+          existing.notes ||
+          'Backfilled: Round 1 was mailed from the original 3-bureau report. Later bureau uploads are recorded as responses.',
+      })
+      .eq('id', existing.id)
+      .select('*')
+      .single()
+    if (error || !data) return { error: error?.message || 'Failed to update Round 1' }
+    return data as DisputeRoundRow
+  }
+  const { data, error } = await db
+    .from('dispute_rounds')
+    .insert({
+      case_id: params.caseId,
+      round_number: 1,
+      status: 'draft',
+      session_id: params.sessionId,
+      notes:
+        'Backfilled: Round 1 was mailed from the original 3-bureau report. Later bureau uploads are recorded as responses.',
+      started_at: params.startedAt,
+      created_at: params.startedAt,
+      updated_at: now,
+    })
+    .select('*')
+    .single()
+  if (error || !data) return { error: error?.message || 'Failed to create Round 1' }
+  return data as DisputeRoundRow
+}
+
+async function attachFollowUpResponses(
+  roundId: string,
+  followUps: import('@/lib/dispute-letters/types').DisputeSessionListItem[]
+): Promise<number> {
+  const existing = await listResponsesForRound(roundId)
+  const seen = new Set(
+    existing.map((row) => `${row.storage_path}::${row.file_name}`.toLowerCase())
+  )
+  let created = 0
+  for (const session of followUps) {
+    const key = `${session.storage_path}::${session.file_name}`.toLowerCase()
+    if (seen.has(key)) continue
+    const result = await createDisputeResponse({
+      roundId,
+      source: 'bureau',
+      fileName: session.file_name,
+      storagePath: session.storage_path,
+      notes: followUpResponseNote(session),
+      uploadedBy: 'historical-backfill',
+    })
+    if (result.ok) {
+      seen.add(key)
+      created += 1
+    }
+  }
+  return created
+}
+
+async function stampHistoricalRoundSent(params: {
+  round: DisputeRoundRow
+  sessionId: string
+  mailedAt: string
+}): Promise<{ letterCount: number; itemCount: number; error?: string }> {
+  await markRoundLettersReady(params.round.id, params.sessionId)
+  await onLettersGenerated(params.sessionId)
+  const items = await listItemsForCase(params.round.case_id)
+  const { data: links } = await getSupabase()
+    .from('dispute_round_items')
+    .select('item_id')
+    .eq('round_id', params.round.id)
+  const itemIds = (links || []).map((row) => row.item_id as string)
+  const letters = currentLetters(await listRoundLetters(params.sessionId))
+  if (letters.length) {
+    const confirmed = await confirmAllLettersSentForSession(params.sessionId)
+    if (!confirmed.ok) {
+      await stampRoundItemsSent({
+        round: params.round,
+        itemIds,
+        letterIdByItem: new Map(),
+        items,
+        now: params.mailedAt,
+      })
+      await maybeCompleteRoundIfFullySent(params.round.id)
+    }
+  } else {
+    await stampRoundItemsSent({
+      round: params.round,
+      itemIds,
+      letterIdByItem: new Map(),
+      items,
+      now: params.mailedAt,
+    })
+    await maybeCompleteRoundIfFullySent(params.round.id)
+  }
+  await updateRoundMailTracking({
+    roundId: params.round.id,
+    mailedAt: params.mailedAt,
+    status: 'awaiting_response',
+    packetChecklist: {
+      letters_printed: true,
+      photo_id: true,
+      mail_proof: true,
+    },
+  })
+  return { letterCount: letters.length, itemCount: itemIds.length }
+}
+
+export async function backfillHistoricalRound1ForApplication(params: {
+  applicationUuid: string
+  preferredReportDate?: string
+}): Promise<{ ok: true; summary: HistoricalRound1BackfillSummary } | { ok: false; error: string }> {
+  const applicationUuid = params.applicationUuid.trim()
+  if (!applicationUuid) return { ok: false, error: 'applicationUuid is required' }
+
+  const sessions = await listDisputeSessionsForApplication(applicationUuid)
+  const round1Session = pickHistoricalRound1Session(sessions, params.preferredReportDate || DEFAULT_ROUND1_REPORT_DATE)
+  if (!round1Session) {
+    return { ok: false, error: 'No 3-bureau Round 1 report found for this client.' }
+  }
+  const tradelines = (round1Session.report_json?.tradelines || []) as Tradeline[]
+  if (!tradelines.length) {
+    return { ok: false, error: `Round 1 report ${round1Session.file_name} has no tradelines.` }
+  }
+
+  const followUps = followUpSessionsAfterRound1(sessions, round1Session)
+  const disputeCase = await getOrCreateDisputeCase(applicationUuid)
+  if (!disputeCase) return { ok: false, error: 'Could not create a dispute case. Confirm dispute round migrations are applied.' }
+
+  const plans = (await loadSessionPlans(round1Session.id)) as HistoricalPlan[]
+  const selected = selectTradelinesForHistoricalRound1(tradelines, plans)
+  if (!selected.some((row) => row.selected)) {
+    return { ok: false, error: 'Could not determine which accounts were in the original Round 1 letters.' }
+  }
+
+  const startedAt = round1Session.created_at || new Date().toISOString()
+  const round = await ensureRound1Row({
+    caseId: disputeCase.id,
+    sessionId: round1Session.id,
+    startedAt,
+  })
+  if ('error' in round) return { ok: false, error: round.error }
+
+  const existingItems = await listItemsForCase(disputeCase.id)
+  const { data: existingLinks } = await getSupabase()
+    .from('dispute_round_items')
+    .select('item_id, sent_at')
+    .eq('round_id', round.id)
+  const linkedIds = (existingLinks || []).map((row) => row.item_id as string)
+  const alreadySent =
+    linkedIds.length > 0 &&
+    linkedIds.every((id) => existingItems.find((item) => item.id === id)?.sent_at || existingLinks?.find((row) => row.item_id === id)?.sent_at)
+
+  let itemCount = linkedIds.length
+  let letterCount = currentLetters(await listRoundLetters(round1Session.id)).length
+  if (!alreadySent) {
+    const upsert = await upsertRoundItemsFromTradelines({
+      caseId: disputeCase.id,
+      roundId: round.id,
+      roundNumber: 1,
+      tradelines: selected,
+    })
+    if (upsert.error) return { ok: false, error: upsert.error }
+    const letters = await listRoundLetters(round1Session.id)
+    const mailedAt = letters[0]?.created_at || round1Session.updated_at || startedAt
+    const stamped = await stampHistoricalRoundSent({
+      round,
+      sessionId: round1Session.id,
+      mailedAt,
+    })
+    if (stamped.error) return { ok: false, error: stamped.error }
+    itemCount = stamped.itemCount
+    letterCount = stamped.letterCount
+  } else if (round.status === 'draft' || round.status === 'letters_ready' || round.status === 'mailed') {
+    await updateRoundMailTracking({
+      roundId: round.id,
+      mailedAt: round.mailed_at || existingItems.find((item) => item.sent_at)?.sent_at || startedAt,
+      status: 'awaiting_response',
+    })
+  }
+
+  await attachFollowUpResponses(round.id, followUps)
+  await applyComparisonFromLatestReport(applicationUuid, disputeCase.id)
+  await seedPendingItemsFromLatestReport(applicationUuid, disputeCase.id)
+  const responses = await listResponsesForRound(round.id)
+
+  return {
+    ok: true,
+    summary: {
+      applicationUuid,
+      round1SessionId: round1Session.id,
+      round1FileName: round1Session.file_name,
+      roundId: round.id,
+      itemCount,
+      letterCount,
+      followUpCount: followUps.length,
+      responseCount: responses.length,
+      alreadyComplete: alreadySent,
+    },
+  }
 }
 
 /**

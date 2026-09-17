@@ -26,10 +26,17 @@ describe('application dispute work reset', () => {
     const panel = readFileSync('src/components/credit-funding/CreditIntelligencePanel.tsx', 'utf8')
     const rounds = readFileSync('src/components/dispute-letters/DisputeRoundsPanel.tsx', 'utf8')
     assert.match(db, /export async function resetDisputeWorkForApplication/)
+    assert.match(db, /export async function backfillHistoricalRound1ForApplication/)
     assert.match(db, /from\('dispute_cases'\)\.delete\(\)/)
     assert.match(route, /resetDisputeWorkForApplication/)
     assert.match(panel, /resetApplicationDisputeWork/)
     assert.match(rounds, /Reset to before first report/)
+    assert.match(rounds, /Record prior Round 1/)
+    const backfillRoute = readFileSync(
+      'src/app/api/admin/dispute-letters/lifecycle/backfill-round1/route.ts',
+      'utf8'
+    )
+    assert.match(backfillRoute, /backfillHistoricalRound1ForApplication/)
   })
 })
 

@@ -135,6 +135,31 @@ export async function resetApplicationDisputeWork(applicationUuid: string): Prom
   return res.json() as Promise<{ sessionsDeleted: number; caseDeleted: boolean }>
 }
 
+export async function backfillHistoricalRound1(params: {
+  applicationUuid?: string
+  consumerName?: string
+  preferredReportDate?: string
+}): Promise<{
+  ok: true
+  applicationUuid: string
+  round1SessionId: string
+  round1FileName: string
+  roundId: string
+  itemCount: number
+  letterCount: number
+  followUpCount: number
+  responseCount: number
+  alreadyComplete: boolean
+}> {
+  const res = await fetch('/api/admin/dispute-letters/lifecycle/backfill-round1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json()
+}
+
 export async function fetchDisputeHealth(sessionId: string) {
   const res = await fetch(`/api/admin/dispute-letters/${sessionId}/health`)
   if (!res.ok) throw new Error(await parseError(res))

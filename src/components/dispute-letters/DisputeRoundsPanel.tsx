@@ -19,7 +19,7 @@ import {
   type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
-import { confirmLetterPackageSent, disputeLettersZipUrl, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
+import { backfillHistoricalRound1, confirmLetterPackageSent, disputeLettersZipUrl, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
 
 const MAIL_METHODS: DisputeMailMethod[] = ['certified', 'priority', 'other']
 
@@ -252,6 +252,34 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
             className="text-xs font-semibold text-brand-dim hover:underline disabled:opacity-50"
           >
             Refresh
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  'Record the original 3-bureau report as mailed Round 1, and treat later bureau PDFs as bureau responses/updates? This does not delete reports.'
+                )
+              ) {
+                return
+              }
+              void (async () => {
+                setBusy(true)
+                setError('')
+                try {
+                  await backfillHistoricalRound1({ applicationUuid: applicationId })
+                  await load()
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to backfill Round 1')
+                } finally {
+                  setBusy(false)
+                }
+              })()
+            }}
+            className="text-xs font-semibold text-brand-dim hover:underline disabled:opacity-50"
+          >
+            Record prior Round 1
           </button>
           <button
             type="button"

@@ -29,7 +29,7 @@ export async function listDisputeSessionsForApplication(
     .select('*')
     .eq('application_uuid', applicationUuid)
     .order('created_at', { ascending: false })
-    .limit(20)
+    .limit(50)
 
   if (error) {
     console.error('listDisputeSessionsForApplication error:', error)
