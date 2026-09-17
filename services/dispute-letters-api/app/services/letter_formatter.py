@@ -37,9 +37,16 @@ def replace_letter_sentence_dashes(text: str) -> str:
 
     Keeps hyphens in words (charge-off) and numeric/statutory ranges (§611(a)(6)–(7)).
     """
+    return "".join(_replace_letter_sentence_dashes_line(line) for line in text.splitlines(keepends=True))
+
+
+def _replace_letter_sentence_dashes_line(line: str) -> str:
+    prefer_comma = line.lstrip().lower().startswith("re:")
 
     def _punct(following: str) -> str:
-        return ". " if following[:1].isupper() else ", "
+        if prefer_comma or not following[:1].isupper():
+            return ", "
+        return ". "
 
     def _is_citation_range(before: str, after: str) -> bool:
         return bool(re.search(r"\d", before) and re.search(r"\d", after))
@@ -62,12 +69,12 @@ def replace_letter_sentence_dashes(text: str) -> str:
             return match.group(0)
         return ", "
 
-    text = re.sub(r"[ \t]*[—–][ \t]*([A-Za-z])", _spaced, text)
-    text = re.sub(r"[ \t]+-[ \t]+([A-Za-z])", _spaced, text)
-    text = re.sub(r"(\S{1,40})[—–](\S{1,80})", _unspaced, text)
-    text = re.sub(r"[ \t]*[—–][ \t]*", _leftover, text)
-    text = re.sub(r"[^\S\n]{2,}", " ", text)
-    return text
+    line = re.sub(r"[ \t]*[—–][ \t]*([A-Za-z])", _spaced, line)
+    line = re.sub(r"[ \t]+-[ \t]+([A-Za-z])", _spaced, line)
+    line = re.sub(r"(\S{1,40})[—–](\S{1,80})", _unspaced, line)
+    line = re.sub(r"[ \t]*[—–][ \t]*", _leftover, line)
+    line = re.sub(r"[^\S\n]{2,}", " ", line)
+    return line
 
 
 def normalize_letter_source(text: str) -> str:

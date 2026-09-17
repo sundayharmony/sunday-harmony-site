@@ -69,6 +69,11 @@ def test_template_and_cleanup_drop_sentence_em_dashes():
     assert "charge-off" in cleaned
     assert "Profile. I also" in cleaned
     assert "history. I want" in cleaned
+    re_line = replace_letter_sentence_dashes(
+        "Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information – FCRA §611 (15 U.S.C. §1681i)"
+    )
+    assert "—" not in re_line and "–" not in re_line
+    assert "Information, FCRA" in re_line
     stored = letter_layout(
         "September 12, 2026\n\nJANE CONSUMER\n\nDear Sir or Madam:\n\n"
         "Closed negatives — these do not help. Keep FCRA §611(a)(6)–(7).\n"

@@ -20,9 +20,14 @@ const DATE_LINE_RE =
   /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\s*$/
 
 export function replaceLetterSentenceDashes(text: string): string {
-  const punct = (following: string) => (/^[A-Z]/.test(following) ? '. ' : ', ')
+  return text.split(/(?<=\n)/).map(replaceLetterSentenceDashesLine).join('')
+}
+
+function replaceLetterSentenceDashesLine(line: string): string {
+  const preferComma = line.trimStart().toLowerCase().startsWith('re:')
+  const punct = (following: string) => (preferComma || !/^[A-Z]/.test(following) ? ', ' : '. ')
   const isCitationRange = (before: string, after: string) => /\d/.test(before) && /\d/.test(after)
-  let next = text.replace(/[ \t]*[—–][ \t]*([A-Za-z])/g, (_full, following: string) => `${punct(following)}${following}`)
+  let next = line.replace(/[ \t]*[—–][ \t]*([A-Za-z])/g, (_full, following: string) => `${punct(following)}${following}`)
   next = next.replace(/[ \t]+-[ \t]+([A-Za-z])/g, (_full, following: string) => `${punct(following)}${following}`)
   next = next.replace(/(\S{1,40})[—–](\S{1,80})/g, (full, left: string, right: string) => {
     if (isCitationRange(left.slice(-16), right.slice(0, 16))) return full
@@ -34,8 +39,7 @@ export function replaceLetterSentenceDashes(text: string): string {
     if (isCitationRange(before, after)) return full
     return ', '
   })
-  next = next.replace(/[^\S\n]{2,}/g, ' ')
-  return next
+  return next.replace(/[^\S\n]{2,}/g, ' ')
 }
 
 export function normalizeLetterSource(text: string): string {

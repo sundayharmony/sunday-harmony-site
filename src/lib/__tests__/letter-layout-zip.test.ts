@@ -39,6 +39,11 @@ describe('letterLayout', () => {
     assert.match(cleaned, /charge-off/)
     assert.match(cleaned, /Profile\. I also/)
     assert.match(cleaned, /history\. I want/)
+    const reLine = replaceLetterSentenceDashes(
+      'Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information – FCRA §611 (15 U.S.C. §1681i)'
+    )
+    assert.equal(/[—–]/.test(reLine), false)
+    assert.match(reLine, /Information, FCRA/)
   })
 
   it('treats Enclosures as a section heading', () => {
