@@ -32,6 +32,44 @@ _DATE_LINE_RE = re.compile(
 )
 
 
+def replace_letter_sentence_dashes(text: str) -> str:
+    """Turn em/en dashes used as sentence punctuation into commas or periods.
+
+    Keeps hyphens in words (charge-off) and numeric/statutory ranges (§611(a)(6)–(7)).
+    """
+
+    def _punct(following: str) -> str:
+        return ". " if following[:1].isupper() else ", "
+
+    def _is_citation_range(before: str, after: str) -> bool:
+        return bool(re.search(r"\d", before) and re.search(r"\d", after))
+
+    def _spaced(match: re.Match[str]) -> str:
+        following = match.group(1)
+        return f"{_punct(following)}{following}"
+
+    def _unspaced(match: re.Match[str]) -> str:
+        left, right = match.group(1), match.group(2)
+        if _is_citation_range(left[-16:], right[:16]):
+            return match.group(0)
+        return f"{left}{_punct(right)}{right}"
+
+    def _leftover(match: re.Match[str]) -> str:
+        start, end = match.start(), match.end()
+        before = match.string[max(0, start - 16) : start]
+        after = match.string[end : end + 16]
+        if _is_citation_range(before, after):
+            return match.group(0)
+        return ", "
+
+    text = re.sub(r"[ \t]*[—–][ \t]*([A-Za-z])", _spaced, text)
+    text = re.sub(r"[ \t]+-[ \t]+([A-Za-z])", _spaced, text)
+    text = re.sub(r"(\S{1,40})[—–](\S{1,80})", _unspaced, text)
+    text = re.sub(r"[ \t]*[—–][ \t]*", _leftover, text)
+    text = re.sub(r"[^\S\n]{2,}", " ", text)
+    return text
+
+
 def normalize_letter_source(text: str) -> str:
     """Clean agent output while preserving controlled **bold** markup."""
     text = text.strip()
@@ -41,6 +79,7 @@ def normalize_letter_source(text: str) -> str:
     text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
     # Normalize bullet markers to a filled circle for consistent print layout
     text = re.sub(r"^(\s*)(?:[•▪◦]|\-|\*|\+)\s+", r"\1● ", text, flags=re.MULTILINE)
+    text = replace_letter_sentence_dashes(text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 

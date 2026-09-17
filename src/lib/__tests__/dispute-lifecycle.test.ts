@@ -321,7 +321,7 @@ describe('dispute lifecycle rounds', () => {
       ],
       roundSummary: 'Round 2 mailed; no deletion.',
     })
-    assert.match(draft, /# CFPB complaint draft — Alex Consumer/)
+    assert.match(draft, /# CFPB complaint draft: Alex Consumer/)
     assert.match(draft, /Capital One ···1234 \(TUC\)/)
     assert.match(draft, /status: verified/)
     assert.match(draft, /Still on file/)

@@ -1016,10 +1016,10 @@ export function buildCfpbComplaintDraft(params: {
   const lines = params.items.map((item, i) => {
     const last4 = item.accountLast4 ? ` ···${item.accountLast4}` : ''
     const notes = item.notes?.trim() ? ` Notes: ${item.notes.trim()}` : ''
-    return `${i + 1}. ${item.creditorName}${last4} (${item.bureau}) — status: ${item.currentStatus}.${notes}`
+    return `${i + 1}. ${item.creditorName}${last4} (${item.bureau}), status: ${item.currentStatus}.${notes}`
   })
   return [
-    `# CFPB complaint draft — ${name}`,
+    `# CFPB complaint draft: ${name}`,
     '',
     'I am submitting this complaint regarding inaccurate or unverifiable information on my consumer reports and inadequate reinvestigation by one or more consumer reporting agencies / furnishers.',
     '',
@@ -1034,7 +1034,7 @@ export function buildCfpbComplaintDraft(params: {
     '- Confirm that furnishers and CRAs have met FCRA duties.',
     '- Provide written confirmation of the agency response.',
     '',
-    '_Draft only — submit via consumerfinance.gov with the consumer’s own credentials. Do not store passwords in this app._',
+    '_Draft only. Submit via consumerfinance.gov with the consumer’s own credentials. Do not store passwords in this app._',
   ].join('\n')
 }
 

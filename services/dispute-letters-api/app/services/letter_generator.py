@@ -54,7 +54,7 @@ def build_letter_prompt(
     }
     if plan.letter_type == "method_of_verification":
         opening_ask = (
-            ", disclosure of the method of verification used under FCRA §611(a)(6)–(7), "
+            ", disclosure of the method of verification used under FCRA §611(a)(6)-(7), "
             "the name and contact information of any person contacted to verify the information, "
             "and deletion of any item that cannot be verified"
         )
@@ -63,7 +63,7 @@ def build_letter_prompt(
             ", completion of the overdue reinvestigation, written results, "
             "and notice that continued noncompliance may result in further escalation including "
             "a complaint to the Consumer Financial Protection Bureau and civil remedies under "
-            "FCRA §616–§617"
+            "FCRA §616 and §617"
         )
     elif plan.letter_type == "reinvestigation":
         opening_ask = (
@@ -125,21 +125,21 @@ Disputed items:
 {intel_block}
 
 CLEAN-PROFILE PRIORITY:
-- Lead with (and emphasize deletion of) collections, charge-offs, and closed/paid accounts that still show late history or other negatives — these do not help a clean credit profile.
+- Lead with (and emphasize deletion of) collections, charge-offs, and closed/paid accounts that still show late history or other negatives. These do not help a clean credit profile.
 - For those accounts, the primary ask is DELETE the tradeline if unverifiable; correction is only the fallback.
 - Do not soft-pedal closed negatives as mere status tweaks.
 - Tailor Basis of Dispute language to each account's specific facts (dates, balances, status inconsistencies, possible obsolescence).
 
-FORMAT — match a polished mailed business letter (like a finished Experian dispute PDF):
+FORMAT: match a polished mailed business letter (like a finished Experian dispute PDF):
 
-1) First line: today's date as Month DD, YYYY (e.g. July 24, 2026). Do NOT write "Page X/Y" — pagination is added when printing.
+1) First line: today's date as Month DD, YYYY (e.g. July 24, 2026). Do NOT write "Page X/Y". Pagination is added when printing.
 2) Blank line, then consumer full name in ALL CAPS on its own line.
 3) Consumer current address on the following lines (street, unit if any, city/state/ZIP). No labels here.
 4) Blank line, then recipient name, then recipient address lines.
 5) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
-   Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information – {plan.statute}
+   Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
 6) Blank line, then salutation: "Dear Sir or Madam:"
-7) 1–2 short opening paragraphs stating this is a formal dispute under {plan.statute}, requesting a reasonable reinvestigation{opening_ask}.
+7) One or two short opening paragraphs stating this is a formal dispute under {plan.statute}, requesting a reasonable reinvestigation{opening_ask}.
 
 8) Section heading on its own line (Title Case, NOT ALL CAPS): Consumer Identification
    Then labeled fields (one per line):
@@ -150,7 +150,7 @@ FORMAT — match a polished mailed business letter (like a finished Experian dis
    Additional Addresses on File:
    ● address one
    ● address two
-   (Use a filled circle bullet "●" — not dashes.)
+   (Use a filled circle bullet "●", not dashes.)
 
 9) Section heading: Disputed Tradelines
    Order accounts so closed, paid, collection, and other obsolete negatives come first.
@@ -167,7 +167,7 @@ Basis of Dispute:
     Short intro sentence, then ● bullet list of the recipient's statutory duties (bureau: 30-day reinvestigation, 5-business-day furnisher notice, review of evidence, delete/modify unverifiable data, written results). Cite {plan.statute} and related FCRA sections accurately.
 
 11) Section heading: Requested Outcome
-    Lead with deletion: for each disputed tradeline — especially closed, paid, collection, or otherwise obsolete negatives — delete the account if it cannot be verified as accurate and complete. Only alternatively correct inaccurate fields (status, balance, past-due, payment history, delinquency ratings). Ask that written results be mailed to the address above.
+    Lead with deletion: for each disputed tradeline, especially closed, paid, collection, or otherwise obsolete negatives, delete the account if it cannot be verified as accurate and complete. Only alternatively correct inaccurate fields (status, balance, past-due, payment history, delinquency ratings). Ask that written results be mailed to the address above.
 
 12) Closing paragraph thanking them and expecting FCRA compliance.
 13) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS).
@@ -182,6 +182,7 @@ Rules:
 - Use "● " for bullets under Additional Addresses and Statutory Requirements.
 - Do NOT invent facts not provided (balances, statuses, addresses, account numbers).
 - Do NOT guarantee deletion or score improvement.
+- Do NOT use em dashes (—), en dashes (–), or a spaced hyphen as punctuation. Use a comma or a period. Keep hyphens only inside words such as charge-off.
 - Output ONLY the letter body (no code fences, no commentary).
 """
 
@@ -357,9 +358,9 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"believed to be inaccurate."
         )
         outcome = (
-            f"My priority is a clean credit profile. For each disputed tradeline identified above—"
+            f"My priority is a clean credit profile. For each disputed tradeline identified above, "
             f"especially collections, charge-offs, and closed or paid accounts that still show "
-            f"negative or unverifiable history—I request that {recipient} delete the account in full "
+            f"negative or unverifiable history, I request that {recipient} delete the account in full "
             f"if it cannot be verified as accurate and complete. Only if the account is verified "
             f"should inaccurate fields be corrected, including account status, balance, past-due "
             f"amount, payment history, and delinquency ratings.\n\n"
@@ -382,8 +383,8 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"be verified, and cease furnishing such information."
         )
         outcome = (
-            f"My priority is a clean credit profile. For each disputed tradeline identified above—"
-            f"especially closed, paid, collection, or otherwise obsolete negatives—I request that "
+            f"My priority is a clean credit profile. For each disputed tradeline identified above, "
+            f"especially closed, paid, collection, or otherwise obsolete negatives, I request that "
             f"you delete the account if it cannot be verified as accurate and complete or, "
             f"alternatively, correct all inaccurate fields and update each consumer reporting "
             f"agency accordingly.\n\n"
@@ -398,7 +399,7 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
 {plan.recipient_name}
 {addr}
 
-Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information – {plan.statute}
+Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
 
 Dear Sir or Madam:
 

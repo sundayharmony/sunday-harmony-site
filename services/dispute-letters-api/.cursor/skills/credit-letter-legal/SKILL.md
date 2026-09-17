@@ -55,6 +55,7 @@ Match a formal mailed dispute letter:
 - Title Case sections: `Consumer Identification`, `Disputed Tradelines`, `Statutory Reinvestigation Requirements`, `Requested Outcome`, `Enclosures`
 - Per tradeline: bold creditor name, then `Account Number` / `Reported Status` / `Reported Balance` / `Basis of Dispute`
 - Use `●` bullets for additional addresses and statutory duty lists
+- Do not use em dashes in the letter body. Use a comma or a period.
 - Close with `Respectfully,` and the consumer name
 - After the signature, list enclosures: government-issued photo identification and proof of current residential address
 

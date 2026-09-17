@@ -19,12 +19,32 @@ const FIELD_LABEL_RE =
 const DATE_LINE_RE =
   /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\s*$/
 
+export function replaceLetterSentenceDashes(text: string): string {
+  const punct = (following: string) => (/^[A-Z]/.test(following) ? '. ' : ', ')
+  const isCitationRange = (before: string, after: string) => /\d/.test(before) && /\d/.test(after)
+  let next = text.replace(/[ \t]*[—–][ \t]*([A-Za-z])/g, (_full, following: string) => `${punct(following)}${following}`)
+  next = next.replace(/[ \t]+-[ \t]+([A-Za-z])/g, (_full, following: string) => `${punct(following)}${following}`)
+  next = next.replace(/(\S{1,40})[—–](\S{1,80})/g, (full, left: string, right: string) => {
+    if (isCitationRange(left.slice(-16), right.slice(0, 16))) return full
+    return `${left}${punct(right)}${right}`
+  })
+  next = next.replace(/[ \t]*[—–][ \t]*/g, (full, offset: number, str: string) => {
+    const before = str.slice(Math.max(0, offset - 16), offset)
+    const after = str.slice(offset + full.length, offset + full.length + 16)
+    if (isCitationRange(before, after)) return full
+    return ', '
+  })
+  next = next.replace(/[^\S\n]{2,}/g, ' ')
+  return next
+}
+
 export function normalizeLetterSource(text: string): string {
   let next = text.trim()
   next = next.replace(/```[\w]*\n?/g, '').replace(/```/g, '')
   next = next.replace(/^#{1,6}\s+/gm, '')
   next = next.replace(/^[-*_]{3,}\s*$/gm, '')
   next = next.replace(/^(\s*)(?:[•▪◦]|\-|\*|\+)\s+/gm, '$1● ')
+  next = replaceLetterSentenceDashes(next)
   next = next.replace(/\n{3,}/g, '\n\n')
   return next.trim()
 }

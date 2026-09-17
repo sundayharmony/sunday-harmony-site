@@ -18,7 +18,7 @@ KIKOFF LENDING LLC
 633 FOLSOM ST STE 300
 SAN FRANCISCO, CA 94107
 
-Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information – FCRA §623 (15 U.S.C. §1681s-2)
+Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, FCRA §623 (15 U.S.C. §1681s-2)
 
 Dear Sir or Madam:
 
@@ -30,7 +30,7 @@ Full Name: Widji Selphin
 Date of Birth: January 1, 1990
 
 Disputed Tradelines
-● Kikoff Lending LLC — Account Number: ****1234
+● Kikoff Lending LLC, Account Number: ****1234
 """
 
 
