@@ -23,29 +23,21 @@ import {
 import {
   formatBureauCoverageLabel,
   getSessionBureauCoverage,
+  intelligenceFromSession,
+  sessionReportDate,
 } from '@/lib/dispute-letters/bureau-coverage'
+import {
+  hasAnyBureauScore,
+  resolveBureauScoresAcrossReports,
+} from '@/lib/dispute-letters/bureau-score-history'
 import { uploadDisputeLetterToSignedUrl } from '@/lib/dispute-letters/upload-client'
 import type {
-  BureauScores,
   CreditIntelligenceReport,
   DisputeSessionListItem,
   FundingContextPayload,
 } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
-
-function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceReport | null {
-  return (
-    s.intelligence_json ||
-    s.report_json?.credit_intelligence ||
-    null
-  )
-}
-
-function bureauScoresFromSession(s: DisputeSessionListItem | null): BureauScores | null {
-  if (!s?.report_json?.credit_health?.scores) return null
-  return s.report_json.credit_health.scores
-}
 
 function shortFileName(name: string): string {
   if (name.length <= 28) return name
@@ -207,10 +199,10 @@ export default function CreditIntelligencePanel({
     'baseline'
   )
 
-  const bureauScores = useMemo(() => {
-    const activeSession = sessions.find((s) => s.id === activeId) || null
-    return bureauScoresFromSession(activeSession)
-  }, [sessions, activeId])
+  const bureauScoreState = useMemo(
+    () => resolveBureauScoresAcrossReports({ sessions, selectedSessionId: activeId }),
+    [sessions, activeId]
+  )
 
   const readyChronological = useMemo(() => {
     return sessions
@@ -506,9 +498,7 @@ export default function CreditIntelligencePanel({
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             {sessions.map((s) => {
-              const intel = intelligenceFromSession(s)
-              const reportDate =
-                intel?.report_date || s.report_json?.report_date || s.created_at
+              const reportDate = sessionReportDate(s)
               const coverage = getSessionBureauCoverage(s)
               const badges: string[] = []
               if (s.id === firstReadyId) badges.push('First')
@@ -720,9 +710,14 @@ export default function CreditIntelligencePanel({
       ) : (
         <>
           <BureauScoresPanel
-            scores={bureauScores}
+            scores={bureauScoreState.scores}
+            origins={bureauScoreState.origins}
             title="Credit Bureau Scores"
-            subtitle={bureauScores ? undefined : 'Upload a credit report to see bureau scores'}
+            subtitle={
+              hasAnyBureauScore(bureauScoreState.scores)
+                ? 'Most recent score on file for each bureau across all uploaded reports.'
+                : 'Upload a credit report to see bureau scores'
+            }
           />
 
           {intelligence ? (

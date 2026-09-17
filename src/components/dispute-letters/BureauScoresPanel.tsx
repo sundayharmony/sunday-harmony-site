@@ -1,20 +1,23 @@
 'use client'
 
-import { ScoreCard } from '@/components/dispute-letters/ScoreCard'
-import type { BureauScores } from '@/lib/dispute-letters/types'
+import { BureauScoreCards } from '@/components/dispute-letters/BureauScoreCards'
+import { hasAnyBureauScore } from '@/lib/dispute-letters/bureau-score-history'
+import type { BureauCode, BureauScoreOrigin, BureauScores } from '@/lib/dispute-letters/types'
 
 interface BureauScoresPanelProps {
   scores?: BureauScores | null
+  origins?: Partial<Record<BureauCode, BureauScoreOrigin>>
   title?: string
   subtitle?: string
 }
 
 export function BureauScoresPanel({
   scores,
+  origins,
   title = 'Credit Bureau Scores',
   subtitle,
 }: BureauScoresPanelProps) {
-  const hasScores = scores && (scores.tuc !== null || scores.exp !== null || scores.eqf !== null)
+  const hasScores = hasAnyBureauScore(scores)
 
   return (
     <div className="rounded-xl border border-brand-border bg-white p-5 shadow-sm">
@@ -28,11 +31,7 @@ export function BureauScoresPanel({
           </p>
         ) : null}
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <ScoreCard bureau="TransUnion" code="TUC" score={scores?.tuc ?? null} />
-        <ScoreCard bureau="Experian" code="EXP" score={scores?.exp ?? null} />
-        <ScoreCard bureau="Equifax" code="EQF" score={scores?.eqf ?? null} />
-      </div>
+      <BureauScoreCards scores={scores} origins={origins} />
     </div>
   )
 }

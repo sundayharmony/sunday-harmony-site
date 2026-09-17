@@ -1,13 +1,14 @@
 import {
+  bureauScoreValue,
   getSessionBureauCoverage,
+  intelligenceFromSession,
   perBureauFromReport,
   resolveSessionBureauScores,
+  sessionReportDate,
 } from '@/lib/dispute-letters/bureau-coverage'
 import { diffTradelinesForBureau } from '@/lib/dispute-letters/tradeline-progress'
 import type {
   BureauCode,
-  BureauScores,
-  CreditIntelligenceReport,
   CreditProgressDelta,
   CreditProgressDirection,
   CreditProgressHealthCounts,
@@ -48,10 +49,6 @@ const FUNDING_LEVEL_RANK: Record<string, number> = {
 }
 
 const BUREAU_ORDER: BureauCode[] = ['TUC', 'EXP', 'EQF']
-
-function intelligenceFromSession(s: DisputeSessionListItem): CreditIntelligenceReport | null {
-  return s.intelligence_json || s.report_json?.credit_intelligence || null
-}
 
 function normalizeKey(value: string | null | undefined): string {
   return (value || '').trim().toLowerCase().replace(/[\s-]+/g, '_')
@@ -95,7 +92,7 @@ export function snapshotFromSession(session: DisputeSessionListItem): CreditProg
   return {
     sessionId: session.id,
     createdAt: session.created_at,
-    reportDate: intelligence.report_date || session.report_json?.report_date || session.created_at,
+    reportDate: sessionReportDate(session),
     analyzedAt: intelligence.analyzed_at || session.updated_at,
     fileName: session.file_name,
     overallBand: intelligence.overall?.band ?? null,
@@ -151,12 +148,6 @@ function pushDelta(
   direction: CreditProgressDirection
 ) {
   out.push({ field, label, from, to, direction })
-}
-
-function scoreForBureau(scores: BureauScores, bureau: BureauCode): number | null {
-  if (bureau === 'EXP') return scores.exp
-  if (bureau === 'TUC') return scores.tuc
-  return scores.eqf
 }
 
 function healthForBureau(
@@ -265,8 +256,8 @@ export function diffBureauSnapshots(
   bureau: BureauCode
 ): CreditProgressDelta[] {
   const deltas: CreditProgressDelta[] = []
-  const fromScore = scoreForBureau(from.bureauScores, bureau)
-  const toScore = scoreForBureau(to.bureauScores, bureau)
+  const fromScore = bureauScoreValue(from.bureauScores, bureau)
+  const toScore = bureauScoreValue(to.bureauScores, bureau)
   const fromHealth = healthForBureau(from, bureau)
   const toHealth = healthForBureau(to, bureau)
 

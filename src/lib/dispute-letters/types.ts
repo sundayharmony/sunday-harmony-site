@@ -23,6 +23,14 @@ export interface BureauCoverage {
   confidence: BureauCoverageConfidence
 }
 
+/** Which uploaded report a displayed bureau score came from. */
+export interface BureauScoreOrigin {
+  session_id: string
+  report_date: string
+  file_name: string
+  from_selected_report: boolean
+}
+
 export interface CreditHealthSummary {
   scores: BureauScores
   total_accounts: number
@@ -32,6 +40,7 @@ export interface CreditHealthSummary {
   repair_summary: string
   recommended_actions: string[]
   per_bureau?: Partial<Record<BureauCode, PerBureauHealth>>
+  score_origins?: Partial<Record<BureauCode, BureauScoreOrigin>>
 }
 
 export interface FactorAnalysis {

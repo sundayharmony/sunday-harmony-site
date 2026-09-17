@@ -29,6 +29,21 @@ export function scorePresent(value: number | null | undefined): boolean {
   return typeof value === 'number' && value >= 300 && value <= 850
 }
 
+export function intelligenceFromSession(
+  session: DisputeSessionListItem
+): CreditIntelligenceReport | null {
+  return session.intelligence_json || session.report_json?.credit_intelligence || null
+}
+
+/** Report date the client sees for an upload, falling back to the upload timestamp. */
+export function sessionReportDate(session: DisputeSessionListItem): string {
+  return (
+    intelligenceFromSession(session)?.report_date ||
+    session.report_json?.report_date ||
+    session.created_at
+  )
+}
+
 function bureauScoreKey(bureau: BureauCode): keyof BureauScores {
   if (bureau === 'EXP') return 'exp'
   if (bureau === 'TUC') return 'tuc'
@@ -75,6 +90,26 @@ export function resolveSessionBureauScores(
   }
 
   return scores
+}
+
+/** Per-bureau scores for a session whether or not intelligence has been generated yet. */
+export function sessionBureauScores(session: DisputeSessionListItem): BureauScores {
+  const intelligence = intelligenceFromSession(session)
+  if (intelligence) return resolveSessionBureauScores(session, intelligence)
+  const raw = session.report_json?.credit_health?.scores
+  return {
+    tuc: raw?.tuc ?? null,
+    exp: raw?.exp ?? null,
+    eqf: raw?.eqf ?? null,
+  }
+}
+
+export function bureauScoreValue(
+  scores: BureauScores | null | undefined,
+  bureau: BureauCode
+): number | null {
+  if (!scores) return null
+  return scores[bureauScoreKey(bureau)] ?? null
 }
 
 export function accountForBureau(tl: Tradeline, bureau: BureauCode): string {

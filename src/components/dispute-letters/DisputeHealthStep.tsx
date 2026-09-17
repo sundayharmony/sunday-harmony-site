@@ -3,9 +3,9 @@
 import { useEffect, useState, type MutableRefObject } from 'react'
 import Link from 'next/link'
 import CreditIntelligenceDashboard from '@/components/dispute-letters/CreditIntelligenceDashboard'
+import { BureauScoreCards } from '@/components/dispute-letters/BureauScoreCards'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import { EmptyState } from '@/components/dispute-letters/EmptyState'
-import { ScoreCard } from '@/components/dispute-letters/ScoreCard'
 import { StatCard } from '@/components/dispute-letters/StatCard'
 import { TRADELINE_CARD_GRID, TradelineCard } from '@/components/dispute-letters/TradelineCard'
 import { fetchDisputeHealth, patchDisputeTradelines } from '@/lib/dispute-letters/client-api'
@@ -120,11 +120,7 @@ export default function DisputeHealthStep({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <ScoreCard bureau="TransUnion" code="TUC" score={h.scores?.tuc ?? null} />
-        <ScoreCard bureau="Experian" code="EXP" score={h.scores?.exp ?? null} />
-        <ScoreCard bureau="Equifax" code="EQF" score={h.scores?.eqf ?? null} />
-      </div>
+      <BureauScoreCards scores={h.scores} origins={h.score_origins} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total accounts" value={h.total_accounts} />
