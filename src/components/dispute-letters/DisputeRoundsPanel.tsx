@@ -204,10 +204,6 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
   }
 
   const identified = snapshot?.identifiedQueue ?? notYetDisputed
-  const selectedForRound = [
-    ...(snapshot?.selectedQueue || []),
-    ...(snapshot?.letterGeneratedQueue || []),
-  ]
   const sent = snapshot?.sentQueue || []
   const nextRound = snapshot?.nextRoundQueue || snapshot?.pendingQueue || []
   const progress = snapshot?.roundSendProgress || { selected: 0, sent: 0, complete: false }
@@ -368,12 +364,6 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
           items={identified}
         />
       )}
-
-      <ItemStatusQueue
-        title="Selected for this round"
-        empty="Select accounts on Review to assign them to this round."
-        items={selectedForRound}
-      />
 
       <ItemStatusQueue
         title="Sent"
