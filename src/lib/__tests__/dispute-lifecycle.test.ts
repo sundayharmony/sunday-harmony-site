@@ -569,6 +569,7 @@ describe('dispute lifecycle rounds', () => {
       account_last4: '4455',
       bureau: 'EXP',
       creditor_name: 'COMENITYCAPITALBK/BANT',
+      current_status: 'disputed',
     })
     const b = item({
       id: 'two',
@@ -576,6 +577,7 @@ describe('dispute lifecycle rounds', () => {
       account_last4: '4455',
       bureau: 'EXP',
       creditor_name: 'CCB/BANTER',
+      current_status: 'pending',
     })
     const groups = groupItemsByAccountNumber([a, b])
     assert.equal(groups.length, 1)
