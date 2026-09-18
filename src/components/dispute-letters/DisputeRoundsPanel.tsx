@@ -12,47 +12,19 @@ import {
   type DisputeItemRow,
   type DisputeItemStatus,
   type DisputeLifecycleSnapshot,
-  type DisputeMailMethod,
-  type DisputePacketChecklist,
-  type DisputeResponseRow,
   type DisputeRoundRow,
   type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { backfillHistoricalRound1, confirmLetterPackageSent, disputeLettersZipUrl, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
 
-const MAIL_METHODS: DisputeMailMethod[] = ['certified', 'priority', 'other']
-
-const PACKET_KEYS: { key: keyof DisputePacketChecklist; label: string }[] = [
-  { key: 'letters_printed', label: 'Letters printed' },
-  { key: 'photo_id', label: 'Photo ID' },
-  { key: 'mail_proof', label: 'Proof of address' },
-  { key: 'return_receipt', label: 'Return receipt' },
-]
-
-function toDateInputValue(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toISOString().slice(0, 10)
-}
-
-function fromDateInputValue(value: string): string | null {
-  if (!value.trim()) return null
-  const d = new Date(`${value.trim()}T12:00:00.000Z`)
-  if (Number.isNaN(d.getTime())) return null
-  return d.toISOString()
-}
-
 export default function DisputeRoundsPanel({ applicationId }: { applicationId: string }) {
   const [snapshot, setSnapshot] = useState<DisputeLifecycleSnapshot | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [responses, setResponses] = useState<DisputeResponseRow[]>([])
   const [cfpbEscalations, setCfpbEscalations] = useState<DisputeCfpbEscalationRow[]>([])
   const [cfpbSelected, setCfpbSelected] = useState<string[]>([])
   const [cfpbDraft, setCfpbDraft] = useState('')
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
 
   const load = useCallback(async () => {
     setError('')
@@ -66,24 +38,6 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
       }
       const data = (await res.json()) as DisputeLifecycleSnapshot
       setSnapshot(data)
-
-      const activeId =
-        data.activeRound?.id ||
-        data.rounds[data.rounds.length - 1]?.id ||
-        null
-      if (activeId) {
-        const rRes = await fetch(
-          `/api/admin/dispute-letters/lifecycle/responses?roundId=${encodeURIComponent(activeId)}`
-        )
-        if (rRes.ok) {
-          const rBody = await rRes.json()
-          setResponses(Array.isArray(rBody.responses) ? rBody.responses : [])
-        } else {
-          setResponses([])
-        }
-      } else {
-        setResponses([])
-      }
 
       const cRes = await fetch(
         `/api/admin/dispute-letters/lifecycle/cfpb?applicationUuid=${encodeURIComponent(applicationId)}`
@@ -138,32 +92,6 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Update failed')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function uploadResponse(roundId: string) {
-    if (!uploadFile) return
-    setBusy(true)
-    setError('')
-    try {
-      const fd = new FormData()
-      fd.append('roundId', roundId)
-      fd.append('file', uploadFile)
-      fd.append('source', 'bureau')
-      const res = await fetch('/api/admin/dispute-letters/lifecycle/responses', {
-        method: 'POST',
-        body: fd,
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Upload failed')
-      }
-      setUploadFile(null)
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {
       setBusy(false)
     }
@@ -229,9 +157,6 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
       </div>
     )
   }
-
-  const uploadRound =
-    snapshot.activeRound || snapshot.rounds[snapshot.rounds.length - 1] || null
 
   return (
     <div className="space-y-4 rounded-xl border border-brand-border bg-white p-4">
@@ -330,51 +255,14 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
               round={round}
               pkg={pkg}
               active={snapshot.activeRound?.id === round.id}
-              busy={busy}
               sendProgress={
                 snapshot.activeRound?.id === round.id ? progress : undefined
               }
-              onMail={(payload) => void patch({ roundId: round.id, ...payload })}
-              onRelease={() => void patch({ roundId: round.id, releaseToClient: true })}
             />
             )
           })
         )}
       </div>
-
-      {uploadRound && (
-        <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
-            Response upload — Round {uploadRound.round_number}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="file"
-              disabled={busy}
-              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-              className="text-xs text-brand-dim"
-            />
-            <button
-              type="button"
-              disabled={busy || !uploadFile}
-              onClick={() => void uploadResponse(uploadRound.id)}
-              className="rounded px-2 py-1 text-xs font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
-            >
-              Upload response
-            </button>
-          </div>
-          {responses.length > 0 && (
-            <ul className="text-xs text-brand-dim space-y-1">
-              {responses.map((r) => (
-                <li key={r.id}>
-                  {r.file_name} · {r.source}
-                  {r.uploaded_by ? ` · ${r.uploaded_by}` : ''}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
 
       <LetterPackageCard
         pkg={snapshot.activePackage}
@@ -499,37 +387,14 @@ function RoundCard({
   round,
   pkg,
   active,
-  busy,
   sendProgress,
-  onMail,
-  onRelease,
 }: {
   round: DisputeRoundRow
   pkg: LetterPackageSnapshot | null
   active: boolean
-  busy: boolean
   sendProgress?: { selected: number; sent: number; complete: boolean }
-  onMail: (payload: Record<string, unknown>) => void
-  onRelease: () => void
 }) {
-  const checklist = round.packet_checklist || {}
   const deadlineDays = daysUntilDeadline(round.deadline_at)
-  const [mailMethod, setMailMethod] = useState<DisputeMailMethod>(
-    round.mail_method || 'certified'
-  )
-  const [trackingNumber, setTrackingNumber] = useState(round.tracking_number || '')
-  const [deliveredAt, setDeliveredAt] = useState(toDateInputValue(round.delivered_at))
-
-  useEffect(() => {
-    setMailMethod(round.mail_method || 'certified')
-    setTrackingNumber(round.tracking_number || '')
-    setDeliveredAt(toDateInputValue(round.delivered_at))
-  }, [round.id, round.mail_method, round.tracking_number, round.delivered_at])
-
-  function toggleChecklist(key: keyof DisputePacketChecklist) {
-    const next: DisputePacketChecklist = { ...checklist, [key]: !checklist[key] }
-    onMail({ packetChecklist: next })
-  }
 
   return (
     <div
@@ -537,131 +402,44 @@ function RoundCard({
         active ? 'border-accent bg-accent/10' : 'border-brand-border bg-neutral-50'
       }`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="font-bold text-brand-text">
-            Round {round.round_number}
-            <span className="ml-2 font-medium text-brand-dim">
-              {pkg?.workflow.label || (sendProgress?.complete ? 'Complete' : round.status === 'draft' ? 'Draft' : 'Letters generated')}
-            </span>
-          </div>
-            {pkg ? (
-              <p className="mt-0.5 text-brand-dim">
-                {pkg.generatedCount} letter{pkg.generatedCount === 1 ? '' : 's'}
-                {pkg.downloaded ? ' · ZIP Downloaded ✓' : ''}
-                {pkg.allSent
-                  ? ' · All sent'
-                  : pkg.pendingCount
-                    ? ` · ${pkg.pendingCount} ready to send`
-                    : ''}
-              </p>
-            ) : sendProgress && sendProgress.selected > 0 ? (
-              <p className="mt-0.5 text-brand-dim">
-                {sendProgress.complete
-                  ? `Complete — ${sendProgress.sent} of ${sendProgress.selected} Sent`
-                  : `${sendProgress.sent} of ${sendProgress.selected} Sent`}
-              </p>
-            ) : null}
-          {round.client_released_at && (
-            <p className="mt-0.5 text-brand-dim">
-              Released to client {new Date(round.client_released_at).toLocaleDateString()}
-            </p>
-          )}
-          {round.deadline_at && (
-            <p className="mt-0.5 text-brand-dim">
-              Deadline {new Date(round.deadline_at).toLocaleDateString()}
-              {deadlineDays != null
-                ? deadlineDays >= 0
-                  ? ` · ${deadlineDays} day${deadlineDays === 1 ? '' : 's'} left`
-                  : ` · ${Math.abs(deadlineDays)} day${Math.abs(deadlineDays) === 1 ? '' : 's'} overdue`
-                : ''}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {!round.client_released_at && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onRelease}
-              className="rounded px-2 py-0.5 font-semibold border border-accent bg-white text-accent hover:bg-accent/10 disabled:opacity-50"
-            >
-              Release to client
-            </button>
-          )}
-        </div>
+      <div className="font-bold text-brand-text">
+        Round {round.round_number}
+        <span className="ml-2 font-medium text-brand-dim">
+          {pkg?.workflow.label ||
+            (sendProgress?.complete
+              ? 'Complete'
+              : round.status === 'draft'
+                ? 'Draft'
+                : 'Letters generated')}
+        </span>
       </div>
-
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <label className="block">
-          <span className="text-brand-dim">Mail method</span>
-          <select
-            disabled={busy}
-            value={mailMethod}
-            onChange={(e) => setMailMethod(e.target.value as DisputeMailMethod)}
-            className="mt-0.5 w-full rounded border border-brand-border bg-white px-2 py-1"
-          >
-            {MAIL_METHODS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-brand-dim">Tracking #</span>
-          <input
-            type="text"
-            disabled={busy}
-            value={trackingNumber}
-            onChange={(e) => setTrackingNumber(e.target.value)}
-            className="mt-0.5 w-full rounded border border-brand-border bg-white px-2 py-1"
-            placeholder="Optional"
-          />
-        </label>
-        <label className="block">
-          <span className="text-brand-dim">Delivered</span>
-          <input
-            type="date"
-            disabled={busy}
-            value={deliveredAt}
-            onChange={(e) => setDeliveredAt(e.target.value)}
-            className="mt-0.5 w-full rounded border border-brand-border bg-white px-2 py-1"
-          />
-        </label>
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-3">
-        {PACKET_KEYS.map(({ key, label }) => (
-          <label key={key} className="inline-flex items-center gap-1.5 text-brand-text">
-            <input
-              type="checkbox"
-              disabled={busy}
-              checked={Boolean(checklist[key])}
-              onChange={() => toggleChecklist(key)}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-1">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() =>
-            onMail({
-              mailMethod,
-              trackingNumber: trackingNumber.trim() || null,
-              deliveredAt: fromDateInputValue(deliveredAt),
-              packetChecklist: checklist,
-            })
-          }
-          className="rounded px-2 py-0.5 font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
-        >
-          Save mail details
-        </button>
-      </div>
+      {pkg ? (
+        <p className="mt-0.5 text-brand-dim">
+          {pkg.generatedCount} letter{pkg.generatedCount === 1 ? '' : 's'}
+          {pkg.downloaded ? ' · ZIP Downloaded ✓' : ''}
+          {pkg.allSent
+            ? ' · All sent'
+            : pkg.pendingCount
+              ? ` · ${pkg.pendingCount} ready to send`
+              : ''}
+        </p>
+      ) : sendProgress && sendProgress.selected > 0 ? (
+        <p className="mt-0.5 text-brand-dim">
+          {sendProgress.complete
+            ? `Complete — ${sendProgress.sent} of ${sendProgress.selected} Sent`
+            : `${sendProgress.sent} of ${sendProgress.selected} Sent`}
+        </p>
+      ) : null}
+      {round.deadline_at && (
+        <p className="mt-0.5 text-brand-dim">
+          Deadline {new Date(round.deadline_at).toLocaleDateString()}
+          {deadlineDays != null
+            ? deadlineDays >= 0
+              ? ` · ${deadlineDays} day${deadlineDays === 1 ? '' : 's'} left`
+              : ` · ${Math.abs(deadlineDays)} day${Math.abs(deadlineDays) === 1 ? '' : 's'} overdue`
+            : ''}
+        </p>
+      )}
     </div>
   )
 }

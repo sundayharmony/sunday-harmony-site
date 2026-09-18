@@ -32,6 +32,9 @@ describe('application dispute work reset', () => {
     assert.match(panel, /resetApplicationDisputeWork/)
     assert.match(rounds, /Reset to before first report/)
     assert.match(rounds, /Record prior Round 1/)
+    assert.doesNotMatch(rounds, /Save mail details/)
+    assert.doesNotMatch(rounds, /Response upload/)
+    assert.doesNotMatch(rounds, /Release to client/)
     const backfillRoute = readFileSync(
       'src/app/api/admin/dispute-letters/lifecycle/backfill-round1/route.ts',
       'utf8'
