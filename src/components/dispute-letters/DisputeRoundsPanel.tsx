@@ -132,10 +132,10 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
   }
 
   const identified = snapshot?.identifiedQueue ?? notYetDisputed
-  const sent = snapshot?.sentQueue || []
   const nextRound = snapshot?.nextRoundQueue || snapshot?.pendingQueue || []
   const progress = snapshot?.roundSendProgress || { selected: 0, sent: 0, complete: false }
   const hasCompletedRound = Boolean(snapshot?.hasCompletedRound)
+  const showNextRound = Boolean(snapshot?.hasUpdatedReportForNextRound)
 
   if (!snapshot) {
     return (
@@ -281,23 +281,15 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
         />
       )}
 
-      <ItemStatusQueue
-        title="Sent"
-        empty="Confirm the letter package after it is mailed. That is the official dispute."
-        items={sent}
-      />
-
-      <ItemStatusQueue
-        title="Needs next round"
-        empty={
-          hasCompletedRound
-            ? 'Nothing remaining after the last sent round.'
-            : 'After this round is fully Sent and new reports are analyzed, remaining and new items appear here.'
-        }
-        items={nextRound}
-        busy={busy}
-        onOutcome={(itemId, status) => void patch({ itemId, status })}
-      />
+      {showNextRound && (
+        <ItemStatusQueue
+          title="Needs next round"
+          empty="Nothing remaining after the last sent round."
+          items={nextRound}
+          busy={busy}
+          onOutcome={(itemId, status) => void patch({ itemId, status })}
+        />
+      )}
 
       <div className="rounded-lg border border-brand-border bg-neutral-50 p-3 space-y-3">
         <div>

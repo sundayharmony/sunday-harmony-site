@@ -13,6 +13,7 @@ import {
   nextRoundNumber,
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
+  hasUpdatedReportForNextRound,
   roundWorkflowView,
   shouldReuseLetterPackage,
   splitWorkflowQueues,
@@ -189,6 +190,7 @@ export async function loadDisputeLifecycleForApplication(
     roundWorkflow: emptyWorkflow(),
     roundSendProgress: { selected: 0, sent: 0, complete: false },
     hasCompletedRound: false,
+    hasUpdatedReportForNextRound: false,
   }
 
   const { data: caseRow, error } = await getSupabase()
@@ -230,6 +232,18 @@ export async function loadDisputeLifecycleForApplication(
     .map((r) => r.round_number)
 
   const queues = splitWorkflowQueues(items, activeRound, completedRoundNumbers)
+  const completedRounds = rounds.filter((round) => completedRoundNumbers.includes(round.round_number))
+  const responses: DisputeResponseRow[] = []
+  for (const round of completedRounds) {
+    responses.push(...(await listResponsesForRound(round.id)))
+  }
+  const sessions = await listDisputeSessionsForApplication(applicationUuid)
+  const updatedReportReady = hasUpdatedReportForNextRound({
+    sessions,
+    completedRounds,
+    responses,
+  })
+  const nextRoundQueue = updatedReportReady ? queues.nextRound : []
   const letters = currentLetters(await listRoundLetters(activeRound?.session_id || null))
   const sentCount = roundItemIds.filter((id) => items.find((i) => i.id === id)?.sent_at).length
   const packages = await loadPackageSnapshotsForCase(disputeCase.id, items, rounds)
@@ -252,9 +266,9 @@ export async function loadDisputeLifecycleForApplication(
     selectedQueue: queues.selected,
     letterGeneratedQueue: queues.letterGenerated,
     sentQueue: queues.sent,
-    nextRoundQueue: queues.nextRound,
+    nextRoundQueue,
     notYetDisputed: notYetDisputedFromItems(items),
-    pendingQueue: queues.nextRound,
+    pendingQueue: nextRoundQueue,
     activeRound,
     letters,
     packages,
@@ -266,6 +280,7 @@ export async function loadDisputeLifecycleForApplication(
       complete,
     },
     hasCompletedRound: completedRoundNumbers.length > 0,
+    hasUpdatedReportForNextRound: updatedReportReady,
   }
 }
 

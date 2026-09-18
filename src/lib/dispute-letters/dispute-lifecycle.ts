@@ -213,6 +213,8 @@ export interface DisputeLifecycleSnapshot {
   roundWorkflow: RoundWorkflowView
   roundSendProgress: { selected: number; sent: number; complete: boolean }
   hasCompletedRound: boolean
+  /** True when a report exists that is not the completed round's source or a recorded response. */
+  hasUpdatedReportForNextRound: boolean
 }
 
 export interface RoundSelectionInput {
@@ -491,6 +493,49 @@ export function splitWorkflowQueues(
     nextRound: sortQueueItems(nextRound),
     resolved: sortQueueItems(resolved),
   }
+}
+
+export type NextRoundReportSession = {
+  id: string
+  status: string
+  file_name: string
+  storage_path: string
+  report_json?: { tradelines?: unknown[] } | null
+}
+
+function responseFileKey(storagePath: string, fileName: string): string {
+  return `${storagePath}::${fileName}`.toLowerCase()
+}
+
+/**
+ * Follow-up PDFs already used as the mailed round's source or recorded responses
+ * are not "new updated reports" for the next round.
+ */
+export function hasUpdatedReportForNextRound(params: {
+  sessions: NextRoundReportSession[]
+  completedRounds: { session_id: string | null }[]
+  responses: { file_name: string; storage_path: string }[]
+}): boolean {
+  if (!params.completedRounds.length) return false
+  const usedSessionIds = new Set(
+    params.completedRounds.map((round) => round.session_id).filter((id): id is string => Boolean(id))
+  )
+  const usedFiles = new Set(
+    params.responses.flatMap((row) => [
+      responseFileKey(row.storage_path, row.file_name),
+      row.file_name.trim().toLowerCase(),
+    ])
+  )
+  return params.sessions.some((session) => {
+    if (session.status !== 'ready') return false
+    if (!(session.report_json?.tradelines || []).length) return false
+    if (usedSessionIds.has(session.id)) return false
+    const fileName = session.file_name.trim().toLowerCase()
+    if (usedFiles.has(fileName) || usedFiles.has(responseFileKey(session.storage_path, session.file_name))) {
+      return false
+    }
+    return true
+  })
 }
 
 export function appendStatusEvent(

@@ -32,6 +32,7 @@ import {
   shouldAppendStatusEvent,
   shouldReuseLetterPackage,
   splitWorkflowQueues,
+  hasUpdatedReportForNextRound,
   suggestFollowUpLetterType,
   type DisputeItemRow,
   type LetterPackageRow,
@@ -434,6 +435,62 @@ describe('dispute lifecycle rounds', () => {
     const after = splitWorkflowQueues(items, null, [1])
     assert.ok(after.nextRound.some((i) => i.id === 'new'))
     assert.ok(after.nextRound.some((i) => i.id === 'remain'))
+  })
+
+  it('does not treat the mailed round report or its recorded responses as a next-round update', () => {
+    const sessions = [
+      {
+        id: 'july-tri',
+        status: 'ready',
+        file_name: 'Mike Webb 3-Bureau Credit Report & Scores.pdf',
+        storage_path: 'path/july',
+        report_json: { tradelines: [{}] },
+      },
+      {
+        id: 'tu-aug',
+        status: 'ready',
+        file_name: 'Mike Webb Transunion 8-24-2026.pdf',
+        storage_path: 'path/tu',
+        report_json: { tradelines: [{}] },
+      },
+    ]
+    assert.equal(
+      hasUpdatedReportForNextRound({
+        sessions,
+        completedRounds: [{ session_id: 'july-tri' }],
+        responses: [
+          { file_name: 'Mike Webb Transunion 8-24-2026.pdf', storage_path: 'path/tu' },
+        ],
+      }),
+      false
+    )
+  })
+
+  it('treats a later report that is not a recorded response as the next-round update', () => {
+    const sessions = [
+      {
+        id: 'july-tri',
+        status: 'ready',
+        file_name: 'Mike Webb 3-Bureau Credit Report & Scores.pdf',
+        storage_path: 'path/july',
+        report_json: { tradelines: [{}] },
+      },
+      {
+        id: 'oct-exp',
+        status: 'ready',
+        file_name: 'Mike Webb Experian 10-2026.pdf',
+        storage_path: 'path/oct',
+        report_json: { tradelines: [{}] },
+      },
+    ]
+    assert.equal(
+      hasUpdatedReportForNextRound({
+        sessions,
+        completedRounds: [{ session_id: 'july-tri' }],
+        responses: [],
+      }),
+      true
+    )
   })
 
   it('chunks letter items at seven', () => {
