@@ -150,17 +150,18 @@ function tradelineLast4s(tradeline: Tradeline): string[] {
 
 export function planItemMatchesTradeline(tradeline: Tradeline, item: HistoricalPlanItem): boolean {
   if (item.tradeline_id && item.tradeline_id === tradeline.id) return true
-  const creditor = (item.creditor || '').trim().toLowerCase()
-  if (!creditor || creditor !== (tradeline.creditor || '').trim().toLowerCase()) return false
   const last4 = accountDigits(item.account_number || '')
-  if (last4.length >= 4) {
-    const needle = last4.slice(-4)
-    if (!tradelineLast4s(tradeline).includes(needle)) return false
-  }
   const bureau = String(item.bureau || '')
     .split(/[,\s]+/)
     .map((part) => (part.trim().toUpperCase() === 'TU' ? 'TUC' : part.trim().toUpperCase()))
     .filter((part): part is BureauCode => part === 'TUC' || part === 'EXP' || part === 'EQF')
+  if (last4.length >= 4) {
+    if (!tradelineLast4s(tradeline).includes(last4.slice(-4))) return false
+    if (bureau.length && !bureau.some((code) => (tradeline.bureaus || []).includes(code))) return false
+    return true
+  }
+  const creditor = (item.creditor || '').trim().toLowerCase()
+  if (!creditor || creditor !== (tradeline.creditor || '').trim().toLowerCase()) return false
   if (bureau.length && !bureau.some((code) => (tradeline.bureaus || []).includes(code))) return false
   return true
 }

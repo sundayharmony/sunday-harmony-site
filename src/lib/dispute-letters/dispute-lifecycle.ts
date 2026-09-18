@@ -1,7 +1,7 @@
-import { accountForBureau, isNegativeTradeline, tradelineCoversBureau } from '@/lib/dispute-letters/bureau-coverage'
+import { isNegativeTradeline, tradelineCoversBureau } from '@/lib/dispute-letters/bureau-coverage'
 import { isInquiryTradeline } from '@/lib/dispute-letters/dispute-reasons'
 import { isRecommendedDispute } from '@/lib/dispute-letters/dispute-selection'
-import { accountDigits, tradelineMatchKey } from '@/lib/dispute-letters/tradeline-progress'
+import { accountLast4ForMatch, accountMatchTokens, accountMatchTokensOverlap, tradelineMatchKey } from '@/lib/dispute-letters/tradeline-progress'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 
 /** Soft warning only — selection is not blocked. Bureau letters split at MAX_ITEMS_PER_LETTER. */
@@ -584,6 +584,14 @@ export function isDisputeCandidateTradeline(tl: Tradeline): boolean {
  * Expand remaining dispute candidates into per-bureau identities.
  * Selected-for-round rows are created separately; this covers accounts not yet in a letter.
  */
+function identitySeenKey(identity: Pick<ItemIdentity, 'bureau' | 'accountLast4' | 'matchKey'>): string {
+  const last4 = String(identity.accountLast4 || '')
+    .replace(/\D/g, '')
+    .slice(-4)
+  if (identity.bureau && last4.length >= 4) return `a4:${identity.bureau}:${last4}`
+  return identity.matchKey
+}
+
 export function allIdentitiesFromTradelines(tradelines: Tradeline[]): ItemIdentity[] {
   const out: ItemIdentity[] = []
   const seen = new Set<string>()
@@ -591,8 +599,10 @@ export function allIdentitiesFromTradelines(tradelines: Tradeline[]): ItemIdenti
     for (const bureau of BUREAU_CODES) {
       if (!tradelineCoversBureau(tl, bureau)) continue
       const identity = itemIdentityFromTradeline(tl, bureau)
-      if (!identity || seen.has(identity.matchKey)) continue
-      seen.add(identity.matchKey)
+      if (!identity) continue
+      const key = identitySeenKey(identity)
+      if (seen.has(key)) continue
+      seen.add(key)
       out.push(identity)
     }
   }
@@ -607,12 +617,76 @@ export function pendingIdentitiesFromTradelines(tradelines: Tradeline[]): ItemId
     for (const bureau of BUREAU_CODES) {
       if (!tradelineCoversBureau(tl, bureau)) continue
       const identity = itemIdentityFromTradeline(tl, bureau)
-      if (!identity || seen.has(identity.matchKey)) continue
-      seen.add(identity.matchKey)
+      if (!identity) continue
+      const key = identitySeenKey(identity)
+      if (seen.has(key)) continue
+      seen.add(key)
       out.push(identity)
     }
   }
   return out
+}
+
+function expandAccountKeySet(keys: Set<string>): Set<string> {
+  const out = new Set<string>()
+  for (const key of keys) {
+    for (const token of accountMatchTokens({ matchKey: key })) out.add(token)
+  }
+  return out
+}
+
+export function findItemForIdentity(
+  items: DisputeItemRow[],
+  identity: Pick<ItemIdentity, 'bureau' | 'accountLast4' | 'matchKey'>
+): DisputeItemRow | undefined {
+  return items.find((item) =>
+    accountMatchTokensOverlap(
+      {
+        bureau: item.bureau,
+        accountLast4: item.account_last4,
+        matchKey: item.match_key,
+      },
+      {
+        bureau: identity.bureau,
+        accountLast4: identity.accountLast4,
+        matchKey: identity.matchKey,
+      }
+    )
+  )
+}
+
+export function preferDuplicateAccountItem(a: DisputeItemRow, b: DisputeItemRow): DisputeItemRow {
+  if (a.sent_at && !b.sent_at) return a
+  if (b.sent_at && !a.sent_at) return b
+  if ((a.last_round_number || 0) !== (b.last_round_number || 0)) {
+    return (a.last_round_number || 0) > (b.last_round_number || 0) ? a : b
+  }
+  return a.created_at <= b.created_at ? a : b
+}
+
+export function groupItemsByAccountNumber(items: DisputeItemRow[]): DisputeItemRow[][] {
+  const groups: DisputeItemRow[][] = []
+  const assigned = new Set<string>()
+  for (const item of items) {
+    if (assigned.has(item.id)) continue
+    const peers = items.filter(
+      (other) =>
+        !assigned.has(other.id) &&
+        (other.id === item.id ||
+          accountMatchTokensOverlap(
+            { bureau: item.bureau, accountLast4: item.account_last4, matchKey: item.match_key },
+            { bureau: other.bureau, accountLast4: other.account_last4, matchKey: other.match_key }
+          ))
+    )
+    for (const peer of peers) assigned.add(peer.id)
+    groups.push(peers)
+  }
+  return groups
+}
+
+/** Keep one row per bureau + last4 so renamed creditors do not appear twice in queues. */
+export function uniqueItemsByAccountNumber(items: DisputeItemRow[]): DisputeItemRow[] {
+  return groupItemsByAccountNumber(items).map((group) => group.reduce(preferDuplicateAccountItem))
 }
 
 /** Split a bureau/furnisher item list so each letter stays at MAX_ITEMS_PER_LETTER. */
@@ -648,10 +722,17 @@ export function comparisonUpdatesForItems(params: {
   latestMatchKeys: Set<string>
   latestCandidateKeys: Set<string>
 }): ComparisonItemUpdate[] {
+  const latestOnFile = expandAccountKeySet(params.latestMatchKeys)
+  const latestCandidates = expandAccountKeySet(params.latestCandidateKeys)
   const updates: ComparisonItemUpdate[] = []
   for (const item of params.items) {
-    const onFile = params.latestMatchKeys.has(item.match_key)
-    const candidate = params.latestCandidateKeys.has(item.match_key)
+    const itemTokens = accountMatchTokens({
+      bureau: item.bureau,
+      accountLast4: item.account_last4,
+      matchKey: item.match_key,
+    })
+    const onFile = itemTokens.some((token) => latestOnFile.has(token))
+    const candidate = itemTokens.some((token) => latestCandidates.has(token))
     const wasDisputed = Boolean(item.sent_at) ||
       item.current_status === 'verified' ||
       item.current_status === 'updated' ||
@@ -795,9 +876,7 @@ export function enforceRound1BureauCaps(
 }
 
 export function accountLast4ForBureau(tl: Tradeline, bureau: BureauCode): string {
-  const digits = accountDigits(accountForBureau(tl, bureau))
-  if (digits.length >= 4) return digits.slice(-4)
-  return digits
+  return accountLast4ForMatch(tl, bureau)
 }
 
 export function itemIdentityFromTradeline(tl: Tradeline, bureau: BureauCode): ItemIdentity | null {
@@ -970,7 +1049,6 @@ export function enrichPlanSelectionsWithItemStatus<T extends PlanSelectionWithSt
   items: DisputeItemRow[]
 ): T[] {
   if (!selections.length || !items.length) return selections
-  const byMatchKey = new Map(items.map((item) => [item.match_key, item]))
   const tlById = new Map(tradelines.map((t) => [t.id, t]))
 
   return selections.map((sel) => {
@@ -988,7 +1066,7 @@ export function enrichPlanSelectionsWithItemStatus<T extends PlanSelectionWithSt
     for (const bureau of bureaus) {
       const identity = itemIdentityFromTradeline(tl, bureau)
       if (!identity) continue
-      const item = byMatchKey.get(identity.matchKey)
+      const item = findItemForIdentity(items, identity)
       if (isFollowUpOutcomeStatus(item?.current_status)) {
         return { ...stripped, item_status: item?.current_status }
       }

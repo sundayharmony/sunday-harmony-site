@@ -56,11 +56,18 @@ def test_selected_inquiry_with_empty_reason_is_in_experian_letter():
     assert "1681b" in td.dispute_reason
 
 
-def _exp_tradeline(tid: str, creditor: str) -> Tradeline:
+def _account_from_id(tid: str) -> str:
+    digits = "".join(ch for ch in tid if ch.isdigit())
+    if not digits:
+        digits = str(sum(ord(ch) for ch in tid) % 10000)
+    return digits.zfill(4)[-4:]
+
+
+def _exp_tradeline(tid: str, creditor: str, account_exp: str | None = None) -> Tradeline:
     return Tradeline(
         id=tid,
         creditor=creditor,
-        account_exp="1111",
+        account_exp=account_exp or _account_from_id(tid),
         account_type="Credit Card",
         status="Open",
         bureaus=["EXP"],
@@ -132,10 +139,51 @@ def test_round1_chunks_bureau_letters_at_seven_items():
     assert experian[1].recipient_name == "Experian (letter 2 of 2)"
 
 
+def test_round1_skips_renamed_duplicate_with_same_last4():
+    short = _exp_tradeline("kikoff", "KIKOFF", "****1111")
+    long = _exp_tradeline("kikoff-llc", "KIKOFF LENDING LLC", "XXXX1111")
+    other = _exp_tradeline("cap-one", "CAPITAL ONE", "2222")
+    report = ParsedReport(consumer=ConsumerInfo(name="Test Client"), tradelines=[short, long, other])
+    request = DisputePlanRequest(
+        session_id="s1",
+        round_number=1,
+        selections=[
+            TradelineSelection(id="kikoff", selected=True),
+            TradelineSelection(id="kikoff-llc", selected=True),
+            TradelineSelection(id="cap-one", selected=True),
+        ],
+    )
+    result = build_plan("s1", report, request)
+    experian = next(p for p in result.plans if p.letter_type == "bureau_experian")
+    creditors = [item.creditor for item in experian.items]
+    assert creditors.count("KIKOFF") + creditors.count("KIKOFF LENDING LLC") == 1
+    assert "CAPITAL ONE" in creditors
+
+
+def test_round2_skips_renamed_duplicate_with_same_last4():
+    short = _exp_tradeline("kikoff", "KIKOFF", "****1111")
+    long = _exp_tradeline("kikoff-llc", "KIKOFF LENDING LLC", "XXXX1111")
+    report = ParsedReport(consumer=ConsumerInfo(name="Test Client"), tradelines=[short, long])
+    request = DisputePlanRequest(
+        session_id="s1",
+        round_number=2,
+        selections=[
+            TradelineSelection(id="kikoff", selected=True, item_status="verified"),
+            TradelineSelection(id="kikoff-llc", selected=True, item_status="verified"),
+        ],
+    )
+    result = build_plan("s1", report, request)
+    mov = [p for p in result.plans if p.letter_type == "method_of_verification"]
+    assert len(mov) == 1
+    assert len(mov[0].items) == 1
+
+
 if __name__ == "__main__":
     test_selected_inquiry_with_empty_reason_is_in_experian_letter()
     test_round1_disputed_status_keeps_grouped_bureau_letters()
     test_round2_verified_routes_to_method_of_verification()
     test_round2_no_response_routes_to_warning()
     test_round1_chunks_bureau_letters_at_seven_items()
+    test_round1_skips_renamed_duplicate_with_same_last4()
+    test_round2_skips_renamed_duplicate_with_same_last4()
     print("letter_router tests passed")

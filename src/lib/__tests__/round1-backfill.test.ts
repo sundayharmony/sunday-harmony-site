@@ -204,6 +204,16 @@ describe('historical Round 1 backfill helpers', () => {
     assert.equal(selected.find((row) => row.id === 'cap-tu')?.selected, false)
   })
 
+  it('selects the same account when the letter plan uses a renamed creditor', () => {
+    const selected = selectTradelinesForHistoricalRound1(triMerge.report_json?.tradelines || [], [
+      {
+        items: [{ creditor: 'KIKOFF LENDING LLC', account_number: '****1111', bureau: 'EXP' }],
+      },
+    ])
+    assert.equal(selected.find((row) => row.id === 'kikoff')?.selected, true)
+    assert.equal(selected.find((row) => row.id === 'cap-tu')?.selected, false)
+  })
+
   it('falls back to recommended disputes when no letter plan is stored', () => {
     const selected = selectTradelinesForHistoricalRound1(triMerge.report_json?.tradelines || [], [])
     assert.equal(selected.every((row) => row.selected), true)
@@ -211,10 +221,10 @@ describe('historical Round 1 backfill helpers', () => {
 
   it('compares each bureau against its own latest report instead of the newest PDF only', () => {
     const { matchKeys } = comparisonKeysFromSessions([experian, equifax, transunion, triMerge])
-    assert.equal(matchKeys.has('c4:TUC:kikoff:1111'), true)
-    assert.equal(matchKeys.has('c4:EQF:kikoff:1111'), true)
-    assert.equal(matchKeys.has('c4:EXP:kikoff:1111'), true)
-    assert.equal(matchKeys.has('c4:TUC:capital one:2222'), true)
-    assert.equal(matchKeys.has('c4:EXP:capital one:2222'), false)
+    assert.equal(matchKeys.has('a4:TUC:1111'), true)
+    assert.equal(matchKeys.has('a4:EQF:1111'), true)
+    assert.equal(matchKeys.has('a4:EXP:1111'), true)
+    assert.equal(matchKeys.has('a4:TUC:2222'), true)
+    assert.equal(matchKeys.has('a4:EXP:2222'), false)
   })
 })

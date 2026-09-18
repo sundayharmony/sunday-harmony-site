@@ -28,6 +28,9 @@ import {
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
+  findItemForIdentity,
+  groupItemsByAccountNumber,
+  uniqueItemsByAccountNumber,
   roundWorkflowView,
   shouldAppendStatusEvent,
   shouldReuseLetterPackage,
@@ -256,6 +259,44 @@ describe('dispute lifecycle rounds', () => {
     assert.ok(identities.every((i) => i.creditorName !== 'Clean Card'))
     assert.equal(identities.filter((i) => i.creditorName === 'Collections Inc').length, 3)
     assert.equal(identities.filter((i) => i.creditorName === 'Hard Pull LLC').length, 1)
+  })
+
+  it('collapses renamed creditors with the same bureau last4 into one pending identity', () => {
+    const identities = pendingIdentitiesFromTradelines([
+      tl({
+        id: 'kikoff-short',
+        creditor: 'KIKOFF',
+        is_collection: true,
+        bureaus: ['EXP'],
+        account_exp: '****1111',
+      }),
+      tl({
+        id: 'kikoff-long',
+        creditor: 'KIKOFF LENDING LLC',
+        is_collection: true,
+        bureaus: ['EXP'],
+        account_exp: 'XXXX1111',
+      }),
+    ])
+    assert.equal(identities.length, 1)
+    assert.equal(identities[0].matchKey, 'a4:EXP:1111')
+  })
+
+  it('finds an old c4 match_key item from a new a4 identity', () => {
+    const existing = item({
+      id: 'old',
+      match_key: 'c4:EXP:kikoff lending llc:1111',
+      account_last4: '1111',
+      bureau: 'EXP',
+      creditor_name: 'KIKOFF LENDING LLC',
+      current_status: 'disputed',
+    })
+    const found = findItemForIdentity([existing], {
+      bureau: 'EXP',
+      accountLast4: '1111',
+      matchKey: 'a4:EXP:1111',
+    })
+    assert.equal(found?.id, 'old')
   })
 
   it('names ZIP files with the real round number', () => {
@@ -502,7 +543,49 @@ describe('dispute lifecycle rounds', () => {
     )
   })
 
-  it('marks removed sent items resolved and still-on-file items as remaining', () => {
+  it('matches renamed creditors to existing items by account last4', () => {
+    const sent = item({
+      id: 'kikoff-old',
+      match_key: 'c4:EXP:kikoff lending llc:1111',
+      account_last4: '1111',
+      bureau: 'EXP',
+      creditor_name: 'KIKOFF LENDING LLC',
+      current_status: 'disputed',
+      sent_at: '2026-07-24T12:00:00.000Z',
+    })
+    const updates = comparisonUpdatesForItems({
+      items: [sent],
+      latestMatchKeys: new Set(['a4:EXP:1111']),
+      latestCandidateKeys: new Set(['a4:EXP:1111']),
+    })
+    assert.equal(updates.find((u) => u.id === 'kikoff-old')?.event.stage, 'still_appears')
+    assert.equal(updates.find((u) => u.id === 'kikoff-old')?.nextStatus, undefined)
+  })
+
+  it('groups duplicate rows that share bureau + last4', () => {
+    const a = item({
+      id: 'one',
+      match_key: 'c4:EXP:comenitycapitalbk bant:4455',
+      account_last4: '4455',
+      bureau: 'EXP',
+      creditor_name: 'COMENITYCAPITALBK/BANT',
+    })
+    const b = item({
+      id: 'two',
+      match_key: 'a4:EXP:4455',
+      account_last4: '4455',
+      bureau: 'EXP',
+      creditor_name: 'CCB/BANTER',
+    })
+    const groups = groupItemsByAccountNumber([a, b])
+    assert.equal(groups.length, 1)
+    assert.equal(groups[0].length, 2)
+    const unique = uniqueItemsByAccountNumber([a, b])
+    assert.equal(unique.length, 1)
+    assert.equal(unique[0].id, 'one')
+  })
+
+  it('marks mailed items deleted when they leave the report', () => {
     const sent = item({
       id: 'gone',
       match_key: 'gone-key',

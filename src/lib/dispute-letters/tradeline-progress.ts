@@ -175,22 +175,71 @@ function maskAccount(raw: string): string {
   return '—'
 }
 
+/** Last 4 account digits for matching, using any bureau slot if the primary is masked/empty. */
+export function accountLast4ForMatch(tl: Tradeline, bureau: BureauCode): string {
+  const digits = accountDigitsForMatch(tl, bureau)
+  return digits.length >= 4 ? digits.slice(-4) : digits
+}
+
+export function last4FromMatchKey(key: string | null | undefined): string {
+  const parts = String(key || '').split(':')
+  if (parts[0] === 'a4' && /^\d{4}$/.test(parts[2] || '')) return parts[2]
+  if (parts[0] === 'c4') {
+    const last = parts[parts.length - 1] || ''
+    if (/^\d{4}$/.test(last)) return last
+  }
+  return ''
+}
+
+export function bureauFromMatchKey(key: string | null | undefined): string {
+  return String(key || '').split(':')[1] || ''
+}
+
+/**
+ * Tokens that identify the same bureau account across name/OCR variants.
+ * Account last-4 is the durable id; creditor name is not required when last-4 exists.
+ */
+export function accountMatchTokens(input: {
+  bureau?: string | null
+  accountLast4?: string | null
+  matchKey?: string | null
+}): string[] {
+  const tokens = new Set<string>()
+  const matchKey = String(input.matchKey || '').trim()
+  if (matchKey) tokens.add(matchKey)
+  const bureauRaw = String(input.bureau || bureauFromMatchKey(matchKey) || '')
+    .trim()
+    .toUpperCase()
+  const bureau = bureauRaw === 'TU' ? 'TUC' : bureauRaw
+  let last4 = String(input.accountLast4 || '')
+    .replace(/\D/g, '')
+    .slice(-4)
+  if (last4.length < 4) last4 = last4FromMatchKey(matchKey)
+  if (bureau && last4.length >= 4) tokens.add(`a4:${bureau}:${last4}`)
+  return [...tokens]
+}
+
+export function accountMatchTokensOverlap(
+  left: Parameters<typeof accountMatchTokens>[0],
+  right: Parameters<typeof accountMatchTokens>[0]
+): boolean {
+  const rightSet = new Set(accountMatchTokens(right))
+  return accountMatchTokens(left).some((token) => rightSet.has(token))
+}
+
 /**
  * Stable identity for matching across report versions.
- * Prefer creditor + last 4 digits (mask-safe). Fall back to creditor + type.
- * Exact keys still use normalized creditor; fuzzy rematch covers renames.
+ * Prefer bureau + last 4 digits so renamed creditors (KIKOFF vs KIKOFF LENDING LLC)
+ * stay one account. Fall back to creditor core + type when digits are missing.
  */
 export function tradelineMatchKey(tl: Tradeline, bureau: BureauCode): string | null {
-  const creditor = normalizeCreditor(tl.creditor || '')
-  if (!creditor) return null
-  const digits = accountDigitsForMatch(tl, bureau)
-  if (digits.length >= 4) {
-    return `c4:${bureau}:${creditor}:${digits.slice(-4)}`
-  }
+  const last4 = accountLast4ForMatch(tl, bureau)
+  if (last4.length >= 4) return `a4:${bureau}:${last4}`
+  const core = creditorCore(tl.creditor || '')
+  if (!core) return null
   const type = normalizeType(tl.account_type || tl.item_category || '')
-  if (type) return `ct:${bureau}:${creditor}:${type}`
-  // Last resort — creditor only (risky for multi-account creditors; rematch step helps)
-  return `c:${bureau}:${creditor}`
+  if (type) return `ct:${bureau}:${core}:${type}`
+  return `c:${bureau}:${core}`
 }
 
 function toChange(tl: Tradeline, bureau: BureauCode): TradelineChange {
@@ -487,15 +536,12 @@ function fuzzyPair(
   const currLeft = unmatchedCurr.slice()
   const stillPrev: Tradeline[] = []
 
-  // Pass 1: last4 + fuzzy creditor (strongest)
+  // Pass 1: last4 is the durable id (KIKOFF vs KIKOFF LENDING LLC, SYNCB vs SYNCHRONY)
   for (const prev of unmatchedPrev) {
     const p4 = last4(prev, bureau)
     let idx = -1
     if (p4) {
-      idx = currLeft.findIndex((c) => {
-        const c4 = last4(c, bureau)
-        return c4 === p4 && creditorsSimilar(prev.creditor || '', c.creditor || '')
-      })
+      idx = currLeft.findIndex((c) => last4(c, bureau) === p4)
     }
     if (idx < 0) {
       idx = currLeft.findIndex((c) => accountsCompatible(prev, c, bureau))

@@ -67,7 +67,7 @@ describe('accountDigits / match keys', () => {
     assert.equal(accountDigits('····1823'), '1823')
   })
 
-  it('keys by creditor + last4 ignoring mask format', () => {
+  it('keys by bureau + last4 so renamed creditors stay the same account', () => {
     const a = tradelineMatchKey(
       tl({ id: '1', creditor: 'SYNCB/PPC', account_tu: '****1823', bureaus: ['TUC'] }),
       'TUC'
@@ -77,7 +77,17 @@ describe('accountDigits / match keys', () => {
       'TUC'
     )
     assert.equal(a, b)
-    assert.ok(a?.includes(':1823'))
+    assert.equal(a, 'a4:TUC:1823')
+    const renamed = tradelineMatchKey(
+      tl({ id: '3', creditor: 'KIKOFF LENDING LLC', account_exp: '****1111', bureaus: ['EXP'] }),
+      'EXP'
+    )
+    const short = tradelineMatchKey(
+      tl({ id: '4', creditor: 'KIKOFF', account_exp: 'XXXX1111', bureaus: ['EXP'] }),
+      'EXP'
+    )
+    assert.equal(renamed, short)
+    assert.equal(renamed, 'a4:EXP:1111')
   })
 })
 
@@ -120,6 +130,30 @@ describe('diffTradelinesForBureau', () => {
       }),
     ])
     const diff = diffTradelinesForBureau(prev, curr, 'TUC')
+    assert.equal(diff.removed.length, 0)
+    assert.equal(diff.added.length, 0)
+  })
+
+  it('matches SYNCB to SYNCHRONY by last4 even when names do not look alike', () => {
+    const prev = report([
+      tl({
+        id: '1',
+        creditor: 'SYNCB/PPC',
+        account_exp: '****1823',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const curr = report([
+      tl({
+        id: '1b',
+        creditor: 'SYNCHRONY BANK',
+        account_exp: 'XXXX1823',
+        status: 'Open',
+        bureaus: ['EXP'],
+      }),
+    ])
+    const diff = diffTradelinesForBureau(prev, curr, 'EXP')
     assert.equal(diff.removed.length, 0)
     assert.equal(diff.added.length, 0)
   })
