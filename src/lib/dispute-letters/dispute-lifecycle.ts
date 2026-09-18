@@ -1,7 +1,15 @@
 import { isNegativeTradeline, tradelineCoversBureau } from '@/lib/dispute-letters/bureau-coverage'
 import { isInquiryTradeline } from '@/lib/dispute-letters/dispute-reasons'
 import { isRecommendedDispute } from '@/lib/dispute-letters/dispute-selection'
-import { accountLast4ForMatch, accountMatchTokens, accountMatchTokensOverlap, tradelineMatchKey } from '@/lib/dispute-letters/tradeline-progress'
+import {
+  accountLast4ForMatch,
+  accountMatchTokens,
+  accountMatchTokensOverlap,
+  bureauFromMatchKey,
+  creditorsSimilar,
+  last4FromMatchKey,
+  tradelineMatchKey,
+} from '@/lib/dispute-letters/tradeline-progress'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 
 /** Soft warning only — selection is not blocked. Bureau letters split at MAX_ITEMS_PER_LETTER. */
@@ -635,22 +643,130 @@ function expandAccountKeySet(keys: Set<string>): Set<string> {
   return out
 }
 
-export function findItemForIdentity(
-  items: DisputeItemRow[],
-  identity: Pick<ItemIdentity, 'bureau' | 'accountLast4' | 'matchKey'>
-): DisputeItemRow | undefined {
-  return items.find((item) =>
+function normalizeBureauCode(value: string | null | undefined): string {
+  const bureau = String(value || '')
+    .trim()
+    .toUpperCase()
+  return bureau === 'TU' ? 'TUC' : bureau
+}
+
+export function itemAccountLast4(item: {
+  account_last4?: string | null
+  accountLast4?: string | null
+  match_key?: string | null
+  matchKey?: string | null
+}): string {
+  const raw = String(item.account_last4 || item.accountLast4 || '')
+    .replace(/\D/g, '')
+    .slice(-4)
+  if (raw.length >= 4) return raw
+  return last4FromMatchKey(item.match_key || item.matchKey)
+}
+
+type AccountIdentity = {
+  bureau?: string | null
+  accountLast4?: string | null
+  account_last4?: string | null
+  matchKey?: string | null
+  match_key?: string | null
+  creditorName?: string | null
+  creditor_name?: string | null
+}
+
+function identityCreditor(identity: AccountIdentity): string {
+  return String(identity.creditorName || identity.creditor_name || '')
+}
+
+/**
+ * Same consumer account: last4 is the durable id.
+ * Same bureau + last4 matches even when the creditor label changed.
+ * Missing last4 falls back to similar creditor on that bureau.
+ * Across bureaus, last4 still matches when the names are the same account.
+ */
+export function isSameDisputeAccount(
+  left: AccountIdentity,
+  right: AccountIdentity,
+  requireSameBureau = false
+): boolean {
+  if (
     accountMatchTokensOverlap(
       {
+        bureau: left.bureau,
+        accountLast4: left.accountLast4 || left.account_last4,
+        matchKey: left.matchKey || left.match_key,
+      },
+      {
+        bureau: right.bureau,
+        accountLast4: right.accountLast4 || right.account_last4,
+        matchKey: right.matchKey || right.match_key,
+      }
+    )
+  ) {
+    return true
+  }
+
+  const last4L = itemAccountLast4(left)
+  const last4R = itemAccountLast4(right)
+  const bureauL = normalizeBureauCode(left.bureau || bureauFromMatchKey(left.matchKey || left.match_key))
+  const bureauR = normalizeBureauCode(right.bureau || bureauFromMatchKey(right.matchKey || right.match_key))
+  const sameBureau = Boolean(bureauL && bureauL === bureauR)
+  const namesSimilar = creditorsSimilar(identityCreditor(left), identityCreditor(right))
+
+  if (last4L.length >= 4 && last4R.length >= 4) {
+    if (last4L !== last4R) return false
+    if (sameBureau) return true
+    return !requireSameBureau
+  }
+
+  return sameBureau && namesSimilar
+}
+
+export function findItemForIdentity(
+  items: DisputeItemRow[],
+  identity: Pick<ItemIdentity, 'bureau' | 'accountLast4' | 'matchKey'> & { creditorName?: string }
+): DisputeItemRow | undefined {
+  return items.find((item) =>
+    isSameDisputeAccount(
+      {
         bureau: item.bureau,
-        accountLast4: item.account_last4,
-        matchKey: item.match_key,
+        account_last4: item.account_last4,
+        match_key: item.match_key,
+        creditor_name: item.creditor_name,
       },
       {
         bureau: identity.bureau,
         accountLast4: identity.accountLast4,
         matchKey: identity.matchKey,
-      }
+        creditorName: identity.creditorName,
+      },
+      true
+    )
+  )
+}
+
+/** Existing row for this account on any bureau — used so later PDFs do not insert "new" copies. */
+export function findTrackedAccountItem(
+  items: DisputeItemRow[],
+  identity: Pick<ItemIdentity, 'bureau' | 'accountLast4' | 'matchKey' | 'creditorName'>
+): DisputeItemRow | undefined {
+  return (
+    findItemForIdentity(items, identity) ||
+    items.find((item) =>
+      isSameDisputeAccount(
+        {
+          bureau: item.bureau,
+          account_last4: item.account_last4,
+          match_key: item.match_key,
+          creditor_name: item.creditor_name,
+        },
+        {
+          bureau: identity.bureau,
+          accountLast4: identity.accountLast4,
+          matchKey: identity.matchKey,
+          creditorName: identity.creditorName,
+        },
+        false
+      )
     )
   )
 }
@@ -664,19 +780,16 @@ export function preferDuplicateAccountItem(a: DisputeItemRow, b: DisputeItemRow)
   return a.created_at <= b.created_at ? a : b
 }
 
-export function groupItemsByAccountNumber(items: DisputeItemRow[]): DisputeItemRow[][] {
+function groupItemsByMatcher(
+  items: DisputeItemRow[],
+  sameAccount: (left: DisputeItemRow, right: DisputeItemRow) => boolean
+): DisputeItemRow[][] {
   const groups: DisputeItemRow[][] = []
   const assigned = new Set<string>()
   for (const item of items) {
     if (assigned.has(item.id)) continue
     const peers = items.filter(
-      (other) =>
-        !assigned.has(other.id) &&
-        (other.id === item.id ||
-          accountMatchTokensOverlap(
-            { bureau: item.bureau, accountLast4: item.account_last4, matchKey: item.match_key },
-            { bureau: other.bureau, accountLast4: other.account_last4, matchKey: other.match_key }
-          ))
+      (other) => !assigned.has(other.id) && (other.id === item.id || sameAccount(item, other))
     )
     for (const peer of peers) assigned.add(peer.id)
     groups.push(peers)
@@ -684,9 +797,20 @@ export function groupItemsByAccountNumber(items: DisputeItemRow[]): DisputeItemR
   return groups
 }
 
+export function groupItemsByAccountNumber(items: DisputeItemRow[]): DisputeItemRow[][] {
+  return groupItemsByMatcher(items, (left, right) => isSameDisputeAccount(left, right, true))
+}
+
 /** Keep one row per bureau + last4 so renamed creditors do not appear twice in queues. */
 export function uniqueItemsByAccountNumber(items: DisputeItemRow[]): DisputeItemRow[] {
   return groupItemsByAccountNumber(items).map((group) => group.reduce(preferDuplicateAccountItem))
+}
+
+/** Needs next round is one row per consumer account, not one row per bureau PDF. */
+export function uniqueNextRoundItems(items: DisputeItemRow[]): DisputeItemRow[] {
+  return groupItemsByMatcher(items, (left, right) => isSameDisputeAccount(left, right, false)).map((group) =>
+    group.reduce(preferDuplicateAccountItem)
+  )
 }
 
 /** Split a bureau/furnisher item list so each letter stays at MAX_ITEMS_PER_LETTER. */

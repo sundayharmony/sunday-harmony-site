@@ -31,6 +31,8 @@ import {
   findItemForIdentity,
   groupItemsByAccountNumber,
   uniqueItemsByAccountNumber,
+  uniqueNextRoundItems,
+  findTrackedAccountItem,
   roundWorkflowView,
   shouldAppendStatusEvent,
   shouldReuseLetterPackage,
@@ -585,6 +587,92 @@ describe('dispute lifecycle rounds', () => {
     const unique = uniqueItemsByAccountNumber([a, b])
     assert.equal(unique.length, 1)
     assert.equal(unique[0].id, 'one')
+  })
+
+  it('matches a renamed creditor that gained last4 digits later', () => {
+    const old = item({
+      id: 'masked',
+      match_key: 'c:EXP:comenity capital bank',
+      account_last4: '47',
+      bureau: 'EXP',
+      creditor_name: 'COMENITY CAPITAL BANK',
+      current_status: 'disputed',
+      sent_at: '2026-07-24T12:00:00.000Z',
+    })
+    assert.equal(
+      findItemForIdentity([old], {
+        bureau: 'EXP',
+        accountLast4: '4455',
+        matchKey: 'a4:EXP:4455',
+        creditorName: 'COMENITYCAPITALBK/BANT',
+      })?.id,
+      'masked'
+    )
+  })
+
+  it('does not treat a later bureau PDF as a new account when last4 already exists', () => {
+    const sent = item({
+      id: 'exp',
+      match_key: 'c4:EXP:kikoff:1111',
+      account_last4: '1111',
+      bureau: 'EXP',
+      creditor_name: 'KIKOFF',
+      current_status: 'disputed',
+      sent_at: '2026-07-24T12:00:00.000Z',
+    })
+    const found = findTrackedAccountItem([sent], {
+      bureau: 'TUC',
+      accountLast4: '1111',
+      matchKey: 'a4:TUC:1111',
+      creditorName: 'KIKOFF LENDING LLC',
+    })
+    assert.equal(found?.id, 'exp')
+    assert.equal(
+      findItemForIdentity([sent], {
+        bureau: 'TUC',
+        accountLast4: '1111',
+        matchKey: 'a4:TUC:1111',
+        creditorName: 'KIKOFF LENDING LLC',
+      })?.id,
+      undefined
+    )
+  })
+
+  it('lists one next-round row per consumer account, not per bureau copy or rename', () => {
+    const items: DisputeItemRow[] = []
+    for (let i = 0; i < 22; i++) {
+      const last4 = String(1000 + i)
+      items.push(
+        item({
+          id: `exp-${i}`,
+          match_key: `c4:EXP:kikoff:${last4}`,
+          account_last4: last4,
+          bureau: 'EXP',
+          creditor_name: 'KIKOFF',
+          current_status: 'disputed',
+          sent_at: '2026-07-24T12:00:00.000Z',
+        }),
+        item({
+          id: `rename-${i}`,
+          match_key: `a4:EXP:${last4}`,
+          account_last4: last4,
+          bureau: 'EXP',
+          creditor_name: 'KIKOFF LENDING LLC',
+          current_status: 'pending',
+        }),
+        item({
+          id: `tuc-${i}`,
+          match_key: `a4:TUC:${last4}`,
+          account_last4: last4,
+          bureau: 'TUC',
+          creditor_name: 'KIKOFF',
+          current_status: 'pending',
+        })
+      )
+    }
+    const nextRound = splitWorkflowQueues(items, null, [1]).nextRound
+    assert.equal(nextRound.length, 66)
+    assert.equal(uniqueNextRoundItems(nextRound).length, 22)
   })
 
   it('marks mailed items deleted when they leave the report', () => {

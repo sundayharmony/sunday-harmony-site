@@ -7,8 +7,10 @@ import {
   computeDeadlineAt,
   expandTradelineSelections,
   findItemForIdentity,
+  findTrackedAccountItem,
   groupItemsByAccountNumber,
   uniqueItemsByAccountNumber,
+  uniqueNextRoundItems,
   isRoundClosedForNext,
   isRoundFullySent,
   itemIdentityFromTradeline,
@@ -213,6 +215,7 @@ export async function loadDisputeLifecycleForApplication(
   const disputeCase = caseRow as DisputeCaseRow
   await collapseDuplicateAccountItems(disputeCase.id)
   await seedPendingItemsFromLatestReport(applicationUuid, disputeCase.id)
+  await collapseDuplicateAccountItems(disputeCase.id)
   await repairUnsentDisputedItems(disputeCase.id)
   await applyComparisonFromLatestReport(applicationUuid, disputeCase.id)
   const rounds = await listRoundsForCase(disputeCase.id)
@@ -249,7 +252,7 @@ export async function loadDisputeLifecycleForApplication(
     completedRounds,
     responses,
   })
-  const nextRoundQueue = updatedReportReady ? queues.nextRound : []
+  const nextRoundQueue = updatedReportReady ? uniqueNextRoundItems(queues.nextRound) : []
   const letters = currentLetters(await listRoundLetters(activeRound?.session_id || null))
   const sentCount = roundItemIds.filter((id) => items.find((i) => i.id === id)?.sent_at).length
   const packages = await loadPackageSnapshotsForCase(disputeCase.id, items, rounds)
@@ -396,7 +399,7 @@ async function insertPendingIdentities(
     updated_at: string
   }> = []
   for (const identity of identities) {
-    if (findItemForIdentity(existing, identity)) continue
+    if (findTrackedAccountItem(existing, identity)) continue
     const row = {
       case_id: caseId,
       match_key: identity.matchKey,
