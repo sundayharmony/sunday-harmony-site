@@ -167,10 +167,15 @@ def _build_round1_plans(
         ("transunion", "TUC", "bureau_transunion"),
     ]:
         items: list[LetterItem] = []
+        listed: list[tuple[str, str, str]] = []
         for tl, reason, _sel in selected:
             targets = tl.dispute_bureaus or tl.bureaus
             if bureau_code not in targets:
                 continue
+            last4 = _account_last4(tl, bureau_code)
+            if _already_listed_account(listed, bureau_code, last4, tl.creditor):
+                continue
+            listed.append((bureau_code, last4, tl.creditor))
             acct = {"TUC": tl.account_tu, "EXP": tl.account_exp, "EQF": tl.account_eqf}[bureau_code]
             items.append(
                 LetterItem(
@@ -200,7 +205,8 @@ def _build_round1_plans(
     for tl, reason, _sel in selected:
         if not tl.dispute_furnisher:
             continue
-        key = _normalize_creditor(tl.creditor)
+        last4 = _account_last4(tl)
+        key = f"a4:{last4}" if last4 else f"c:{_normalize_creditor(tl.creditor)}"
         by_creditor.setdefault(key, []).append((tl, reason))
 
     for _cred_key, group in by_creditor.items():
@@ -209,6 +215,7 @@ def _build_round1_plans(
         sub = lookup_subscriber(sample_tl.creditor, report.subscribers)
         lines = override or (sub.address_lines if sub else [])
         name = sub.name if sub else sample_tl.creditor
+        source = group[:1] if one_per_bureau or _cred_key.startswith("a4:") else group
         items = [
             LetterItem(
                 tradeline_id=tl.id,
@@ -219,7 +226,7 @@ def _build_round1_plans(
                 balance=tl.balance,
                 dispute_reason=_prefer_deletion_reason(tl, reason),
             )
-            for tl, reason in (group[:1] if one_per_bureau else group)
+            for tl, reason in source
         ]
         _append_chunked_plans(
             plans,
@@ -244,6 +251,7 @@ def _build_follow_up_plans(
     bureau_addrs = json.loads(BUREAU_ADDRESSES_PATH.read_text(encoding="utf-8"))
     plans: list[LetterPlan] = []
     used_bureau: set[str] = set()
+    listed: list[tuple[str, str, str]] = []
 
     for tl, reason, sel in selected:
         letter_type = suggest_letter_type(
@@ -269,6 +277,10 @@ def _build_follow_up_plans(
                 bureau_key = {"EQF": "equifax", "EXP": "experian", "TUC": "transunion"}.get(bureau_code)
                 if not bureau_key:
                     continue
+                last4 = _account_last4(tl, bureau_code)
+                if _already_listed_account(listed, bureau_code, last4, tl.creditor):
+                    continue
+                listed.append((bureau_code, last4, tl.creditor))
                 addr = bureau_addrs[bureau_key]
                 acct = {
                     "TUC": tl.account_tu,
@@ -308,6 +320,10 @@ def _build_follow_up_plans(
             continue
 
         if letter_type == "debt_validation":
+            last4 = _account_last4(tl)
+            if _already_listed_account(listed, "FURN", last4, tl.creditor):
+                continue
+            listed.append(("FURN", last4, tl.creditor))
             override = request.furnisher_address_overrides.get(tl.creditor)
             sub = lookup_subscriber(tl.creditor, report.subscribers)
             lines = override or (sub.address_lines if sub else [])
@@ -336,6 +352,10 @@ def _build_follow_up_plans(
             continue
 
         if letter_type == "cfpb_complaint":
+            last4 = _account_last4(tl)
+            if _already_listed_account(listed, "CFPB", last4, tl.creditor):
+                continue
+            listed.append(("CFPB", last4, tl.creditor))
             plans.append(
                 LetterPlan(
                     id=str(uuid.uuid4()),
@@ -387,6 +407,41 @@ def _prefer_deletion_reason(tl: Tradeline, reason: str) -> str:
         "and complete."
     )
     return f"{text.rstrip('.')}." + suffix if text else suffix.strip()
+
+
+_ACCOUNT_MASK_RE = re.compile(r"[*Xx#•·_]")
+
+
+def _account_digits(value: str) -> str:
+    raw = _ACCOUNT_MASK_RE.sub("", value or "")
+    return re.sub(r"\D", "", raw)
+
+
+def _account_last4(tl: Tradeline, bureau: str | None = None) -> str:
+    if bureau == "TUC":
+        fields = [tl.account_tu, tl.account_exp, tl.account_eqf]
+    elif bureau == "EXP":
+        fields = [tl.account_exp, tl.account_tu, tl.account_eqf]
+    elif bureau == "EQF":
+        fields = [tl.account_eqf, tl.account_tu, tl.account_exp]
+    else:
+        fields = [tl.account_tu, tl.account_exp, tl.account_eqf]
+    for raw in fields:
+        digits = _account_digits(raw or "")
+        if len(digits) >= 4:
+            return digits[-4:]
+    return ""
+
+
+def _already_listed_account(
+    listed: list[tuple[str, str, str]],
+    bureau: str,
+    last4: str,
+    _creditor: str,
+) -> bool:
+    if not last4:
+        return False
+    return any(row_bureau == bureau and row_last4 == last4 for row_bureau, row_last4, _name in listed)
 
 
 def _normalize_creditor(name: str) -> str:

@@ -6,6 +6,9 @@ import {
   comparisonUpdatesForItems,
   computeDeadlineAt,
   expandTradelineSelections,
+  findItemForIdentity,
+  groupItemsByAccountNumber,
+  uniqueItemsByAccountNumber,
   isRoundClosedForNext,
   isRoundFullySent,
   itemIdentityFromTradeline,
@@ -13,6 +16,7 @@ import {
   nextRoundNumber,
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
+  preferDuplicateAccountItem,
   hasUpdatedReportForNextRound,
   roundWorkflowView,
   shouldReuseLetterPackage,
@@ -47,6 +51,7 @@ import {
   type HistoricalPlan,
 } from '@/lib/dispute-letters/round1-backfill'
 import type { Tradeline } from '@/lib/dispute-letters/types'
+import { accountMatchTokens, accountMatchTokensOverlap } from '@/lib/dispute-letters/tradeline-progress'
 
 function emptyWorkflow() {
   return roundWorkflowView({ selectedCount: 0, generatedCount: 0, downloaded: false, sentCount: 0 })
@@ -206,11 +211,12 @@ export async function loadDisputeLifecycleForApplication(
   if (!caseRow) return empty
 
   const disputeCase = caseRow as DisputeCaseRow
+  await collapseDuplicateAccountItems(disputeCase.id)
   await seedPendingItemsFromLatestReport(applicationUuid, disputeCase.id)
   await repairUnsentDisputedItems(disputeCase.id)
   await applyComparisonFromLatestReport(applicationUuid, disputeCase.id)
   const rounds = await listRoundsForCase(disputeCase.id)
-  const items = await listItemsForCase(disputeCase.id)
+  const items = uniqueItemsByAccountNumber(await listItemsForCase(disputeCase.id))
   const activeRound =
     [...rounds].reverse().find((r) => r.status === 'draft' || r.status === 'letters_ready') ||
     rounds[rounds.length - 1] ||
@@ -301,6 +307,63 @@ export async function loadLetterPackageForSession(sessionId: string): Promise<{
   return { round, package: active, letters }
 }
 
+async function collapseDuplicateAccountItems(caseId: string): Promise<void> {
+  const items = await listItemsForCase(caseId)
+  if (items.length < 2) return
+  const db = getSupabase()
+  const now = new Date().toISOString()
+
+  for (const group of groupItemsByAccountNumber(items)) {
+    if (group.length < 2) continue
+    const keeper = group.reduce(preferDuplicateAccountItem)
+    const canonicalLast4 = accountMatchTokens({
+      bureau: keeper.bureau,
+      accountLast4: keeper.account_last4,
+      matchKey: keeper.match_key,
+    })
+      .find((token) => token.startsWith('a4:'))
+      ?.slice(-4)
+    const canonicalKey =
+      canonicalLast4 && canonicalLast4.length === 4 ? `a4:${keeper.bureau}:${canonicalLast4}` : keeper.match_key
+
+    for (const extra of group.filter((row) => row.id !== keeper.id)) {
+      const { data: extraLinks } = await db
+        .from('dispute_round_items')
+        .select('round_id, item_id')
+        .eq('item_id', extra.id)
+      for (const link of extraLinks || []) {
+        const { data: keeperLink } = await db
+          .from('dispute_round_items')
+          .select('item_id')
+          .eq('round_id', link.round_id)
+          .eq('item_id', keeper.id)
+          .maybeSingle()
+        if (keeperLink) {
+          await db.from('dispute_round_items').delete().eq('round_id', link.round_id).eq('item_id', extra.id)
+        } else {
+          await db
+            .from('dispute_round_items')
+            .update({ item_id: keeper.id })
+            .eq('round_id', link.round_id)
+            .eq('item_id', extra.id)
+        }
+      }
+      await db.from('dispute_items').delete().eq('id', extra.id)
+    }
+
+    if (canonicalKey !== keeper.match_key || (canonicalLast4 && keeper.account_last4 !== canonicalLast4)) {
+      await db
+        .from('dispute_items')
+        .update({
+          match_key: canonicalKey,
+          account_last4: canonicalLast4 || keeper.account_last4,
+          updated_at: now,
+        })
+        .eq('id', keeper.id)
+    }
+  }
+}
+
 async function latestReportTradelines(applicationUuid: string): Promise<Tradeline[]> {
   const sessions = await listDisputeSessionsForApplication(applicationUuid)
   for (const session of sessions) {
@@ -317,24 +380,56 @@ async function insertPendingIdentities(
   if (!identities.length) return { inserted: 0 }
 
   const existing = await listItemsForCase(caseId)
-  const existingKeys = new Set(existing.map((item) => item.match_key))
   const now = new Date().toISOString()
-  const rows = identities
-    .filter((identity) => !existingKeys.has(identity.matchKey))
-    .map((identity) => ({
+  const rows: Array<{
+    case_id: string
+    match_key: string
+    creditor_name: string
+    account_last4: string
+    bureau: ItemIdentity['bureau']
+    account_type: string
+    current_status: DisputeItemStatus
+    last_round_number: null
+    last_letter_type: null
+    status_history: ReturnType<typeof identifiedHistory>
+    created_at: string
+    updated_at: string
+  }> = []
+  for (const identity of identities) {
+    if (findItemForIdentity(existing, identity)) continue
+    const row = {
       case_id: caseId,
       match_key: identity.matchKey,
       creditor_name: identity.creditorName,
       account_last4: identity.accountLast4,
       bureau: identity.bureau,
       account_type: identity.accountType,
-      current_status: 'pending' satisfies DisputeItemStatus,
+      current_status: 'pending' as const satisfies DisputeItemStatus,
       last_round_number: null,
       last_letter_type: null,
       status_history: identifiedHistory(now),
       created_at: now,
       updated_at: now,
-    }))
+    }
+    rows.push(row)
+    existing.push({
+      id: `pending-${rows.length}`,
+      case_id: caseId,
+      match_key: identity.matchKey,
+      creditor_name: identity.creditorName,
+      account_last4: identity.accountLast4,
+      bureau: identity.bureau,
+      account_type: identity.accountType,
+      current_status: 'pending',
+      last_round_number: null,
+      last_letter_type: null,
+      notes: null,
+      created_at: now,
+      updated_at: now,
+      sent_at: null,
+      status_history: row.status_history,
+    })
+  }
 
   if (!rows.length) return { inserted: 0 }
 
@@ -518,12 +613,17 @@ function planItemBureaus(raw: string | undefined): string[] {
 
 function matchPlanItemToDisputeItem(items: DisputeItemRow[], planItem: PlanItemJson): DisputeItemRow[] {
   const bureaus = planItemBureaus(planItem.bureau)
-  const creditor = (planItem.creditor || '').trim().toLowerCase()
   const last4 = accountLast4FromRaw(planItem.account_number)
   return items.filter((item) => {
-    if (creditor && item.creditor_name.trim().toLowerCase() !== creditor) return false
     if (bureaus.length && !bureaus.includes(item.bureau)) return false
-    if (last4 && item.account_last4 && item.account_last4 !== last4) return false
+    if (last4.length >= 4) {
+      return accountMatchTokensOverlap(
+        { bureau: item.bureau, accountLast4: item.account_last4, matchKey: item.match_key },
+        { bureau: item.bureau, accountLast4: last4 }
+      )
+    }
+    const creditor = (planItem.creditor || '').trim().toLowerCase()
+    if (creditor && item.creditor_name.trim().toLowerCase() !== creditor) return false
     return true
   })
 }
@@ -1227,6 +1327,7 @@ export async function upsertRoundItemsFromTradelines(params: {
   const db = getSupabase()
   const now = new Date().toISOString()
   const itemIds: string[] = []
+  const caseItems = await listItemsForCase(params.caseId)
 
   await db.from('dispute_round_items').delete().eq('round_id', params.roundId)
 
@@ -1235,16 +1336,11 @@ export async function upsertRoundItemsFromTradelines(params: {
       const identity = itemIdentityFromTradeline(sel.tradeline, bureau)
       if (!identity) continue
 
-      const { data: existing } = await db
-        .from('dispute_items')
-        .select('*')
-        .eq('case_id', params.caseId)
-        .eq('match_key', identity.matchKey)
-        .maybeSingle()
+      const existing = findItemForIdentity(caseItems, identity)
 
-      let itemId = (existing as DisputeItemRow | null)?.id
-      if (itemId) {
-        const prev = existing as DisputeItemRow
+      let itemId = existing?.id
+      if (itemId && existing) {
+        const prev = existing
         const selectedEvent = {
           at: now,
           stage: 'selected' as const,
@@ -1255,6 +1351,7 @@ export async function upsertRoundItemsFromTradelines(params: {
         await db
           .from('dispute_items')
           .update({
+            match_key: identity.matchKey,
             creditor_name: identity.creditorName,
             account_last4: identity.accountLast4,
             account_type: identity.accountType,
@@ -1296,8 +1393,24 @@ export async function upsertRoundItemsFromTradelines(params: {
           return { itemIds, error: error?.message || 'Failed to create dispute item' }
         }
         itemId = created.id as string
+        caseItems.push({
+          id: itemId,
+          case_id: params.caseId,
+          match_key: identity.matchKey,
+          creditor_name: identity.creditorName,
+          account_last4: identity.accountLast4,
+          bureau: identity.bureau,
+          account_type: identity.accountType,
+          current_status: 'selected_for_round',
+          last_round_number: params.roundNumber,
+          last_letter_type: 'bureau',
+          notes: null,
+          created_at: now,
+          updated_at: now,
+        })
       }
 
+      if (itemIds.includes(itemId)) continue
       itemIds.push(itemId)
       const reason =
         sel.tradeline.dispute_reason?.trim() ||
