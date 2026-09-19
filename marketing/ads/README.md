@@ -8,6 +8,10 @@ Five editable rebuilds of the ads in `source/ad-collage.png`, one file per ad.
     out/04-stronger-credit-today.svg   .psd
     out/05-credit-repair-funding-its-possible.svg   .psd
 
+`jpeg/` holds the same five ads as flat high-resolution JPEGs for posting and
+printing, 2400 px on the long edge at 300 dpi. They are rendered from the vectors
+rather than cut out of the collage, so the type is sharp at full size.
+
 The collage is a flattened image, so nothing could be extracted from it. Each ad
 is rebuilt instead: the photography is lifted out of the collage and the type,
 logo, buttons, icons and bands are redrawn as vectors on top of it.
@@ -42,9 +46,9 @@ Swapping in the site's brand font is a one-line change in `build/brand.py`.
     cd marketing/ads/build
     python3 photos.py     # cleaned photographic plates -> ../assets
     python3 calibrate.py  # measure the artwork -> metrics.py
-    python3 build.py      # SVG + PSD -> ../out, comparisons -> ../proofs
+    python3 build.py      # SVG + PSD -> ../out, JPEG -> ../jpeg, comparisons -> ../proofs
 
-`build.py --svg`, `--psd` and `--proof` each do one step. `proofs/` holds each
+`build.py --svg`, `--psd`, `--jpeg` and `--proof` each do one step. `proofs/` holds each
 rebuild beside the original crop, which is how the layouts were fitted.
 `ruler.py` measures a region of either one:
 

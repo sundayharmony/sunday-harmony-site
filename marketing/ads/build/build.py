@@ -1,7 +1,8 @@
 """Emit the editable ad files.
 
-    python3 build.py            # SVG (Illustrator) + PSD (Photoshop) + proofs
+    python3 build.py            # SVG + PSD + flat JPEG + proofs
     python3 build.py --svg      # SVG only
+    python3 build.py --jpeg     # flat high-resolution JPEG only
     python3 build.py --proof    # side-by-side proof against the original collage
 
 Each named layer in `specs.py` becomes a group in the SVG and a pixel layer in
@@ -25,6 +26,12 @@ from specs import ALL_ADS
 
 OUT = Path(__file__).resolve().parent.parent / 'out'
 PROOFS = Path(__file__).resolve().parent.parent / 'proofs'
+JPEG = Path(__file__).resolve().parent.parent / 'jpeg'
+
+# Long edge of the flat JPEGs: 8 inches at 300 dpi, enough for print and for any
+# social placement without a second export.
+JPEG_LONG_EDGE = 2400
+JPEG_DPI = 300
 
 
 def render(svg: str, width: int, height: int) -> Image.Image:
@@ -76,6 +83,18 @@ def write_psd(ad, path: Path) -> None:
         psd.write(fh)
 
 
+def write_jpeg(ad, path: Path) -> tuple[int, int]:
+    """Flat JPEG for posting and printing, rendered from the vectors so type stays crisp."""
+    scale = JPEG_LONG_EDGE / max(ad.width, ad.height)
+    width = round(ad.width * scale)
+    height = round(ad.height * scale)
+    rendered = render(ad.svg(), width, height)
+    flat = Image.new('RGB', rendered.size, 'white')
+    flat.paste(rendered, mask=rendered.split()[-1])
+    flat.save(path, 'JPEG', quality=95, subsampling=0, dpi=(JPEG_DPI, JPEG_DPI), optimize=True)
+    return width, height
+
+
 def write_proof(ad, slug_key: str, path: Path) -> None:
     """Rebuild next to the original crop, so drift is easy to spot."""
     collage = Image.open(SOURCE).convert('RGB')
@@ -92,11 +111,14 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--svg', action='store_true', help='write SVG only')
     parser.add_argument('--psd', action='store_true', help='write PSD only')
+    parser.add_argument('--jpeg', action='store_true', help='write flat JPEG only')
     parser.add_argument('--proof', action='store_true', help='write comparison proofs only')
     args = parser.parse_args()
-    everything = not (args.svg or args.psd or args.proof)
+    everything = not (args.svg or args.psd or args.jpeg or args.proof)
 
     OUT.mkdir(parents=True, exist_ok=True)
+    if args.jpeg or everything:
+        JPEG.mkdir(parents=True, exist_ok=True)
     if args.proof or everything:
         PROOFS.mkdir(parents=True, exist_ok=True)
 
@@ -114,6 +136,12 @@ def main() -> None:
             psd_path = OUT / f'{ad.slug}.psd'
             write_psd(ad, psd_path)
             print(f'{psd_path.name}  {psd_path.stat().st_size // 1024} KB')
+
+        if args.jpeg or everything:
+            jpeg_path = JPEG / f'{ad.slug}.jpg'
+            width, height = write_jpeg(ad, jpeg_path)
+            print(f'{jpeg_path.name}  {width}x{height}  '
+                  f'{jpeg_path.stat().st_size // 1024} KB')
 
         if args.proof or everything:
             proof_path = PROOFS / f'{ad.slug}-proof.png'
