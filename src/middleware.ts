@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { loginRedirectPath } from '@/lib/login-redirect'
 import { isStaffRole } from '@/lib/staff-roles'
 
 /**
@@ -26,8 +27,17 @@ const CREDIT_MANAGER_ADMIN_PATHS = [
   '/admin/settings',
 ]
 
-function redirectUnauthorized(req: NextRequest) {
-  return NextResponse.redirect(new URL('/login?error=unauthorized', req.url))
+function redirectToLogin(req: NextRequest, reason: 'signin' | 'unauthorized' = 'signin') {
+  return NextResponse.redirect(
+    new URL(
+      loginRedirectPath({
+        pathname: req.nextUrl.pathname,
+        search: req.nextUrl.search,
+        reason,
+      }),
+      req.url
+    )
+  )
 }
 
 function creditManagerAllowed(path: string): boolean {
@@ -71,7 +81,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (path.startsWith('/admin')) {
-    if (!token) return redirectUnauthorized(req)
+    if (!token) return redirectToLogin(req)
     if (staff && !mfaVerified) {
       return NextResponse.redirect(
         new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
@@ -87,12 +97,13 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next()
     }
 
-    if (role !== 'admin') return redirectUnauthorized(req)
+    if (role !== 'admin') return redirectToLogin(req, 'unauthorized')
   }
 
   if (path.startsWith('/dashboard')) {
-    if (!token || (role !== 'client' && role !== 'admin' && role !== 'credit_manager')) {
-      return redirectUnauthorized(req)
+    if (!token) return redirectToLogin(req)
+    if (role !== 'client' && role !== 'admin' && role !== 'credit_manager') {
+      return redirectToLogin(req, 'unauthorized')
     }
     if (role === 'admin') {
       if (!mfaVerified) {
