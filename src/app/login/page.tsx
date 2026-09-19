@@ -7,27 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser'
 import AuthPageShell from '@/components/auth/AuthPageShell'
 import AuthInput from '@/components/auth/AuthInput'
+import { destinationAfterLogin, loginBannerMessage, loginRedirectPath } from '@/lib/login-redirect'
 import { sanitizeLoginCallbackUrl } from '@/lib/safe-notification-link'
-
-type SessionUser = {
-  role?: string
-  mfaVerified?: boolean
-  mfaEnrollmentRequired?: boolean
-}
-
-function destinationAfterLogin(user: SessionUser | undefined, fallback: string): string {
-  const role = user?.role
-  const mfaVerified = user?.mfaVerified
-  const mfaEnrollmentRequired = user?.mfaEnrollmentRequired
-
-  if ((role === 'admin' || role === 'credit_manager') && !mfaVerified) {
-    return mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa'
-  }
-  if (role === 'admin') return '/admin'
-  if (role === 'credit_manager') return '/admin/credit-funding'
-  if (role === 'client') return '/dashboard'
-  return fallback
-}
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -39,6 +20,7 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = sanitizeLoginCallbackUrl(searchParams.get('callbackUrl'))
+  const banner = loginBannerMessage(searchParams.get('error'), error)
 
   useEffect(() => {
     setPasskeySupported(browserSupportsWebAuthn())
@@ -48,6 +30,9 @@ function LoginForm() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    if (searchParams.get('error')) {
+      router.replace(loginRedirectPath({ pathname: callbackUrl === '/' ? '' : callbackUrl }))
+    }
 
     const result = await signIn('credentials', {
       email,
@@ -62,9 +47,9 @@ function LoginForm() {
       try {
         const res = await fetch('/api/auth/session')
         const session = await res.json()
-        router.push(destinationAfterLogin(session?.user, callbackUrl))
+        window.location.assign(destinationAfterLogin(session?.user, callbackUrl))
       } catch {
-        router.push(callbackUrl)
+        window.location.assign(callbackUrl)
       }
     }
   }
@@ -72,6 +57,9 @@ function LoginForm() {
   const handlePasskeyLogin = async () => {
     setError('')
     setPasskeyLoading(true)
+    if (searchParams.get('error')) {
+      router.replace(loginRedirectPath({ pathname: callbackUrl === '/' ? '' : callbackUrl }))
+    }
 
     try {
       const optionsRes = await fetch('/api/auth/webauthn/login', {
@@ -103,7 +91,7 @@ function LoginForm() {
 
       const res = await fetch('/api/auth/session')
       const session = await res.json()
-      router.push(destinationAfterLogin(session?.user, callbackUrl))
+      window.location.assign(destinationAfterLogin(session?.user, callbackUrl))
     } catch (err) {
       if (err instanceof Error && err.name === 'NotAllowedError') {
         setError('Passkey authentication was cancelled')
@@ -116,9 +104,9 @@ function LoginForm() {
 
   return (
     <AuthPageShell title="Sign in" subtitle="Access your dashboard">
-      {(error || searchParams.get('error')) && (
+      {banner && (
         <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-brand-red">
-          {error || 'You do not have permission to access that page.'}
+          {banner}
         </div>
       )}
 
