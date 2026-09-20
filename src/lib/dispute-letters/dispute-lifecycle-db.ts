@@ -20,6 +20,7 @@ import {
   pendingIdentitiesFromTradelines,
   preferDuplicateAccountItem,
   hasUpdatedReportForNextRound,
+  pickSessionForLifecycleRecovery,
   roundWorkflowView,
   shouldReuseLetterPackage,
   splitWorkflowQueues,
@@ -40,7 +41,11 @@ import {
   type LetterPackageRow,
   type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
-import { deleteDisputeSession, listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
+import {
+  deleteDisputeSession,
+  getDisputeSessionById,
+  listDisputeSessionsForApplication,
+} from '@/lib/dispute-letters/db'
 import { removeDisputeSessionStorage } from '@/lib/dispute-letters-storage'
 import {
   comparisonKeysFromSessions,
@@ -176,6 +181,147 @@ export async function listItemsForCase(caseId: string): Promise<DisputeItemRow[]
   return (data || []) as DisputeItemRow[]
 }
 
+async function findCaseByApplicationUuid(applicationUuid: string): Promise<DisputeCaseRow | null> {
+  const { data, error } = await getSupabase()
+    .from('dispute_cases')
+    .select('*')
+    .eq('application_uuid', applicationUuid)
+    .maybeSingle()
+  if (error) {
+    if (!isMissingRelation(error)) console.error('findCaseByApplicationUuid error:', error)
+    return null
+  }
+  return (data as DisputeCaseRow) || null
+}
+
+async function linkCaseToApplication(caseId: string, applicationUuid?: string | null): Promise<void> {
+  const uuid = (applicationUuid || '').trim()
+  if (!uuid) return
+  const db = getSupabase()
+  const { data } = await db.from('dispute_cases').select('application_uuid').eq('id', caseId).maybeSingle()
+  if (!data || data.application_uuid) return
+  await db
+    .from('dispute_cases')
+    .update({ application_uuid: uuid, updated_at: new Date().toISOString() })
+    .eq('id', caseId)
+}
+
+async function attachSessionToRound(sessionId: string, roundId: string): Promise<void> {
+  await getSupabase()
+    .from('dispute_sessions')
+    .update({ round_id: roundId, updated_at: new Date().toISOString() })
+    .eq('id', sessionId)
+}
+
+async function sessionLifecycleEvidence(
+  sessionId: string
+): Promise<'letters' | 'plans' | null> {
+  const letters = currentLetters(await listRoundLetters(sessionId))
+  if (letters.length) return 'letters'
+  const plans = await loadSessionPlans(sessionId)
+  return plans.length ? 'plans' : null
+}
+
+/**
+ * Create or reuse the dispute case/round for a letter session so generate and
+ * ZIP download are still visible after leaving Credit & Funding.
+ */
+export async function ensureLifecycleFromSession(
+  sessionId: string,
+  options?: { applicationUuid?: string | null }
+): Promise<DisputeRoundRow | null> {
+  const existing = await findRoundForSession(sessionId)
+  if (existing) {
+    await linkCaseToApplication(existing.case_id, options?.applicationUuid)
+    await attachSessionToRound(sessionId, existing.id)
+    return existing
+  }
+
+  const session = await getDisputeSessionById(sessionId)
+  if (!session) return null
+
+  let applicationUuid = (options?.applicationUuid || session.application_uuid || '').trim() || null
+  if (!applicationUuid) {
+    const name = session.report_json?.consumer?.name || session.file_name
+    if (name) applicationUuid = await findApplicationUuidByConsumerName(name)
+  }
+  if (applicationUuid && !session.application_uuid) {
+    await getSupabase()
+      .from('dispute_sessions')
+      .update({ application_uuid: applicationUuid, updated_at: new Date().toISOString() })
+      .eq('id', sessionId)
+  }
+  if (!applicationUuid) return null
+
+  const linked = await findCaseByApplicationUuid(applicationUuid)
+  if (!linked) {
+    const siblings = await listDisputeSessionsForApplication(applicationUuid)
+    for (const sibling of siblings) {
+      const round = await findRoundForSession(sibling.id)
+      if (!round) continue
+      await linkCaseToApplication(round.case_id, applicationUuid)
+      break
+    }
+  }
+
+  const disputeCase = (await findCaseByApplicationUuid(applicationUuid)) || (await getOrCreateDisputeCase(applicationUuid))
+  if (!disputeCase) return null
+
+  const opened = await openOrCreateRound({
+    caseId: disputeCase.id,
+    sessionId,
+  })
+  if ('error' in opened) return null
+  await attachSessionToRound(sessionId, opened.round.id)
+
+  const tradelines = session.report_json?.tradelines || []
+  const plans = await loadSessionPlans(sessionId)
+  const selected = selectTradelinesForHistoricalRound1(tradelines, plans)
+  await upsertRoundItemsFromTradelines({
+    caseId: disputeCase.id,
+    roundId: opened.round.id,
+    roundNumber: opened.round.round_number,
+    tradelines: selected,
+  })
+  await ensurePendingItemsFromTradelines({
+    caseId: disputeCase.id,
+    tradelines,
+  })
+  return opened.round
+}
+
+/**
+ * Rebuild a missing case/round from stored letters or plans so returning to a
+ * client still shows the generated package.
+ */
+export async function recoverLifecycleForApplication(applicationUuid: string): Promise<boolean> {
+  const uuid = applicationUuid.trim()
+  if (!uuid) return false
+
+  const sessions = await listDisputeSessionsForApplication(uuid)
+  const evidence = new Map<string, 'letters' | 'plans'>()
+  for (const session of sessions) {
+    const kind = await sessionLifecycleEvidence(session.id)
+    if (kind) evidence.set(session.id, kind)
+    const round = await findRoundForSession(session.id)
+    if (round) await linkCaseToApplication(round.case_id, uuid)
+  }
+
+  const existingCase = await findCaseByApplicationUuid(uuid)
+  const picked = pickSessionForLifecycleRecovery(sessions, evidence)
+  if (!picked) return Boolean(existingCase)
+
+  const packages = existingCase ? await listPackagesForCase(existingCase.id) : []
+  const needsGenerateStamp = evidence.get(picked.id) === 'letters' && !packages.length
+
+  const round = await ensureLifecycleFromSession(picked.id, { applicationUuid: uuid })
+  if (!round) return Boolean(existingCase)
+  if (needsGenerateStamp) {
+    await onLettersGenerated(picked.id)
+  }
+  return true
+}
+
 export async function loadDisputeLifecycleForApplication(
   applicationUuid: string
 ): Promise<DisputeLifecycleSnapshot> {
@@ -200,19 +346,15 @@ export async function loadDisputeLifecycleForApplication(
     hasUpdatedReportForNextRound: false,
   }
 
-  const { data: caseRow, error } = await getSupabase()
-    .from('dispute_cases')
-    .select('*')
-    .eq('application_uuid', applicationUuid)
-    .maybeSingle()
-
-  if (error) {
-    if (!isMissingRelation(error)) console.error('loadDisputeLifecycleForApplication error:', error)
-    return empty
+  try {
+    await recoverLifecycleForApplication(applicationUuid)
+  } catch (err) {
+    console.error('recoverLifecycleForApplication error:', err)
   }
+  const caseRow = await findCaseByApplicationUuid(applicationUuid)
   if (!caseRow) return empty
 
-  const disputeCase = caseRow as DisputeCaseRow
+  const disputeCase = caseRow
   await collapseDuplicateAccountItems(disputeCase.id)
   await seedPendingItemsFromLatestReport(applicationUuid, disputeCase.id)
   await collapseDuplicateAccountItems(disputeCase.id)
@@ -942,7 +1084,7 @@ export async function upsertLetterPackageOnGenerate(params: {
 
 /** Record a ZIP download for the active package. Never marks items Sent or creates letters. */
 export async function recordLetterPackageDownload(sessionId: string): Promise<LetterPackageRow | null> {
-  const round = await findRoundForSession(sessionId)
+  const round = await ensureLifecycleFromSession(sessionId)
   if (!round) return null
   const items = await listItemsForCase(round.case_id)
   let pkg = await activePackageForRound(round.id)
@@ -1061,7 +1203,7 @@ export async function confirmAllLettersSentForSession(
   | { ok: true; sentAt: string; roundComplete: boolean; itemCount: number }
   | { ok: false; error: string }
 > {
-  const round = await findRoundForSession(sessionId)
+  const round = await ensureLifecycleFromSession(sessionId)
   if (!round) return { ok: false, error: 'No dispute round for this session' }
   let pkg = await activePackageForRound(round.id)
   if (!pkg) {
@@ -1139,7 +1281,7 @@ async function stampLetterGeneratedHistory(round: DisputeRoundRow, items: Disput
 
 /** After Python finishes generating letters: round → letters_ready, items stay selected until Sent. */
 export async function onLettersGenerated(sessionId: string): Promise<void> {
-  const round = await findRoundForSession(sessionId)
+  const round = await ensureLifecycleFromSession(sessionId)
   if (!round) return
   await markRoundLettersReady(round.id, sessionId)
   const items = await listItemsForCase(round.case_id)

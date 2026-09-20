@@ -28,6 +28,7 @@ import {
   notYetDisputedFromItems,
   pendingIdentitiesFromTradelines,
   pendingQueueFromItems,
+  pickSessionForLifecycleRecovery,
   findItemForIdentity,
   groupItemsByAccountNumber,
   uniqueItemsByAccountNumber,
@@ -730,6 +731,8 @@ describe('dispute lifecycle rounds', () => {
     assert.equal(planFn.includes('markRoundLettersReady'), false)
     assert.match(db, /export async function markLetterSent/)
     assert.match(db, /export async function onLettersGenerated/)
+    assert.match(db, /export async function ensureLifecycleFromSession/)
+    assert.match(db, /export async function recoverLifecycleForApplication/)
     assert.match(db, /export async function upsertLetterPackageOnGenerate/)
     assert.match(db, /export async function recordLetterPackageDownload/)
     assert.match(db, /export async function confirmLetterPackageSent/)
@@ -743,8 +746,58 @@ describe('dispute lifecycle rounds', () => {
       db.indexOf('export async function onLettersGenerated'),
       db.indexOf('async function maybeCompleteRoundIfFullySent')
     )
+    assert.match(generateHook, /ensureLifecycleFromSession/)
     assert.match(generateHook, /upsertLetterPackageOnGenerate/)
     assert.equal(generateHook.includes("stage: 'sent'"), false)
+    const downloadFn = db.slice(
+      db.indexOf('export async function recordLetterPackageDownload'),
+      db.indexOf('async function stampRoundItemsSent')
+    )
+    assert.match(downloadFn, /ensureLifecycleFromSession/)
+    const loadFn = db.slice(
+      db.indexOf('export async function loadDisputeLifecycleForApplication'),
+      db.indexOf('export async function loadLetterPackageForSession')
+    )
+    assert.match(loadFn, /recoverLifecycleForApplication/)
+  })
+})
+
+describe('pickSessionForLifecycleRecovery', () => {
+  it('prefers a session with generated letters over a newer plan-only session', () => {
+    const sessions = [
+      { id: 'newer-plan', created_at: '2026-09-18T12:00:00.000Z' },
+      { id: 'older-letters', created_at: '2026-09-02T12:00:00.000Z' },
+    ]
+    const picked = pickSessionForLifecycleRecovery(
+      sessions,
+      new Map([
+        ['newer-plan', 'plans'],
+        ['older-letters', 'letters'],
+      ])
+    )
+    assert.equal(picked?.id, 'older-letters')
+  })
+
+  it('uses the newest session when both have letters', () => {
+    const sessions = [
+      { id: 'old', created_at: '2026-09-01T12:00:00.000Z' },
+      { id: 'new', created_at: '2026-09-18T12:00:00.000Z' },
+    ]
+    const picked = pickSessionForLifecycleRecovery(
+      sessions,
+      new Map([
+        ['old', 'letters'],
+        ['new', 'letters'],
+      ])
+    )
+    assert.equal(picked?.id, 'new')
+  })
+
+  it('returns null when no session has letters or plans', () => {
+    assert.equal(
+      pickSessionForLifecycleRecovery([{ id: 's', created_at: '2026-09-01T00:00:00.000Z' }], new Map()),
+      null
+    )
   })
 })
 

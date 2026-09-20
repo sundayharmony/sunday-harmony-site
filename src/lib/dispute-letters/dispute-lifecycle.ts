@@ -1285,6 +1285,29 @@ export function buildCfpbComplaintDraft(params: {
   ].join('\n')
 }
 
+/**
+ * Prefer the newest session that already has generated letters; otherwise the
+ * newest session that still has a stored letter plan. Used to rebuild a missing
+ * dispute case after staff leave and return to Credit & Funding.
+ */
+export function pickSessionForLifecycleRecovery<T extends { id: string; created_at: string }>(
+  sessions: T[],
+  evidence: ReadonlyMap<string, 'letters' | 'plans'>
+): T | null {
+  let best: T | null = null
+  let bestRank = 0
+  for (const session of sessions) {
+    const kind = evidence.get(session.id)
+    const rank = kind === 'letters' ? 2 : kind === 'plans' ? 1 : 0
+    if (rank < 1) continue
+    if (!best || rank > bestRank || (rank === bestRank && session.created_at > best.created_at)) {
+      best = session
+      bestRank = rank
+    }
+  }
+  return best
+}
+
 /** Staff CRM-style checklist templates for dispute ops (Phase 7). */
 export const DISPUTE_OPS_TASK_TEMPLATES = [
   {
