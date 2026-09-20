@@ -25,6 +25,7 @@ after(() => {
 describe('Area 06 API authorization hardening', () => {
   it('recognizes only supported applicant document types', () => {
     assert.equal(isDocumentType('photo_id'), true)
+    assert.equal(isDocumentType('credit_report'), true)
     assert.equal(isDocumentType('tax_returns'), true)
     assert.equal(isDocumentType('staff_shared'), false)
     assert.equal(isDocumentType('../other-application'), false)

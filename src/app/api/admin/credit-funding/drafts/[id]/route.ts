@@ -184,9 +184,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       const docs = await getDocumentsByApplicationUuid(id)
       const hasPhotoId = docs.some((d) => d.document_type === 'photo_id' && d.scan_status !== 'rejected')
       const hasMailProof = docs.some((d) => d.document_type === 'mail_proof' && d.scan_status !== 'rejected')
-      if (!hasPhotoId || !hasMailProof) {
+      const hasCreditReport = docs.some((d) => d.document_type === 'credit_report' && d.scan_status !== 'rejected')
+      if (!hasPhotoId || !hasMailProof || !hasCreditReport) {
         return draftJson(
-          { error: 'Required documents missing: photo ID and mail proof must be uploaded before finalize.' },
+          {
+            error:
+              'Required documents missing: photo ID, mail proof, and 3-bureau credit report must be uploaded before finalize.',
+          },
           400
         )
       }

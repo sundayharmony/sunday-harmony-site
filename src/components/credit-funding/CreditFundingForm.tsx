@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
+import AnnualCreditReportGuide from '@/components/credit-funding/AnnualCreditReportGuide'
 import { WorkflowStepStrip } from '@/components/credit-funding/WorkflowStepStrip'
 import SsnInputField from '@/components/credit-funding/SsnInputField'
 import { useStagedDocumentUploads } from '@/components/credit-funding/useStagedDocumentUploads'
@@ -11,7 +12,6 @@ import Link from 'next/link'
 import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
-  CFPB_PORTAL_URL,
   EXPERIAN_SIGNUP_URL,
   FUNDING_TIMEFRAMES,
   getCreditProviderLinkAction,
@@ -28,7 +28,6 @@ import {
   IDENTITY_DOCUMENTS,
   BUSINESS_DOCUMENTS,
 } from '@/lib/credit-funding-document-steps'
-import { isValidExperianPin } from '@/lib/credit-funding-validation'
 import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
@@ -59,7 +58,7 @@ function getStepFlow(form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'cred
   return flow
 }
 
-const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'mail_proof']
+const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'mail_proof', 'credit_report']
 
 const inputClass =
   'w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors'
@@ -213,12 +212,7 @@ export default function CreditFundingForm() {
   const showFundingFields =
     seekingFunding || fundingDetailsOpen || Boolean(form.fundingAmount) || Boolean(form.fundingTimeframe)
   const monitoringCredentialsStarted = Boolean(
-    form.providerUsername ||
-      form.providerPassword ||
-      form.experianEmail ||
-      form.experianPassword ||
-      form.cfpbEmail ||
-      form.cfpbPassword
+    form.providerUsername || form.providerPassword || form.experianEmail || form.experianPassword
   )
 
   const stepFlow = useMemo(
@@ -409,23 +403,6 @@ export default function CreditFundingForm() {
       }
       if ((!form.experianPassword || form.experianPassword.length < 4) && !secretsOnFile.experianPasswordSet) {
         e.experianPassword = 'Required'
-      }
-      if (!form.experianSecurityAnswer.trim() && !secretsOnFile.experianSecurityAnswerSet) {
-        e.experianSecurityAnswer = 'Required'
-      }
-      if (form.experianPin) {
-        if (!isValidExperianPin(form.experianPin)) e.experianPin = '4-digit code required'
-      } else if (!secretsOnFile.experianPinSet) {
-        e.experianPin = '4-digit code required'
-      }
-      if (
-        !secretsOnFile.cfpbEmailSet &&
-        (!form.cfpbEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.cfpbEmail))
-      ) {
-        e.cfpbEmail = 'Valid CFPB portal email required'
-      }
-      if ((!form.cfpbPassword || form.cfpbPassword.length < 4) && !secretsOnFile.cfpbPasswordSet) {
-        e.cfpbPassword = 'Required'
       }
     }
     if (stepId === 'goals') {
@@ -712,9 +689,10 @@ export default function CreditFundingForm() {
 
         {currentStepId === 'identity' && (
           <div>
+            <AnnualCreditReportGuide />
             <DocumentUploadStep
               title="Identity Documents"
-              subtitle="Upload each document on this step. Files are encrypted and stored securely as soon as you add them."
+              subtitle="Upload your 3-bureau credit report and identity documents. Files are encrypted and stored securely as soon as you add them."
               documents={IDENTITY_DOCUMENTS}
               uploads={stagedUploads.uploads}
               docsOnFile={docsOnFile}
@@ -749,7 +727,7 @@ export default function CreditFundingForm() {
               >
                 <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-brand-text flex items-center justify-between gap-2">
                   <span>Account setup links</span>
-                  <span className="text-xs font-medium text-brand-dim">Provider · Experian · CFPB</span>
+                  <span className="text-xs font-medium text-brand-dim">Provider · Experian</span>
                 </summary>
                 <div className="px-4 pb-4 space-y-3 border-t border-brand-border pt-3">
                   <p className="text-xs text-brand-muted leading-relaxed">
@@ -780,14 +758,6 @@ export default function CreditFundingForm() {
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-brand-border text-sm font-semibold text-brand-text hover:bg-neutral-50"
                     >
                       Experian signup ↗
-                    </a>
-                    <a
-                      href={CFPB_PORTAL_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-brand-border text-sm font-semibold text-brand-text hover:bg-neutral-50"
-                    >
-                      CFPB register ↗
                     </a>
                   </div>
                 </div>
@@ -869,83 +839,6 @@ export default function CreditFundingForm() {
                       </button>
                     </div>
                     {errors.experianPassword && <p className="text-xs text-brand-red mt-1">{errors.experianPassword}</p>}
-                  </div>
-                  <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('experianSecurityAnswer')}>
-                      Experian security question answer *{onFileHint(secretsOnFile.experianSecurityAnswerSet)}
-                    </label>
-                    <input
-                      id={fid('experianSecurityAnswer')}
-                      name="experianSecurityAnswer"
-                      type="text"
-                      className={inputClass}
-                      value={form.experianSecurityAnswer}
-                      onChange={(e) => update('experianSecurityAnswer', e.target.value)}
-                      autoComplete="off"
-                    />
-                    {errors.experianSecurityAnswer && (
-                      <p className="text-xs text-brand-red mt-1">{errors.experianSecurityAnswer}</p>
-                    )}
-                  </div>
-                  <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('experianPin')}>
-                      Experian 4-digit code *{onFileHint(secretsOnFile.experianPinSet)}
-                    </label>
-                    <input
-                      id={fid('experianPin')}
-                      name="experianPin"
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={4}
-                      className={inputClass}
-                      value={form.experianPin}
-                      onChange={(e) => update('experianPin', e.target.value.replace(/\D/g, '').slice(0, 4))}
-                      autoComplete="off"
-                    />
-                    {errors.experianPin && <p className="text-xs text-brand-red mt-1">{errors.experianPin}</p>}
-                  </div>
-                </div>
-                <div className="mb-5 pt-4 border-t border-brand-border">
-                  <p className="text-sm font-semibold text-brand-text mb-3">CFPB portal credentials</p>
-                  <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('cfpbEmail')}>
-                      CFPB Portal Email *{onFileHint(secretsOnFile.cfpbEmailSet)}
-                    </label>
-                    <input
-                      id={fid('cfpbEmail')}
-                      name="cfpbEmail"
-                      type="email"
-                      className={inputClass}
-                      value={form.cfpbEmail}
-                      onChange={(e) => update('cfpbEmail', e.target.value)}
-                      autoComplete="off"
-                    />
-                    {errors.cfpbEmail && <p className="text-xs text-brand-red mt-1">{errors.cfpbEmail}</p>}
-                  </div>
-                  <div className="mb-4">
-                    <label className={labelClass} htmlFor={fid('cfpbPassword')}>
-                      CFPB Portal Password *{onFileHint(secretsOnFile.cfpbPasswordSet)}
-                    </label>
-                    <div className="relative">
-                      <input
-                        id={fid('cfpbPassword')}
-                        name="cfpbPassword"
-                        type={form.showCfpbPassword ? 'text' : 'password'}
-                        className={inputClass}
-                        value={form.cfpbPassword}
-                        onChange={(e) => update('cfpbPassword', e.target.value)}
-                        autoComplete="new-password"
-                      />
-                      <button
-                        type="button"
-                        aria-label={form.showCfpbPassword ? 'Hide CFPB password' : 'Show CFPB password'}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-brand-dim hover:text-brand-text"
-                        onClick={() => update('showCfpbPassword', !form.showCfpbPassword)}
-                      >
-                        {form.showCfpbPassword ? 'Hide' : 'Show'}
-                      </button>
-                    </div>
-                    {errors.cfpbPassword && <p className="text-xs text-brand-red mt-1">{errors.cfpbPassword}</p>}
                   </div>
                 </div>
               </>

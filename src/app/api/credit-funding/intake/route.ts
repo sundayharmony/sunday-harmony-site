@@ -42,8 +42,8 @@ import { hasHoneypotValue } from '@/lib/honeypot'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const REQUIRED_DOCS: DocumentType[] = ['photo_id', 'mail_proof']
-const OPTIONAL_DOCS: DocumentType[] = ['selfie_with_id']
+const REQUIRED_DOCS: DocumentType[] = ['photo_id', 'mail_proof', 'credit_report']
+const OPTIONAL_DOCS: DocumentType[] = ['selfie_with_id', 'proof_of_address']
 const ALL_DOC_TYPES = [...REQUIRED_DOCS, ...OPTIONAL_DOCS, ...BUSINESS_DOCUMENT_TYPES]
 
 const DOC_FIELD_MAP: Partial<Record<DocumentType, string>> = {
@@ -51,6 +51,7 @@ const DOC_FIELD_MAP: Partial<Record<DocumentType, string>> = {
   proof_of_address: 'proofOfAddress',
   selfie_with_id: 'selfieWithId',
   mail_proof: 'mailProof',
+  credit_report: 'creditReport',
 }
 
 function parseKeepSecretFlags(raw: Record<string, unknown>): Partial<InviteSecretSetFlags> {

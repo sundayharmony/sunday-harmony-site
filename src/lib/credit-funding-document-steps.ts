@@ -14,6 +14,14 @@ export interface DocumentStepItem {
 
 export const IDENTITY_DOCUMENTS: DocumentStepItem[] = [
   {
+    type: 'credit_report',
+    label: DOCUMENT_LABELS.credit_report,
+    description:
+      'PDF of your Equifax, Experian, and TransUnion report from AnnualCreditReport.com. Download all three bureaus, then upload the file here.',
+    required: true,
+    icon: '\u{1F4C4}',
+  },
+  {
     type: 'photo_id',
     label: DOCUMENT_LABELS.photo_id,
     description: "Driver's license, passport, or state-issued ID - front and back if applicable.",

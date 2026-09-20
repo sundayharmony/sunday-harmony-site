@@ -23,7 +23,7 @@ const sections = [
       'Contact information including email address, phone number, and mailing address.',
       'Financial information including income, funding goals, credit profile data, and business revenue where applicable.',
       'Business information including legal entity name, EIN, industry, entity type, and business credit profile when you apply for business funding.',
-      'Uploaded documents such as photo ID, proof of address, mail verification, bank statements, tax returns, and other supporting materials.',
+      'Uploaded documents such as photo ID, proof of address, mail verification, a 3-bureau credit report, bank statements, tax returns, and other supporting materials.',
       'Credit monitoring credentials (username and password) for authorized third-party credit report providers you select.',
     ],
   },

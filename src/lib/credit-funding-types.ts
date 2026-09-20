@@ -7,7 +7,10 @@ export type CreditProvider = (typeof CREDIT_PROVIDERS)[number]
 /** Official Experian.com account registration — shown above Experian credential fields on Step 4. */
 export const EXPERIAN_SIGNUP_URL = 'https://usa.experian.com/registration/'
 
-/** CFPB consumer portal registration — shown above CFPB credential fields on Step 4. */
+/** Official free Equifax, Experian, and TransUnion reports. */
+export const ANNUAL_CREDIT_REPORT_URL = 'https://www.annualcreditreport.com/'
+
+/** CFPB consumer portal — staff-only (not shown on the public intake form). */
 export const CFPB_PORTAL_URL = 'https://portal.consumerfinance.gov/consumer/s/login/SelfRegister'
 
 /** Affiliate / signup URLs shown on Step 4 when a listed provider is selected. */
@@ -50,7 +53,13 @@ export function creditProviderShowsTrialWarning(provider: string): boolean {
   return CREDIT_PROVIDER_TRIAL_WARNING[provider]
 }
 
-export const IDENTITY_DOCUMENT_TYPES = ['photo_id', 'proof_of_address', 'selfie_with_id', 'mail_proof'] as const
+export const IDENTITY_DOCUMENT_TYPES = [
+  'photo_id',
+  'proof_of_address',
+  'selfie_with_id',
+  'mail_proof',
+  'credit_report',
+] as const
 export const BUSINESS_DOCUMENT_TYPES = [
   'articles_of_organization',
   'ein_letter',
@@ -389,6 +398,7 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   proof_of_address: 'Proof of Address',
   selfie_with_id: 'Selfie with ID',
   mail_proof: 'Mail Proof',
+  credit_report: '3-Bureau Credit Report',
   articles_of_organization: 'Articles of Organization / Incorporation',
   ein_letter: 'EIN Letter (IRS SS-4)',
   business_license: 'Business License',

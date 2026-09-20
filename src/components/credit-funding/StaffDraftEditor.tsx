@@ -14,6 +14,7 @@ import {
   type DocumentType,
 } from '@/lib/credit-funding-types'
 import { IDENTITY_DOCUMENTS, BUSINESS_DOCUMENTS } from '@/lib/credit-funding-document-steps'
+import AnnualCreditReportGuide from '@/components/credit-funding/AnnualCreditReportGuide'
 
 const inputClass =
   'w-full py-2.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm text-brand-text outline-none focus:border-accent'
@@ -593,7 +594,11 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
 
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-brand-text">Documents</h3>
-          <p className="text-xs text-brand-muted">Save the draft once before uploading. Required for finalize: photo ID and mail proof.</p>
+          <p className="text-xs text-brand-muted">
+            Save the draft once before uploading. Required for client intake: photo ID, mail proof, and 3-bureau credit
+            report.
+          </p>
+          <AnnualCreditReportGuide />
           <ul className="space-y-2">
             {[...IDENTITY_DOCUMENTS, ...(showBusiness ? BUSINESS_DOCUMENTS : [])].map((doc) => {
               const existing = documents.filter((d) => d.document_type === doc.type)

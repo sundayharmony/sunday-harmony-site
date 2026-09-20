@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { mapApplicationStatusToCfClientStatus } from '../crm-types'
 import {
   deriveIntakeClassification,
@@ -215,10 +216,10 @@ describe('validateIntakePayload funding optional', () => {
     assert.match(err!, /funding amount/i)
   })
 
-  it('requires Experian security answer and 4-digit code', () => {
-    assert.match(validateIntakePayload(basePayload({ experianSecurityAnswer: '' })) || '', /security question answer/i)
-    assert.match(validateIntakePayload(basePayload({ experianPin: '' })) || '', /4-digit code/i)
-    assert.match(validateIntakePayload(basePayload({ experianPin: '12' })) || '', /4-digit code/i)
+  it('does not require CFPB login or Experian security extras on public intake', () => {
+    assert.equal(validateIntakePayload(basePayload({ experianSecurityAnswer: '', experianPin: '', cfpbEmail: '', cfpbPassword: '' })), null)
+    assert.match(validateIntakePayload(basePayload({ experianPin: '12' })) || '', /4 digits/i)
+    assert.match(validateIntakePayload(basePayload({ cfpbEmail: 'not-an-email' })) || '', /cfpb portal email/i)
   })
 
   it('requires valid funding use enum when seeking', () => {
@@ -288,5 +289,25 @@ describe('business opened month', () => {
       })
     )
     assert.equal(complete, null)
+  })
+})
+
+describe('intake questionnaire vs staff credentials', () => {
+  it('keeps CFPB and Experian extras on admin drafts only', () => {
+    const form = readFileSync('src/components/credit-funding/CreditFundingForm.tsx', 'utf8')
+    const staff = readFileSync('src/components/credit-funding/StaffDraftEditor.tsx', 'utf8')
+    const guide = readFileSync('src/components/credit-funding/AnnualCreditReportGuide.tsx', 'utf8')
+    assert.doesNotMatch(form, /CFPB portal credentials/)
+    assert.doesNotMatch(form, /CFPB register/)
+    assert.doesNotMatch(form, /Experian security question/)
+    assert.doesNotMatch(form, /Experian 4-digit code/)
+    assert.match(form, /AnnualCreditReportGuide/)
+    assert.match(staff, /Experian security question/)
+    assert.match(staff, /Experian 4-digit code/)
+    assert.match(staff, /CFPB email/)
+    assert.match(staff, /CFPB password/)
+    assert.match(staff, /AnnualCreditReportGuide/)
+    assert.match(guide, /annualcreditreport\.com/)
+    assert.match(guide, /Equifax, Experian, and TransUnion/)
   })
 })
