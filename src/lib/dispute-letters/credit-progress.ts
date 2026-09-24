@@ -3,7 +3,7 @@ import {
   getSessionBureauCoverage,
   intelligenceFromSession,
   perBureauFromReport,
-  resolveSessionBureauScores,
+  sessionBureauScores,
   sessionReportDate,
 } from '@/lib/dispute-letters/bureau-coverage'
 import { diffTradelinesForBureau } from '@/lib/dispute-letters/tradeline-progress'
@@ -87,7 +87,7 @@ export function snapshotFromSession(session: DisputeSessionListItem): CreditProg
   }
 
   const coverage = getSessionBureauCoverage(session)
-  const scores = resolveSessionBureauScores(session, intelligence)
+  const scores = sessionBureauScores(session)
 
   return {
     sessionId: session.id,

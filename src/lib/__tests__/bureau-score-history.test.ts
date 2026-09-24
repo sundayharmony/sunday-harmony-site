@@ -244,6 +244,46 @@ describe('resolveBureauScoresAcrossReports', () => {
 })
 
 describe('bureauScoreOriginNote', () => {
+  it('does not carry a fake bureau score that has no account evidence', () => {
+    const colinTri = session({
+      id: 'colin-tri',
+      fileName: 'Colin Kerr 3-Bureau Credit Report 9-20-2026.pdf',
+      reportDate: '2026-09-20',
+      scores: { tuc: 648, exp: 655, eqf: 652 },
+      averageScore: 652,
+    })
+    colinTri.report_json!.tradelines = [
+      {
+        id: 't1',
+        creditor: 'CAP ONE',
+        account_tu: '1111',
+        account_exp: '2222',
+        account_eqf: '',
+        account_type: 'Credit Card',
+        status: 'Open',
+        balance: '$100',
+        past_due: '',
+        remarks: '',
+        bureaus: ['TUC', 'EXP'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: [],
+        dispute_furnisher: false,
+        legal_flags: [],
+        repair_priority: 'none',
+        item_category: '',
+      },
+    ]
+    const { scores } = resolveBureauScoresAcrossReports({
+      sessions: [colinTri],
+      selectedSessionId: 'colin-tri',
+    })
+    assert.equal(scores.eqf, null)
+  })
+
   it('names the report a carried-forward score came from', () => {
     const { origins } = resolveBureauScoresAcrossReports({
       sessions: mikeWebbSessions,

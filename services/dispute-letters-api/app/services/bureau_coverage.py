@@ -74,42 +74,67 @@ def filename_bureau_hint(file_name: str = "") -> list[BureauCode]:
     return [b for b in _BUREAU_ORDER if b in found]
 
 
+def _bureaus_from_account_evidence(report: ParsedReport) -> list[BureauCode]:
+    found: set[BureauCode] = set()
+    for tl in report.tradelines or []:
+        for bureau in _BUREAU_ORDER:
+            if tradeline_covers_bureau(tl, bureau):
+                found.add(bureau)
+    if report.credit_health and report.credit_health.per_bureau:
+        for bureau in _BUREAU_ORDER:
+            row = report.credit_health.per_bureau.get(bureau)
+            if row and (row.total_accounts or 0) > 0:
+                found.add(bureau)
+    return [b for b in _BUREAU_ORDER if b in found]
+
+
+def _strip_untrusted_scores(report: ParsedReport, coverage: BureauCoverage) -> None:
+    """Drop bureau scores that were stored without matching account evidence."""
+    if not report.credit_health:
+        return
+    if not _bureaus_from_account_evidence(report):
+        return
+    scores = report.credit_health.scores
+    allowed = list(coverage.bureaus or [])
+    for bureau, attr in (("TUC", "tuc"), ("EXP", "exp"), ("EQF", "eqf")):
+        value = getattr(scores, attr)
+        if not _score_present(value):
+            continue
+        if any(tradeline_covers_bureau(tl, bureau) for tl in report.tradelines or []):
+            continue
+        row = (report.credit_health.per_bureau or {}).get(bureau)
+        if row and (row.total_accounts or 0) > 0:
+            continue
+        if len(allowed) == 1 and allowed[0] == bureau:
+            continue
+        setattr(scores, attr, None)
+
+
 def detect_bureau_coverage(report: ParsedReport, file_name: str = "") -> BureauCoverage:
-    """Infer bureau coverage from scores, tradelines, account columns, and filename."""
+    """Infer bureau coverage from tradelines first, then scores/filename when empty."""
     found: set[BureauCode] = set()
     confidence: str = "low"
 
-    scores = report.credit_health.scores if report.credit_health else None
-    if scores:
-        if _score_present(scores.tuc):
-            found.add("TUC")
-        if _score_present(scores.exp):
-            found.add("EXP")
-        if _score_present(scores.eqf):
-            found.add("EQF")
-        if found:
-            confidence = "high"
-
-    for tl in report.tradelines or []:
-        for b in tl.bureaus or []:
-            if b in _BUREAU_ORDER:
-                found.add(b)
+    from_accounts = _bureaus_from_account_evidence(report)
+    if from_accounts:
+        found.update(from_accounts)
+        confidence = "medium"
+    else:
+        scores = report.credit_health.scores if report.credit_health else None
+        if scores:
+            if _score_present(scores.tuc):
+                found.add("TUC")
+            if _score_present(scores.exp):
+                found.add("EXP")
+            if _score_present(scores.eqf):
+                found.add("EQF")
+            if found:
+                confidence = "high"
+        if not found:
+            for bureau in filename_bureau_hint(file_name):
+                found.add(bureau)
                 if confidence == "low":
                     confidence = "medium"
-        for b in _BUREAU_ORDER:
-            if _account_for_bureau(tl, b):
-                found.add(b)
-                if confidence == "low":
-                    confidence = "medium"
-
-    # The filename only says what the file was meant to hold. Once the parsed report shows
-    # which bureaus actually reported, that evidence wins: a 3-bureau export where Equifax
-    # returned nothing must not be recorded as covering Equifax.
-    if not found:
-        for bureau in filename_bureau_hint(file_name):
-            found.add(bureau)
-            if confidence == "low":
-                confidence = "medium"
 
     ordered = [b for b in _BUREAU_ORDER if b in found]
     if not ordered:
@@ -142,4 +167,5 @@ def apply_bureau_coverage(report: ParsedReport, file_name: str = "") -> ParsedRe
             if counts.total_accounts > 0:
                 per_bureau[bureau] = counts
     report.credit_health.per_bureau = per_bureau
+    _strip_untrusted_scores(report, coverage)
     return report

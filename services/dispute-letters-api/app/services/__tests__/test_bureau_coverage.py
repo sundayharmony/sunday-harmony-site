@@ -58,6 +58,19 @@ def test_credit_hero_filename_tri_merge():
     assert cov.coverage == "tri_merge"
 
 
+def test_strip_persisted_fake_score_without_accounts():
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="Colin Kerr"),
+        tradelines=[_tl(id="t1", bureaus=["TUC", "EXP"])],
+    )
+    report.credit_health.scores.tuc = 648
+    report.credit_health.scores.exp = 655
+    report.credit_health.scores.eqf = 652
+    apply_bureau_coverage(report, "Colin Kerr 3-Bureau Credit Report 9-20-2026.pdf")
+    assert report.credit_health.scores.eqf is None
+    assert report.bureau_coverage.bureaus == ["TUC", "EXP"]
+
+
 def test_three_bureau_filename_skips_bureau_that_reported_nothing():
     """Equifax returning no score and no accounts must not count as covered."""
     report = ParsedReport(
@@ -133,6 +146,7 @@ if __name__ == "__main__":
     test_detect_tri_merge_scores()
     test_filename_fallback()
     test_credit_hero_filename_tri_merge()
+    test_strip_persisted_fake_score_without_accounts()
     test_three_bureau_filename_skips_bureau_that_reported_nothing()
     test_never_late_is_not_negative()
     test_per_bureau_negative_counts()

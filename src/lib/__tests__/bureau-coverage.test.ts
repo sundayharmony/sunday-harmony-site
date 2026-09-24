@@ -8,6 +8,7 @@ import {
   isNegativeTradeline,
   perBureauFromReport,
   resolveSessionBureauScores,
+  sessionBureauScores,
 } from '../dispute-letters/bureau-coverage'
 import type { DisputeSessionListItem, ParsedReport, Tradeline } from '../dispute-letters/types'
 
@@ -97,7 +98,7 @@ describe('detectBureauCoverage', () => {
     )
   })
 
-  it('prefers stored bureau_coverage on session', () => {
+  it('keeps stored bureau_coverage only when accounts back it up', () => {
     const session = {
       id: 's1',
       admin_user_id: 'a',
@@ -107,6 +108,7 @@ describe('detectBureauCoverage', () => {
       file_type: 'pdf',
       report_json: emptyReport({
         bureau_coverage: { bureaus: ['EQF'], coverage: 'single', confidence: 'high' },
+        tradelines: [tl({ id: 'eqf1', bureaus: ['EQF'], account_eqf: '1111' })],
       }),
       error_message: null,
       created_at: '2026-01-01T00:00:00.000Z',
@@ -200,6 +202,20 @@ describe('resolveSessionBureauScores', () => {
     high_priority_count: 0,
     repair_summary: '',
     recommended_actions: [],
+  })
+
+  it('ignores a persisted fake bureau score with no matching accounts', () => {
+    const s = session(
+      {
+        credit_health: health({ tuc: 648, exp: 655, eqf: 652 }),
+        tradelines: [tl({ id: 't1', bureaus: ['TUC', 'EXP'] })],
+      },
+      652
+    )
+    const scores = sessionBureauScores(s)
+    assert.equal(scores.tuc, 648)
+    assert.equal(scores.exp, 655)
+    assert.equal(scores.eqf, null)
   })
 
   it('never hands the overall average to a bureau that reported nothing', () => {

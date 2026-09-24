@@ -71,26 +71,81 @@ export function resolveSessionBureauScores(
   }
 
   const avg = intelligence.overall?.average_score
-  if (!scorePresent(avg)) return scores
+  if (scorePresent(avg)) {
+    const coverage = getSessionBureauCoverage(session)
+    if (coverage.bureaus.length === 1) {
+      const key = bureauScoreKey(coverage.bureaus[0])
+      if (!scorePresent(scores[key])) scores[key] = avg
+    }
+  }
 
+  return stripUntrustedBureauScores(session, scores)
+}
+
+/** Tradelines or per-bureau account counts — not scores (those can be wrong on old parses). */
+export function reportHasBureauAccountEvidence(
+  report: ParsedReport | null | undefined,
+  bureau: BureauCode
+): boolean {
+  if (!report) return false
+  if ((report.tradelines || []).some((tl) => tradelineCoversBureau(tl, bureau))) return true
+  const stored = report.credit_health?.per_bureau?.[bureau]
+  return (stored?.total_accounts ?? 0) > 0
+}
+
+function bureausFromAccountEvidence(report: ParsedReport | null | undefined): BureauCode[] {
+  const found = new Set<BureauCode>()
+  for (const tl of report?.tradelines || []) {
+    for (const bureau of BUREAU_ORDER) {
+      if (tradelineCoversBureau(tl, bureau)) found.add(bureau)
+    }
+  }
+  for (const bureau of BUREAU_ORDER) {
+    const stored = report?.credit_health?.per_bureau?.[bureau]
+    if ((stored?.total_accounts ?? 0) > 0) found.add(bureau)
+  }
+  return BUREAU_ORDER.filter((b) => found.has(b))
+}
+
+/**
+ * Drop bureau scores that were stored without matching account evidence.
+ * Old analyzer runs often persisted a guessed Equifax score on partial 3-bureau files.
+ */
+export function stripUntrustedBureauScores(
+  session: DisputeSessionListItem,
+  scores: BureauScores
+): BureauScores {
+  const report = session.report_json
   const coverage = getSessionBureauCoverage(session)
-  if (coverage.bureaus.length !== 1) return scores
+  const anyAccountEvidence = BUREAU_ORDER.some((b) =>
+    reportHasBureauAccountEvidence(report, b)
+  )
+  // Score-only parses (no tradelines yet) still rely on the extracted bureau scores.
+  if (!anyAccountEvidence) return scores
 
-  const key = bureauScoreKey(coverage.bureaus[0])
-  if (!scorePresent(scores[key])) scores[key] = avg
-  return scores
+  const out: BureauScores = { ...scores }
+  for (const bureau of BUREAU_ORDER) {
+    const key = bureauScoreKey(bureau)
+    if (!scorePresent(out[key])) continue
+    if (reportHasBureauAccountEvidence(report, bureau)) continue
+    if (coverage.bureaus.length === 1 && coverage.bureaus[0] === bureau) continue
+    out[key] = null
+  }
+  return out
 }
 
 /** Per-bureau scores for a session whether or not intelligence has been generated yet. */
 export function sessionBureauScores(session: DisputeSessionListItem): BureauScores {
   const intelligence = intelligenceFromSession(session)
-  if (intelligence) return resolveSessionBureauScores(session, intelligence)
   const raw = session.report_json?.credit_health?.scores
-  return {
-    tuc: raw?.tuc ?? null,
-    exp: raw?.exp ?? null,
-    eqf: raw?.eqf ?? null,
-  }
+  const base: BureauScores = intelligence
+    ? resolveSessionBureauScores(session, intelligence)
+    : {
+        tuc: raw?.tuc ?? null,
+        exp: raw?.exp ?? null,
+        eqf: raw?.eqf ?? null,
+      }
+  return stripUntrustedBureauScores(session, base)
 }
 
 export function bureauScoreValue(
@@ -156,16 +211,12 @@ export function filenameBureauHint(fileName = ''): BureauCode[] {
   return BUREAU_ORDER.filter((bureau) => found.has(bureau))
 }
 
-/** A bureau is only "covered" when the report actually reports something for it. */
+/** A bureau is covered when the report lists accounts for it (not score alone). */
 export function reportHasBureauEvidence(
   report: ParsedReport | null | undefined,
   bureau: BureauCode
 ): boolean {
-  if (!report) return false
-  if (scorePresent(bureauScoreValue(report.credit_health?.scores, bureau))) return true
-  if ((report.tradelines || []).some((tl) => tradelineCoversBureau(tl, bureau))) return true
-  const stored = report.credit_health?.per_bureau?.[bureau]
-  return (stored?.total_accounts ?? 0) > 0
+  return reportHasBureauAccountEvidence(report, bureau)
 }
 
 export function detectBureauCoverage(
@@ -175,36 +226,23 @@ export function detectBureauCoverage(
   const found = new Set<BureauCode>()
   let confidence: BureauCoverage['confidence'] = 'low'
 
-  const scores = report?.credit_health?.scores
-  if (scores) {
-    if (scorePresent(scores.tuc)) found.add('TUC')
-    if (scorePresent(scores.exp)) found.add('EXP')
-    if (scorePresent(scores.eqf)) found.add('EQF')
-    if (found.size > 0) confidence = 'high'
-  }
-
-  for (const tl of report?.tradelines || []) {
-    for (const b of tl.bureaus || []) {
-      if (BUREAU_ORDER.includes(b)) {
-        found.add(b)
+  const fromAccounts = bureausFromAccountEvidence(report)
+  if (fromAccounts.length > 0) {
+    for (const bureau of fromAccounts) found.add(bureau)
+    confidence = 'medium'
+  } else {
+    const scores = report?.credit_health?.scores
+    if (scores) {
+      if (scorePresent(scores.tuc)) found.add('TUC')
+      if (scorePresent(scores.exp)) found.add('EXP')
+      if (scorePresent(scores.eqf)) found.add('EQF')
+      if (found.size > 0) confidence = 'high'
+    }
+    if (found.size === 0) {
+      for (const bureau of filenameBureauHint(fileName)) {
+        found.add(bureau)
         if (confidence === 'low') confidence = 'medium'
       }
-    }
-    for (const b of BUREAU_ORDER) {
-      if (accountForBureau(tl, b)) {
-        found.add(b)
-        if (confidence === 'low') confidence = 'medium'
-      }
-    }
-  }
-
-  // The filename is only a guess about what the file should hold. Once the parsed report
-  // shows which bureaus actually reported, that evidence wins: a 3-bureau export where
-  // Equifax returned nothing must not be counted as covering Equifax.
-  if (found.size === 0) {
-    for (const bureau of filenameBureauHint(fileName)) {
-      found.add(bureau)
-      if (confidence === 'low') confidence = 'medium'
     }
   }
 
@@ -221,26 +259,25 @@ export function detectBureauCoverage(
   return { bureaus, coverage, confidence }
 }
 
+function coverageKindForBureauCount(count: number): BureauCoverageKind {
+  if (count >= 3) return 'tri_merge'
+  if (count === 2) return 'dual'
+  return 'single'
+}
+
 export function getSessionBureauCoverage(session: DisputeSessionListItem): BureauCoverage {
   const stored = session.report_json?.bureau_coverage
   if (stored?.bureaus?.length) {
     const claimed = stored.bureaus.filter((b): b is BureauCode => BUREAU_ORDER.includes(b))
-    // Reports analyzed before coverage required evidence can claim a bureau the file never
-    // reported. Drop those, but only when some other bureau did report — a report that
-    // parsed no per-bureau detail at all still has to fall back to what was stored.
+    // Old analyzer runs marked every bureau on a 3-bureau filename even when one returned
+    // nothing. Keep only bureaus the parsed report actually lists accounts for.
     const evidenced = claimed.filter((b) => reportHasBureauEvidence(session.report_json, b))
-    const bureaus = evidenced.length > 0 ? evidenced : claimed
-    return {
-      bureaus,
-      coverage:
-        bureaus.length === claimed.length
-          ? stored.coverage || 'single'
-          : bureaus.length >= 3
-            ? 'tri_merge'
-            : bureaus.length === 2
-              ? 'dual'
-              : 'single',
-      confidence: stored.confidence || 'medium',
+    if (evidenced.length > 0) {
+      return {
+        bureaus: evidenced,
+        coverage: coverageKindForBureauCount(evidenced.length),
+        confidence: stored.confidence || 'medium',
+      }
     }
   }
   return detectBureauCoverage(session.report_json, session.file_name)
