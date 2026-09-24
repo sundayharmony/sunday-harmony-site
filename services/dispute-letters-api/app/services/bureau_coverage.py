@@ -63,6 +63,17 @@ def bureau_health_counts(report: ParsedReport, bureau: BureauCode) -> PerBureauH
     )
 
 
+def filename_bureau_hint(file_name: str = "") -> list[BureauCode]:
+    """Bureaus the filename suggests, used only when the report itself shows no evidence."""
+    name = (file_name or "").strip()
+    if not name:
+        return []
+    if _TRI_MERGE_PATTERN.search(name):
+        return list(_BUREAU_ORDER)
+    found = {bureau for bureau, pattern in _FILENAME_PATTERNS if pattern.search(name)}
+    return [b for b in _BUREAU_ORDER if b in found]
+
+
 def detect_bureau_coverage(report: ParsedReport, file_name: str = "") -> BureauCoverage:
     """Infer bureau coverage from scores, tradelines, account columns, and filename."""
     found: set[BureauCode] = set()
@@ -91,18 +102,14 @@ def detect_bureau_coverage(report: ParsedReport, file_name: str = "") -> BureauC
                 if confidence == "low":
                     confidence = "medium"
 
-    name = (file_name or "").strip()
-    if name:
-        if _TRI_MERGE_PATTERN.search(name):
-            found.update(_BUREAU_ORDER)
+    # The filename only says what the file was meant to hold. Once the parsed report shows
+    # which bureaus actually reported, that evidence wins: a 3-bureau export where Equifax
+    # returned nothing must not be recorded as covering Equifax.
+    if not found:
+        for bureau in filename_bureau_hint(file_name):
+            found.add(bureau)
             if confidence == "low":
                 confidence = "medium"
-        else:
-            for bureau, pattern in _FILENAME_PATTERNS:
-                if pattern.search(name):
-                    found.add(bureau)
-                    if confidence == "low":
-                        confidence = "low"
 
     ordered = [b for b in _BUREAU_ORDER if b in found]
     if not ordered:

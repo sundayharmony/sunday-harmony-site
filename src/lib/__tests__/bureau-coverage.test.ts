@@ -7,6 +7,7 @@ import {
   bureauHealthCounts,
   isNegativeTradeline,
   perBureauFromReport,
+  resolveSessionBureauScores,
 } from '../dispute-letters/bureau-coverage'
 import type { DisputeSessionListItem, ParsedReport, Tradeline } from '../dispute-letters/types'
 
@@ -60,6 +61,27 @@ describe('detectBureauCoverage', () => {
     assert.equal(cov.coverage, 'tri_merge')
   })
 
+  it('leaves out a bureau a 3-bureau file reported nothing for', () => {
+    const report = emptyReport({
+      credit_health: {
+        scores: { tuc: 648, exp: 655, eqf: null },
+        total_accounts: 2,
+        negative_count: 0,
+        collection_count: 0,
+        high_priority_count: 0,
+        repair_summary: '',
+        recommended_actions: [],
+      },
+      tradelines: [
+        tl({ id: 't1', bureaus: ['TUC', 'EXP'] }),
+        tl({ id: 't2', bureaus: ['TUC'] }),
+      ],
+    })
+    const cov = detectBureauCoverage(report, 'Colin Kerr 3-Bureau Credit Report 9-20-2026.pdf')
+    assert.deepEqual(cov.bureaus, ['TUC', 'EXP'])
+    assert.equal(cov.coverage, 'dual')
+  })
+
   it('formats labels', () => {
     assert.equal(
       formatBureauCoverageLabel({ bureaus: ['EXP'], coverage: 'single', confidence: 'high' }),
@@ -92,6 +114,120 @@ describe('detectBureauCoverage', () => {
     } as DisputeSessionListItem
     const cov = getSessionBureauCoverage(session)
     assert.deepEqual(cov.bureaus, ['EQF'])
+  })
+
+  it('drops a stored bureau the report has no evidence for', () => {
+    const session = {
+      id: 's2',
+      admin_user_id: 'a',
+      status: 'ready',
+      storage_path: 'p',
+      file_name: 'Colin Kerr 3-Bureau Credit Report 9-20-2026.pdf',
+      file_type: 'pdf',
+      report_json: emptyReport({
+        bureau_coverage: { bureaus: ['TUC', 'EXP', 'EQF'], coverage: 'tri_merge', confidence: 'medium' },
+        credit_health: {
+          scores: { tuc: 648, exp: 655, eqf: null },
+          total_accounts: 1,
+          negative_count: 0,
+          collection_count: 0,
+          high_priority_count: 0,
+          repair_summary: '',
+          recommended_actions: [],
+        },
+        tradelines: [tl({ id: 't1', bureaus: ['TUC', 'EXP'] })],
+      }),
+      error_message: null,
+      created_at: '2026-09-20T00:00:00.000Z',
+      updated_at: '2026-09-20T00:00:00.000Z',
+    } as DisputeSessionListItem
+    const cov = getSessionBureauCoverage(session)
+    assert.deepEqual(cov.bureaus, ['TUC', 'EXP'])
+    assert.equal(cov.coverage, 'dual')
+  })
+})
+
+describe('resolveSessionBureauScores', () => {
+  function session(partial: Partial<ParsedReport>, average: number | null): DisputeSessionListItem {
+    const intelligence = {
+      version: '1',
+      analyzed_at: '2026-09-20T00:00:00.000Z',
+      report_date: '2026-09-20',
+      consumer_name: 'Colin Kerr',
+      factors: [],
+      overall: {
+        band: 'fair',
+        narrative: '',
+        strengths: [],
+        weaknesses: [],
+        risk_factors: [],
+        improvement_priorities: [],
+        average_score: average,
+      },
+      funding_readiness: {
+        level: 'moderate',
+        score_0_to_100: 50,
+        summary: '',
+        blockers: [],
+        supportive_signals: [],
+        practical_steps: [],
+      },
+      recommendations: [],
+      account_dispute_insights: [],
+      recommended_next_steps: [],
+      disclaimer: '',
+    }
+    return {
+      id: 's',
+      admin_user_id: 'a',
+      status: 'ready',
+      storage_path: 'p',
+      file_name: 'Colin Kerr 3-Bureau Credit Report 9-20-2026.pdf',
+      file_type: 'pdf',
+      report_json: emptyReport({ ...partial, credit_intelligence: intelligence }),
+      error_message: null,
+      intelligence_json: intelligence,
+      created_at: '2026-09-20T00:00:00.000Z',
+      updated_at: '2026-09-20T00:00:00.000Z',
+    } as DisputeSessionListItem
+  }
+
+  const health = (scores: { tuc: number | null; exp: number | null; eqf: number | null }) => ({
+    scores,
+    total_accounts: 1,
+    negative_count: 0,
+    collection_count: 0,
+    high_priority_count: 0,
+    repair_summary: '',
+    recommended_actions: [],
+  })
+
+  it('never hands the overall average to a bureau that reported nothing', () => {
+    const s = session(
+      {
+        credit_health: health({ tuc: 648, exp: 655, eqf: null }),
+        tradelines: [tl({ id: 't1', bureaus: ['TUC', 'EXP'] })],
+      },
+      652
+    )
+    const scores = resolveSessionBureauScores(s, s.intelligence_json!)
+    assert.equal(scores.tuc, 648)
+    assert.equal(scores.exp, 655)
+    assert.equal(scores.eqf, null)
+  })
+
+  it('still maps the average onto a single-bureau upload that parsed no score', () => {
+    const s = session(
+      {
+        credit_health: health({ tuc: null, exp: null, eqf: null }),
+        tradelines: [tl({ id: 't1', bureaus: ['EXP'], account_exp: '1111' })],
+      },
+      699
+    )
+    const scores = resolveSessionBureauScores(s, s.intelligence_json!)
+    assert.equal(scores.exp, 699)
+    assert.equal(scores.tuc, null)
+    assert.equal(scores.eqf, null)
   })
 })
 

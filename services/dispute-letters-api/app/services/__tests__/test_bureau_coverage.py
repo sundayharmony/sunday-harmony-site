@@ -58,6 +58,19 @@ def test_credit_hero_filename_tri_merge():
     assert cov.coverage == "tri_merge"
 
 
+def test_three_bureau_filename_skips_bureau_that_reported_nothing():
+    """Equifax returning no score and no accounts must not count as covered."""
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="Colin Kerr"),
+        tradelines=[_tl(id="t1", bureaus=["TUC", "EXP"]), _tl(id="t2", bureaus=["TUC"])],
+    )
+    report.credit_health.scores.tuc = 648
+    report.credit_health.scores.exp = 655
+    cov = detect_bureau_coverage(report, "Colin Kerr 3-Bureau Credit Report 9-20-2026.pdf")
+    assert cov.bureaus == ["TUC", "EXP"]
+    assert cov.coverage == "dual"
+
+
 def test_never_late_is_not_negative():
     assert is_negative_tradeline(_tl(id="1", remarks="Individual responsibility; never late")) is False
     assert (
@@ -120,6 +133,7 @@ if __name__ == "__main__":
     test_detect_tri_merge_scores()
     test_filename_fallback()
     test_credit_hero_filename_tri_merge()
+    test_three_bureau_filename_skips_bureau_that_reported_nothing()
     test_never_late_is_not_negative()
     test_per_bureau_negative_counts()
     test_apply_bureau_coverage_persists()

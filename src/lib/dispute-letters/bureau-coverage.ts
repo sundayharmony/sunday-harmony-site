@@ -54,6 +54,10 @@ function bureauScoreKey(bureau: BureauCode): keyof BureauScores {
  * Resolve per-bureau scores for progress tracking.
  * Follow-up single-bureau uploads often parse tradelines but miss credit_health.scores;
  * in that case the intelligence overall average is that bureau's score.
+ *
+ * A multi-bureau report never borrows the average for a bureau whose score is missing:
+ * on a tri-merge the average is computed from the bureaus that did report, so handing it
+ * to the missing one invents a score for a bureau that has nothing on file.
  */
 export function resolveSessionBureauScores(
   session: DisputeSessionListItem,
@@ -70,25 +74,10 @@ export function resolveSessionBureauScores(
   if (!scorePresent(avg)) return scores
 
   const coverage = getSessionBureauCoverage(session)
+  if (coverage.bureaus.length !== 1) return scores
 
-  // Single-bureau follow-up (Experian-only PDF, etc.): map overall average to that bureau.
-  if (coverage.bureaus.length === 1) {
-    const key = bureauScoreKey(coverage.bureaus[0])
-    if (!scorePresent(scores[key])) {
-      scores[key] = avg
-    }
-    return scores
-  }
-
-  // Tri-merge / multi-bureau: fill only missing slots when exactly one bureau score is present
-  // alongside a matching average (guards odd partial extracts).
-  const missing = coverage.bureaus.filter((b) => !scorePresent(scores[bureauScoreKey(b)]))
-  const present = coverage.bureaus.filter((b) => scorePresent(scores[bureauScoreKey(b)]))
-  if (missing.length === 1 && present.length >= 1 && coverage.bureaus.length >= 2) {
-    const key = bureauScoreKey(missing[0])
-    if (!scorePresent(scores[key])) scores[key] = avg
-  }
-
+  const key = bureauScoreKey(coverage.bureaus[0])
+  if (!scorePresent(scores[key])) scores[key] = avg
   return scores
 }
 
@@ -167,6 +156,18 @@ export function filenameBureauHint(fileName = ''): BureauCode[] {
   return BUREAU_ORDER.filter((bureau) => found.has(bureau))
 }
 
+/** A bureau is only "covered" when the report actually reports something for it. */
+export function reportHasBureauEvidence(
+  report: ParsedReport | null | undefined,
+  bureau: BureauCode
+): boolean {
+  if (!report) return false
+  if (scorePresent(bureauScoreValue(report.credit_health?.scores, bureau))) return true
+  if ((report.tradelines || []).some((tl) => tradelineCoversBureau(tl, bureau))) return true
+  const stored = report.credit_health?.per_bureau?.[bureau]
+  return (stored?.total_accounts ?? 0) > 0
+}
+
 export function detectBureauCoverage(
   report: ParsedReport | null | undefined,
   fileName = ''
@@ -197,17 +198,13 @@ export function detectBureauCoverage(
     }
   }
 
-  const name = (fileName || '').trim()
-  if (name) {
-    if (TRI_MERGE_RE.test(name)) {
-      for (const b of BUREAU_ORDER) found.add(b)
+  // The filename is only a guess about what the file should hold. Once the parsed report
+  // shows which bureaus actually reported, that evidence wins: a 3-bureau export where
+  // Equifax returned nothing must not be counted as covering Equifax.
+  if (found.size === 0) {
+    for (const bureau of filenameBureauHint(fileName)) {
+      found.add(bureau)
       if (confidence === 'low') confidence = 'medium'
-    } else {
-      for (const { bureau, re } of FILENAME_PATTERNS) {
-        if (re.test(name)) {
-          found.add(bureau)
-        }
-      }
     }
   }
 
@@ -227,9 +224,22 @@ export function detectBureauCoverage(
 export function getSessionBureauCoverage(session: DisputeSessionListItem): BureauCoverage {
   const stored = session.report_json?.bureau_coverage
   if (stored?.bureaus?.length) {
+    const claimed = stored.bureaus.filter((b): b is BureauCode => BUREAU_ORDER.includes(b))
+    // Reports analyzed before coverage required evidence can claim a bureau the file never
+    // reported. Drop those, but only when some other bureau did report — a report that
+    // parsed no per-bureau detail at all still has to fall back to what was stored.
+    const evidenced = claimed.filter((b) => reportHasBureauEvidence(session.report_json, b))
+    const bureaus = evidenced.length > 0 ? evidenced : claimed
     return {
-      bureaus: stored.bureaus.filter((b): b is BureauCode => BUREAU_ORDER.includes(b)),
-      coverage: stored.coverage || 'single',
+      bureaus,
+      coverage:
+        bureaus.length === claimed.length
+          ? stored.coverage || 'single'
+          : bureaus.length >= 3
+            ? 'tri_merge'
+            : bureaus.length === 2
+              ? 'dual'
+              : 'single',
       confidence: stored.confidence || 'medium',
     }
   }
