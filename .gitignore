@@ -3,10 +3,10 @@ node_modules/
 /.pnp
 .pnp.js
 
-# Build
+# Build (anchored, so directories named out/ or build/ elsewhere stay tracked)
 .next/
-out/
-build/
+/out/
+/build/
 dist/
 
 # Environment (keep only the placeholder template trackable)
