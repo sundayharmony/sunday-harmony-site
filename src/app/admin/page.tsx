@@ -71,6 +71,7 @@ export default async function AdminOverview() {
               { href: '/admin/revenue', icon: '💰', label: 'Revenue Calculator', desc: 'Project your growth' },
               { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap', desc: 'Track your launch plan' },
               { href: '/admin/outreach', icon: '📨', label: 'Outreach Scripts', desc: '4 ready-to-use templates' },
+              { href: '/admin/ads', icon: '📣', label: 'Campaign Ads', desc: 'Homepage-style ads ready to copy' },
               { href: '/admin/competitors', icon: '⚔️', label: 'Competitor Analysis', desc: '6 competitors mapped' },
             ].map(item => (
               <Link
