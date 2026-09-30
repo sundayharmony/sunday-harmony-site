@@ -1,5 +1,5 @@
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
-import type { CampaignAd } from '@/lib/campaign-ads'
+import { adCtaHref, type CampaignAd } from '@/lib/campaign-ads'
 
 export default function CampaignAdBanner({ ad }: { ad: CampaignAd }) {
   return (
@@ -16,8 +16,13 @@ export default function CampaignAdBanner({ ad }: { ad: CampaignAd }) {
               <em className="font-serif not-italic text-accent">{ad.accentPhrase}</em>
             )}
           </h2>
-          <p className="text-[17px] text-brand-muted mb-9 max-w-[500px] mx-auto relative">{ad.body}</p>
-          <AuditCtaButton variant="primary" href="/#contact" className="relative" />
+          <p className="text-[17px] text-brand-muted mb-9 max-w-[540px] mx-auto relative">{ad.body}</p>
+          <AuditCtaButton
+            variant="primary"
+            href={adCtaHref(ad)}
+            label={ad.ctaLabel}
+            className="relative"
+          />
         </div>
       </div>
     </section>

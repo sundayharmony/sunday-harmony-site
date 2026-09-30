@@ -3,19 +3,23 @@
 import { useMemo, useState } from 'react'
 import AdPreviewCard from '@/components/admin/campaign-ads/AdPreviewCard'
 import {
+  adOffer,
   adsForLayout,
+  adsForOffer,
   adsForSource,
   campaignAds,
   formatCampaignAdText,
   type AdLayout,
 } from '@/lib/campaign-ads'
 
-type Filter = 'all' | 'live' | 'new' | AdLayout
+type Filter = 'all' | 'live' | 'new' | 'marketing' | 'credit' | AdLayout
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'All ads' },
   { key: 'live', label: 'On the site now' },
   { key: 'new', label: 'New variations' },
+  { key: 'marketing', label: 'Marketing' },
+  { key: 'credit', label: 'Credit analysis' },
   { key: 'heroQuote', label: 'Hero' },
   { key: 'ctaBlock', label: 'CTA' },
   { key: 'serviceSpotlight', label: 'Services' },
@@ -32,6 +36,7 @@ export default function CampaignAdsPage() {
   const ads = useMemo(() => {
     if (filter === 'all') return campaignAds
     if (filter === 'live' || filter === 'new') return adsForSource(filter)
+    if (filter === 'marketing' || filter === 'credit') return adsForOffer(filter)
     return adsForLayout(filter)
   }, [filter])
 
@@ -46,8 +51,8 @@ export default function CampaignAdsPage() {
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Campaign Ads</h1>
         <p className="text-sm text-brand-muted max-w-2xl">
-          More ads in the same voice as the live homepage hero and CTA. Copy any creative for Meta,
-          Google, Instagram, LinkedIn, or a walk-in card.
+          Homepage-style creatives for the free marketing audit and the free credit analysis.
+          Copy any ad for Meta, Google, Instagram, LinkedIn, or a walk-in card.
         </p>
       </div>
 
@@ -80,7 +85,8 @@ export default function CampaignAdsPage() {
               <div>
                 <h2 className="text-sm font-bold text-brand-text">{ad.label}</h2>
                 <p className="text-[11px] text-brand-dim mt-0.5">
-                  {ad.source === 'live' ? 'Live on the site' : 'New variation'} · {layoutLabel(ad.layout)} ·{' '}
+                  {ad.source === 'live' ? 'Live on the site' : 'New variation'} ·{' '}
+                  {adOffer(ad) === 'credit' ? 'Credit analysis' : 'Marketing'} · {layoutLabel(ad.layout)} ·{' '}
                   {ad.channels.join(', ')}
                 </p>
               </div>

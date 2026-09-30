@@ -7,6 +7,7 @@ interface Props {
   href?: string
   className?: string
   onClick?: () => void
+  label?: string
 }
 
 const styles: Record<Variant, string> = {
@@ -25,15 +26,15 @@ const labels: Record<Variant, string> = {
   mobile: 'Get Your Free Audit',
 }
 
-export default function AuditCtaButton({ variant = 'primary', href, className = '', onClick }: Props) {
+export default function AuditCtaButton({ variant = 'primary', href, className = '', onClick, label }: Props) {
   const resolvedHref = href ?? (variant === 'primary' || variant === 'inline' ? '#contact' : '/#contact')
-  const label = labels[variant]
+  const resolvedLabel = label ?? labels[variant]
   const classes = `${styles[variant]} ${className}`
 
   if (variant === 'nav' || variant === 'mobile') {
     return (
       <Link href={resolvedHref} onClick={onClick} className={classes}>
-        {label}
+        {resolvedLabel}
       </Link>
     )
   }
@@ -41,15 +42,15 @@ export default function AuditCtaButton({ variant = 'primary', href, className = 
   if (resolvedHref.startsWith('#')) {
     return (
       <a href={resolvedHref} onClick={onClick} className={classes}>
-        {label}
-        {variant === 'inline' && <span aria-hidden className="text-accent">→</span>}
+        {resolvedLabel}
+        {variant === 'inline' && !resolvedLabel.includes('→') && <span aria-hidden className="text-accent">→</span>}
       </a>
     )
   }
 
   return (
     <Link href={resolvedHref} onClick={onClick} className={classes}>
-      {label}
+      {resolvedLabel}
     </Link>
   )
 }

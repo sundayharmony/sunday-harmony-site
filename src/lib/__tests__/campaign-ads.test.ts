@@ -2,11 +2,14 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
+  HOMEPAGE_CREDIT_AD_ID,
   HOMEPAGE_MID_AD_ID,
   SEARCH_DESCRIPTION_MAX,
   SEARCH_HEADLINE_MAX,
+  adCtaHref,
   adsForChannel,
   adsForLayout,
+  adsForOffer,
   adsForSource,
   campaignAds,
   formatCampaignAdText,
@@ -97,6 +100,30 @@ describe('campaign ads library', () => {
     assert.match(banner, /AuditCtaButton/)
     assert.match(adminPage, /Campaign Ads/)
     assert.match(sidebar, /\/admin\/ads/)
+  })
+
+  it('adds free credit analysis ads that send people to intake', () => {
+    const creditAds = adsForOffer('credit')
+    assert.ok(creditAds.length >= 12)
+
+    for (const ad of creditAds) {
+      assert.equal(adCtaHref(ad), '/credit-funding', ad.id)
+      assert.match(`${ad.headline} ${ad.accentPhrase ?? ''} ${ad.body} ${ad.ctaLabel}`, /credit|analysis/i, ad.id)
+      assert.doesNotMatch(ad.body, /guarantee|guaranteed|remove all/i, ad.id)
+    }
+
+    const homepageCredit = getCampaignAd(HOMEPAGE_CREDIT_AD_ID)
+    assert.equal(homepageCredit.offer, 'credit')
+    assert.match(homepageCredit.headline, /Stop guessing at your credit/)
+    assert.match(homepageCredit.ctaLabel, /Free Credit Analysis/)
+
+    const home = source('src/app/page.tsx')
+    const banner = source('src/components/CampaignAdBanner.tsx')
+    const adminPage = source('src/app/admin/ads/page.tsx')
+    assert.match(home, /HOMEPAGE_CREDIT_AD_ID/)
+    assert.match(banner, /ad\.ctaLabel/)
+    assert.match(banner, /adCtaHref/)
+    assert.match(adminPage, /Credit analysis/)
   })
 
   it('does not restore the removed Gemini marketing-graphics stack', () => {

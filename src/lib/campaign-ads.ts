@@ -26,6 +26,10 @@ export const AD_CHANNELS = [
 
 export type AdChannel = (typeof AD_CHANNELS)[number]
 
+export const AD_OFFERS = ['marketing', 'credit'] as const
+
+export type AdOffer = (typeof AD_OFFERS)[number]
+
 export interface CampaignAdStat {
   value: string
   label: string
@@ -37,9 +41,11 @@ export interface CampaignAd {
   layout: AdLayout
   channels: AdChannel[]
   source: 'live' | 'new'
+  offer?: AdOffer
   headline: string
   body: string
   ctaLabel: string
+  ctaHref?: string
   badge?: string
   accentPhrase?: string
   footer?: string
@@ -51,6 +57,8 @@ export interface CampaignAd {
 
 const siteHost = siteConfig.url.replace(/^https?:\/\//, '')
 const freeAuditCta = 'Get Your Free Audit →'
+const freeCreditCta = 'Get Your Free Credit Analysis →'
+const creditIntakeHref = '/credit-funding'
 const proofStats: CampaignAdStat[] = heroStats.map((stat) => ({
   value: stat.value,
   label: stat.label,
@@ -441,6 +449,379 @@ const socialAds: CampaignAd[] = [
   },
 ]
 
+const creditHeroAds: CampaignAd[] = [
+  {
+    id: 'hero-credit-stop-guessing',
+    label: 'Credit: stop guessing',
+    layout: 'heroQuote',
+    channels: ['homepage', 'meta', 'instagram', 'google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'Free credit analysis',
+    headline: 'Stop guessing at your credit.',
+    accentPhrase: 'Start with a free analysis.',
+    body: 'We review your 3-bureau report, show you what is working against you, and outline the first steps in plain English. No obligation.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'hero-credit-report-talking',
+    label: 'Credit: report is talking',
+    layout: 'heroQuote',
+    channels: ['meta', 'instagram', 'linkedin'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'Free credit analysis',
+    headline: 'Your credit report is talking.',
+    accentPhrase: "Let's show you what it says.",
+    body: 'A free analysis of your 3-bureau file: scores, negative items, and the disputes worth starting first.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'hero-credit-holding-back',
+    label: 'Credit: holding you back',
+    layout: 'heroQuote',
+    channels: ['meta', 'google', 'linkedin'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'Credit & Funding',
+    headline: "Don't wait to find out what's holding you back.",
+    accentPhrase: 'Get a free credit analysis.',
+    body: 'See the items, inquiries, and errors that may be blocking funding or a stronger score before you apply.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'hero-credit-negatives',
+    label: 'Credit: negatives do not fix themselves',
+    layout: 'heroQuote',
+    channels: ['meta', 'instagram'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'Free credit analysis',
+    headline: 'Negative items do not fix themselves.',
+    accentPhrase: 'See what is on your report first.',
+    body: 'Upload your official 3-bureau report. We flag collections, charge-offs, and late payments and explain what a dispute can actually challenge.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'hero-credit-wondering',
+    label: 'Credit: stop wondering',
+    layout: 'heroQuote',
+    channels: ['meta', 'linkedin', 'walk-in'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'No obligation',
+    headline: "Stop wondering what's on your report.",
+    accentPhrase: 'Get a clear credit analysis.',
+    body: 'No jargon. No black box. A practical read of your file and a next-step plan you can follow.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'hero-credit-funding-starts',
+    label: 'Credit: funding starts here',
+    layout: 'heroQuote',
+    channels: ['linkedin', 'meta', 'google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'Credit & Funding',
+    headline: 'Funding starts with your credit.',
+    accentPhrase: 'Start with a free analysis.',
+    body: 'We analyze your 3-bureau report first so you know what to repair before you chase a loan or a new line.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+]
+
+const creditCtaAds: CampaignAd[] = [
+  {
+    id: 'cta-credit-on-report',
+    label: 'Credit CTA: on your report',
+    layout: 'ctaBlock',
+    channels: ['homepage', 'meta', 'linkedin'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: "Ready to see what's actually",
+    accentPhrase: 'on your report?',
+    body: 'Get a free credit analysis. We will show you what is helping, what is hurting, and what to dispute first.',
+    ctaLabel: freeCreditCta,
+    footer: siteConfig.email,
+  },
+  {
+    id: 'cta-credit-clear-plan',
+    label: 'Credit CTA: clear plan',
+    layout: 'ctaBlock',
+    channels: ['meta', 'linkedin', 'instagram'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Want a clear credit plan, not',
+    accentPhrase: 'another guess?',
+    body: 'A free 3-bureau review with plain-English next steps. No long-term contract to get the analysis.',
+    ctaLabel: freeCreditCta,
+    footer: siteConfig.email,
+  },
+  {
+    id: 'cta-credit-stop-guessing',
+    label: 'Credit CTA: stop guessing',
+    layout: 'ctaBlock',
+    channels: ['meta', 'google', 'instagram'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Ready to stop guessing',
+    accentPhrase: 'at your credit?',
+    body: 'Upload your official report and get a free analysis of scores, negatives, and the first letters worth sending.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'cta-credit-hurting-score',
+    label: 'Credit CTA: hurting your score',
+    layout: 'ctaBlock',
+    channels: ['meta', 'instagram', 'walk-in'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Need a free look at',
+    accentPhrase: "what's hurting your score?",
+    body: 'We read the 3-bureau file with you and map collections, lates, and inquiries before you spend another month guessing.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'cta-credit-follow',
+    label: 'Credit CTA: you can follow',
+    layout: 'ctaBlock',
+    channels: ['linkedin', 'meta'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Ready for a credit analysis',
+    accentPhrase: 'you can actually follow?',
+    body: 'Plain-English findings, a dispute path, and a real person who stays with the file after the first review.',
+    ctaLabel: freeCreditCta,
+    footer: siteConfig.email,
+  },
+]
+
+const creditServiceAds: CampaignAd[] = [
+  {
+    id: 'service-credit-analysis',
+    label: 'Service: Credit Analysis',
+    layout: 'serviceSpotlight',
+    channels: ['instagram', 'meta', 'linkedin'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    icon: '📊',
+    headline: 'Credit Analysis',
+    body: 'We review your official 3-bureau report, explain what is hurting you, and map the first disputes in plain English.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'service-credit-repair',
+    label: 'Service: Credit Repair',
+    layout: 'serviceSpotlight',
+    channels: ['instagram', 'meta', 'linkedin'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    icon: '📝',
+    headline: 'Credit Repair',
+    body: 'Dispute inaccurate, unverifiable, and outdated items with bureau letters after a free analysis of your file.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'service-credit-funding',
+    label: 'Service: Credit & Funding',
+    layout: 'serviceSpotlight',
+    channels: ['linkedin', 'meta'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    icon: '💳',
+    headline: 'Credit & Funding',
+    body: 'Analyze the report first, repair what you can, then see how ready the file is for personal or business funding.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+]
+
+const creditProofAds: CampaignAd[] = [
+  {
+    id: 'stat-credit-analysis',
+    label: 'Credit proof: what you get',
+    layout: 'statProof',
+    channels: ['homepage', 'linkedin', 'walk-in'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: "What's in your free analysis",
+    body: 'A 3-bureau read, a plain-English plan, and no obligation to move forward.',
+    ctaLabel: freeCreditCta,
+    footer: 'Credit & Funding',
+    stats: [
+      { value: '3', label: 'Bureau report' },
+      { value: 'Clear', label: 'Next steps' },
+      { value: 'Free', label: 'Analysis' },
+    ],
+  },
+]
+
+const creditSearchAds: CampaignAd[] = [
+  {
+    id: 'search-credit-analysis',
+    label: 'Search: free credit analysis',
+    layout: 'search',
+    channels: ['google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Free Credit Analysis',
+    body: 'Upload your 3-bureau report. We show what is hurting you and what to do next. Free.',
+    ctaLabel: 'Get Free Analysis',
+    footer: siteHost,
+  },
+  {
+    id: 'search-credit-on-report',
+    label: 'Search: on your report',
+    layout: 'search',
+    channels: ['google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: "See What's On Your Report",
+    body: 'Free credit analysis. See your 3-bureau file and the next steps. No obligation.',
+    ctaLabel: 'Get Free Analysis',
+    footer: siteHost,
+  },
+  {
+    id: 'search-credit-stop-guessing',
+    label: 'Search: stop guessing credit',
+    layout: 'search',
+    channels: ['google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Stop Guessing At Credit',
+    body: 'Stop guessing at your credit. Get a free analysis and a plain-English plan.',
+    ctaLabel: 'Get Free Analysis',
+    footer: siteHost,
+  },
+  {
+    id: 'search-credit-review',
+    label: 'Search: credit review',
+    layout: 'search',
+    channels: ['google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Get a Credit Analysis',
+    body: 'Free review of scores, negatives, and inquiries. See sundayharmony.com/credit-funding.',
+    ctaLabel: 'Get Free Analysis',
+    footer: siteHost,
+  },
+  {
+    id: 'search-credit-no-cost',
+    label: 'Search: no-cost analysis',
+    layout: 'search',
+    channels: ['google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Credit Analysis. No Cost.',
+    body: 'No-cost credit analysis. 3-bureau review, clear next steps, no long-term contract needed.',
+    ctaLabel: 'Get Free Analysis',
+    footer: siteHost,
+  },
+  {
+    id: 'search-credit-repair-start',
+    label: 'Search: repair starts here',
+    layout: 'search',
+    channels: ['google'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Credit Repair Starts Here',
+    body: 'Start with a free credit analysis, then dispute what does not belong on your report.',
+    ctaLabel: 'Get Free Analysis',
+    footer: siteHost,
+  },
+]
+
+const creditSocialAds: CampaignAd[] = [
+  {
+    id: 'social-credit-guessing',
+    label: 'Social: credit stop guessing',
+    layout: 'social',
+    channels: ['instagram', 'meta', 'linkedin'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: 'Stop guessing at your credit.',
+    accentPhrase: 'Start with a free analysis.',
+    body: 'Same voice as the homepage. Free 3-bureau review. Clear next steps. No obligation.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'social-credit-on-report',
+    label: 'Social: what is on your report',
+    layout: 'social',
+    channels: ['instagram', 'meta'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    headline: "Ready to see what's actually",
+    accentPhrase: 'on your report?',
+    body: 'Free credit analysis. Upload the official 3-bureau PDF and we will tell you what to fix first.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+  {
+    id: 'social-credit-offer',
+    label: 'Social: free analysis offer',
+    layout: 'social',
+    channels: ['instagram', 'meta', 'walk-in'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'No obligation',
+    headline: "What's in your free credit analysis",
+    body: '3-bureau review, negative-item map, inquiry check, and a plain-English dispute plan.',
+    ctaLabel: 'Request your free analysis',
+    footer: '24hr response',
+  },
+  {
+    id: 'social-credit-walk-in',
+    label: 'Walk-in: free credit analysis',
+    layout: 'social',
+    channels: ['walk-in'],
+    source: 'new',
+    offer: 'credit',
+    ctaHref: creditIntakeHref,
+    badge: 'Free Credit Analysis',
+    headline: 'Bring your 3-bureau report.',
+    accentPhrase: 'We will show you what we see.',
+    body: 'No charge for the analysis. No obligation to move into repair. Just a clear read of the file.',
+    ctaLabel: freeCreditCta,
+    footer: siteHost,
+  },
+]
+
 export const campaignAds: CampaignAd[] = [
   ...liveAds,
   ...newHeroAds,
@@ -450,9 +831,16 @@ export const campaignAds: CampaignAd[] = [
   ...proofAds,
   ...searchAds,
   ...socialAds,
+  ...creditHeroAds,
+  ...creditCtaAds,
+  ...creditServiceAds,
+  ...creditProofAds,
+  ...creditSearchAds,
+  ...creditSocialAds,
 ]
 
 export const HOMEPAGE_MID_AD_ID = 'hero-customers-searching'
+export const HOMEPAGE_CREDIT_AD_ID = 'hero-credit-stop-guessing'
 
 export function getCampaignAd(id: string): CampaignAd {
   const ad = campaignAds.find((item) => item.id === id)
@@ -472,6 +860,18 @@ export function adsForChannel(channel: AdChannel): CampaignAd[] {
 
 export function adsForSource(source: CampaignAd['source']): CampaignAd[] {
   return campaignAds.filter((ad) => ad.source === source)
+}
+
+export function adOffer(ad: CampaignAd): AdOffer {
+  return ad.offer ?? 'marketing'
+}
+
+export function adCtaHref(ad: CampaignAd): string {
+  return ad.ctaHref ?? (adOffer(ad) === 'credit' ? '/credit-funding' : '/#contact')
+}
+
+export function adsForOffer(offer: AdOffer): CampaignAd[] {
+  return campaignAds.filter((ad) => adOffer(ad) === offer)
 }
 
 export function formatCampaignAdText(ad: CampaignAd): string {
