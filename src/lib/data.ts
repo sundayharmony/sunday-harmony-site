@@ -30,34 +30,22 @@ export const heroAuditHighlights = [
 
 export const services = [
   {
-    icon: '📈',
-    title: 'Local SEO',
-    description: 'Get found in "near me" searches. We optimize your Google Business Profile, build citations, and get you ranking where your customers are looking.',
+    icon: '✦',
+    title: 'Brand & Story',
+    description:
+      'Clarify who you are, what you stand for, and how you should look and sound — so every touchpoint feels like the same business, not a patchwork.',
   },
   {
-    icon: '📱',
-    title: 'Social Media Management',
-    description: 'Custom content, branded graphics, strategic posting, and community engagement across Instagram, Facebook, and LinkedIn.',
+    icon: '◎',
+    title: 'Outreach & Presence',
+    description:
+      'Show up where your customers already look with a consistent, intentional presence — online and in the community — without drowning in tactics.',
   },
   {
-    icon: '🎯',
-    title: 'Google & Meta Ads',
-    description: 'Targeted ad campaigns that drive real leads to your business. We handle setup, optimization, A/B testing, and ROI tracking.',
-  },
-  {
-    icon: '★',
-    title: 'Review Management',
-    description: 'Monitor, respond to, and grow your online reviews across Google and Yelp. Your reputation is your most powerful marketing tool.',
-  },
-  {
-    icon: '📧',
-    title: 'Email Marketing',
-    description: 'Newsletters, automated sequences, and promotional campaigns that keep your customers engaged and coming back.',
-  },
-  {
-    icon: '📄',
-    title: 'Physical Marketing',
-    description: 'Business cards, flyers, signage, and direct mail. We bridge the gap between digital and physical that other agencies ignore.',
+    icon: '◇',
+    title: 'Strategy & Rhythm',
+    description:
+      'Turn the brand into a simple plan and a weekly rhythm: what to say, where to show up, and how to keep outreach steady while you run the business.',
   },
 ]
 
@@ -88,50 +76,50 @@ export function packagePriceDisplay(pkg: Pick<Package, 'price' | 'priceLabel'>):
 export const packages: Package[] = [
   {
     tier: 'Spark',
-    tagline: 'Get Found Online',
+    tagline: 'Clarify the brand',
     price: 600,
     color: 'green',
     icon: '✦',
-    ideal: 'For businesses that need to show up and stay consistent.',
+    ideal: 'For businesses defining how they want to be seen and heard.',
     features: [
-      { text: 'A social presence that stays active', included: true },
-      { text: 'A Google listing that looks right', included: true },
-      { text: 'Local search that helps people find you', included: true },
-      { text: 'Reviews kept in sight', included: true },
-      { text: 'A simple monthly snapshot', included: true },
+      { text: 'A clear story customers recognize', included: true },
+      { text: 'Outreach that looks and sounds like you', included: true },
+      { text: 'A presence that stays active and on-brand', included: true },
+      { text: 'First impressions and reputation in sight', included: true },
+      { text: 'A simple monthly pulse on how you land', included: true },
     ],
   },
   {
     tier: 'Growth',
-    tagline: 'Start Getting Leads',
+    tagline: 'Expand your reach',
     price: 1400,
     color: 'gold',
     icon: '◆',
-    ideal: 'For businesses ready to turn attention into customers.',
+    ideal: 'For businesses ready to reach more of the right people.',
     popular: true,
     features: [
       { text: 'Everything in Spark', included: true },
-      { text: 'A plan built around leads', included: true },
-      { text: 'Ads that run and get reviewed', included: true },
-      { text: 'Reviews handled for you', included: true },
-      { text: 'A monthly check-in', included: true },
-      { text: 'A report you can actually follow', included: true },
+      { text: 'Outreach planned with purpose', included: true },
+      { text: 'More ways to show up where buyers look', included: true },
+      { text: 'Brand consistency as you scale up', included: true },
+      { text: 'A monthly rhythm to stay on message', included: true },
+      { text: 'Plain-language insight you can act on', included: true },
     ],
   },
   {
     tier: 'Scale',
-    tagline: 'Built Around You',
+    tagline: 'Built around you',
     priceLabel: 'Custom',
     ctaLabel: 'Book a consultation',
     color: 'purple',
     icon: '★',
-    ideal: 'For businesses that want a partner, not a package.',
+    ideal: 'For businesses that want a branding partner, not a checklist.',
     features: [
       { text: 'Everything in Growth', included: true },
-      { text: 'A plan built around your business', included: true },
-      { text: 'More reach, more support', included: true },
-      { text: 'A dedicated point of contact', included: true },
-      { text: 'Room to add what you actually need', included: true },
+      { text: 'Brand and outreach shaped to your goals', included: true },
+      { text: 'Broader reach with hands-on support', included: true },
+      { text: 'A dedicated partner on your story', included: true },
+      { text: 'Room to evolve as the business grows', included: true },
     ],
   },
 ]

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
-import { packagePriceDisplay, packages } from '../data'
+import { packagePriceDisplay, packages, services } from '../data'
 import { detailedPackages } from '../toolkit-data'
 import { formatTierListPrice, TIER_LABELS } from '../stripe-catalog'
 
@@ -10,6 +10,16 @@ function source(path: string): string {
 }
 
 describe('marketing packages', () => {
+  it('publishes three branding-focused consulting pillars', () => {
+    assert.equal(services.length, 3)
+    assert.deepEqual(
+      services.map((s) => s.title),
+      ['Brand & Story', 'Outreach & Presence', 'Strategy & Rhythm']
+    )
+    const joined = services.map((s) => s.description).join(' ')
+    assert.doesNotMatch(joined, /Local SEO|Meta Ads|Email Marketing/i)
+  })
+
   it('publishes Spark, Growth, and custom Scale only', () => {
     assert.deepEqual(
       packages.map((pkg) => pkg.tier),

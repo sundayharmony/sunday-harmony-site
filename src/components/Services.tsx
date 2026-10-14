@@ -12,10 +12,10 @@ export default function Services() {
               How we <span className="gold-text">build the business</span>
             </>
           }
-          description="Brand, strategy, and the systems that keep growth moving — from how you show up to the work that happens every week."
+          description="Three pillars: sharpen the brand, show up with intention, and keep outreach steady — without a laundry list of tactics."
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-12 max-w-[960px] mx-auto">
           {services.map((service) => (
             <div
               key={service.title}
