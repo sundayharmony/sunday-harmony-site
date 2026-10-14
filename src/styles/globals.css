@@ -87,24 +87,52 @@ body {
   }
 }
 
-@keyframes hero-orbit {
+@keyframes hero-rise {
   from {
-    transform: rotate(0deg);
+    transform: scaleY(0.15);
+    opacity: 0;
   }
   to {
-    transform: rotate(360deg);
+    transform: scaleY(1);
+    opacity: 1;
   }
 }
 
-@keyframes hero-pulse-scale {
+@keyframes hero-dash {
+  to {
+    stroke-dashoffset: -48;
+  }
+}
+
+@keyframes hero-sway {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes hero-twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-sun {
   0%,
   100% {
     transform: scale(1);
-    opacity: 0.35;
+    opacity: 0.9;
   }
   50% {
-    transform: scale(1.12);
-    opacity: 0.55;
+    transform: scale(1.06);
+    opacity: 1;
   }
 }
 
@@ -128,20 +156,57 @@ body {
   animation-delay: -2.4s;
 }
 
-.hero-orbit-slow {
-  transform-origin: 200px 230px;
-  animation: hero-orbit 48s linear infinite;
+.hero-float-d {
+  animation-duration: 6.4s;
+  animation-delay: -3.1s;
 }
 
-.hero-pulse-ring {
-  transform-origin: 200px 230px;
-  animation: hero-pulse-scale 3.2s ease-in-out infinite;
+.hero-rise {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: hero-rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-rise-2 {
+  animation-delay: 0.25s;
+}
+
+.hero-rise-3 {
+  animation-delay: 0.5s;
+}
+
+.hero-rise-4 {
+  animation-delay: 0.7s;
+}
+
+.hero-dash {
+  stroke-dasharray: 4 8;
+  animation: hero-dash 3.5s linear infinite;
+}
+
+.hero-sway {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: hero-sway 5s ease-in-out infinite;
+}
+
+.hero-twinkle {
+  animation: hero-twinkle 3.4s ease-in-out infinite;
+}
+
+.hero-sun {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hero-sun 6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-float,
-  .hero-orbit-slow,
-  .hero-pulse-ring {
+  .hero-rise,
+  .hero-dash,
+  .hero-sway,
+  .hero-twinkle,
+  .hero-sun {
     animation: none;
   }
 }
