@@ -124,7 +124,7 @@ describe('campaign ads library', () => {
     assert.match(home, /HOMEPAGE_CREDIT_AD_ID/)
     assert.match(home, /HarmonyPaths/)
     assert.match(paths, /Build the business/)
-    assert.match(paths, /focus=funding/)
+    assert.match(paths, /href: '\/funding'/)
     assert.match(paths, /focus=credit/)
     assert.match(banner, /ad\.ctaLabel/)
     assert.match(banner, /adCtaHref/)

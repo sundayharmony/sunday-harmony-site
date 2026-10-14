@@ -18,7 +18,12 @@ import {
   resolveWorkflowDisplayStatus,
 } from '../credit-funding-types'
 import { buildWorkflowSteps } from '../credit-funding-workflow-steps'
-import { parseBusinessProfile, validateIntakePayload, type IntakeFormPayload } from '../credit-funding-validation'
+import {
+  parseBusinessProfile,
+  validateBusinessFundingIntake,
+  validateIntakePayload,
+  type IntakeFormPayload,
+} from '../credit-funding-validation'
 
 describe('goalsForIntakeFocus', () => {
   it('maps homepage doors to intake goals and ignores unknown focus', () => {
@@ -302,6 +307,55 @@ describe('business opened month', () => {
     )
     assert.equal(complete, null)
   })
+
+  it('accepts a business-funding intake without a personal credit profile', () => {
+    const business = {
+      legalName: 'Philly Fades',
+      ein: '85-2829218',
+      address: '200 Bridge Street',
+      city: 'Phoenixville',
+      state: 'PA',
+      industry: 'Hair Salon',
+      entityType: 'LLC',
+      monthEstablished: '07',
+      yearEstablished: '2020',
+      fundingPurposes: ['Working Capital'],
+    }
+    const ok = validateBusinessFundingIntake(
+      basePayload({
+        intakeKind: 'funding',
+        dateOfBirth: '',
+        ssn: '',
+        address: '',
+        ownsBusiness: true,
+        businessName: 'Philly Fades',
+        creditGoals: ['Business Funding'],
+        fundingUse: 'Business',
+        fundingAmount: '$140000',
+        fundingTimeframe: 'Immediately',
+        selectedCreditProvider: '',
+        businessProfile: business,
+      })
+    )
+    assert.equal(ok, null)
+    assert.match(
+      validateIntakePayload(
+        basePayload({
+          intakeKind: 'funding',
+          dateOfBirth: '',
+          ssn: '',
+          selectedCreditProvider: '',
+          fundingUse: 'Business',
+          fundingAmount: '$140000',
+          fundingTimeframe: 'Immediately',
+          ownsBusiness: true,
+          businessName: 'Philly Fades',
+          businessProfile: business,
+        })
+      ) || '',
+      /^$/
+    )
+  })
 })
 
 describe('intake questionnaire vs staff credentials', () => {
@@ -313,7 +367,8 @@ describe('intake questionnaire vs staff credentials', () => {
     assert.doesNotMatch(form, /CFPB register/)
     assert.doesNotMatch(form, /Experian security question/)
     assert.doesNotMatch(form, /Experian 4-digit code/)
-    assert.match(form, /AnnualCreditReportGuide/)
+    assert.doesNotMatch(form, /AnnualCreditReportGuide/)
+    assert.doesNotMatch(form, /3-bureau credit report/)
     assert.match(staff, /Experian security question/)
     assert.match(staff, /Experian 4-digit code/)
     assert.match(staff, /CFPB email/)

@@ -3,7 +3,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
-import AnnualCreditReportGuide from '@/components/credit-funding/AnnualCreditReportGuide'
 import { WorkflowStepStrip } from '@/components/credit-funding/WorkflowStepStrip'
 import SsnInputField from '@/components/credit-funding/SsnInputField'
 import { useStagedDocumentUploads } from '@/components/credit-funding/useStagedDocumentUploads'
@@ -33,6 +32,8 @@ import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
   | 'personal'
+  | 'contact'
+  | 'request'
   | 'identity'
   | 'monitoring'
   | 'goals'
@@ -42,6 +43,8 @@ type StepId =
 
 const STEP_LABELS: Record<StepId, string> = {
   personal: 'Personal Information',
+  contact: 'Contact',
+  request: 'Funding Request',
   identity: 'Identity Documents',
   monitoring: 'Credit Monitoring',
   goals: 'Credit Goals',
@@ -50,7 +53,13 @@ const STEP_LABELS: Record<StepId, string> = {
   consent: 'Consent & Submit',
 }
 
-function getStepFlow(form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'creditProfile'>): StepId[] {
+function getStepFlow(
+  form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'creditProfile'>,
+  variant: 'credit' | 'funding'
+): StepId[] {
+  if (variant === 'funding') {
+    return ['contact', 'request', 'business-info', 'business-docs', 'consent']
+  }
   const flow: StepId[] = ['personal', 'identity', 'monitoring', 'goals']
   if (requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)) {
     flow.push('business-info', 'business-docs')
@@ -59,7 +68,7 @@ function getStepFlow(form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'cred
   return flow
 }
 
-const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'mail_proof', 'credit_report']
+const REQUIRED_IDENTITY_TYPES: DocumentType[] = ['photo_id', 'mail_proof']
 
 const inputClass =
   'w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-colors'
@@ -174,7 +183,7 @@ const initialState: FormState = {
   shHpField: '',
 }
 
-export default function CreditFundingForm() {
+export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'credit' | 'funding' }) {
   const [step, setStep] = useState(0)
   const searchParams = useSearchParams()
   const inviteTokenFromUrl = searchParams.get('invite')?.trim() || ''
@@ -198,10 +207,21 @@ export default function CreditFundingForm() {
     typedSignatureSet: false,
   })
   const [docsOnFile, setDocsOnFile] = useState<string[]>([])
-  const [form, setForm] = useState<FormState>(() => ({
-    ...initialState,
-    creditGoals: goalsForIntakeFocus(intakeFocus),
-  }))
+  const [form, setForm] = useState<FormState>(() => {
+    if (variant === 'funding') {
+      return {
+        ...initialState,
+        ownsBusiness: true,
+        fundingUse: 'Business',
+        creditGoals: ['Business Funding'],
+        primaryCreditGoalsText: 'Business funding',
+      }
+    }
+    return {
+      ...initialState,
+      creditGoals: goalsForIntakeFocus(intakeFocus),
+    }
+  })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -222,12 +242,15 @@ export default function CreditFundingForm() {
 
   const stepFlow = useMemo(
     () =>
-      getStepFlow({
-        ownsBusiness: form.ownsBusiness,
-        fundingUse: form.fundingUse,
-        creditProfile: form.creditProfile,
-      }),
-    [form.ownsBusiness, form.fundingUse, form.creditProfile]
+      getStepFlow(
+        {
+          ownsBusiness: form.ownsBusiness,
+          fundingUse: form.fundingUse,
+          creditProfile: form.creditProfile,
+        },
+        variant
+      ),
+    [form.ownsBusiness, form.fundingUse, form.creditProfile, variant]
   )
   const currentStepId = stepFlow[Math.min(step, stepFlow.length - 1)] ?? 'personal'
   const stepStripItems = useMemo(
@@ -373,6 +396,15 @@ export default function CreditFundingForm() {
 
   const validateStep = (stepId: StepId): boolean => {
     const e: Record<string, string> = {}
+    if (stepId === 'contact') {
+      if (!form.fullName.trim()) e.fullName = 'Required'
+      if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required'
+      if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 10) e.phone = 'Valid phone required'
+    }
+    if (stepId === 'request') {
+      if (!form.fundingAmount.trim()) e.fundingAmount = 'Required'
+      if (!form.fundingTimeframe) e.fundingTimeframe = 'Required'
+    }
     if (stepId === 'personal') {
       if (!form.fullName.trim()) e.fullName = 'Required'
       if (!form.dateOfBirth && !secretsOnFile.dateOfBirthSet) e.dateOfBirth = 'Required'
@@ -438,11 +470,13 @@ export default function CreditFundingForm() {
       if (!form.consent.agreeTerms) e.consent = 'All consent items are required'
       if (!form.typedSignature.trim() && !secretsOnFile.typedSignatureSet) e.typedSignature = 'Signature required'
       if (!form.signatureDate) e.signatureDate = 'Date required'
-      const missingRequired = REQUIRED_IDENTITY_TYPES.filter(
-        (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
-      )
-      if (missingRequired.length > 0) {
-        e.documents = 'Required identity documents are missing — return to Identity Documents'
+      if (variant !== 'funding') {
+        const missingRequired = REQUIRED_IDENTITY_TYPES.filter(
+          (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
+        )
+        if (missingRequired.length > 0) {
+          e.documents = 'Required identity documents are missing — return to Identity Documents'
+        }
       }
     }
     setErrors(e)
@@ -463,9 +497,10 @@ export default function CreditFundingForm() {
     setSubmitError('')
     setUploadProgress(10)
 
-    const missingRequired = REQUIRED_IDENTITY_TYPES.filter(
-      (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
-    )
+    const missingRequired =
+      variant === 'funding'
+        ? []
+        : REQUIRED_IDENTITY_TYPES.filter((t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t]))
     if (missingRequired.length > 0) {
       setSubmitError('Required identity documents are missing.')
       setSubmitting(false)
@@ -504,12 +539,16 @@ export default function CreditFundingForm() {
       fd.append('experianPin', form.experianPin)
       fd.append('cfpbEmail', form.cfpbEmail)
       fd.append('cfpbPassword', form.cfpbPassword)
-      fd.append('primaryCreditGoalsText', form.primaryCreditGoalsText)
-      fd.append('creditGoals', JSON.stringify(form.creditGoals))
+      fd.append(
+        'primaryCreditGoalsText',
+        variant === 'funding' ? form.primaryCreditGoalsText || 'Business funding' : form.primaryCreditGoalsText
+      )
+      fd.append('creditGoals', JSON.stringify(variant === 'funding' ? ['Business Funding'] : form.creditGoals))
       fd.append('fundingAmount', form.fundingAmount)
-      fd.append('fundingUse', form.fundingUse)
-      fd.append('ownsBusiness', String(form.ownsBusiness))
-      fd.append('businessName', form.businessName)
+      fd.append('fundingUse', variant === 'funding' ? 'Business' : form.fundingUse)
+      fd.append('ownsBusiness', variant === 'funding' ? 'true' : String(form.ownsBusiness))
+      fd.append('businessName', form.businessName || form.businessProfile.legalName || '')
+      if (variant === 'funding') fd.append('intakeKind', 'funding')
       fd.append('fundingTimeframe', form.fundingTimeframe)
       fd.append('goalsNotes', form.goalsNotes)
       fd.append('businessProfile', JSON.stringify(form.businessProfile))
@@ -692,12 +731,55 @@ export default function CreditFundingForm() {
           </div>
         )}
 
+        {currentStepId === 'contact' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor={fid('fullName')}>Your name *</label>
+              <input id={fid('fullName')} name="fullName" className={inputClass} value={form.fullName} onChange={(e) => update('fullName', e.target.value)} />
+              {errors.fullName && <p className="text-xs text-brand-red mt-1">{errors.fullName}</p>}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={fid('email')}>Email *</label>
+              <input id={fid('email')} name="email" type="email" className={inputClass} value={form.email} onChange={(e) => update('email', e.target.value)} />
+              {errors.email && <p className="text-xs text-brand-red mt-1">{errors.email}</p>}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={fid('phone')}>Phone *</label>
+              <input id={fid('phone')} name="phone" type="tel" className={inputClass} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+              {errors.phone && <p className="text-xs text-brand-red mt-1">{errors.phone}</p>}
+            </div>
+          </div>
+        )}
+
+        {currentStepId === 'request' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor={fid('fundingAmount')}>How much funding are you seeking? *</label>
+              <input id={fid('fundingAmount')} name="fundingAmount" className={inputClass} placeholder="e.g. $50,000" value={form.fundingAmount} onChange={(e) => update('fundingAmount', e.target.value)} />
+              {errors.fundingAmount && <p className="text-xs text-brand-red mt-1">{errors.fundingAmount}</p>}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={fid('fundingTimeframe')}>When do you need it? *</label>
+              <select id={fid('fundingTimeframe')} name="fundingTimeframe" className={inputClass} value={form.fundingTimeframe} onChange={(e) => update('fundingTimeframe', e.target.value)}>
+                <option value="">Select timeframe</option>
+                {FUNDING_TIMEFRAMES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              {errors.fundingTimeframe && <p className="text-xs text-brand-red mt-1">{errors.fundingTimeframe}</p>}
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor={fid('goalsNotes')}>What will the funding be used for?</label>
+              <textarea id={fid('goalsNotes')} name="goalsNotes" className={`${inputClass} min-h-[120px]`} value={form.goalsNotes} onChange={(e) => update('goalsNotes', e.target.value)} />
+            </div>
+          </div>
+        )}
+
         {currentStepId === 'identity' && (
           <div>
-            <AnnualCreditReportGuide />
             <DocumentUploadStep
               title="Identity Documents"
-              subtitle="Upload your 3-bureau credit report and identity documents. Files are encrypted and stored securely as soon as you add them."
+              subtitle="Upload a photo ID and proof of address. Files are encrypted and stored securely as soon as you add them."
               documents={IDENTITY_DOCUMENTS}
               uploads={stagedUploads.uploads}
               docsOnFile={docsOnFile}

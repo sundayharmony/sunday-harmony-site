@@ -12,7 +12,7 @@ const paths = [
     eyebrow: 'Business funding',
     title: 'Fund the business',
     body: 'Capital for owners who are ready for the next step.',
-    href: '/credit-funding?focus=funding',
+    href: '/funding',
     primary: false,
   },
   {

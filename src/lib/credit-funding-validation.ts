@@ -59,6 +59,7 @@ export interface IntakeFormPayload {
   consent: ConsentData
   typedSignature: string
   signatureDate: string
+  intakeKind?: 'credit' | 'funding'
 }
 
 function str(val: unknown, max: number): string {
@@ -158,10 +159,58 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
     consent,
     typedSignature: str(raw.typedSignature, 200),
     signatureDate: str(raw.signatureDate, 20),
+    intakeKind: raw.intakeKind === 'funding' ? 'funding' : 'credit',
   }
 }
 
+function validateBusinessProfile(payload: IntakeFormPayload): string | null {
+  const bp = payload.businessProfile
+  if (!payload.businessName && !bp.legalName) return 'Business name is required'
+  if (!bp.legalName) return 'Legal business name is required for business funding'
+  if (!bp.ein || !/^\d{2}-?\d{7}$/.test(bp.ein.replace(/\s/g, ''))) {
+    return 'Valid EIN is required for business funding (format: XX-XXXXXXX)'
+  }
+  if (!bp.address) return 'Business address is required'
+  if (!bp.city) return 'Business city is required'
+  if (!bp.state || !US_STATE_RE.test(bp.state)) return 'Valid business state is required'
+  if (!bp.industry) return 'Business industry is required'
+  if (!bp.entityType || !ENTITY_TYPES.includes(bp.entityType as typeof ENTITY_TYPES[number])) {
+    return 'Please select a business entity type'
+  }
+  if (!parseEstablishedMonth(bp.monthEstablished)) {
+    return 'Month the business opened is required'
+  }
+  if (!/^(19|20)\d{2}$/.test(bp.yearEstablished || '')) {
+    return 'Year the business opened is required'
+  }
+  if (!bp.fundingPurposes?.length) return 'Select at least one funding purpose'
+  return null
+}
+
+/** Business-funding page: owner contact and the business file, without a personal credit profile. */
+export function validateBusinessFundingIntake(payload: IntakeFormPayload): string | null {
+  if (!payload.fullName) return 'Full legal name is required'
+  if (!payload.email || !EMAIL_RE.test(payload.email)) return 'Valid email address is required'
+  if (!payload.phone || payload.phone.replace(/\D/g, '').length < 10) return 'Valid phone number is required'
+  if (!payload.fundingAmount) return 'Funding amount is required'
+  if (payload.fundingUse !== 'Business' && payload.fundingUse !== 'Both') {
+    return 'Please specify personal or business funding use'
+  }
+  if (!FUNDING_TIMEFRAMES.includes(payload.fundingTimeframe as typeof FUNDING_TIMEFRAMES[number])) {
+    return 'Please select a funding timeframe'
+  }
+  const businessError = validateBusinessProfile({ ...payload, ownsBusiness: true })
+  if (businessError) return businessError
+  if (!payload.consent.accurateInfo) return 'You must certify that all information is accurate'
+  if (!payload.consent.authorizeReview) return 'You must authorize Sunday Harmony to review your credit information'
+  if (!payload.consent.agreeTerms) return 'You must agree to the Privacy Policy and authorize processing'
+  if (!payload.typedSignature) return 'Typed signature is required'
+  if (!payload.signatureDate) return 'Signature date is required'
+  return null
+}
+
 export function validateIntakePayload(payload: IntakeFormPayload): string | null {
+  if (payload.intakeKind === 'funding') return validateBusinessFundingIntake(payload)
   if (!payload.fullName) return 'Full legal name is required'
   if (!payload.dateOfBirth) return 'Date of birth is required'
   if (!isValidSsn(payload.ssn)) return 'Valid 9-digit Social Security Number is required'
@@ -218,25 +267,8 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   if (payload.ownsBusiness && !payload.businessName) return 'Business name is required when you own a business'
 
   if (requiresBusinessSection(payload.ownsBusiness, payload.fundingUse, payload.creditProfile)) {
-    const bp = payload.businessProfile
-    if (!bp.legalName) return 'Legal business name is required for business funding'
-    if (!bp.ein || !/^\d{2}-?\d{7}$/.test(bp.ein.replace(/\s/g, ''))) {
-      return 'Valid EIN is required for business funding (format: XX-XXXXXXX)'
-    }
-    if (!bp.address) return 'Business address is required'
-    if (!bp.city) return 'Business city is required'
-    if (!bp.state || !US_STATE_RE.test(bp.state)) return 'Valid business state is required'
-    if (!bp.industry) return 'Business industry is required'
-    if (!bp.entityType || !ENTITY_TYPES.includes(bp.entityType as typeof ENTITY_TYPES[number])) {
-      return 'Please select a business entity type'
-    }
-    if (!parseEstablishedMonth(bp.monthEstablished)) {
-      return 'Month the business opened is required'
-    }
-    if (!/^(19|20)\d{2}$/.test(bp.yearEstablished || '')) {
-      return 'Year the business opened is required'
-    }
-    if (!bp.fundingPurposes?.length) return 'Select at least one funding purpose'
+    const businessError = validateBusinessProfile(payload)
+    if (businessError) return businessError
   }
 
   if (!payload.consent.accurateInfo) return 'You must certify that all information is accurate'
