@@ -1,7 +1,6 @@
 import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
-import HarmonyPaths from '@/components/HarmonyPaths'
 import Services from '@/components/Services'
 import CampaignAdBanner from '@/components/CampaignAdBanner'
 import Packages from '@/components/Packages'
@@ -26,7 +25,6 @@ export default function Home() {
       <Navbar />
       <main id="main">
         <Hero />
-        <HarmonyPaths />
         <Services />
         <CampaignAdBanner ad={getCampaignAd(HOMEPAGE_MID_AD_ID)} />
         <Divider />
