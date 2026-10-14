@@ -15,7 +15,12 @@ interface FormData {
   shHpField: string
 }
 
-export default function ContactForm() {
+type ContactFormProps = {
+  /** When true, render only the form card (for the dedicated /contact page). */
+  embed?: boolean
+}
+
+export default function ContactForm({ embed = false }: ContactFormProps) {
   const [form, setForm] = useState<FormData>({
     firstName: '', lastName: '', email: '', phone: '', business: '', service: '', message: '', shHpField: '',
   })
@@ -51,63 +56,7 @@ export default function ContactForm() {
   const update = (field: keyof FormData, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }))
 
-  return (
-    <section className="py-24 pt-8" id="contact">
-      <div className="max-w-[1100px] mx-auto px-7">
-        <SectionHeader
-          label="Get In Touch"
-          title={
-            <>
-              Let&apos;s talk about <span className="gold-text">your business</span>
-            </>
-          }
-        />
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
-          {/* Info */}
-          <div>
-            <h3 className="font-serif text-[28px] font-bold text-brand-text mb-4">
-              Your free audit is one message away
-            </h3>
-            <p className="text-[15px] text-brand-muted mb-7 leading-relaxed">
-              Fill out the form and we&apos;ll get back to you within 24 hours with a personalized audit of your online presence &ndash; completely free, no obligation.
-            </p>
-
-            {[
-              { icon: '✉', label: 'Email', display: siteConfig.email, href: `mailto:${siteConfig.email}` },
-              {
-                icon: '🌐',
-                label: 'Website',
-                display: siteConfig.url.replace(/^https?:\/\//, '').replace(/^www\./, ''),
-                href: siteConfig.url,
-                external: true as const,
-              },
-            ].map((item) => (
-              <div key={item.label} className="flex gap-3.5 items-start mb-5">
-                <div className="w-10 h-10 rounded-[10px] bg-accent-soft border border-brand-border flex items-center justify-center text-base flex-shrink-0">
-                  {item.icon}
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-0.5">
-                    {item.label}
-                  </div>
-                  <div className="text-[15px] text-brand-text font-medium">
-                    <a
-                      href={item.href}
-                      className="hover:text-accent transition-colors"
-                      {...('external' in item && item.external
-                        ? { target: '_blank', rel: 'noopener noreferrer' }
-                        : {})}
-                    >
-                      {item.display}
-                    </a>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Form */}
+  const formCard = (
           <div className="bg-white border border-brand-border rounded-[20px] p-9 shadow-sm">
             {sent ? (
               <div className="text-center py-10">
@@ -249,6 +198,68 @@ export default function ContactForm() {
               </form>
             )}
           </div>
+  )
+
+  if (embed) {
+    return formCard
+  }
+
+  return (
+    <section className="py-24 pt-8" id="contact">
+      <div className="max-w-[1100px] mx-auto px-7">
+        <SectionHeader
+          label="Get In Touch"
+          title={
+            <>
+              Let&apos;s talk about <span className="gold-text">your business</span>
+            </>
+          }
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
+          <div>
+            <h3 className="font-serif text-[28px] font-bold text-brand-text mb-4">
+              Your free audit is one message away
+            </h3>
+            <p className="text-[15px] text-brand-muted mb-7 leading-relaxed">
+              Fill out the form and we&apos;ll get back to you within 24 hours with a personalized audit of your online presence &ndash; completely free, no obligation.
+            </p>
+
+            {[
+              { icon: '✉', label: 'Email', display: siteConfig.email, href: `mailto:${siteConfig.email}` },
+              {
+                icon: '🌐',
+                label: 'Website',
+                display: siteConfig.url.replace(/^https?:\/\//, '').replace(/^www\./, ''),
+                href: siteConfig.url,
+                external: true as const,
+              },
+            ].map((item) => (
+              <div key={item.label} className="flex gap-3.5 items-start mb-5">
+                <div className="w-10 h-10 rounded-[10px] bg-accent-soft border border-brand-border flex items-center justify-center text-base flex-shrink-0">
+                  {item.icon}
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-0.5">
+                    {item.label}
+                  </div>
+                  <div className="text-[15px] text-brand-text font-medium">
+                    <a
+                      href={item.href}
+                      className="hover:text-accent transition-colors"
+                      {...('external' in item && item.external
+                        ? { target: '_blank', rel: 'noopener noreferrer' }
+                        : {})}
+                    >
+                      {item.display}
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {formCard}
         </div>
       </div>
     </section>

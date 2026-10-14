@@ -17,19 +17,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: absoluteUrl('/contact'),
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       url: absoluteUrl('/funding'),
       lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.7,
     },
     {
-      url: absoluteUrl('/credit-funding'),
+      url: absoluteUrl('/credit'),
       lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.7,
     },
     {
-      url: absoluteUrl('/credit-funding/privacy'),
+      url: absoluteUrl('/credit/privacy'),
       lastModified: now,
       changeFrequency: 'yearly',
       priority: 0.3,

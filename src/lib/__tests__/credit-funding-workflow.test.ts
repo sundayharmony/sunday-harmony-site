@@ -382,6 +382,7 @@ describe('intake questionnaire vs staff credentials', () => {
   it('does not collect EIN or business credit details on funding intake', () => {
     const section = readFileSync('src/components/credit-funding/BusinessInfoSection.tsx', 'utf8')
     const fundingPage = readFileSync('src/app/funding/page.tsx', 'utf8')
+    const readiness = readFileSync('src/components/funding/FundingReadiness.tsx', 'utf8')
     assert.doesNotMatch(section, /EIN/)
     assert.doesNotMatch(section, /Paydex/)
     assert.doesNotMatch(section, /Business Credit Profile/)
@@ -389,6 +390,7 @@ describe('intake questionnaire vs staff credentials', () => {
     assert.doesNotMatch(section, /Outstanding business loans/)
     assert.doesNotMatch(section, /Collateral available/)
     assert.doesNotMatch(fundingPage, /\bEIN\b/)
+    assert.doesNotMatch(readiness, /\bEIN\b/)
     assert.equal(
       validateBusinessFundingIntake(
         basePayload({

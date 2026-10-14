@@ -13,7 +13,7 @@ export default function CtaBanner() {
           <p className="text-[17px] text-brand-muted mb-9 max-w-[500px] mx-auto relative">
             Get a free audit of the brand, the strategy, and the systems the business runs on. We&apos;ll show you what&apos;s working and what to put in place first.
           </p>
-          <AuditCtaButton variant="primary" href="/#contact" className="relative" />
+          <AuditCtaButton variant="primary" href="/contact" className="relative" />
         </div>
       </div>
     </section>

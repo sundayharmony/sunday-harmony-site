@@ -1,3 +1,9 @@
+import {
+  CREDIT_INTAKE_PATH,
+  isPublicCreditIntakePath,
+  normalizePublicCreditPath,
+} from '@/lib/credit-intake-routes'
+
 export const REFERRAL_COOKIE_NAME = 'sh_ref'
 export const REFERRAL_CODE_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ'
 export const REFERRAL_CODE_LENGTH = 8
@@ -66,26 +72,24 @@ export function referralAttributionTtlMs(): number {
 }
 
 export function buildReferralPath(code: string): string {
-  return `/credit-funding?ref=${encodeURIComponent(code)}`
+  return `${CREDIT_INTAKE_PATH}?ref=${encodeURIComponent(code)}`
 }
 
-/** Only /credit-funding paths, with `ref` stripped so attribution is cookie-only after landing. */
+/** Only public credit intake paths, with `ref` stripped so attribution is cookie-only after landing. */
 export function safeReferralLandingPath(raw: unknown): string {
-  if (typeof raw !== 'string') return '/credit-funding'
+  if (typeof raw !== 'string') return CREDIT_INTAKE_PATH
   const path = raw.trim()
-  if (!path.startsWith('/credit-funding')) return '/credit-funding'
-  if (path.startsWith('//') || path.includes('..') || path.includes('\\')) return '/credit-funding'
+  if (path.startsWith('//') || path.includes('..') || path.includes('\\')) return CREDIT_INTAKE_PATH
   try {
     const u = new URL(path, 'https://placeholder.invalid')
-    if (u.origin !== 'https://placeholder.invalid') return '/credit-funding'
-    if (u.pathname !== '/credit-funding' && !u.pathname.startsWith('/credit-funding/')) {
-      return '/credit-funding'
-    }
+    if (u.origin !== 'https://placeholder.invalid') return CREDIT_INTAKE_PATH
+    const normalizedPath = normalizePublicCreditPath(u.pathname)
+    if (!isPublicCreditIntakePath(u.pathname)) return CREDIT_INTAKE_PATH
     u.searchParams.delete('ref')
     const qs = u.searchParams.toString()
-    return `${u.pathname}${qs ? `?${qs}` : ''}`
+    return `${normalizedPath}${qs ? `?${qs}` : ''}`
   } catch {
-    return '/credit-funding'
+    return CREDIT_INTAKE_PATH
   }
 }
 

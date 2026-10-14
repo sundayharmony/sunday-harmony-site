@@ -1085,7 +1085,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
                 />
                 <span className="text-sm text-brand-muted">
                   I have read and agree to the{' '}
-                  <Link href="/credit-funding/privacy" target="_blank" className="text-accent hover:underline">
+                  <Link href="/credit/privacy" target="_blank" className="text-accent hover:underline">
                     Privacy Policy
                   </Link>{' '}
                   and authorize Sunday Harmony to process my information for credit repair and funding evaluation purposes.

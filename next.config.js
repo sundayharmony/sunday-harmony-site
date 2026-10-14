@@ -60,8 +60,18 @@ const nextConfig = {
     return [
       {
         source: '/credit-funding-application',
-        destination: '/credit-funding',
-        permanent: false,
+        destination: '/credit',
+        permanent: true,
+      },
+      {
+        source: '/credit-funding',
+        destination: '/credit',
+        permanent: true,
+      },
+      {
+        source: '/credit-funding/privacy',
+        destination: '/credit/privacy',
+        permanent: true,
       },
     ]
   },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { CREDIT_INTAKE_PATH } from '@/lib/credit-intake-routes'
 import { normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
 import { trackReferralClick } from '@/lib/referral-service'
 
@@ -20,14 +21,14 @@ export async function GET(req: NextRequest) {
     if (blocked) return blocked
 
     const code = normalizeReferralCode(req.nextUrl.searchParams.get('code') || req.nextUrl.searchParams.get('ref'))
-    const nextPath = safeReferralLandingPath(req.nextUrl.searchParams.get('next') || '/credit-funding')
+    const nextPath = safeReferralLandingPath(req.nextUrl.searchParams.get('next') || CREDIT_INTAKE_PATH)
     const res = NextResponse.redirect(new URL(nextPath, req.url))
     if (!code) return res
     await trackReferralClick(req, res, code, nextPath)
     return res
   } catch (error) {
     logApiRouteError(req, 'referrals/track', error)
-    return NextResponse.redirect(new URL('/credit-funding', req.url))
+    return NextResponse.redirect(new URL(CREDIT_INTAKE_PATH, req.url))
   }
 }
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       req,
       res,
       typeof body.code === 'string' ? body.code : null,
-      '/credit-funding'
+      CREDIT_INTAKE_PATH
     )
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status })

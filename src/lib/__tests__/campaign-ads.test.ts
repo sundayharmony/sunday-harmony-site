@@ -102,12 +102,27 @@ describe('campaign ads library', () => {
     assert.match(sidebar, /\/admin\/ads/)
   })
 
+  it('sends marketing ads to the contact page', () => {
+    const marketing = adsForOffer('marketing')
+    assert.ok(marketing.length > 0)
+    for (const ad of marketing) {
+      if (!ad.ctaHref) {
+        assert.equal(adCtaHref(ad), '/contact', ad.id)
+      }
+    }
+
+    const home = source('src/app/page.tsx')
+    const nav = source('src/lib/navigation.ts')
+    assert.doesNotMatch(home, /ContactForm/)
+    assert.match(nav, /href: '\/contact'/)
+  })
+
   it('adds free credit analysis ads that send people to intake', () => {
     const creditAds = adsForOffer('credit')
     assert.ok(creditAds.length >= 12)
 
     for (const ad of creditAds) {
-      assert.equal(adCtaHref(ad), '/credit-funding', ad.id)
+      assert.equal(adCtaHref(ad), '/credit', ad.id)
       assert.match(`${ad.headline} ${ad.accentPhrase ?? ''} ${ad.body} ${ad.ctaLabel}`, /credit|analysis/i, ad.id)
       assert.doesNotMatch(ad.body, /guarantee|guaranteed|remove all/i, ad.id)
     }
@@ -126,6 +141,7 @@ describe('campaign ads library', () => {
     assert.match(paths, /Build the business/)
     assert.match(paths, /href: '\/funding'/)
     assert.match(paths, /focus=credit/)
+    assert.match(paths, /href: '\/credit/)
     assert.match(banner, /ad\.ctaLabel/)
     assert.match(banner, /adCtaHref/)
     assert.match(adminPage, /Credit analysis/)

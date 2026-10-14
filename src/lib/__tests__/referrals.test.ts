@@ -60,8 +60,8 @@ describe('referral codes and display', () => {
     assert.equal(maskApplicantName(''), 'Applicant')
   })
 
-  it('builds the public credit-funding referral path', () => {
-    assert.equal(buildReferralPath('ABC12345'), '/credit-funding?ref=ABC12345')
+  it('builds the public credit intake referral path', () => {
+    assert.equal(buildReferralPath('ABC12345'), '/credit?ref=ABC12345')
     assert.equal(referralCommissionCents(), 5000)
     assert.equal(referralAttributionDays(), 60)
     assert.equal(formatCommissionCents(5000), '$50.00')
@@ -71,10 +71,11 @@ describe('referral codes and display', () => {
   })
 
   it('strips ref and blocks open redirects on landing paths', () => {
-    assert.equal(safeReferralLandingPath('/credit-funding?ref=ABC12345&invite=tok'), '/credit-funding?invite=tok')
-    assert.equal(safeReferralLandingPath('https://evil.example/credit-funding'), '/credit-funding')
-    assert.equal(safeReferralLandingPath('//evil.example'), '/credit-funding')
-    assert.equal(safeReferralLandingPath('/dashboard'), '/credit-funding')
+    assert.equal(safeReferralLandingPath('/credit?ref=ABC12345&invite=tok'), '/credit?invite=tok')
+    assert.equal(safeReferralLandingPath('/credit-funding?ref=ABC12345&invite=tok'), '/credit?invite=tok')
+    assert.equal(safeReferralLandingPath('https://evil.example/credit'), '/credit')
+    assert.equal(safeReferralLandingPath('//evil.example'), '/credit')
+    assert.equal(safeReferralLandingPath('/dashboard'), '/credit')
   })
 })
 
@@ -221,9 +222,12 @@ describe('referral system wiring', () => {
     assert.match(service, /privacy \? maskApplicantName/)
   })
 
-  it('redirects the spec URL onto the existing credit-funding application', () => {
+  it('redirects legacy credit URLs onto /credit', () => {
     const config = readFileSync('next.config.js', 'utf8')
     assert.match(config, /credit-funding-application/)
-    assert.match(config, /\/credit-funding/)
+    assert.match(config, /destination: '\/credit'/)
+    const creditPage = readFileSync('src/app/credit/page.tsx', 'utf8')
+    assert.match(creditPage, /CreditReadiness/)
+    assert.match(creditPage, /CreditFundingForm/)
   })
 })
