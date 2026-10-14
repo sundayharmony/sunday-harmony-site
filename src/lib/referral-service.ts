@@ -120,7 +120,7 @@ export async function trackReferralClick(
   await insertReferralEvent({
     referral_profile_id: profile.id,
     event_type: 'link_clicked',
-    detail: landingPath || '/credit-funding',
+    detail: landingPath || '/credit',
   })
   setReferralAttributionCookie(res, {
     code: profile.referral_code,

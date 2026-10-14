@@ -19,7 +19,7 @@ const paths = [
     eyebrow: 'Personal credit',
     title: 'Strengthen personal credit',
     body: 'A clear read on your credit and a plan to improve creditworthiness.',
-    href: '/credit-funding?focus=credit',
+    href: '/credit?focus=credit',
     primary: false,
   },
 ] as const

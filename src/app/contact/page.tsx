@@ -168,7 +168,7 @@ export default function ContactPage() {
                 </p>
                 <div className="flex flex-col gap-2 text-sm font-semibold">
                   <a href="/funding" className="text-accent hover:underline">Business funding →</a>
-                  <a href="/credit-funding?focus=credit" className="text-accent hover:underline">Personal credit →</a>
+                  <a href="/credit?focus=credit" className="text-accent hover:underline">Personal credit →</a>
                 </div>
               </div>
             </div>

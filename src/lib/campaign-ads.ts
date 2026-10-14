@@ -58,7 +58,7 @@ export interface CampaignAd {
 const siteHost = siteConfig.url.replace(/^https?:\/\//, '')
 const freeAuditCta = 'Get Your Free Audit →'
 const freeCreditCta = 'Get Your Free Credit Analysis →'
-const creditIntakeHref = '/credit-funding'
+const creditIntakeHref = '/credit'
 const proofStats: CampaignAdStat[] = heroStats.map((stat) => ({
   value: stat.value,
   label: stat.label,
@@ -730,7 +730,7 @@ const creditSearchAds: CampaignAd[] = [
     offer: 'credit',
     ctaHref: creditIntakeHref,
     headline: 'Get a Credit Analysis',
-    body: 'Free review of scores, negatives, and inquiries. See sundayharmony.com/credit-funding.',
+    body: 'Free review of scores, negatives, and inquiries. See sundayharmony.com/credit.',
     ctaLabel: 'Get Free Analysis',
     footer: siteHost,
   },
@@ -867,7 +867,7 @@ export function adOffer(ad: CampaignAd): AdOffer {
 }
 
 export function adCtaHref(ad: CampaignAd): string {
-  return ad.ctaHref ?? (adOffer(ad) === 'credit' ? '/credit-funding' : '/contact')
+  return ad.ctaHref ?? (adOffer(ad) === 'credit' ? '/credit' : '/contact')
 }
 
 export function adsForOffer(offer: AdOffer): CampaignAd[] {
