@@ -1,11 +1,9 @@
-import { aboutValues, team } from '@/lib/data'
+import { aboutValues } from '@/lib/data'
 import BrandLogo from '@/components/BrandLogo'
 import SectionHeader from '@/components/ui/SectionHeader'
 
 export default function About() {
   return (
-    <>
-      {/* About Section */}
       <section className="py-24" id="about">
         <div className="max-w-[1100px] mx-auto px-7">
         <SectionHeader
@@ -48,33 +46,5 @@ export default function About() {
           </div>
         </div>
       </section>
-
-      {/* Team Section */}
-      <section className="py-24 pt-0">
-        <div className="max-w-[1100px] mx-auto px-7">
-          <SectionHeader
-            label="Our Team"
-            title={
-              <>
-                The people behind <span className="gold-text">your growth</span>
-              </>
-            }
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-12 max-w-[960px] mx-auto">
-            {team.map((member) => (
-              <div key={member.name} className="bg-white border border-brand-border rounded-2xl p-8 text-center transition-all hover:shadow-sm hover:border-neutral-300">
-                <div className="w-20 h-20 rounded-full mx-auto mb-4 bg-accent-soft border-2 border-brand-border flex items-center justify-center font-serif text-[28px] font-extrabold text-accent">
-                  {member.initials}
-                </div>
-                <h4 className="text-[17px] font-bold text-brand-text mb-1">{member.name}</h4>
-                <div className="text-xs font-semibold text-brand-dim mb-3 tracking-wide">{member.role}</div>
-                <p className="text-[13px] text-brand-muted leading-relaxed">{member.bio}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
   )
 }
