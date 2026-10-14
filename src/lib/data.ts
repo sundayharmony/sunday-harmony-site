@@ -69,7 +69,9 @@ export interface PackageFeature {
 export interface Package {
   tier: string
   tagline: string
-  price: number
+  price?: number
+  priceLabel?: string
+  ctaLabel?: string
   color: string
   icon: string
   ideal: string
@@ -77,78 +79,59 @@ export interface Package {
   features: PackageFeature[]
 }
 
+export function packagePriceDisplay(pkg: Pick<Package, 'price' | 'priceLabel'>): string {
+  if (pkg.priceLabel) return pkg.priceLabel
+  if (pkg.price != null) return `$${pkg.price.toLocaleString()}`
+  return 'Custom'
+}
+
 export const packages: Package[] = [
-  {
-    tier: 'Social Essentials',
-    tagline: 'Stay Active Online',
-    price: 250,
-    color: 'blue',
-    icon: '◇',
-    ideal: 'For new businesses & side hustles that need a social presence.',
-    features: [
-      { text: 'Social media (2 platforms)', included: true },
-      { text: '8 custom posts/month', included: true },
-      { text: 'Content calendar', included: true },
-      { text: 'Community engagement', included: true },
-      { text: 'Monthly metrics snapshot', included: true },
-      { text: 'Google Business Profile', included: false },
-      { text: 'Local SEO', included: false },
-      { text: 'Google Ads', included: false },
-    ],
-  },
   {
     tier: 'Spark',
     tagline: 'Get Found Online',
-    price: 500,
+    price: 600,
     color: 'green',
     icon: '✦',
-    ideal: 'For businesses ready to show up in local search results.',
+    ideal: 'For businesses that need to show up and stay consistent.',
     features: [
-      { text: 'Everything in Essentials', included: true },
-      { text: 'Google Business optimization', included: true },
-      { text: 'Basic local SEO', included: true },
-      { text: '12 posts/month (3/week)', included: true },
-      { text: 'Review monitoring', included: true },
-      { text: 'Performance snapshot', included: true },
-      { text: 'Google Ads', included: false },
-      { text: 'Email marketing', included: false },
+      { text: 'A social presence that stays active', included: true },
+      { text: 'A Google listing that looks right', included: true },
+      { text: 'Local search that helps people find you', included: true },
+      { text: 'Reviews kept in sight', included: true },
+      { text: 'A simple monthly snapshot', included: true },
     ],
   },
   {
     tier: 'Growth',
-    tagline: 'Start Generating Leads',
-    price: 1800,
+    tagline: 'Start Getting Leads',
+    price: 1400,
     color: 'gold',
     icon: '◆',
-    ideal: 'For established businesses ready to invest in real growth.',
+    ideal: 'For businesses ready to turn attention into customers.',
     popular: true,
     features: [
       { text: 'Everything in Spark', included: true },
-      { text: 'Full local SEO strategy', included: true },
-      { text: 'Google Ads (up to $2K)', included: true },
-      { text: 'Review management', included: true },
-      { text: 'Monthly strategy call', included: true },
-      { text: 'Actionable monthly report', included: true },
-      { text: 'Email marketing', included: false },
-      { text: 'Physical marketing', included: false },
+      { text: 'A plan built around leads', included: true },
+      { text: 'Ads that run and get reviewed', included: true },
+      { text: 'Reviews handled for you', included: true },
+      { text: 'A monthly check-in', included: true },
+      { text: 'A report you can actually follow', included: true },
     ],
   },
   {
     tier: 'Scale',
-    tagline: 'Full-Service Partner',
-    price: 3500,
+    tagline: 'Built Around You',
+    priceLabel: 'Custom',
+    ctaLabel: 'Book a consultation',
     color: 'purple',
     icon: '★',
-    ideal: 'For ambitious businesses wanting a complete marketing partner.',
+    ideal: 'For businesses that want a partner, not a package.',
     features: [
       { text: 'Everything in Growth', included: true },
-      { text: 'SEO + content marketing', included: true },
-      { text: 'Google + Meta Ads ($5K)', included: true },
-      { text: 'Email marketing', included: true },
-      { text: 'Physical marketing', included: true },
-      { text: '20+ posts + reels', included: true },
-      { text: 'Bi-weekly strategy calls', included: true },
-      { text: 'Dedicated account manager', included: true },
+      { text: 'A plan built around your business', included: true },
+      { text: 'More reach, more support', included: true },
+      { text: 'A dedicated point of contact', included: true },
+      { text: 'Room to add what you actually need', included: true },
     ],
   },
 ]

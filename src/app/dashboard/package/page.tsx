@@ -18,7 +18,16 @@ interface ClientData {
   quick_wins: { text: string; done: boolean }[]
 }
 
-const packages = [
+const packages: {
+  tier: string
+  name: string
+  price: number
+  priceLabel?: string
+  color: string
+  tagline: string
+  features: string[]
+  ideal: string
+}[] = [
   {
     tier: 'free',
     name: 'Free (Testing)',
@@ -40,63 +49,57 @@ const packages = [
     color: '#4a9e7d',
     tagline: 'Stay Active Online',
     features: [
-      'Social media (2 platforms)',
-      '8 custom posts/month',
-      'Content calendar',
-      'Community engagement',
-      'Monthly metrics snapshot',
+      'A social presence that stays active',
+      'A simple monthly snapshot',
     ],
-    ideal: 'New businesses & side hustles that need a social presence.',
+    ideal: 'Legacy plan. New clients start on Spark.',
   },
   {
     tier: 'spark',
     name: 'Spark',
-    price: 500,
+    price: 600,
     color: '#3a8bc2',
     tagline: 'Get Found Online',
     features: [
-      'Everything in Essentials',
-      'Google Business optimization',
-      'Basic local SEO',
-      '12 posts/month (3/week)',
-      'Review monitoring',
-      'Performance snapshot',
+      'A social presence that stays active',
+      'A Google listing that looks right',
+      'Local search that helps people find you',
+      'Reviews kept in sight',
+      'A simple monthly snapshot',
     ],
-    ideal: 'Businesses ready to show up in local search results.',
+    ideal: 'For businesses that need to show up and stay consistent.',
   },
   {
     tier: 'growth',
     name: 'Growth',
-    price: 1800,
+    price: 1400,
     color: '#c9a96e',
-    tagline: 'Start Generating Leads',
+    tagline: 'Start Getting Leads',
     features: [
       'Everything in Spark',
-      'Full local SEO strategy',
-      'Google Ads (up to $2K)',
-      'Review management',
-      'Monthly strategy call',
-      'Actionable monthly report',
+      'A plan built around leads',
+      'Ads that run and get reviewed',
+      'Reviews handled for you',
+      'A monthly check-in',
+      'A report you can actually follow',
     ],
-    ideal: 'Established businesses ready to invest in real growth.',
+    ideal: 'For businesses ready to turn attention into customers.',
   },
   {
     tier: 'scale',
     name: 'Scale',
-    price: 3500,
+    price: 0,
+    priceLabel: 'Custom',
     color: '#7b68c9',
-    tagline: 'Full-Service Partner',
+    tagline: 'Built Around You',
     features: [
       'Everything in Growth',
-      'SEO + content marketing',
-      'Google + Meta Ads ($5K)',
-      'Email marketing',
-      'Physical marketing',
-      '20+ posts + reels',
-      'Bi-weekly strategy calls',
-      'Dedicated account manager',
+      'A plan built around your business',
+      'More reach, more support',
+      'A dedicated point of contact',
+      'Room to add what you actually need',
     ],
-    ideal: 'Ambitious businesses wanting a complete marketing partner.',
+    ideal: 'For businesses that want a partner, not a package.',
   },
 ]
 
@@ -219,9 +222,9 @@ export default function PackagePage() {
             </div>
             <div className="text-right">
               <div className="text-3xl font-extrabold" style={{ color: currentPkg.color }}>
-                ${currentPkg.price}
+                {currentPkg.priceLabel ?? `$${currentPkg.price}`}
               </div>
-              <div className="text-xs text-brand-dim">/month</div>
+              <div className="text-xs text-brand-dim">{currentPkg.priceLabel ? 'consultation' : '/month'}</div>
             </div>
           </div>
 
@@ -267,9 +270,11 @@ export default function PackagePage() {
         <>
           <h2 className="text-lg font-bold text-brand-text mb-4">All Packages</h2>
           <div className="grid grid-cols-2 gap-4">
-            {packages.map((pkg, i) => {
+            {packages
+              .filter((pkg) => ['spark', 'growth', 'scale'].includes(pkg.tier) || pkg.tier === client?.package_tier)
+              .map((pkg) => {
               const isCurrent = pkg.tier === client?.package_tier
-              const isUpgrade = i > currentIdx
+              const isUpgrade = packages.findIndex((p) => p.tier === pkg.tier) > currentIdx
               return (
                 <div
                   key={pkg.tier}
@@ -291,9 +296,9 @@ export default function PackagePage() {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-extrabold" style={{ color: pkg.color }}>
-                        ${pkg.price}
+                        {pkg.priceLabel ?? `$${pkg.price}`}
                       </div>
-                      <div className="text-[10px] text-brand-dim">/mo</div>
+                      <div className="text-[10px] text-brand-dim">{pkg.priceLabel ? 'consult' : '/mo'}</div>
                     </div>
                   </div>
 

@@ -35,8 +35,9 @@ export const TIER_LABELS: Record<PackageTier, string> = {
 export const TIER_LIST_PRICES: Record<PackageTier, number> = {
   free: 0,
   social_essentials: 250,
-  spark: 500,
-  growth: 1800,
+  spark: 600,
+  growth: 1400,
+  /** Fallback for existing Scale clients. New Scale work is priced after a consult. */
   scale: 3500,
 }
 
@@ -57,6 +58,7 @@ export function isStripeBillableTier(tier: string): tier is Exclude<PackageTier,
 
 export function formatTierListPrice(tier: PackageTier): string {
   if (isFreeTier(tier)) return 'Free'
+  if (tier === 'scale') return 'Custom'
   return `$${TIER_LIST_PRICES[tier].toLocaleString()}`
 }
 

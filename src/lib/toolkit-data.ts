@@ -103,67 +103,57 @@ export const positioningCanvas = [
 ]
 
 // ══════════ PHASE 4 — DETAILED PACKAGES ══════════
-export const detailedPackages = [
-  { tier: 'Social Essentials', tagline: 'Stay Active Online', price: 250, color: '#3a8bc2', icon: '◇',
-    ideal: 'Brand-new businesses, side hustles, or anyone who knows they should be posting but never do.',
+export interface DetailedPackage {
+  tier: string
+  tagline: string
+  price?: number
+  priceLabel?: string
+  color: string
+  icon: string
+  popular?: boolean
+  ideal: string
+  services: { name: string; included: boolean; note?: string }[]
+  quickWin: string
+  margin: string
+}
+
+export const detailedPackages: DetailedPackage[] = [
+  { tier: 'Spark', tagline: 'Get Found Online', price: 600, color: '#4a9e7d', icon: '✦',
+    ideal: 'For businesses that need to show up and stay consistent.',
     services: [
-      { name: 'Social media management (2 platforms)', included: true, note: 'Facebook + Instagram or LinkedIn' },
-      { name: '8 custom posts/month (2/week)', included: true, note: 'Branded graphics, captions, hashtags' },
-      { name: 'Content calendar (planned monthly)', included: true },
-      { name: 'Basic community engagement', included: true, note: 'Comments and DMs' },
-      { name: 'Monthly snapshot (key metrics)', included: true },
-      { name: 'Google Business Profile', included: false, note: '+$100/mo' },
-      { name: 'Local SEO', included: false },
-      { name: 'Google Ads / PPC', included: false },
+      { name: 'A social presence that stays active', included: true },
+      { name: 'A Google listing that looks right', included: true },
+      { name: 'Local search that helps people find you', included: true },
+      { name: 'Reviews kept in sight', included: true },
+      { name: 'A simple monthly snapshot', included: true },
     ],
-    quickWin: 'Content calendar + first 2 weeks of posts within 5 days of signing.',
-    margin: 'Highest margin per hour. At 15 clients = $3,750/mo.',
+    quickWin: 'Google presence tightened up in the first week.',
+    margin: 'Entry plan. At 10 clients = $6,000/mo.',
   },
-  { tier: 'Spark', tagline: 'Get Found Online', price: 500, color: '#4a9e7d', icon: '✦',
-    ideal: 'Solo operators, new restaurants, tradespeople ready to get serious about local visibility.',
-    services: [
-      { name: 'Everything in Social Essentials', included: true },
-      { name: 'Google Business Profile setup & optimization', included: true },
-      { name: 'Basic local SEO (citations, NAP)', included: true },
-      { name: '12 social media posts/month (3/week)', included: true },
-      { name: 'Review monitoring & alerts', included: true },
-      { name: 'Monthly performance snapshot', included: true },
-      { name: 'Website design/redesign', included: false, note: 'Add-on: $1,500–$3,000' },
-      { name: 'Google Ads / PPC', included: false },
-    ],
-    quickWin: 'Optimized Google Business Profile live within 7 days.',
-    margin: 'High margin. At 10 clients = $5,000/mo.',
-  },
-  { tier: 'Growth', tagline: 'Start Generating Leads', price: 1800, color: '#c9a96e', icon: '◆', popular: true,
-    ideal: 'Law firms, accountants, established restaurants, home service companies doing $300K–$2M/year.',
+  { tier: 'Growth', tagline: 'Start Getting Leads', price: 1400, color: '#c9a96e', icon: '◆', popular: true,
+    ideal: 'For businesses ready to turn attention into customers.',
     services: [
       { name: 'Everything in Spark', included: true },
-      { name: 'Full local SEO strategy & execution', included: true },
-      { name: 'Google Ads management (up to $2K spend)', included: true },
-      { name: 'Review management & response', included: true },
-      { name: 'Monthly strategy call (30 min)', included: true },
-      { name: 'Monthly report with actionable insights', included: true },
-      { name: 'Email marketing', included: false, note: '+$300–$500/mo' },
-      { name: 'Physical marketing', included: false, note: 'Project-based' },
+      { name: 'A plan built around leads', included: true },
+      { name: 'Ads that run and get reviewed', included: true },
+      { name: 'Reviews handled for you', included: true },
+      { name: 'A monthly check-in', included: true },
+      { name: 'A report you can actually follow', included: true },
     ],
-    quickWin: 'First Google Ads campaign live within 14 days.',
-    margin: 'Strong margin at scale. At 10 clients = $18,000/mo.',
+    quickWin: 'Lead plan and first ads in motion in the first two weeks.',
+    margin: 'Core plan. At 10 clients = $14,000/mo.',
   },
-  { tier: 'Scale', tagline: 'Full-Service Partner', price: 3500, color: '#7b68c9', icon: '★',
-    ideal: 'Multi-location businesses, ambitious practices, companies doing $1M–$5M+.',
+  { tier: 'Scale', tagline: 'Built Around You', priceLabel: 'Custom', color: '#7b68c9', icon: '★',
+    ideal: 'For businesses that want a partner, not a package.',
     services: [
       { name: 'Everything in Growth', included: true },
-      { name: 'Complete SEO + content marketing', included: true },
-      { name: '20+ social posts/month + reels', included: true },
-      { name: 'Google + Meta Ads (up to $5K spend)', included: true },
-      { name: 'Email marketing (2 campaigns/mo)', included: true },
-      { name: 'Physical marketing design', included: true },
-      { name: 'Website updates (monthly)', included: true },
-      { name: 'Bi-weekly strategy calls', included: true },
-      { name: 'Dedicated account manager', included: true },
+      { name: 'A plan built around your business', included: true },
+      { name: 'More reach, more support', included: true },
+      { name: 'A dedicated point of contact', included: true },
+      { name: 'Room to add what you actually need', included: true },
     ],
-    quickWin: 'Full marketing audit + 90-day plan in week 1.',
-    margin: 'Highest absolute margin. At 5 clients = $17,500/mo.',
+    quickWin: 'Consultation first. Then a plan built around their business.',
+    margin: 'Custom after consult. Price to the work, not a menu.',
   },
 ]
 
@@ -236,7 +226,7 @@ export const vulnerabilities = [
 export const roadmapWeeks = [
   { week: 'Week 1–2', title: 'Foundation & First Outreach', color: '#3a8bc2',
     tasks: [
-      'Finalize 4 service packages (PDF one-pager)',
+      'Finalize 3 service packages (PDF one-pager)',
       'Set up invoicing (Stripe, Square, or QuickBooks)',
       'Build free Google Business audit template',
       'Optimize YOUR own Google Business Profile',

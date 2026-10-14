@@ -17,7 +17,7 @@ export default function PackagesPage() {
       </div>
 
       {/* Tier Selector */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         {detailedPackages.map((p, i) => (
           <button
             key={p.tier}
@@ -30,12 +30,15 @@ export default function PackagesPage() {
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-lg" style={{ color: p.color }}>{p.icon}</span>
-              {(p as { popular?: boolean }).popular && (
+              {p.popular && (
                 <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-accent-soft text-accent">Popular</span>
               )}
             </div>
             <div className="text-sm font-bold text-brand-text">{p.tier}</div>
-            <div className="text-xl font-extrabold mt-1" style={{ color: p.color }}>${p.price}<span className="text-[10px] text-brand-dim">/mo</span></div>
+            <div className="text-xl font-extrabold mt-1" style={{ color: p.color }}>
+              {p.priceLabel ?? `$${p.price}`}
+              {!p.priceLabel && <span className="text-[10px] text-brand-dim">/mo</span>}
+            </div>
           </button>
         ))}
       </div>
@@ -98,11 +101,20 @@ export default function PackagesPage() {
 
           <div className="bg-white border border-brand-border rounded-xl p-5 shadow-sm">
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Pricing</div>
-            <div className="text-3xl font-extrabold" style={{ color: pkg.color }}>${pkg.price}</div>
-            <div className="text-xs text-brand-dim">/month</div>
-            <div className="mt-2 text-xs text-brand-muted">
-              Annual value: <span className="font-bold text-brand-text">${(pkg.price * 12).toLocaleString()}</span>
-            </div>
+            {pkg.priceLabel ? (
+              <>
+                <div className="text-3xl font-extrabold" style={{ color: pkg.color }}>{pkg.priceLabel}</div>
+                <div className="text-xs text-brand-dim mt-1">Priced after a consultation</div>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl font-extrabold" style={{ color: pkg.color }}>${pkg.price}</div>
+                <div className="text-xs text-brand-dim">/month</div>
+                <div className="mt-2 text-xs text-brand-muted">
+                  Annual value: <span className="font-bold text-brand-text">${((pkg.price ?? 0) * 12).toLocaleString()}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

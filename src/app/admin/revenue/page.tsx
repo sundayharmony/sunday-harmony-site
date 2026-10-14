@@ -3,20 +3,18 @@
 import { useState } from 'react'
 
 const tiers = [
-  { key: 'social', label: 'Social Essentials', price: 250, max: 20, color: 'text-brand-text' },
-  { key: 'spark', label: 'Spark', price: 500, max: 15, color: 'text-brand-text' },
-  { key: 'growth', label: 'Growth', price: 1800, max: 10, color: 'text-accent' },
-  { key: 'scale', label: 'Scale', price: 3500, max: 5, color: 'text-brand-text' },
+  { key: 'spark', label: 'Spark', price: 600, max: 15, color: 'text-brand-text' },
+  { key: 'growth', label: 'Growth', price: 1400, max: 10, color: 'text-accent' },
 ]
 
 const presets = [
-  { label: 'Conservative', social: 5, spark: 5, growth: 3, scale: 1 },
-  { label: 'Moderate', social: 8, spark: 6, growth: 5, scale: 2 },
-  { label: 'Ambitious', social: 12, spark: 8, growth: 8, scale: 3 },
+  { label: 'Conservative', spark: 5, growth: 3 },
+  { label: 'Moderate', spark: 8, growth: 5 },
+  { label: 'Ambitious', spark: 12, growth: 8 },
 ]
 
 export default function RevenuePage() {
-  const [vals, setVals] = useState<Record<string, number>>({ social: 5, spark: 5, growth: 3, scale: 1 })
+  const [vals, setVals] = useState<Record<string, number>>({ spark: 5, growth: 3 })
 
   const set = (key: string, v: number) => setVals(p => ({ ...p, [key]: v }))
   const totalClients = Object.values(vals).reduce((s, v) => s + v, 0)
@@ -32,7 +30,7 @@ export default function RevenuePage() {
       {/* Presets */}
       <div className="flex gap-2 mb-6">
         {presets.map(p => (
-          <button key={p.label} onClick={() => setVals({ social: p.social, spark: p.spark, growth: p.growth, scale: p.scale })}
+          <button key={p.label} onClick={() => setVals({ spark: p.spark, growth: p.growth })}
             className="px-4 py-2 rounded-lg bg-gray-50 border border-brand-border text-xs font-semibold text-brand-muted hover:text-accent transition-all">
             {p.label}
           </button>
@@ -78,6 +76,9 @@ export default function RevenuePage() {
               <span className="text-sm font-extrabold text-accent">${(mrr * 12).toLocaleString()}</span>
             </div>
           </div>
+          <p className="mt-4 text-xs text-brand-dim leading-relaxed">
+            Scale is custom after a consultation, so it is not included in this projection.
+          </p>
         </div>
       </div>
     </div>

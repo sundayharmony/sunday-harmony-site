@@ -94,14 +94,16 @@ export default async function AdminOverview() {
       {activeClients.length > 0 && (
         <div className="mt-6 bg-white border border-brand-border rounded-xl p-6 shadow-sm">
           <h2 className="text-sm font-bold text-brand-text mb-4">Revenue by Package</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {packages.map(pkg => {
               const count = tierCounts[pkg.tier.toLowerCase().replace(/\s+/g, '_')] || 0
+              const revenue =
+                pkg.price == null ? 'Custom' : `$${(count * pkg.price).toLocaleString()}/mo`
               return (
                 <div key={pkg.tier} className="p-4 rounded-lg bg-gray-50 border border-gray-200">
                   <div className="text-xs text-brand-dim mb-1">{pkg.tier}</div>
                   <div className="text-lg font-bold text-brand-text">{count} clients</div>
-                  <div className="text-xs text-accent">${(count * pkg.price).toLocaleString()}/mo</div>
+                  <div className="text-xs text-accent">{revenue}</div>
                 </div>
               )
             })}

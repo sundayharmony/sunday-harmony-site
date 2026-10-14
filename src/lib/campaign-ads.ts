@@ -1,4 +1,4 @@
-import { heroStats, heroSubtext, packages, services, siteConfig } from '@/lib/data'
+import { heroStats, heroSubtext, packagePriceDisplay, packages, services, siteConfig } from '@/lib/data'
 
 export const SEARCH_HEADLINE_MAX = 30
 export const SEARCH_DESCRIPTION_MAX = 90
@@ -283,9 +283,9 @@ const packageAds: CampaignAd[] = packages.map((pkg, index) => ({
   source: 'new' as const,
   tier: pkg.tier,
   headline: pkg.tagline,
-  price: `$${pkg.price}/mo`,
+  price: pkg.price == null ? packagePriceDisplay(pkg) : `${packagePriceDisplay(pkg)}/mo`,
   body: pkg.ideal,
-  ctaLabel: 'See Packages →',
+  ctaLabel: pkg.ctaLabel ? `${pkg.ctaLabel} →` : 'See Packages →',
   footer: siteHost,
 }))
 
