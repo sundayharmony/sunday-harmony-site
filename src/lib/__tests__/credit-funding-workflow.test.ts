@@ -311,7 +311,6 @@ describe('business opened month', () => {
   it('accepts a business-funding intake without a personal credit profile', () => {
     const business = {
       legalName: 'Philly Fades',
-      ein: '85-2829218',
       address: '200 Bridge Street',
       city: 'Phoenixville',
       state: 'PA',
@@ -319,7 +318,6 @@ describe('business opened month', () => {
       entityType: 'LLC',
       monthEstablished: '07',
       yearEstablished: '2020',
-      fundingPurposes: ['Working Capital'],
     }
     const ok = validateBusinessFundingIntake(
       basePayload({
@@ -379,5 +377,45 @@ describe('intake questionnaire vs staff credentials', () => {
     assert.match(guide, /ANNUAL_CREDIT_REPORT_URL/)
     assert.match(guide, /AnnualCreditReport\.com/)
     assert.match(guide, /Equifax, Experian, and TransUnion/)
+  })
+
+  it('does not collect EIN or business credit details on funding intake', () => {
+    const section = readFileSync('src/components/credit-funding/BusinessInfoSection.tsx', 'utf8')
+    const fundingPage = readFileSync('src/app/funding/page.tsx', 'utf8')
+    assert.doesNotMatch(section, /EIN/)
+    assert.doesNotMatch(section, /Paydex/)
+    assert.doesNotMatch(section, /Business Credit Profile/)
+    assert.doesNotMatch(section, /Funding Requirements/)
+    assert.doesNotMatch(section, /Outstanding business loans/)
+    assert.doesNotMatch(section, /Collateral available/)
+    assert.doesNotMatch(fundingPage, /\bEIN\b/)
+    assert.equal(
+      validateBusinessFundingIntake(
+        basePayload({
+          intakeKind: 'funding',
+          dateOfBirth: '',
+          ssn: '',
+          address: '',
+          selectedCreditProvider: '',
+          ownsBusiness: true,
+          businessName: 'Philly Fades',
+          creditGoals: ['Business Funding'],
+          fundingUse: 'Business',
+          fundingAmount: '$140000',
+          fundingTimeframe: 'Immediately',
+          businessProfile: {
+            legalName: 'Philly Fades',
+            address: '200 Bridge Street',
+            city: 'Phoenixville',
+            state: 'PA',
+            industry: 'Hair Salon',
+            entityType: 'LLC',
+            monthEstablished: '07',
+            yearEstablished: '2020',
+          },
+        })
+      ),
+      null
+    )
   })
 })

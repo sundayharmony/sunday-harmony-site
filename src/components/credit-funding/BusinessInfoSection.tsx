@@ -3,7 +3,6 @@
 import {
   ENTITY_TYPES,
   ESTABLISHED_MONTHS,
-  FUNDING_PURPOSE_OPTIONS,
   type BusinessProfile,
 } from '@/lib/credit-funding-types'
 
@@ -20,43 +19,9 @@ interface Props {
   errors: Record<string, string>
 }
 
-function YesNoField({
-  label,
-  fieldId,
-  value,
-  onChange,
-}: {
-  label: string
-  fieldId: string
-  value?: boolean
-  onChange: (v: boolean) => void
-}) {
-  return (
-    <div className="flex items-center justify-between py-2 px-3 bg-neutral-50 rounded-lg border border-brand-border sm:col-span-2">
-      <span className="text-sm text-brand-muted">{label}</span>
-      <div className="flex gap-3">
-        {[true, false].map((val) => (
-          <label key={String(val)} htmlFor={`${fieldId}-${val ? 'yes' : 'no'}`} className="flex items-center gap-1 text-sm cursor-pointer">
-            <input id={`${fieldId}-${val ? 'yes' : 'no'}`} name={fieldId} type="radio" checked={value === val} onChange={() => onChange(val)} />
-            {val ? 'Yes' : 'No'}
-          </label>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function BusinessInfoSection({ profile, onChange, errors }: Props) {
   const set = <K extends keyof BusinessProfile>(key: K, value: BusinessProfile[K]) => {
     onChange({ ...profile, [key]: value })
-  }
-
-  const togglePurpose = (purpose: string) => {
-    const current = profile.fundingPurposes || []
-    set(
-      'fundingPurposes',
-      current.includes(purpose) ? current.filter((p) => p !== purpose) : [...current, purpose]
-    )
   }
 
   return (
@@ -75,11 +40,6 @@ export default function BusinessInfoSection({ profile, onChange, errors }: Props
         <div>
           <label className={labelClass} htmlFor={bpf('dba')}>DBA (if different)</label>
           <input id={bpf('dba')} name="dba" className={inputClass} value={profile.dba || ''} onChange={(e) => set('dba', e.target.value)} />
-        </div>
-        <div>
-          <label className={labelClass} htmlFor={bpf('ein')}>EIN *</label>
-          <input id={bpf('ein')} name="ein" className={inputClass} placeholder="XX-XXXXXXX" value={profile.ein || ''} onChange={(e) => set('ein', e.target.value)} />
-          {errors.ein && <p className="text-xs text-brand-red mt-1">{errors.ein}</p>}
         </div>
         <div className="sm:col-span-2">
           <label className={labelClass} htmlFor={bpf('address')}>Business Address *</label>
@@ -169,42 +129,6 @@ export default function BusinessInfoSection({ profile, onChange, errors }: Props
           <label className={labelClass}>Business Description</label>
           <textarea className={`${inputClass} min-h-[80px]`} value={profile.businessDescription || ''} onChange={(e) => set('businessDescription', e.target.value)} />
         </div>
-      </div>
-
-      <h4 className="text-sm font-bold text-brand-text mb-3">Business Credit Profile</h4>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className={labelClass}>Business Credit Score</label>
-          <input className={inputClass} value={profile.businessCreditScore || ''} onChange={(e) => set('businessCreditScore', e.target.value)} />
-        </div>
-        <div>
-          <label className={labelClass}>Paydex Score</label>
-          <input className={inputClass} value={profile.paydexScore || ''} onChange={(e) => set('paydexScore', e.target.value)} />
-        </div>
-        <div>
-          <label className={labelClass}>Open Business Credit Cards</label>
-          <input className={inputClass} type="number" min="0" value={profile.businessCreditCards || ''} onChange={(e) => set('businessCreditCards', e.target.value)} />
-        </div>
-        <YesNoField fieldId={bpf('businessLoans')} label="Outstanding business loans?" value={profile.businessLoans} onChange={(v) => set('businessLoans', v)} />
-        <YesNoField fieldId={bpf('businessCollections')} label="Business collections?" value={profile.businessCollections} onChange={(v) => set('businessCollections', v)} />
-      </div>
-
-      <h4 className="text-sm font-bold text-brand-text mb-3">Funding Requirements</h4>
-      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {FUNDING_PURPOSE_OPTIONS.map((purpose) => (
-          <label key={purpose} htmlFor={bpf(`purpose-${purpose}`)} className="flex items-center gap-2 text-sm text-brand-muted cursor-pointer p-2 rounded-lg hover:bg-neutral-50">
-            <input id={bpf(`purpose-${purpose}`)} name="fundingPurposes" type="checkbox" checked={(profile.fundingPurposes || []).includes(purpose)} onChange={() => togglePurpose(purpose)} />
-            {purpose}
-          </label>
-        ))}
-      </div>
-      {errors.fundingPurposes && <p className="text-xs text-brand-red mb-4">{errors.fundingPurposes}</p>}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <YesNoField fieldId={bpf('existingBusinessDebt')} label="Existing business debt?" value={profile.existingBusinessDebt} onChange={(v) => set('existingBusinessDebt', v)} />
-        <YesNoField fieldId={bpf('collateralAvailable')} label="Collateral available?" value={profile.collateralAvailable} onChange={(v) => set('collateralAvailable', v)} />
-        <YesNoField fieldId={bpf('priorBusinessFunding')} label="Prior business funding?" value={profile.priorBusinessFunding} onChange={(v) => set('priorBusinessFunding', v)} />
-        <YesNoField fieldId={bpf('taxLiensOrJudgments')} label="Tax liens or judgments?" value={profile.taxLiensOrJudgments} onChange={(v) => set('taxLiensOrJudgments', v)} />
       </div>
     </div>
   )

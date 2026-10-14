@@ -117,7 +117,6 @@ interface FormState {
 
 function validateBusinessFields(bp: BusinessProfile, errors: Record<string, string>) {
   if (!bp.legalName?.trim()) errors.legalName = 'Required'
-  if (!bp.ein?.trim()) errors.ein = 'Required'
   if (!bp.address?.trim()) errors.businessAddress = 'Required'
   if (!bp.city?.trim()) errors.businessCity = 'Required'
   if (!bp.state?.trim() || bp.state.length !== 2) errors.businessState = '2-letter state'
@@ -125,12 +124,10 @@ function validateBusinessFields(bp: BusinessProfile, errors: Record<string, stri
   if (!bp.entityType) errors.entityType = 'Required'
   if (!bp.monthEstablished) errors.monthEstablished = 'Required'
   if (!/^(19|20)\d{2}$/.test(bp.yearEstablished || '')) errors.yearEstablished = 'Required'
-  if (!bp.fundingPurposes?.length) errors.fundingPurposes = 'Select at least one purpose'
 }
 
 const BUSINESS_FIELD_ERROR_KEYS = [
   'legalName',
-  'ein',
   'businessAddress',
   'businessCity',
   'businessState',
@@ -138,7 +135,6 @@ const BUSINESS_FIELD_ERROR_KEYS = [
   'entityType',
   'monthEstablished',
   'yearEstablished',
-  'fundingPurposes',
 ] as const
 
 function onFileHint(onFile: boolean) {

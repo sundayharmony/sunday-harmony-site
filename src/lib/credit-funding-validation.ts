@@ -167,8 +167,8 @@ function validateBusinessProfile(payload: IntakeFormPayload): string | null {
   const bp = payload.businessProfile
   if (!payload.businessName && !bp.legalName) return 'Business name is required'
   if (!bp.legalName) return 'Legal business name is required for business funding'
-  if (!bp.ein || !/^\d{2}-?\d{7}$/.test(bp.ein.replace(/\s/g, ''))) {
-    return 'Valid EIN is required for business funding (format: XX-XXXXXXX)'
+  if (bp.ein && !/^\d{2}-?\d{7}$/.test(bp.ein.replace(/\s/g, ''))) {
+    return 'EIN must use format XX-XXXXXXX when provided'
   }
   if (!bp.address) return 'Business address is required'
   if (!bp.city) return 'Business city is required'
@@ -183,7 +183,6 @@ function validateBusinessProfile(payload: IntakeFormPayload): string | null {
   if (!/^(19|20)\d{2}$/.test(bp.yearEstablished || '')) {
     return 'Year the business opened is required'
   }
-  if (!bp.fundingPurposes?.length) return 'Select at least one funding purpose'
   return null
 }
 

@@ -59,9 +59,9 @@ export default function FundingPage() {
       <section className="rounded-2xl border border-brand-border bg-white p-6 sm:p-8 mb-12">
         <h2 className="font-serif text-2xl font-bold text-brand-text mb-3">What to have nearby</h2>
         <ul className="space-y-2 text-sm text-brand-muted leading-relaxed list-disc pl-5">
-          <li>Legal name, EIN, and the month and year the business opened</li>
+          <li>Legal name and the month and year the business opened</li>
           <li>A rough amount and when you need the funds</li>
-          <li>Articles, an EIN letter, recent bank statements, or a tax return if you have them</li>
+          <li>Articles, recent bank statements, or a tax return if you have them</li>
         </ul>
         <p className="mt-4 text-sm text-brand-dim leading-relaxed">
           Documents are optional on this form. You can add them now or later. Sunday Harmony reviews the file and follows up. Nothing here is a promise of funding.
