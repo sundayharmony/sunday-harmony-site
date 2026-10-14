@@ -63,7 +63,7 @@ export default function Hero() {
               <HeroHarmonyVisual />
             </div>
             <span className="sr-only">
-              Decorative illustration: three connected paths for building the business, funding, and personal credit.
+              Decorative illustration: a small storefront growing into a city skyline along a rising path, with icons for revenue, savings, ideas, and systems.
             </span>
           </div>
         </div>
