@@ -867,7 +867,7 @@ export function adOffer(ad: CampaignAd): AdOffer {
 }
 
 export function adCtaHref(ad: CampaignAd): string {
-  return ad.ctaHref ?? (adOffer(ad) === 'credit' ? '/credit-funding' : '/#contact')
+  return ad.ctaHref ?? (adOffer(ad) === 'credit' ? '/credit-funding' : '/contact')
 }
 
 export function adsForOffer(offer: AdOffer): CampaignAd[] {

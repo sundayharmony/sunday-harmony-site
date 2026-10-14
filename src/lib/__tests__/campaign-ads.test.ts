@@ -102,6 +102,21 @@ describe('campaign ads library', () => {
     assert.match(sidebar, /\/admin\/ads/)
   })
 
+  it('sends marketing ads to the contact page', () => {
+    const marketing = adsForOffer('marketing')
+    assert.ok(marketing.length > 0)
+    for (const ad of marketing) {
+      if (!ad.ctaHref) {
+        assert.equal(adCtaHref(ad), '/contact', ad.id)
+      }
+    }
+
+    const home = source('src/app/page.tsx')
+    const nav = source('src/lib/navigation.ts')
+    assert.doesNotMatch(home, /ContactForm/)
+    assert.match(nav, /href: '\/contact'/)
+  })
+
   it('adds free credit analysis ads that send people to intake', () => {
     const creditAds = adsForOffer('credit')
     assert.ok(creditAds.length >= 12)

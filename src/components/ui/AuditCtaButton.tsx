@@ -27,7 +27,7 @@ const labels: Record<Variant, string> = {
 }
 
 export default function AuditCtaButton({ variant = 'primary', href, className = '', onClick, label }: Props) {
-  const resolvedHref = href ?? (variant === 'primary' || variant === 'inline' ? '#contact' : '/#contact')
+  const resolvedHref = href ?? '/contact'
   const resolvedLabel = label ?? labels[variant]
   const classes = `${styles[variant]} ${className}`
 

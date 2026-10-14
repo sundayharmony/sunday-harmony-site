@@ -10,7 +10,7 @@ export const siteNavLinks: SiteNavLink[] = [
   { label: 'Packages', href: '/#packages' },
   { label: 'Credit & Funding', href: '/credit-funding' },
   { label: 'About', href: '/#about', hideBelow: 'lg' },
-  { label: 'Contact', href: '/#contact' },
+  { label: 'Contact', href: '/contact' },
 ]
 
 export const siteFooterExtraLinks: SiteNavLink[] = [
