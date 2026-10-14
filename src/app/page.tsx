@@ -5,7 +5,6 @@ import Services from '@/components/Services'
 import CampaignAdBanner from '@/components/CampaignAdBanner'
 import Packages from '@/components/Packages'
 import Process from '@/components/Process'
-import About from '@/components/About'
 import CtaBanner from '@/components/CtaBanner'
 import Footer from '@/components/Footer'
 import Divider from '@/components/Divider'
@@ -24,8 +23,6 @@ export default function Home() {
         <Packages />
         <Divider />
         <Process />
-        <Divider />
-        <About />
         <CampaignAdBanner ad={getCampaignAd(HOMEPAGE_CREDIT_AD_ID)} />
         <CtaBanner />
       </main>

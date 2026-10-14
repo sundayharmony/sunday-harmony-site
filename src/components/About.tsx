@@ -4,7 +4,7 @@ import SectionHeader from '@/components/ui/SectionHeader'
 
 export default function About() {
   return (
-      <section className="py-24" id="about">
+      <section className="py-24">
         <div className="max-w-[1100px] mx-auto px-7">
         <SectionHeader
           label="About Us"
