@@ -17,6 +17,21 @@ _SCORE_CONTEXT = re.compile(
     re.I,
 )
 # FICO Score 8 / VantageScore 3.0 put a model digit between "score" and the 3-digit value.
+# Credit Hero member PDF: three VantageScore gauges after "All bureaus" (TUC, EXP, EQF).
+_CREDIT_HERO_ALL_BUREAUS = re.compile(
+    r"all\s+bureaus\s+"
+    r"(\d{3})\s+(?:very\s+poor|poor|fair|good|excellent|great)\b"
+    r"[\s\S]{0,120}?"
+    r"(\d{3})\s+(?:very\s+poor|poor|fair|good|excellent|great)\b"
+    r"[\s\S]{0,120}?"
+    r"(\d{3})\s+(?:very\s+poor|poor|fair|good|excellent|great)\b",
+    re.I,
+)
+_VANTAGE_DISCLAIMER = re.compile(
+    r"your\s+vantagescore.*?from\s+transunion,\s*equifax,\s*and\s+experian\s+indicates",
+    re.I | re.S,
+)
+
 _SCORE_VALUE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"fico(?:\s*®)?\s*score\s*[\d.]+[^\d]{0,60}(\d{3})", re.I),
     re.compile(r"vantage\s*score\s*[\d.]+[^\d]{0,60}(\d{3})", re.I),
@@ -68,6 +83,42 @@ def apply_scores_if_missing(target: BureauScores, incoming: BureauScores | None)
     return target
 
 
+def _token_is_plausible_score(text: str, start: int, end: int) -> bool:
+    """Reject phone area codes, apartment/unit numbers, and other non-score digits."""
+    window = text[max(0, start - 20) : min(len(text), end + 20)]
+    if re.search(r"\(\d{3}\)\s*\d{3}", window):
+        return False
+    if re.search(r"\bunit\s+\d{3}\b", window, re.I):
+        return False
+    if re.search(r"\bapt\s+\d", window, re.I):
+        return False
+    if re.search(r"\bst\s+\d", window, re.I):
+        return False
+    return True
+
+
+def _in_vantage_disclaimer(text: str, index: int) -> bool:
+    """True when index falls inside the generic tri-bureau VantageScore disclaimer."""
+    for match in _VANTAGE_DISCLAIMER.finditer(text):
+        if match.start() <= index <= match.end():
+            return True
+    return False
+
+
+def _scores_from_credit_hero_all_bureaus(text: str, scores: BureauScores) -> bool:
+    match = _CREDIT_HERO_ALL_BUREAUS.search(text)
+    if not match:
+        return False
+    tuc, exp, eqf = (parse_score_value(match.group(i)) for i in (1, 2, 3))
+    if tuc is not None:
+        scores.tuc = tuc
+    if exp is not None:
+        scores.exp = exp
+    if eqf is not None:
+        scores.eqf = eqf
+    return not scores_missing(scores)
+
+
 def _first_score_from_patterns(text: str, patterns: tuple[re.Pattern[str], ...] = _SCORE_VALUE_PATTERNS) -> int | None:
     for pattern in patterns:
         match = pattern.search(text)
@@ -83,8 +134,12 @@ def scores_from_text(text: str) -> BureauScores:
     scores = BureauScores()
     if not text:
         return scores
+    if _scores_from_credit_hero_all_bureaus(text, scores):
+        return scores
     for attr, pattern in _BUREAU_PATTERNS:
         for match in pattern.finditer(text):
+            if _in_vantage_disclaimer(text, match.start()):
+                continue
             after = text[match.end() : match.end() + 120]
             before = text[max(0, match.start() - 120) : match.start()]
             if not _SCORE_CONTEXT.search(f"{before}{after}"):
@@ -93,12 +148,23 @@ def scores_from_text(text: str) -> BureauScores:
             if parsed is None:
                 parsed = _first_score_from_patterns(before)
             if parsed is None:
-                token = _SCORE_TOKEN.search(after)
-                if not token:
-                    token = _SCORE_TOKEN.search(before)
-                if not token:
-                    continue
-                parsed = parse_score_value(token.group(1))
+                for region in (after, before):
+                    token = _SCORE_TOKEN.search(region)
+                    if not token:
+                        continue
+                    abs_start = (
+                        match.end() + token.start()
+                        if region is after
+                        else max(0, match.start() - 120) + token.start()
+                    )
+                    abs_end = abs_start + len(token.group(1))
+                    if not _token_is_plausible_score(text, abs_start, abs_end):
+                        continue
+                    parsed = parse_score_value(token.group(1))
+                    if parsed is not None:
+                        break
+                else:
+                    parsed = None
             if parsed is not None:
                 setattr(scores, attr, parsed)
                 break

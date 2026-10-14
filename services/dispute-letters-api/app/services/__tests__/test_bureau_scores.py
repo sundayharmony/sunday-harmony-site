@@ -158,3 +158,44 @@ def test_scores_from_text_does_not_pick_score_range():
     text = "Experian credit score\nScore Range: 300-850\nFICO Score 8\n655"
     scores = scores_from_text(text)
     assert scores.exp == 655
+
+
+def test_credit_hero_all_bureaus_row():
+    text = """
+    Account summary
+    All bureaus
+    493
+    VERY POOR
+    300
+    500
+    660
+    850
+    493
+    VERY POOR
+    300
+    500
+    660
+    850
+    491
+    VERY POOR
+    300
+    500
+    660
+    850
+    """
+    scores = scores_from_text(text)
+    assert scores.tuc == 493
+    assert scores.exp == 493
+    assert scores.eqf == 491
+
+
+def test_scores_from_text_ignores_vantage_disclaimer_phone_and_unit():
+    text = (
+        "SELF/FIRST CENTURY BAN 901 E 6TH ST UNIT 400 AUSTIN, TX 78702 (770) 297-8060 "
+        "Calculated on the VantageScore® 3.0 model. Your VantageScore® 3.0 from "
+        "TransUnion, Equifax, and Experian indicates your credit risk level."
+    )
+    scores = scores_from_text(text)
+    assert scores.tuc is None
+    assert scores.exp is None
+    assert scores.eqf is None
