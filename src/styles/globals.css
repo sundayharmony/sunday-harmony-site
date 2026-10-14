@@ -77,6 +77,75 @@ body {
   transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes hero-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hero-pulse-scale {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.55;
+  }
+}
+
+.hero-float {
+  animation: hero-float 5.5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hero-float-a {
+  animation-duration: 6s;
+}
+
+.hero-float-b {
+  animation-duration: 5.2s;
+  animation-delay: -1.2s;
+}
+
+.hero-float-c {
+  animation-duration: 5.8s;
+  animation-delay: -2.4s;
+}
+
+.hero-orbit-slow {
+  transform-origin: 200px 230px;
+  animation: hero-orbit 48s linear infinite;
+}
+
+.hero-pulse-ring {
+  transform-origin: 200px 230px;
+  animation: hero-pulse-scale 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-float,
+  .hero-orbit-slow,
+  .hero-pulse-ring {
+    animation: none;
+  }
+}
+
 .reveal.visible {
   opacity: 1;
   transform: translateY(0);

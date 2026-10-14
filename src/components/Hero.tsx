@@ -1,5 +1,6 @@
-import { heroAuditHighlights, heroStats, heroSubtext, siteConfig } from '@/lib/data'
+import { heroStats, heroSubtext, siteConfig } from '@/lib/data'
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
+import HeroHarmonyVisual from '@/components/HeroHarmonyVisual'
 
 export default function Hero() {
   return (
@@ -58,42 +59,12 @@ export default function Hero() {
             <div className="absolute -top-8 -left-7 h-28 w-28 rounded-full border border-brand-border bg-white/80 backdrop-blur-md" />
             <div className="absolute -bottom-10 -right-6 h-24 w-24 rounded-full border border-brand-border bg-white/80 backdrop-blur-md" />
 
-            <div className="relative rounded-3xl border border-brand-border bg-white/90 backdrop-blur-sm p-7 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-brand-dim mb-2">No obligation</p>
-                  <h3 className="text-2xl font-extrabold text-brand-text leading-tight">
-                    What&apos;s in your free audit
-                  </h3>
-                </div>
-                <div className="shrink-0 px-3 py-1.5 rounded-full bg-accent-soft border border-brand-border text-[11px] font-bold text-accent tracking-wide">
-                  24hr response
-                </div>
-              </div>
-
-              <p className="text-sm text-brand-muted leading-relaxed mb-6">
-                A practical review of how customers find you today—and the highest-impact fixes first, tailored to your market and goals.
-              </p>
-
-              <ul className="space-y-3 mb-7">
-                {heroAuditHighlights.map(({ id, text }) => (
-                  <li key={id} className="flex gap-3 text-sm text-brand-text leading-snug">
-                    <span
-                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 border border-brand-border text-[11px] font-bold text-brand-text"
-                      aria-hidden
-                    >
-                      ✓
-                    </span>
-                    <span>{text}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <AuditCtaButton variant="inline" className="mt-0" />
-              <p className="mt-3 text-center text-[11px] text-brand-dim">
-                No spam. We&apos;ll email or call with next steps.
-              </p>
+            <div className="relative rounded-3xl border border-brand-border bg-white/90 backdrop-blur-sm shadow-sm overflow-hidden">
+              <HeroHarmonyVisual />
             </div>
+            <span className="sr-only">
+              Decorative illustration: three connected paths for building the business, funding, and personal credit.
+            </span>
           </div>
         </div>
       </div>
