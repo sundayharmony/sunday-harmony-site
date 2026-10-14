@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   description: DEFAULT_DESCRIPTION,
   keywords:
-    'marketing agency, business marketing, local SEO, social media management, Google Ads',
+    'business consulting, brand strategy, business systems, local SEO, social media management, business funding, credit analysis',
   alternates: {
     canonical: '/',
   },
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${siteConfig.name} | All-in-One Marketing Partner`,
+    title: `${siteConfig.name} | ${siteConfig.tagline}`,
     description:
-      'Stop guessing at marketing. Start growing. All-in-one marketing for businesses.',
+      'Stop guessing. Start growing with a clear strategy for the brand, the plan, and the systems a business runs on.',
   },
   robots: {
     index: true,

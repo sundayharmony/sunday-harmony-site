@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import BrandLogo from '@/components/BrandLogo'
 import { siteConfig } from '@/lib/data'
-import { siteFooterExtraLinks, siteNavLinks } from '@/lib/navigation'
+import { creditFundingNavLinks, siteFooterExtraLinks, siteNavLinks } from '@/lib/navigation'
 
 export default function Footer() {
   return (
@@ -11,6 +11,15 @@ export default function Footer() {
           <BrandLogo height={34} href="/" />
           <div className="flex gap-7 flex-wrap">
             {siteNavLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-[13px] text-brand-dim hover:text-brand-text transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
+            {creditFundingNavLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}

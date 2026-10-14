@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import Hero from '@/components/Hero'
+import HarmonyPaths from '@/components/HarmonyPaths'
 import Services from '@/components/Services'
 import CampaignAdBanner from '@/components/CampaignAdBanner'
 import Packages from '@/components/Packages'
@@ -9,7 +10,7 @@ import About from '@/components/About'
 import CtaBanner from '@/components/CtaBanner'
 import Footer from '@/components/Footer'
 import Divider from '@/components/Divider'
-import { getCampaignAd, HOMEPAGE_CREDIT_AD_ID, HOMEPAGE_MID_AD_ID } from '@/lib/campaign-ads'
+import { getCampaignAd, HOMEPAGE_MID_AD_ID } from '@/lib/campaign-ads'
 
 const ContactForm = dynamic(() => import('@/components/ContactForm'), {
   loading: () => (
@@ -25,6 +26,7 @@ export default function Home() {
       <Navbar />
       <main id="main">
         <Hero />
+        <HarmonyPaths />
         <Services />
         <CampaignAdBanner ad={getCampaignAd(HOMEPAGE_MID_AD_ID)} />
         <Divider />
@@ -33,7 +35,6 @@ export default function Home() {
         <Process />
         <Divider />
         <About />
-        <CampaignAdBanner ad={getCampaignAd(HOMEPAGE_CREDIT_AD_ID)} />
         <CtaBanner />
         <ContactForm />
       </main>

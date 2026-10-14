@@ -20,13 +20,13 @@ export default function About() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center mt-12">
             <div>
               <h3 className="font-serif text-[28px] font-bold text-brand-text mb-4">
-                Marketing shouldn&apos;t feel like a mystery
+                The business should feel clear
               </h3>
               <p className="text-[15px] text-brand-muted mb-4 leading-relaxed">
-                At Sunday Harmony, we understand the challenges businesses face. You know you need marketing, but you&apos;re too busy running your business to figure it all out &mdash; and the last agency you tried left you feeling ignored and confused.
+                Sunday Harmony helps owners clarify the brand, decide what to do next, and put systems in place so the business can run with a plan. Consulting is how we build that.
               </p>
               <p className="text-[15px] text-brand-muted mb-7 leading-relaxed">
-                We&apos;re different. We speak plain English, we prove our ROI, and we treat every client like our only client. We&apos;re your local marketing partner, not a faceless agency.
+                We speak plain English, we show our work, and we treat every client like our only client. When an owner needs capital, or someone wants a clear read on their credit, those are separate doors with their own next step.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

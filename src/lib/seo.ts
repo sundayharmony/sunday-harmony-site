@@ -9,10 +9,10 @@ export function getSiteUrl(): string {
 export const DEFAULT_TITLE = `${siteConfig.name} | ${siteConfig.tagline}`
 
 export const DEFAULT_DESCRIPTION =
-  'Sunday Harmony helps businesses stop guessing at marketing and start growing. Social media, SEO, Google Ads, and more — one partner who handles it all.'
+  'Sunday Harmony helps businesses grow with a clear brand, a practical strategy, and systems they can run. Business funding and personal credit analysis are available when you need them.'
 
 export const DEFAULT_OG_DESCRIPTION =
-  'We help businesses get found online, generate leads, and grow revenue.'
+  'Brand, strategy, and the systems a business runs on.'
 
 export const NO_INDEX = { index: false, follow: false } as const
 

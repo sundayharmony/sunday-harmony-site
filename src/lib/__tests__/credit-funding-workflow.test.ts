@@ -9,6 +9,7 @@ import {
 } from '../credit-funding-classify'
 import {
   formatBusinessOpened,
+  goalsForIntakeFocus,
   getNextWorkflowStatus,
   getPreviousWorkflowStatus,
   getWorkflowOrder,
@@ -18,6 +19,17 @@ import {
 } from '../credit-funding-types'
 import { buildWorkflowSteps } from '../credit-funding-workflow-steps'
 import { parseBusinessProfile, validateIntakePayload, type IntakeFormPayload } from '../credit-funding-validation'
+
+describe('goalsForIntakeFocus', () => {
+  it('maps homepage doors to intake goals and ignores unknown focus', () => {
+    assert.deepEqual(goalsForIntakeFocus('funding'), ['Business Funding'])
+    assert.deepEqual(goalsForIntakeFocus('credit'), ['Increase Credit Score', 'Credit Repair'])
+    assert.deepEqual(goalsForIntakeFocus('CREDIT'), ['Increase Credit Score', 'Credit Repair'])
+    assert.deepEqual(goalsForIntakeFocus('repair'), [])
+    assert.deepEqual(goalsForIntakeFocus(null), [])
+    assert.deepEqual(goalsForIntakeFocus(undefined), [])
+  })
+})
 
 describe('mapApplicationStatusToCfClientStatus', () => {
   it('maps terminals and approval correctly', () => {

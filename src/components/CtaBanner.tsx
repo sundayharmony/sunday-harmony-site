@@ -11,7 +11,7 @@ export default function CtaBanner() {
             <em className="font-serif not-italic text-accent">yourself?</em>
           </h2>
           <p className="text-[17px] text-brand-muted mb-9 max-w-[500px] mx-auto relative">
-            Get a free audit of your online presence &mdash; we&apos;ll show you exactly what&apos;s working, what&apos;s not, and how to fix it. No strings attached.
+            Get a free audit of the brand, the strategy, and the systems the business runs on. We&apos;ll show you what&apos;s working and what to put in place first.
           </p>
           <AuditCtaButton variant="primary" href="/#contact" className="relative" />
         </div>

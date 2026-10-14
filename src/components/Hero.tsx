@@ -20,9 +20,9 @@ export default function Hero() {
             </div>
 
             <h1 className="font-serif text-[clamp(40px,6.2vw,68px)] font-extrabold leading-[1.02] text-brand-text mb-7">
-              Stop guessing at marketing.
+              Stop guessing.
               <span className="block mt-1 italic text-accent">
-                Start growing with clarity.
+                Start growing with a clear strategy.
               </span>
             </h1>
 
@@ -41,7 +41,7 @@ export default function Hero() {
             </div>
 
             <p className="text-sm text-brand-dim">
-              No long-term contracts. Transparent reporting. Real local growth.
+              No long-term contracts. Transparent reporting. A plan you can run.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 sm:gap-7 mt-12 pt-8 border-t border-brand-border">

@@ -13,6 +13,7 @@ import {
   CREDIT_PROVIDERS,
   CREDIT_GOAL_OPTIONS,
   EXPERIAN_SIGNUP_URL,
+  goalsForIntakeFocus,
   FUNDING_TIMEFRAMES,
   getCreditProviderLinkAction,
   getCreditProviderSignupLink,
@@ -178,6 +179,7 @@ export default function CreditFundingForm() {
   const searchParams = useSearchParams()
   const inviteTokenFromUrl = searchParams.get('invite')?.trim() || ''
   const referralCodeFromUrl = searchParams.get('ref')?.trim() || ''
+  const intakeFocus = searchParams.get('focus')
   const [inviteToken, setInviteToken] = useState('')
   const [inviteEmailLocked, setInviteEmailLocked] = useState(false)
   const [inviteBanner, setInviteBanner] = useState('')
@@ -196,7 +198,10 @@ export default function CreditFundingForm() {
     typedSignatureSet: false,
   })
   const [docsOnFile, setDocsOnFile] = useState<string[]>([])
-  const [form, setForm] = useState<FormState>(initialState)
+  const [form, setForm] = useState<FormState>(() => ({
+    ...initialState,
+    creditGoals: goalsForIntakeFocus(intakeFocus),
+  }))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)

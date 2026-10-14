@@ -27,8 +27,8 @@ describe('campaign ads library', () => {
     const cta = getCampaignAd('cta-homepage')
 
     assert.equal(hero.source, 'live')
-    assert.equal(hero.headline, 'Stop guessing at marketing.')
-    assert.equal(hero.accentPhrase, 'Start growing with clarity.')
+    assert.equal(hero.headline, 'Stop guessing.')
+    assert.equal(hero.accentPhrase, 'Start growing with a clear strategy.')
     assert.match(hero.ctaLabel, /Free Audit/)
 
     assert.equal(cta.source, 'live')
@@ -43,7 +43,7 @@ describe('campaign ads library', () => {
     const liveCta = getCampaignAd('cta-homepage')
 
     assert.match(heroPage, new RegExp(liveHero.headline.replace('.', '\\.')))
-    assert.match(heroPage, /Start growing with clarity/)
+    assert.match(heroPage, /Start growing with a clear strategy/)
     assert.match(ctaPage, /Ready to stop doing it all/)
     assert.match(ctaPage, /yourself\?/)
     assert.equal(liveCta.ctaLabel.includes('Free Audit'), true)
@@ -118,9 +118,14 @@ describe('campaign ads library', () => {
     assert.match(homepageCredit.ctaLabel, /Free Credit Analysis/)
 
     const home = source('src/app/page.tsx')
+    const paths = source('src/components/HarmonyPaths.tsx')
     const banner = source('src/components/CampaignAdBanner.tsx')
     const adminPage = source('src/app/admin/ads/page.tsx')
-    assert.match(home, /HOMEPAGE_CREDIT_AD_ID/)
+    assert.doesNotMatch(home, /HOMEPAGE_CREDIT_AD_ID/)
+    assert.match(home, /HarmonyPaths/)
+    assert.match(paths, /Build the business/)
+    assert.match(paths, /focus=funding/)
+    assert.match(paths, /focus=credit/)
     assert.match(banner, /ad\.ctaLabel/)
     assert.match(banner, /adCtaHref/)
     assert.match(adminPage, /Credit analysis/)

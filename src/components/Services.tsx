@@ -6,13 +6,13 @@ export default function Services() {
     <section className="py-24 bg-brand-bg-soft" id="services">
       <div className="max-w-[1100px] mx-auto px-7">
         <SectionHeader
-          label="What We Do"
+          label="Consulting"
           title={
             <>
-              <span className="gold-text">Everything your business needs</span> to grow online
+              How we <span className="gold-text">build the business</span>
             </>
           }
-          description="From social media to Google Ads to physical marketing — we're your all-in-one team so you can focus on running your business."
+          description="Brand, strategy, and the systems that keep growth moving — from how you show up to the work that happens every week."
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-12">

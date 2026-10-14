@@ -356,6 +356,14 @@ export const CREDIT_GOAL_OPTIONS = [
   'Auto Loan Preparation',
 ] as const
 
+/** Homepage doors pre-check intake goals. Unknown values leave the form untouched. */
+export function goalsForIntakeFocus(focus: string | null | undefined): string[] {
+  const value = (focus || '').trim().toLowerCase()
+  if (value === 'funding') return ['Business Funding']
+  if (value === 'credit') return ['Increase Credit Score', 'Credit Repair']
+  return []
+}
+
 export const FUNDING_TIMEFRAMES = ['Immediately', '30 Days', '60 Days', '90+ Days'] as const
 
 /** Max per-file size for uploads via Vercel serverless (request body limit ~4.5 MB). */

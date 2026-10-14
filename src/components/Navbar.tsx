@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import BrandLogo from '@/components/BrandLogo'
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
-import { siteNavLinks } from '@/lib/navigation'
+import { creditFundingNavLinks, siteNavLinks } from '@/lib/navigation'
 
 const linkClass =
   'text-[11px] lg:text-[12px] xl:text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors whitespace-nowrap shrink-0'
@@ -68,9 +68,30 @@ export default function Navbar() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [mobileOpen])
 
+  const [creditOpen, setCreditOpen] = useState(false)
+  const creditMenuRef = useRef<HTMLDivElement>(null)
+
   const closeMobile = () => setMobileOpen(false)
 
   const toggleMobile = () => setMobileOpen((open) => !open)
+
+  useEffect(() => {
+    if (!creditOpen) return
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!creditMenuRef.current?.contains(event.target as Node)) setCreditOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCreditOpen(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [creditOpen])
 
   return (
     <>
@@ -90,20 +111,48 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex flex-nowrap items-center justify-center gap-4 lg:gap-5 xl:gap-7 2xl:gap-8 px-[140px] lg:px-[160px] xl:px-[200px]">
-            {siteNavLinks.map((link) => (
+            {siteNavLinks.slice(0, 2).map((link) => (
+              <Link key={link.href} href={link.href} className={linkClass}>
+                {link.label}
+              </Link>
+            ))}
+            <div className="relative" ref={creditMenuRef}>
+              <button
+                type="button"
+                className={`${linkClass} inline-flex items-center gap-1`}
+                aria-expanded={creditOpen}
+                aria-haspopup="menu"
+                onClick={() => setCreditOpen((open) => !open)}
+              >
+                Credit & funding
+                <span aria-hidden className="text-[9px]">{creditOpen ? '▴' : '▾'}</span>
+              </button>
+              {creditOpen ? (
+                <div
+                  role="menu"
+                  className="absolute left-1/2 top-full z-20 mt-3 w-52 -translate-x-1/2 rounded-xl border border-brand-border bg-white p-2 shadow-sm"
+                >
+                  {creditFundingNavLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      role="menuitem"
+                      className="block rounded-lg px-3 py-2.5 text-[13px] font-medium text-brand-muted hover:bg-neutral-50 hover:text-brand-text"
+                      onClick={() => setCreditOpen(false)}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {siteNavLinks.slice(2).map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={`${linkClass}${link.hideBelow === 'lg' ? ' hidden lg:inline' : ''}`}
               >
-                {link.shortLabel ? (
-                  <>
-                    <span className="xl:hidden">{link.shortLabel}</span>
-                    <span className="hidden xl:inline">{link.label}</span>
-                  </>
-                ) : (
-                  link.label
-                )}
+                {link.label}
               </Link>
             ))}
             <Link href="/login" className={`${linkClass} hidden lg:inline`}>
@@ -135,7 +184,30 @@ export default function Navbar() {
           id="mobile-nav"
           className="fixed top-[var(--nav-total-height)] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] px-5 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1 md:hidden overflow-y-auto"
         >
-          {siteNavLinks.map((link) => (
+          {siteNavLinks.slice(0, 2).map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={closeMobile}
+              className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
+            >
+              {link.label}
+            </Link>
+          ))}
+          <p className="pt-5 pb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-dim">
+            Credit & funding
+          </p>
+          {creditFundingNavLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={closeMobile}
+              className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
+            >
+              {link.label}
+            </Link>
+          ))}
+          {siteNavLinks.slice(2).map((link) => (
             <Link
               key={link.href}
               href={link.href}

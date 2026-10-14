@@ -5,13 +5,13 @@
 
 export const siteConfig = {
   name: 'Sunday Harmony',
-  tagline: 'Your All-in-One Marketing Partner',
+  tagline: 'Brand, strategy, and systems.',
   email: 'sales@sundayharmony.com',
   url: 'https://www.sundayharmony.com',
 }
 
 export const heroSubtext =
-  'We help businesses get found online, generate better leads, and grow revenue with one partner handling strategy, execution, and reporting.'
+  'Sunday Harmony Consulting designs the brand, implements the strategy, and builds the systems a business actually runs on.'
 
 export const heroStats = [
   { value: 'A+', label: 'Service' },
