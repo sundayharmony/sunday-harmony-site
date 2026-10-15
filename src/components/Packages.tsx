@@ -66,7 +66,7 @@ export default function Packages() {
                   </div>
 
                   <a
-                    href="/contact"
+                    href={pkg.ctaLabel === 'Book a consultation' ? '/contact#book' : '/contact'}
                     className={`block w-full py-3 mt-5 rounded-lg text-center text-[13px] font-semibold transition-all ${
                       pkg.popular
                         ? 'bg-brand-text text-white font-bold hover:bg-neutral-800'

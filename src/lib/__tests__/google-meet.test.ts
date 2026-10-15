@@ -11,16 +11,13 @@ describe('meeting link allowlist', () => {
     assert.equal(isSafeHttpsMeetLink('not a url'), false)
   })
 
-  it('replaces unsafe existing links with an https placeholder', async () => {
-    const unsafe = await resolveMeetLinkForMeeting({ existingLink: 'javascript:alert(1)' })
-    assert.match(unsafe, /^https:\/\/meet\.google\.com\//)
-
-    const http = await resolveMeetLinkForMeeting({ existingLink: 'http://evil.example/meet' })
-    assert.match(http, /^https:\/\/meet\.google\.com\//)
-
-    const safe = await resolveMeetLinkForMeeting({
-      existingLink: 'https://meet.google.com/aaa-bbbb-ccc',
-    })
-    assert.equal(safe, 'https://meet.google.com/aaa-bbbb-ccc')
+  it('keeps a safe https link and drops anything else', async () => {
+    assert.equal(await resolveMeetLinkForMeeting({ existingLink: 'javascript:alert(1)' }), null)
+    assert.equal(await resolveMeetLinkForMeeting({ existingLink: 'http://evil.example/meet' }), null)
+    assert.equal(await resolveMeetLinkForMeeting({ existingLink: '' }), null)
+    assert.equal(
+      await resolveMeetLinkForMeeting({ existingLink: 'https://meet.google.com/aaa-bbbb-ccc' }),
+      'https://meet.google.com/aaa-bbbb-ccc'
+    )
   })
 })

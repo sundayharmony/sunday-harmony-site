@@ -4,6 +4,10 @@
     {
       "path": "/api/internal/cleanup-credit-funding-staging",
       "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/api/internal/consultation-reminders",
+      "schedule": "15 * * * *"
     }
   ]
 }
