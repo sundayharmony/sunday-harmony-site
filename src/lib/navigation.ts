@@ -6,7 +6,6 @@ export interface SiteNavLink {
 }
 
 export const siteNavLinks: SiteNavLink[] = [
-  { label: 'Services', href: '/' },
   { label: 'Packages', href: '/#packages' },
   { label: 'Personal Credit', href: '/credit' },
   { label: 'About', href: '/about', hideBelow: 'lg' },
