@@ -156,7 +156,7 @@ export default function FundingPage() {
                   href="#intake"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-brand-text text-white text-sm font-semibold hover:-translate-y-0.5 hover:bg-neutral-800 transition-all"
                 >
-                  Start the intake →
+                  Get funded →
                 </a>
                 <a
                   href="/partners/signup"
@@ -255,10 +255,10 @@ export default function FundingPage() {
               <div className="rounded-2xl border border-dashed border-accent/50 bg-accent-soft/60 p-7 flex flex-col justify-center">
                 <p className="font-serif text-xl font-bold text-brand-text mb-2">Not sure which fits?</p>
                 <p className="text-sm text-brand-muted leading-relaxed mb-4">
-                  Start the intake. Sunday Harmony reviews the business and talks the options through with you.
+                  Sunday Harmony reviews the business and talks the options through with you.
                 </p>
                 <a href="#intake" className="text-sm font-semibold text-accent hover:underline">
-                  Go to the intake →
+                  Get funded →
                 </a>
               </div>
             </div>
