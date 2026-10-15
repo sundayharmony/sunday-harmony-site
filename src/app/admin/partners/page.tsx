@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 
 type PartnerRow = {
   id: string
@@ -14,12 +15,38 @@ type PartnerRow = {
   status: string
   code: string
   createdAt: string
+  clicks: number
+  submitted: number
+  inProgress: number
+  completed: number
+}
+
+type ReferralRow = {
+  id: string
+  date: string
+  applicant: string
+  email: string
+  phone: string
+  stage: string
+  updatedAt: string
+  disputeRound: number | null
+  applicationId: string
+  applicationUuid: string
+}
+
+type PartnerDetail = {
+  partner: PartnerRow & { link: string; linkActive: boolean }
+  summary: { clicks: number; submitted: number; inProgress: number; completed: number }
+  referrals: ReferralRow[]
 }
 
 export default function AdminPartnersPage() {
   const [partners, setPartners] = useState<PartnerRow[]>([])
+  const [selectedId, setSelectedId] = useState('')
+  const [detail, setDetail] = useState<PartnerDetail | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [busyId, setBusyId] = useState('')
 
   const load = useCallback(async () => {
@@ -33,6 +60,23 @@ export default function AdminPartnersPage() {
       setError(err instanceof Error ? err.message : 'Failed to load partners')
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  const openPartner = useCallback(async (id: string) => {
+    setSelectedId(id)
+    setDetailLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/partners?id=${encodeURIComponent(id)}`)
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(payload.error || 'Failed to load referrals')
+      setDetail(payload)
+    } catch (err) {
+      setDetail(null)
+      setError(err instanceof Error ? err.message : 'Failed to load referrals')
+    } finally {
+      setDetailLoading(false)
     }
   }, [])
 
@@ -52,6 +96,7 @@ export default function AdminPartnersPage() {
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Update failed')
       await load()
+      if (selectedId === id) await openPartner(id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update failed')
     } finally {
@@ -63,7 +108,7 @@ export default function AdminPartnersPage() {
     <div>
       <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Partners</h1>
       <p className="text-sm text-brand-muted mb-6">
-        Approve a partner to turn on their credit referral link. Disable it to stop new attributions.
+        Click a partner to see everyone they referred and open that credit file.
       </p>
       {error ? <p className="mb-4 text-sm text-red-700">{error}</p> : null}
       {loading ? <p className="text-sm text-brand-muted">Loading…</p> : null}
@@ -72,7 +117,7 @@ export default function AdminPartnersPage() {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
               <tr>
-                {['Partner', 'Company', 'Area', 'Field', 'Years', 'Status', 'Code', ''].map((heading) => (
+                {['Partner', 'Company', 'Area', 'Field', 'Clicks', 'Applications', 'In progress', 'Status', ''].map((heading) => (
                   <th key={heading || 'actions'} className="text-left p-3 font-semibold">{heading}</th>
                 ))}
               </tr>
@@ -80,11 +125,17 @@ export default function AdminPartnersPage() {
             <tbody>
               {partners.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-brand-dim">No partner accounts yet.</td>
+                  <td colSpan={9} className="p-6 text-center text-brand-dim">No partner accounts yet.</td>
                 </tr>
               ) : (
                 partners.map((partner) => (
-                  <tr key={partner.id} className="border-t border-brand-border align-top">
+                  <tr
+                    key={partner.id}
+                    className={`border-t border-brand-border align-top cursor-pointer hover:bg-neutral-50 ${
+                      selectedId === partner.id ? 'bg-accent-soft/60' : ''
+                    }`}
+                    onClick={() => void openPartner(partner.id)}
+                  >
                     <td className="p-3">
                       <div className="font-semibold text-brand-text">{partner.name}</div>
                       <div className="text-xs text-brand-muted">{partner.email}</div>
@@ -93,10 +144,11 @@ export default function AdminPartnersPage() {
                     <td className="p-3">{partner.companyName}</td>
                     <td className="p-3">{partner.serviceArea}</td>
                     <td className="p-3">{partner.profession}</td>
-                    <td className="p-3">{partner.yearsInField}</td>
+                    <td className="p-3">{partner.clicks}</td>
+                    <td className="p-3">{partner.submitted}</td>
+                    <td className="p-3">{partner.inProgress}</td>
                     <td className="p-3 capitalize">{partner.status}</td>
-                    <td className="p-3 font-mono text-xs">{partner.code || '—'}</td>
-                    <td className="p-3 whitespace-nowrap">
+                    <td className="p-3 whitespace-nowrap" onClick={(event) => event.stopPropagation()}>
                       {partner.status !== 'active' ? (
                         <button
                           type="button"
@@ -125,6 +177,71 @@ export default function AdminPartnersPage() {
           </table>
         </div>
       </div>
+
+      {selectedId ? (
+        <section className="mt-6 bg-white border border-brand-border rounded-xl overflow-hidden">
+          <div className="p-5 border-b border-brand-border flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-brand-text">
+                {detail?.partner.companyName || 'Referrals'}
+              </h2>
+              <p className="text-xs text-brand-muted mt-1">
+                {detail
+                  ? `${detail.partner.name} · code ${detail.partner.code || '—'} · ${detail.summary.completed} completed`
+                  : 'Loading referrals…'}
+              </p>
+            </div>
+            {detail?.partner.link ? (
+              <p className="text-xs text-brand-dim max-w-md break-all">{detail.partner.link}</p>
+            ) : null}
+          </div>
+          {detailLoading ? <p className="p-5 text-sm text-brand-muted">Loading referrals…</p> : null}
+          {detail && !detailLoading ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
+                  <tr>
+                    {['Submitted', 'Client', 'Stage', 'Updated', 'Round', 'File'].map((heading) => (
+                      <th key={heading} className="text-left p-3 font-semibold">{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.referrals.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-brand-dim">
+                        No one has submitted through this partner link yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    detail.referrals.map((row) => (
+                      <tr key={row.id} className="border-t border-brand-border">
+                        <td className="p-3">{new Date(row.date).toLocaleDateString()}</td>
+                        <td className="p-3">
+                          <div className="font-semibold text-brand-text">{row.applicant}</div>
+                          <div className="text-xs text-brand-muted">{row.email}</div>
+                          <div className="text-xs text-brand-dim">{row.phone}</div>
+                        </td>
+                        <td className="p-3">{row.stage}</td>
+                        <td className="p-3">{new Date(row.updatedAt).toLocaleDateString()}</td>
+                        <td className="p-3">{row.disputeRound ? `Round ${row.disputeRound}` : '—'}</td>
+                        <td className="p-3">
+                          <Link
+                            href={`/admin/credit-funding?id=${encodeURIComponent(row.applicationUuid)}`}
+                            className="text-xs font-semibold text-accent hover:underline"
+                          >
+                            Open {row.applicationId}
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   )
 }

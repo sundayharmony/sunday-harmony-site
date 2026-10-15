@@ -85,6 +85,8 @@ describe('partner surfaces', () => {
     assert.match(source('src/app/funding/page.tsx'), /Sign up as a partner/)
     assert.match(source('src/app/api/partners/signup/route.ts'), /rateLimitDurable/)
     assert.match(source('src/app/api/admin/partners/route.ts'), /requireAdminSession/)
+    assert.match(source('src/app/api/admin/partners/route.ts'), /getAdminPartnerDetail/)
+    assert.match(source('src/app/admin/partners/page.tsx'), /Open /)
     assert.match(source('src/app/api/partner/route.ts'), /requirePartnerSession/)
     assert.doesNotMatch(source('src/app/partner/page.tsx'), /\bssn\b|social security|credit_score|date of birth/i)
   })

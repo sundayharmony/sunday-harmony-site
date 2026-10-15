@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { listPartnersForAdmin, setPartnerApproval } from '@/lib/partner-service'
+import { getAdminPartnerDetail, listPartnersForAdmin, setPartnerApproval } from '@/lib/partner-service'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
+  const id = req.nextUrl.searchParams.get('id')?.trim()
+  if (id) {
+    const detail = await getAdminPartnerDetail(id)
+    if ('error' in detail) return NextResponse.json({ error: detail.error }, { status: detail.status })
+    return NextResponse.json(detail)
+  }
   const partners = await listPartnersForAdmin()
   return NextResponse.json({ partners })
 }

@@ -141,15 +141,77 @@ export async function getPartnerDashboard(userId: string) {
   }
 }
 
+async function partnerReferralActivity(partnerProfileId: string) {
+  const referral = await getReferralProfileByPartnerId(partnerProfileId)
+  const referrals = referral ? await listReferralsForProfile(referral.id) : []
+  const clicks = referral ? await countReferralClicks(referral.id) : 0
+  const rows = []
+  for (const referralRow of referrals) {
+    if (!referralRow.referred_application_id) continue
+    const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
+    if (!app) continue
+    const disputeRound = await latestDisputeRound(app.id)
+    const progress = toPartnerReferralProgress({
+      id: referralRow.id,
+      date: referralRow.application_submitted_at || referralRow.attributed_at,
+      fullName: app.full_name,
+      status: app.status,
+      updatedAt: app.updated_at,
+      disputeRound,
+    })
+    rows.push({
+      ...progress,
+      applicant: app.full_name,
+      email: app.email,
+      phone: app.phone,
+      applicationId: app.application_id,
+      applicationUuid: app.id,
+    })
+  }
+  return {
+    referral,
+    clicks,
+    rows,
+    summary: {
+      clicks,
+      submitted: rows.length,
+      inProgress: rows.filter(row => row.bucket === 'in_progress').length,
+      completed: rows.filter(row => row.bucket === 'completed').length,
+    },
+  }
+}
+
 export async function listPartnersForAdmin() {
   const profiles = await listPartnerProfiles()
   const rows = []
   for (const profile of profiles) {
     const user = await getUserById(profile.user_id)
-    const referral = await getReferralProfileByPartnerId(profile.id)
-    rows.push(adminPartnerRow(profile, user?.name || '', user?.email || '', referral?.referral_code || ''))
+    const activity = await partnerReferralActivity(profile.id)
+    rows.push({
+      ...adminPartnerRow(profile, user?.name || '', user?.email || '', activity.referral?.referral_code || ''),
+      clicks: activity.summary.clicks,
+      submitted: activity.summary.submitted,
+      inProgress: activity.summary.inProgress,
+      completed: activity.summary.completed,
+    })
   }
   return rows
+}
+
+export async function getAdminPartnerDetail(partnerId: string) {
+  const profile = await getPartnerProfileById(partnerId)
+  if (!profile) return { error: 'Partner not found.', status: 404 as const }
+  const user = await getUserById(profile.user_id)
+  const activity = await partnerReferralActivity(profile.id)
+  return {
+    partner: {
+      ...adminPartnerRow(profile, user?.name || '', user?.email || '', activity.referral?.referral_code || ''),
+      link: activity.referral ? `${getPublicSiteUrl()}${buildReferralPath(activity.referral.referral_code)}` : '',
+      linkActive: profile.status === 'active' && activity.referral?.status === 'active',
+    },
+    summary: activity.summary,
+    referrals: activity.rows,
+  }
 }
 
 function adminPartnerRow(
