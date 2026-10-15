@@ -7,8 +7,10 @@ import BrandLogo from '@/components/BrandLogo'
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
 import { isSiteNavLinkActive, siteNavLinks } from '@/lib/navigation'
 
-const linkClass =
-  'text-[11px] lg:text-[12px] xl:text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors whitespace-nowrap shrink-0'
+const linkBase =
+  'inline-flex items-center text-[11px] lg:text-[12px] xl:text-[13px] tracking-wide transition-colors whitespace-nowrap shrink-0 rounded-full px-2.5 py-1'
+const inactiveLinkClass = `${linkBase} font-medium text-brand-muted hover:text-brand-text`
+const activeLinkClass = `${linkBase} font-semibold text-accent bg-accent-soft ring-1 ring-accent`
 
 function MenuIcon({ open }: { open: boolean }) {
   return (
@@ -100,8 +102,8 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? 'page' : undefined}
-                className={`${linkClass}${link.hideBelow === 'lg' ? ' hidden lg:inline' : ''}${
-                  active ? ' text-accent font-semibold' : ''
+                className={`${active ? activeLinkClass : inactiveLinkClass}${
+                  link.hideBelow === 'lg' ? ' hidden lg:inline' : ''
                 }`}
               >
                 {link.shortLabel ? (
