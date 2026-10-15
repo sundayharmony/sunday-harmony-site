@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import BrandLogo from '@/components/BrandLogo'
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
-import { siteNavLinks } from '@/lib/navigation'
+import { isSiteNavLinkActive, siteNavLinks } from '@/lib/navigation'
 
 const linkClass =
   'text-[11px] lg:text-[12px] xl:text-[13px] font-medium text-brand-muted tracking-wide hover:text-brand-text transition-colors whitespace-nowrap shrink-0'
@@ -32,6 +33,8 @@ function MenuIcon({ open }: { open: boolean }) {
 }
 
 export default function Navbar() {
+  const pathname = usePathname()
+  const loginActive = pathname === '/login' || pathname.startsWith('/login/')
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -90,11 +93,16 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex flex-nowrap items-center justify-center gap-4 lg:gap-5 xl:gap-7 2xl:gap-8 px-[140px] lg:px-[160px] xl:px-[200px]">
-            {siteNavLinks.map((link) => (
+            {siteNavLinks.map((link) => {
+              const active = isSiteNavLinkActive(link.href, pathname)
+              return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`${linkClass}${link.hideBelow === 'lg' ? ' hidden lg:inline' : ''}`}
+                aria-current={active ? 'page' : undefined}
+                className={`${linkClass}${link.hideBelow === 'lg' ? ' hidden lg:inline' : ''}${
+                  active ? ' text-accent font-semibold' : ''
+                }`}
               >
                 {link.shortLabel ? (
                   <>
@@ -105,11 +113,16 @@ export default function Navbar() {
                   link.label
                 )}
               </Link>
-            ))}
+            )})}
           </div>
 
           <div className="absolute right-5 md:right-6 top-1/2 -translate-y-1/2 hidden md:block">
-            <AuditCtaButton variant="nav" href="/login" label="Login" />
+            <AuditCtaButton
+              variant="nav"
+              href="/login"
+              label="Login"
+              active={loginActive}
+            />
           </div>
 
           <button
@@ -132,17 +145,29 @@ export default function Navbar() {
           id="mobile-nav"
           className="fixed top-[var(--nav-total-height)] left-0 right-0 bottom-0 bg-[rgba(255,255,255,0.98)] backdrop-blur-xl z-[999] px-5 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex flex-col gap-1 md:hidden overflow-y-auto"
         >
-          {siteNavLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={closeMobile}
-              className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
-            >
-              {link.label}
-            </Link>
-          ))}
-          <AuditCtaButton variant="mobile" href="/login" label="Login" onClick={closeMobile} />
+          {siteNavLinks.map((link) => {
+            const active = isSiteNavLinkActive(link.href, pathname)
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={closeMobile}
+                aria-current={active ? 'page' : undefined}
+                className={`text-lg font-medium py-4 border-b border-brand-border ${
+                  active ? 'text-accent font-semibold' : 'text-brand-muted'
+                }`}
+              >
+                {link.label}
+              </Link>
+            )
+          })}
+          <AuditCtaButton
+            variant="mobile"
+            href="/login"
+            label="Login"
+            onClick={closeMobile}
+            active={loginActive}
+          />
         </div>
       )}
     </>

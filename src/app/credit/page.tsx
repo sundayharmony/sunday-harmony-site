@@ -5,14 +5,13 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 import CreditHeroVisual from '@/components/credit/CreditHeroVisual'
-import CreditReadiness from '@/components/credit/CreditReadiness'
 import { CREDIT_INTAKE_PATH } from '@/lib/credit-intake-routes'
 import { normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
 
 export const metadata: Metadata = {
   title: 'Personal Credit',
   description:
-    'Learn what shapes your credit score, check your readiness, and start a secure intake for analysis and repair with Sunday Harmony.',
+    'Learn what shapes your credit score and start a secure intake for analysis and repair with Sunday Harmony.',
   referrer: 'no-referrer',
   alternates: { canonical: CREDIT_INTAKE_PATH },
   openGraph: {
@@ -167,12 +166,6 @@ export default async function CreditPage({
                   Start the intake →
                 </a>
                 <a
-                  href="#readiness"
-                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
-                >
-                  Check your readiness
-                </a>
-                <a
                   href="/partners/signup"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
                 >
@@ -279,19 +272,6 @@ export default async function CreditPage({
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        <section className="py-20 bg-white" id="readiness">
-          <div className="max-w-[1000px] mx-auto px-7">
-            <div className="section-label">Readiness check</div>
-            <h2 className="font-serif text-[clamp(30px,4.6vw,48px)] font-extrabold leading-[1.1] text-brand-text mb-4 max-w-[640px]">
-              How ready is <span className="gold-text">your file today?</span>
-            </h2>
-            <p className="text-[15px] text-brand-muted leading-relaxed mb-10 max-w-[560px]">
-              Tick what is true. This stays on your screen and is not submitted—it is a quick gut-check before the intake.
-            </p>
-            <CreditReadiness />
           </div>
         </section>
 

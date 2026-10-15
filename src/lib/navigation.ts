@@ -5,6 +5,13 @@ export interface SiteNavLink {
   hideBelow?: 'lg'
 }
 
+/** True when this public nav link matches the current path (excludes /credit/privacy). */
+export function isSiteNavLinkActive(href: string, pathname: string): boolean {
+  const path = pathname.split('?')[0]
+  if (href === '/credit') return path === '/credit'
+  return path === href
+}
+
 export const siteNavLinks: SiteNavLink[] = [
   { label: 'Contact', href: '/contact' },
   { label: 'Funding', href: '/funding' },
