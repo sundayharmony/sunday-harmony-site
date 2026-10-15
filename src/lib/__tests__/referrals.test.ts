@@ -229,7 +229,7 @@ describe('referral system wiring', () => {
     assert.match(config, /credit-funding-application/)
     assert.match(config, /destination: '\/credit'/)
     const creditPage = readFileSync('src/app/credit/page.tsx', 'utf8')
-    assert.match(creditPage, /CreditReadiness/)
+    assert.doesNotMatch(creditPage, /CreditReadiness/)
     assert.match(creditPage, /CreditFundingForm/)
   })
 })

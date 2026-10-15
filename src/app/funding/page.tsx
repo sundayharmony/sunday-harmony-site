@@ -4,7 +4,6 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 import FundingHeroVisual from '@/components/funding/FundingHeroVisual'
-import FundingReadiness from '@/components/funding/FundingReadiness'
 
 export const metadata: Metadata = {
   title: 'Business Funding',
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Business Funding | Sunday Harmony',
     description:
-      'Learn what lenders look at, check your readiness, and start a business funding intake with Sunday Harmony.',
+      'Learn what lenders look at and start a business funding intake with Sunday Harmony.',
     url: '/funding',
   },
 }
@@ -160,12 +159,6 @@ export default function FundingPage() {
                   Start the intake →
                 </a>
                 <a
-                  href="#readiness"
-                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
-                >
-                  Check your readiness
-                </a>
-                <a
                   href="/partners/signup"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
                 >
@@ -272,19 +265,6 @@ export default function FundingPage() {
             <p className="mt-6 text-xs text-brand-dim">
               General education about typical patterns. Terms vary by lender, and nothing here is an offer.
             </p>
-          </div>
-        </section>
-
-        <section className="py-20 bg-white" id="readiness">
-          <div className="max-w-[1000px] mx-auto px-7">
-            <div className="section-label">Readiness check</div>
-            <h2 className="font-serif text-[clamp(30px,4.6vw,48px)] font-extrabold leading-[1.1] text-brand-text mb-4 max-w-[640px]">
-              How ready is <span className="gold-text">the file today?</span>
-            </h2>
-            <p className="text-[15px] text-brand-muted leading-relaxed mb-10 max-w-[560px]">
-              Tick what is true. This stays on your screen and is not submitted. It is a quick way to see what to line up first.
-            </p>
-            <FundingReadiness />
           </div>
         </section>
 

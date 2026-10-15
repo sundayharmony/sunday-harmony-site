@@ -8,6 +8,8 @@ interface Props {
   className?: string
   onClick?: () => void
   label?: string
+  /** Highlights nav/mobile CTA when on the target page (brand gold). */
+  active?: boolean
 }
 
 const styles: Record<Variant, string> = {
@@ -26,10 +28,20 @@ const labels: Record<Variant, string> = {
   mobile: 'Get Your Free Audit',
 }
 
-export default function AuditCtaButton({ variant = 'primary', href, className = '', onClick, label }: Props) {
+export default function AuditCtaButton({
+  variant = 'primary',
+  href,
+  className = '',
+  onClick,
+  label,
+  active = false,
+}: Props) {
   const resolvedHref = href ?? '/contact'
   const resolvedLabel = label ?? labels[variant]
-  const classes = `${styles[variant]} ${className}`
+  const activeNavClass =
+    active && variant === 'nav' ? ' bg-accent hover:bg-accent/90 ring-2 ring-accent/40 ring-offset-2' : ''
+  const activeMobileClass = active && variant === 'mobile' ? ' text-accent font-bold' : ''
+  const classes = `${styles[variant]}${activeNavClass}${activeMobileClass} ${className}`
 
   if (variant === 'nav' || variant === 'mobile') {
     return (
