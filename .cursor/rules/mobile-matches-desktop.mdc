@@ -1,0 +1,18 @@
+---
+description: UI and UX changes must match on mobile and desktop
+alwaysApply: true
+---
+
+# Mobile matches desktop
+
+When a change affects UI or UX (layout, styling, navigation, visible copy, or interactive states), implement it for **both desktop and mobile** in the same change.
+
+## What to do
+
+- If a control has a separate mobile version (hamburger menu, stacked layout, mobile-only class), apply the same treatment there. Do not leave mobile on an older color, label, order, or state.
+- Active, hover, and selected states must be recognizable at phone width, not only in the desktop bar.
+- Check the opened mobile menu and any page that shares the changed component.
+
+## Before finishing
+
+Verify the changed flow at a desktop width and at about 390px. Confirm the mobile screen shows the same outcome, including after opening menus that hide the desktop controls.

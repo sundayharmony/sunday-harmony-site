@@ -25,6 +25,14 @@ startup. Standard scripts live in `package.json`; the CI pipeline is
   dispute-letters API. Configure the relevant
   vars from `.env.example` in a `.env.local` only when working on those areas.
 
+### UI changes (desktop and mobile)
+
+Any UI or UX change (layout, styling, navigation, visible labels, or interactive
+states) must land on **mobile and desktop together**. If a control has a separate
+mobile version, such as the hamburger menu, give it the same treatment. Before
+finishing, check the changed flow at a desktop width and at about 390px,
+including menus that hide the desktop controls.
+
 ### Testing / quality
 
 - Lint: `npm run lint` (currently emits only warnings, no errors).
