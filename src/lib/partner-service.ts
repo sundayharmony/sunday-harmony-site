@@ -20,9 +20,16 @@ import {
   type PartnerProfileRow,
   type PartnerStatus,
 } from '@/lib/partner-db'
-import { toPartnerReferralProgress } from '@/lib/partner-progress'
+import { partnerCurrentScores, toPartnerReferralProgress } from '@/lib/partner-progress'
+import { buildCreditProgressDiff } from '@/lib/dispute-letters/credit-progress'
+import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import type { PartnerSignupInput } from '@/lib/partner-signup'
 import { PARTNER_PROFESSION_LABELS } from '@/lib/partner-signup'
+
+async function currentScoresForApplication(applicationUuid: string) {
+  const sessions = await listDisputeSessionsForApplication(applicationUuid)
+  return partnerCurrentScores(buildCreditProgressDiff(sessions, null).current?.bureauScores)
+}
 
 async function latestDisputeRound(applicationUuid: string): Promise<number | null> {
   const { data: caseRow, error: caseError } = await getSupabase()
@@ -107,6 +114,7 @@ export async function getPartnerDashboard(userId: string) {
     const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
     if (!app) continue
     const disputeRound = await latestDisputeRound(app.id)
+    const currentScores = await currentScoresForApplication(app.id)
     rows.push(
       toPartnerReferralProgress({
         id: referralRow.id,
@@ -115,6 +123,7 @@ export async function getPartnerDashboard(userId: string) {
         status: app.status,
         updatedAt: app.updated_at,
         disputeRound,
+        currentScores,
       })
     )
   }
@@ -151,6 +160,7 @@ async function partnerReferralActivity(partnerProfileId: string) {
     const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
     if (!app) continue
     const disputeRound = await latestDisputeRound(app.id)
+    const currentScores = await currentScoresForApplication(app.id)
     const progress = toPartnerReferralProgress({
       id: referralRow.id,
       date: referralRow.application_submitted_at || referralRow.attributed_at,
@@ -158,6 +168,7 @@ async function partnerReferralActivity(partnerProfileId: string) {
       status: app.status,
       updatedAt: app.updated_at,
       disputeRound,
+      currentScores,
     })
     rows.push({
       ...progress,

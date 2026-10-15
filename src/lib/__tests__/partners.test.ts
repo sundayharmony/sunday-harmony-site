@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import { destinationAfterLogin } from '../login-redirect'
 import {
   isReferralProfileAttributable,
+  partnerCurrentScores,
   shouldSkipPartnerCommission,
   toPartnerReferralProgress,
 } from '../partner-progress'
@@ -56,7 +57,7 @@ describe('partner referral progress', () => {
     assert.match(service, /shouldSkipPartnerCommission/)
   })
 
-  it('exposes only a masked name, stage, and dispute round', () => {
+  it('exposes a masked name, stage, dispute round, and current bureau scores', () => {
     const row = toPartnerReferralProgress({
       id: 'ref-1',
       date: '2026-10-01T00:00:00.000Z',
@@ -64,15 +65,27 @@ describe('partner referral progress', () => {
       status: 'under_review',
       updatedAt: '2026-10-02T00:00:00.000Z',
       disputeRound: 2,
+      currentScores: partnerCurrentScores({ tuc: 710, exp: 698, eqf: 705 }),
     })
     assert.equal(row.applicant, 'Jane D.')
     assert.equal(row.stage, 'Under review')
     assert.equal(row.disputeRound, 2)
     assert.equal(row.bucket, 'in_progress')
+    assert.deepEqual(row.currentScores, { transunion: 710, experian: 698, equifax: 705 })
     const keys = Object.keys(row).sort()
-    assert.deepEqual(keys, ['applicant', 'bucket', 'date', 'disputeRound', 'id', 'stage', 'updatedAt'])
+    assert.deepEqual(keys, ['applicant', 'bucket', 'currentScores', 'date', 'disputeRound', 'id', 'stage', 'updatedAt'])
     assert.equal(JSON.stringify(row).includes('Doe'), false)
     assert.equal(JSON.stringify(row).includes('@'), false)
+  })
+
+  it('keeps current scores empty until a bureau score exists', () => {
+    assert.equal(partnerCurrentScores(null), null)
+    assert.equal(partnerCurrentScores({ tuc: null, exp: null, eqf: null }), null)
+    assert.deepEqual(partnerCurrentScores({ exp: 640 }), {
+      transunion: null,
+      experian: 640,
+      equifax: null,
+    })
   })
 })
 
@@ -104,6 +117,10 @@ describe('partner surfaces', () => {
     assert.match(source('src/app/admin/partners/page.tsx'), /Email a signup link/)
     assert.match(source('src/app/admin/partners/page.tsx'), /Open /)
     assert.match(source('src/app/api/partner/route.ts'), /requirePartnerSession/)
-    assert.doesNotMatch(source('src/app/partner/page.tsx'), /\bssn\b|social security|credit_score|date of birth/i)
+    assert.match(source('src/app/partner/page.tsx'), /Current scores/)
+    assert.match(source('src/app/partner/page.tsx'), /TransUnion/)
+    assert.match(source('src/lib/partner-service.ts'), /currentScoresForApplication/)
+    assert.match(source('src/lib/partner-service.ts'), /buildCreditProgressDiff/)
+    assert.doesNotMatch(source('src/app/partner/page.tsx'), /\bssn\b|social security|date of birth/i)
   })
 })

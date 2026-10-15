@@ -3,6 +3,12 @@ import { maskApplicantName } from '@/lib/referrals'
 
 const CLOSED = new Set(['declined', 'archived'])
 
+export type PartnerCurrentScores = {
+  transunion: number | null
+  experian: number | null
+  equifax: number | null
+}
+
 export type PartnerReferralProgress = {
   id: string
   date: string
@@ -11,6 +17,7 @@ export type PartnerReferralProgress = {
   updatedAt: string
   disputeRound: number | null
   bucket: 'in_progress' | 'completed' | 'closed'
+  currentScores: PartnerCurrentScores | null
 }
 
 export function partnerProgressBucket(status: string): PartnerReferralProgress['bucket'] {
@@ -24,7 +31,28 @@ export function partnerStageLabel(status: string): string {
   return status.replace(/_/g, ' ')
 }
 
-/** Privacy-safe row for a partner. Callers must not pass emails, scores, or documents. */
+/** Latest bureau scores safe to show a partner. Null when no bureau has a score yet. */
+export function partnerCurrentScores(scores: {
+  tuc?: number | null
+  exp?: number | null
+  equifax?: number | null
+  eqf?: number | null
+} | null | undefined): PartnerCurrentScores | null {
+  if (!scores) return null
+  const current: PartnerCurrentScores = {
+    transunion: scoreOrNull(scores.tuc),
+    experian: scoreOrNull(scores.exp),
+    equifax: scoreOrNull(scores.equifax ?? scores.eqf),
+  }
+  if (current.transunion == null && current.experian == null && current.equifax == null) return null
+  return current
+}
+
+function scoreOrNull(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/** Privacy-safe row for a partner. Callers must not pass emails, documents, or full legal names. */
 export function toPartnerReferralProgress(input: {
   id: string
   date: string
@@ -32,6 +60,7 @@ export function toPartnerReferralProgress(input: {
   status: string
   updatedAt: string
   disputeRound: number | null
+  currentScores?: PartnerCurrentScores | null
 }): PartnerReferralProgress {
   return {
     id: input.id,
@@ -41,6 +70,7 @@ export function toPartnerReferralProgress(input: {
     updatedAt: input.updatedAt,
     disputeRound: input.disputeRound,
     bucket: partnerProgressBucket(input.status),
+    currentScores: input.currentScores ?? null,
   }
 }
 

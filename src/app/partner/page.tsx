@@ -6,6 +6,12 @@ import { signOut } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
 import StatCard from '@/components/ui/StatCard'
 
+type CurrentScores = {
+  transunion: number | null
+  experian: number | null
+  equifax: number | null
+}
+
 type ReferralRow = {
   id: string
   date: string
@@ -13,6 +19,26 @@ type ReferralRow = {
   stage: string
   updatedAt: string
   disputeRound: number | null
+  currentScores: CurrentScores | null
+}
+
+function CurrentScoresCell({ scores }: { scores: CurrentScores | null }) {
+  if (!scores) return <span className="text-brand-dim">—</span>
+  const lines = [
+    ['TransUnion', scores.transunion],
+    ['Experian', scores.experian],
+    ['Equifax', scores.equifax],
+  ] as const
+  return (
+    <div className="space-y-0.5 min-w-[8.5rem]">
+      {lines.map(([label, value]) => (
+        <div key={label} className="flex items-baseline justify-between gap-3 text-xs">
+          <span className="text-brand-dim">{label}</span>
+          <span className="font-semibold tabular-nums text-brand-text">{value ?? '—'}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 type DashboardPayload = {
@@ -134,14 +160,14 @@ export default function PartnerDashboardPage() {
               <div className="p-5 border-b border-brand-border">
                 <h2 className="text-sm font-bold text-brand-text">Referred clients</h2>
                 <p className="text-xs text-brand-muted mt-1">
-                  Names are shortened. Scores, documents, and contact details stay with Sunday Harmony.
+                  Names are shortened. Current scores are the latest bureau scores on file. Contact details and documents stay with Sunday Harmony.
                 </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
                     <tr>
-                      {['Submitted', 'Client', 'Stage', 'Updated', 'Dispute round'].map((heading) => (
+                      {['Submitted', 'Client', 'Current scores', 'Stage', 'Updated', 'Dispute round'].map((heading) => (
                         <th key={heading} className="text-left p-3 font-semibold">{heading}</th>
                       ))}
                     </tr>
@@ -149,7 +175,7 @@ export default function PartnerDashboardPage() {
                   <tbody>
                     {data.referrals.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-6 text-center text-brand-dim">
+                        <td colSpan={6} className="p-6 text-center text-brand-dim">
                           No applications yet.{' '}
                           <Link href="/credit" className="text-accent hover:underline">See the credit page</Link>
                         </td>
@@ -159,6 +185,7 @@ export default function PartnerDashboardPage() {
                         <tr key={row.id} className="border-t border-brand-border">
                           <td className="p-3">{new Date(row.date).toLocaleDateString()}</td>
                           <td className="p-3">{row.applicant}</td>
+                          <td className="p-3"><CurrentScoresCell scores={row.currentScores} /></td>
                           <td className="p-3">{row.stage}</td>
                           <td className="p-3">{new Date(row.updatedAt).toLocaleDateString()}</td>
                           <td className="p-3">{row.disputeRound ? `Round ${row.disputeRound}` : '—'}</td>
