@@ -103,7 +103,7 @@ export default function Navbar() {
                 href={link.href}
                 aria-current={active ? 'page' : undefined}
                 className={`${active ? activeLinkClass : inactiveLinkClass}${
-                  link.hideBelow === 'lg' ? ' hidden lg:inline' : ''
+                  link.hideBelow === 'lg' ? ' hidden lg:inline-flex' : ''
                 }`}
               >
                 {link.shortLabel ? (
@@ -155,8 +155,10 @@ export default function Navbar() {
                 href={link.href}
                 onClick={closeMobile}
                 aria-current={active ? 'page' : undefined}
-                className={`text-lg font-medium py-4 border-b border-brand-border ${
-                  active ? 'text-accent font-semibold' : 'text-brand-muted'
+                className={`text-lg py-3.5 border-b border-brand-border rounded-xl px-4 ${
+                  active
+                    ? 'font-semibold text-accent bg-accent-soft ring-1 ring-accent'
+                    : 'font-medium text-brand-muted'
                 }`}
               >
                 {link.label}
