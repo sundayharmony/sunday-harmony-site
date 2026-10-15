@@ -46,6 +46,7 @@ describe('destinationAfterLogin', () => {
     assert.equal(destinationAfterLogin({ role: 'admin', mfaVerified: true }), '/admin')
     assert.equal(destinationAfterLogin({ role: 'credit_manager', mfaVerified: true }), '/admin/credit-funding')
     assert.equal(destinationAfterLogin({ role: 'client' }), '/dashboard')
+    assert.equal(destinationAfterLogin({ role: 'partner' }), '/partner')
   })
 })
 

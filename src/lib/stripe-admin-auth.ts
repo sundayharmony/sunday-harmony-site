@@ -6,7 +6,7 @@ import { isStaffRole as isSharedStaffRole } from '@/lib/staff-roles'
 
 export { isStaffRole } from '@/lib/staff-roles'
 
-export type UserRole = 'admin' | 'client' | 'credit_manager'
+export type UserRole = 'admin' | 'client' | 'credit_manager' | 'partner'
 
 export function isAdminRole(role?: string | null): boolean {
   return role === 'admin'

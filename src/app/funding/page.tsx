@@ -165,6 +165,12 @@ export default function FundingPage() {
                 >
                   Check your readiness
                 </a>
+                <a
+                  href="/partners/signup"
+                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
+                >
+                  Sign up as a partner
+                </a>
               </div>
               <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-brand-muted">
                 {['No Social Security number', 'Documents optional', 'Review before any next step'].map((item) => (

@@ -1,6 +1,8 @@
 import { randomBytes, createHash } from 'crypto'
 import type { NextRequest, NextResponse } from 'next/server'
-import { getClientById, getUserByEmail, createNotification, logActivity, type Client } from '@/lib/db'
+import { getClientById, getUserByEmail, getUserById, createNotification, logActivity, type Client } from '@/lib/db'
+import { getPartnerProfileById } from '@/lib/partner-db'
+import { isReferralProfileAttributable, shouldSkipPartnerCommission } from '@/lib/partner-progress'
 import { getCreditFundingApplicationById, getCreditFundingApplicationByClientId } from '@/lib/credit-funding-db'
 import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 import { getPublicSiteUrl, sendHtmlMailNonBlocking, clientDashboardAlertEmailHtml } from '@/lib/smtp-mail'
@@ -102,7 +104,7 @@ export async function trackReferralClick(
   const code = normalizeReferralCode(rawCode)
   if (!code) return { ok: false, error: 'Invalid referral code.', status: 400 }
   const profile = await getReferralProfileByCode(code)
-  if (!profile || profile.status !== 'active') {
+  if (!profile || !isReferralProfileAttributable(profile.status)) {
     return { ok: false, error: 'This referral link is not active.', status: 404 }
   }
 
@@ -145,11 +147,16 @@ export async function attachReferralToApplication(params: {
   const attribution = readReferralAttributionFromRequest(params.req)
   if (!attribution) return
   const profile = await getReferralProfileByCode(attribution.code)
-  if (!profile || profile.id !== attribution.profileId || profile.status !== 'active') return
+  if (!profile || profile.id !== attribution.profileId || !isReferralProfileAttributable(profile.status)) return
 
-  const referrer = await getClientById(profile.client_id)
+  const referrer = profile.client_id ? await getClientById(profile.client_id) : undefined
   const applicantEmail = params.application.email?.trim().toLowerCase()
-  if (referrer && applicantEmail && referrer.email?.trim().toLowerCase() === applicantEmail) {
+  const partner = profile.partner_profile_id ? await getPartnerProfileById(profile.partner_profile_id) : null
+  const partnerUser = partner ? await getUserById(partner.user_id) : undefined
+  if (
+    (referrer && applicantEmail && referrer.email?.trim().toLowerCase() === applicantEmail) ||
+    (partnerUser && applicantEmail && partnerUser.email?.trim().toLowerCase() === applicantEmail)
+  ) {
     await insertReferralEvent({
       referral_profile_id: profile.id,
       event_type: 'self_referral_blocked',
@@ -180,7 +187,35 @@ export async function attachReferralToApplication(params: {
     detail: params.application.id,
   })
 
-  const referrerUser = await getUserForClient(profile.client_id, referrer?.email)
+  if (partnerUser) {
+    await createNotification({
+      user_id: partnerUser.id,
+      title: 'New referral application',
+      message: 'Someone used your partner link and submitted a credit application.',
+      type: 'info',
+      link: '/partner',
+    })
+    if (partnerUser.email) {
+      sendHtmlMailNonBlocking({
+        to: partnerUser.email,
+        subject: 'Someone used your Sunday Harmony partner link',
+        html: clientDashboardAlertEmailHtml({
+          heading: 'New referral application',
+          firstName: partnerUser.name.split(/\s+/)[0] || 'there',
+          bodyParagraphs: [
+            'Someone used your partner link and submitted a credit application.',
+            'You can see their progress on your partner dashboard. Personal details stay private.',
+          ],
+          dashboardPath: '/partner',
+          buttonLabel: 'View progress',
+        }),
+        logLabel: 'partner-referral-application',
+      })
+    }
+    return
+  }
+
+  const referrerUser = profile.client_id ? await getUserForClient(profile.client_id, referrer?.email) : null
   if (referrerUser) {
     await createNotification({
       user_id: referrerUser.id,
@@ -189,7 +224,7 @@ export async function attachReferralToApplication(params: {
       type: 'info',
       link: '/dashboard/referrals',
     })
-    const referrerClient = referrer || (await getClientById(profile.client_id))
+    const referrerClient = referrer || (profile.client_id ? await getClientById(profile.client_id) : undefined)
     if (referrerClient?.email) {
       sendHtmlMailNonBlocking({
         to: referrerClient.email,
@@ -252,11 +287,15 @@ export async function getReferralSummaryForApplication(applicationId: string) {
   const referral = await getReferralByApplicationId(applicationId)
   if (!referral) return null
   const profile = await getReferralProfileById(referral.referral_profile_id)
-  const referrer = profile ? await getClientById(profile.client_id) : null
+  const referrer = profile?.client_id ? await getClientById(profile.client_id) : null
+  const partner = profile?.partner_profile_id ? await getPartnerProfileById(profile.partner_profile_id) : null
+  const partnerUser = partner ? await getUserById(partner.user_id) : undefined
   return {
     referralId: referral.id,
     code: profile?.referral_code || null,
-    referrerName: referrer?.name || 'Referring client',
+    referrerName: partner
+      ? partnerUser?.name || partner.company_name
+      : referrer?.name || 'Referring client',
     referrerClientId: profile?.client_id || null,
     status: referral.referral_status,
   }
@@ -301,11 +340,12 @@ export async function awardReferralCommissionForPaidClient(
 
   const profileRow = await getReferralProfileById(referral.referral_profile_id)
   if (!profileRow) return
+  if (shouldSkipPartnerCommission(profileRow)) return
 
-  const referrer = await getClientById(profileRow.client_id)
+  const referrer = profileRow.client_id ? await getClientById(profileRow.client_id) : undefined
   const isSelf =
     Boolean(referrer && paidClient.email && referrer.email?.trim().toLowerCase() === paidClient.email.trim().toLowerCase()) ||
-    profileRow.client_id === clientId
+    (profileRow.client_id != null && profileRow.client_id === clientId)
 
   const existingForClient = await getActiveCommissionForReferredClient(clientId)
   if (
@@ -352,7 +392,9 @@ export async function awardReferralCommissionForPaidClient(
     })
   }
 
-  const referrerUser = await getUserForClient(profileRow.client_id, referrer?.email)
+  const referrerUser = profileRow.client_id
+    ? await getUserForClient(profileRow.client_id, referrer?.email)
+    : null
   const amountLabel = formatCommissionCents(commission.amount_cents)
   if (referrerUser) {
     await createNotification({
@@ -472,7 +514,8 @@ async function dashboardRowsForProfile(profile: ReferralProfileRow, privacy: boo
       availableCents: totals.available,
     },
     referrals: list,
-    payouts: (await listPayoutsForClient(profile.client_id)).map(p => ({
+    payouts: profile.client_id
+      ? (await listPayoutsForClient(profile.client_id)).map(p => ({
       id: p.id,
       date: p.requested_at,
       amountCents: p.amount_cents,
@@ -480,7 +523,8 @@ async function dashboardRowsForProfile(profile: ReferralProfileRow, privacy: boo
       paymentReference: p.provider_transaction_id,
       provider: p.payment_provider,
       failureReason: p.failure_reason,
-    })),
+    }))
+      : [],
   }
 }
 
@@ -504,6 +548,7 @@ export async function getAdminReferralOverview() {
   const clients = []
 
   for (const profile of profiles) {
+    if (!profile.client_id || profile.partner_profile_id) continue
     const client = await getClientById(profile.client_id)
     const dash = await dashboardRowsForProfile(profile, false)
     submitted += dash.summary.submitted

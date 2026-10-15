@@ -72,6 +72,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
+  if (role === 'partner' && (path === '/login' || path === '/')) {
+    return NextResponse.redirect(new URL('/partner', req.url))
+  }
+
   if (role === 'admin' && mfaVerified && path === '/login') {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
@@ -98,6 +102,12 @@ export async function middleware(req: NextRequest) {
     }
 
     if (role !== 'admin') return redirectToLogin(req, 'unauthorized')
+  }
+
+  if (path === '/partner' || path.startsWith('/partner/')) {
+    if (!token) return redirectToLogin(req)
+    if (role !== 'partner') return redirectToLogin(req, 'unauthorized')
+    return NextResponse.next()
   }
 
   if (path.startsWith('/dashboard')) {
@@ -135,5 +145,7 @@ export const config = {
     '/reset-password',
     '/admin/:path*',
     '/dashboard/:path*',
+    '/partner',
+    '/partner/:path*',
   ],
 }

@@ -21,6 +21,7 @@ export function destinationAfterLogin(
   if (role === 'admin') return '/admin'
   if (role === 'credit_manager') return '/admin/credit-funding'
   if (role === 'client') return '/dashboard'
+  if (role === 'partner') return '/partner'
   return sanitizeLoginCallbackUrl(fallback)
 }
 

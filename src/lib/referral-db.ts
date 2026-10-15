@@ -3,7 +3,8 @@ import type { CommissionStatus, PayoutStatus, ReferralStatus } from '@/lib/refer
 
 export type ReferralProfileRow = {
   id: string
-  client_id: string
+  client_id: string | null
+  partner_profile_id: string | null
   referral_code: string
   status: 'active' | 'disabled'
   stripe_connect_account_id: string | null
@@ -100,15 +101,31 @@ export async function getReferralProfileById(id: string): Promise<ReferralProfil
   return (data as ReferralProfileRow) || null
 }
 
+export async function getReferralProfileByPartnerId(partnerProfileId: string): Promise<ReferralProfileRow | null> {
+  const { data, error } = await getSupabase()
+    .from('referral_profiles')
+    .select('*')
+    .eq('partner_profile_id', partnerProfileId)
+    .maybeSingle()
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') return null
+    console.error('getReferralProfileByPartnerId:', error)
+    return null
+  }
+  return (data as ReferralProfileRow) || null
+}
+
 export async function insertReferralProfile(row: {
-  client_id: string
+  client_id?: string | null
+  partner_profile_id?: string | null
   referral_code: string
   status?: 'active' | 'disabled'
 }): Promise<ReferralProfileRow | null> {
   const { data, error } = await getSupabase()
     .from('referral_profiles')
     .insert({
-      client_id: row.client_id,
+      client_id: row.client_id || null,
+      partner_profile_id: row.partner_profile_id || null,
       referral_code: row.referral_code,
       status: row.status || 'active',
       updated_at: new Date().toISOString(),

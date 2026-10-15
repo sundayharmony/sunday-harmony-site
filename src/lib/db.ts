@@ -23,7 +23,7 @@ export interface User {
   email: string
   password: string
   name: string
-  role: 'admin' | 'client' | 'credit_manager'
+  role: 'admin' | 'client' | 'credit_manager' | 'partner'
   client_id?: string
   created_at: string
   session_version?: number
@@ -55,7 +55,7 @@ export async function createUser(userData: {
   email: string
   password: string
   name: string
-  role: 'admin' | 'client' | 'credit_manager'
+  role: 'admin' | 'client' | 'credit_manager' | 'partner'
   client_id?: string
 }): Promise<User | null> {
   const { data, error } = await getSupabase()

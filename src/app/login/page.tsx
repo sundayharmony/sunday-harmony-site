@@ -169,6 +169,12 @@ function LoginForm() {
         >
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
+        <p className="mt-4 text-center text-sm text-brand-muted">
+          Refer clients for credit repair?{' '}
+          <Link href="/partners/signup" className="font-semibold text-accent hover:underline">
+            Sign up as a partner
+          </Link>
+        </p>
       </form>
     </AuthPageShell>
   )
