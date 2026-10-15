@@ -7,6 +7,7 @@ import {
   shouldSkipPartnerCommission,
   toPartnerReferralProgress,
 } from '../partner-progress'
+import { partnerSignupInviteEmailHtml } from '../partner-invite-email'
 import { parsePartnerSignup } from '../partner-signup'
 
 function source(path: string): string {
@@ -75,6 +76,19 @@ describe('partner referral progress', () => {
   })
 })
 
+describe('partner signup invite email', () => {
+  it('uses the site gold, black button, and signup path', () => {
+    const html = partnerSignupInviteEmailHtml({ firstName: 'Alex <script>' })
+    assert.match(html, /#b8943f/)
+    assert.match(html, /#0a0a0a/)
+    assert.match(html, /#f4efe5/)
+    assert.match(html, /\/partners\/signup/)
+    assert.match(html, /Sign up as a partner/)
+    assert.equal(html.includes('<script>'), false)
+    assert.match(html, /Alex &lt;script&gt;/)
+  })
+})
+
 describe('partner surfaces', () => {
   it('sends partners to their dashboard and keeps signup off the client portal', () => {
     assert.equal(destinationAfterLogin({ role: 'partner' }), '/partner')
@@ -86,6 +100,8 @@ describe('partner surfaces', () => {
     assert.match(source('src/app/api/partners/signup/route.ts'), /rateLimitDurable/)
     assert.match(source('src/app/api/admin/partners/route.ts'), /requireAdminSession/)
     assert.match(source('src/app/api/admin/partners/route.ts'), /getAdminPartnerDetail/)
+    assert.match(source('src/app/api/admin/partners/route.ts'), /action === 'invite'/)
+    assert.match(source('src/app/admin/partners/page.tsx'), /Email a signup link/)
     assert.match(source('src/app/admin/partners/page.tsx'), /Open /)
     assert.match(source('src/app/api/partner/route.ts'), /requirePartnerSession/)
     assert.doesNotMatch(source('src/app/partner/page.tsx'), /\bssn\b|social security|credit_score|date of birth/i)

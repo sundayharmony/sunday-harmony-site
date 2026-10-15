@@ -48,6 +48,10 @@ export default function AdminPartnersPage() {
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [busyId, setBusyId] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteBusy, setInviteBusy] = useState(false)
+  const [inviteNote, setInviteNote] = useState('')
 
   const load = useCallback(async () => {
     setError('')
@@ -104,12 +108,71 @@ export default function AdminPartnersPage() {
     }
   }
 
+  const sendInvite = async () => {
+    setInviteBusy(true)
+    setInviteNote('')
+    setError('')
+    try {
+      const res = await fetch('/api/admin/partners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'invite', email: inviteEmail, firstName: inviteName }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(payload.error || 'Could not send the email')
+      setInviteNote(`Signup link sent to ${inviteEmail.trim()}.`)
+      setInviteEmail('')
+      setInviteName('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send the email')
+    } finally {
+      setInviteBusy(false)
+    }
+  }
+
   return (
     <div>
       <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Partners</h1>
       <p className="text-sm text-brand-muted mb-6">
         Click a partner to see everyone they referred and open that credit file.
       </p>
+      <form
+        className="mb-6 bg-white border border-brand-border rounded-xl p-5"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void sendInvite()
+        }}
+      >
+        <h2 className="text-sm font-bold text-brand-text mb-1">Email a signup link</h2>
+        <p className="text-xs text-brand-muted mb-4">
+          Sends the partner signup page in an email styled like the public site.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="text"
+            value={inviteName}
+            onChange={(event) => setInviteName(event.target.value)}
+            placeholder="First name (optional)"
+            className="sm:w-48 py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-sm"
+          />
+          <input
+            type="email"
+            required
+            value={inviteEmail}
+            onChange={(event) => setInviteEmail(event.target.value)}
+            placeholder="name@company.com"
+            className="flex-1 py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-sm"
+          />
+          <button
+            type="submit"
+            disabled={inviteBusy}
+            className="px-4 py-3 bg-brand-text text-white text-sm font-semibold rounded-[10px] disabled:opacity-50"
+          >
+            {inviteBusy ? 'Sending…' : 'Send signup link'}
+          </button>
+        </div>
+        {inviteNote ? <p className="mt-3 text-sm text-brand-text">{inviteNote}</p> : null}
+      </form>
       {error ? <p className="mb-4 text-sm text-red-700">{error}</p> : null}
       {loading ? <p className="text-sm text-brand-muted">Loading…</p> : null}
       <div className="bg-white border border-brand-border rounded-xl overflow-hidden">
