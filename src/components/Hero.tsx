@@ -34,7 +34,7 @@ export default function Hero() {
             <div className="flex gap-3.5 flex-wrap mb-6">
               <AuditCtaButton variant="primary" />
               <a
-                href="#packages"
+                href="/services#packages"
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
               >
                 See Packages

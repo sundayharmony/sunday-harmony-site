@@ -47,6 +47,15 @@ describe('marketing packages', () => {
     assert.match(home, /Three ways to work together/)
   })
 
+  it('moves pricing off the homepage onto /services', () => {
+    assert.doesNotMatch(source('src/app/page.tsx'), /<Packages/)
+    const servicesPage = source('src/app/services/page.tsx')
+    assert.match(servicesPage, /<Packages/)
+    const nav = source('src/lib/navigation.ts')
+    assert.match(nav, /label: 'Services', href: '\/services'/)
+    assert.ok(nav.indexOf("label: 'Services'") < nav.indexOf("label: 'Contact'"))
+  })
+
   it('keeps Social Essentials as a billing label for existing clients', () => {
     assert.equal(TIER_LABELS.social_essentials, 'Social Essentials')
     assert.equal(formatTierListPrice('spark'), '$600')

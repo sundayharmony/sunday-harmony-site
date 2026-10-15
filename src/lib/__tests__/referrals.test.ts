@@ -224,8 +224,9 @@ describe('referral system wiring', () => {
 
   it('redirects legacy credit URLs onto /credit', () => {
     const config = readFileSync('next.config.js', 'utf8')
-    assert.match(config, /source: '\/services'/)
     assert.match(config, /source: '\/service'/)
+    assert.match(config, /destination: '\/services'/)
+    assert.doesNotMatch(config, /source: '\/services'/)
     assert.match(config, /credit-funding-application/)
     assert.match(config, /destination: '\/credit'/)
     const creditPage = readFileSync('src/app/credit/page.tsx', 'utf8')

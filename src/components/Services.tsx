@@ -29,6 +29,12 @@ export default function Services() {
             </div>
           ))}
         </div>
+
+        <div className="text-center mt-10">
+          <a href="/services" className="text-sm font-semibold text-accent hover:underline">
+            See packages and how we work →
+          </a>
+        </div>
       </div>
     </section>
   )

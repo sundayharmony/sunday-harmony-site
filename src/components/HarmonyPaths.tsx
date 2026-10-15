@@ -5,7 +5,7 @@ const paths = [
     eyebrow: 'Consulting',
     title: 'Build the business',
     body: 'Brand, strategy, and the systems the company runs on.',
-    href: '/',
+    href: '/services',
     primary: true,
   },
   {
