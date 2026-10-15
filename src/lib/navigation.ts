@@ -6,10 +6,10 @@ export interface SiteNavLink {
 }
 
 export const siteNavLinks: SiteNavLink[] = [
+  { label: 'Contact', href: '/contact' },
   { label: 'Funding', href: '/funding' },
   { label: 'Repair Credit', href: '/credit' },
   { label: 'About', href: '/about', hideBelow: 'lg' },
-  { label: 'Contact', href: '/contact' },
 ]
 
 export const siteFooterExtraLinks: SiteNavLink[] = [

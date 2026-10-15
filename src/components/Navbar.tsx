@@ -106,13 +106,10 @@ export default function Navbar() {
                 )}
               </Link>
             ))}
-            <Link href="/login" className={`${linkClass} hidden lg:inline`}>
-              Login
-            </Link>
           </div>
 
           <div className="absolute right-5 md:right-6 top-1/2 -translate-y-1/2 hidden md:block">
-            <AuditCtaButton variant="nav" />
+            <AuditCtaButton variant="nav" href="/login" label="Login" />
           </div>
 
           <button
@@ -145,14 +142,7 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/login"
-            onClick={closeMobile}
-            className="text-lg font-medium text-brand-muted py-4 border-b border-brand-border"
-          >
-            Login
-          </Link>
-          <AuditCtaButton variant="mobile" onClick={closeMobile} />
+          <AuditCtaButton variant="mobile" href="/login" label="Login" onClick={closeMobile} />
         </div>
       )}
     </>
