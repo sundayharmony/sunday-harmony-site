@@ -192,4 +192,21 @@ describe('Area 06 API authorization hardening', () => {
     assert.throws(() => readFileSync('src/app/api/admin/approvals/route.ts', 'utf8'))
     assert.throws(() => readFileSync('src/app/api/dashboard/approvals/route.ts', 'utf8'))
   })
+
+  it('does not keep an admin files tab while client vault uploads stay', () => {
+    const adminNav = readFileSync('src/components/admin/AdminSidebar.tsx', 'utf8')
+    const clientNav = readFileSync('src/components/dashboard/ClientSidebar.tsx', 'utf8')
+    const clientsPage = readFileSync('src/app/admin/clients/page.tsx', 'utf8')
+    const dashboardFiles = readFileSync('src/app/api/dashboard/files/route.ts', 'utf8')
+    const redirects = readFileSync('next.config.js', 'utf8')
+
+    assert.doesNotMatch(adminNav, /\/admin\/files/)
+    assert.doesNotMatch(clientsPage, /\/admin\/files/)
+    assert.doesNotMatch(dashboardFiles, /\/admin\/files/)
+    assert.match(dashboardFiles, /pathWithQuery: '\/admin\/clients'/)
+    assert.match(clientNav, /\/dashboard\/files/)
+    assert.match(redirects, /source: '\/admin\/files'/)
+    assert.throws(() => readFileSync('src/app/admin/files/page.tsx', 'utf8'))
+    readFileSync('src/app/dashboard/files/page.tsx', 'utf8')
+  })
 })

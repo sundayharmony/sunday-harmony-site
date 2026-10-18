@@ -144,6 +144,16 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/admin/files',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/files/:path*',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
         source: '/api/case-studies',
         destination: '/',
         permanent: true,
