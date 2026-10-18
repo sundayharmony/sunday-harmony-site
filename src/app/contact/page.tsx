@@ -3,7 +3,6 @@ import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ContactHeroVisual from '@/components/contact/ContactHeroVisual'
-import ConsultationBooker from '@/components/contact/ConsultationBooker'
 import { heroAuditHighlights, siteConfig } from '@/lib/data'
 
 const ContactForm = dynamic(() => import('@/components/ContactForm'), {
@@ -74,6 +73,11 @@ const contactChannels = [
 export default function ContactPage() {
   return (
     <>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: "if(location.hash==='#book')location.replace('/book')",
+        }}
+      />
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)]">
         <section className="relative overflow-hidden bg-gradient-to-br from-white via-neutral-50 to-neutral-100">
@@ -94,7 +98,7 @@ export default function ContactPage() {
               </p>
               <div className="flex gap-3.5 flex-wrap mb-8">
                 <a
-                  href="#book"
+                  href="/book"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-brand-text text-white text-sm font-semibold hover:-translate-y-0.5 hover:bg-neutral-800 transition-all"
                 >
                   Book a consultation →
@@ -232,19 +236,6 @@ export default function ContactPage() {
                 </details>
               ))}
             </div>
-          </div>
-        </section>
-
-        <section className="py-20 bg-white border-t border-brand-border" id="book">
-          <div className="max-w-[900px] mx-auto px-7">
-            <div className="section-label">Book a consultation</div>
-            <h2 className="font-serif text-[clamp(30px,4.6vw,46px)] font-extrabold leading-[1.1] text-brand-text mb-3">
-              Pick a time. <span className="gold-text">Meet on Google Meet.</span>
-            </h2>
-            <p className="text-[15px] text-brand-muted leading-relaxed mb-8 max-w-[600px]">
-              Choose an open slot. We email the Meet link right away, and again the day of the conversation.
-            </p>
-            <ConsultationBooker />
           </div>
         </section>
 

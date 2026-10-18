@@ -275,16 +275,16 @@ export default function AdminConsultationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-brand-text mb-1">Consultations</h1>
           <p className="text-sm text-brand-muted">
-            These hours are what visitors see on the contact page. Each booking creates a Google Meet.
+            These hours are what visitors see on the booking page. Each booking creates a Google Meet.
           </p>
         </div>
         <a
-          href="/contact#book"
+          href="/book"
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm font-semibold text-brand-text border border-brand-border rounded-lg px-3 py-2 w-fit"
         >
-          Preview contact page
+          Preview booking page
         </a>
       </div>
 

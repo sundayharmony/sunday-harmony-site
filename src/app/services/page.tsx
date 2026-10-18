@@ -111,7 +111,7 @@ export default function ServicesPage() {
                   See pricing →
                 </a>
                 <a
-                  href="/contact#book"
+                  href="/book"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
                 >
                   Book a consultation
