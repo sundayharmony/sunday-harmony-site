@@ -20,6 +20,7 @@ import {
 import { buildWorkflowSteps } from '../credit-funding-workflow-steps'
 import {
   parseBusinessProfile,
+  parseIntakePayload,
   validateBusinessFundingIntake,
   validateIntakePayload,
   type IntakeFormPayload,
@@ -212,6 +213,7 @@ function basePayload(overrides: Partial<IntakeFormPayload> = {}): IntakeFormPayl
     businessName: '',
     fundingTimeframe: '',
     goalsNotes: '',
+    referredBy: '',
     businessProfile: {},
     consent: { accurateInfo: true, authorizeReview: true, agreeTerms: true },
     typedSignature: 'Jane Doe',
@@ -223,6 +225,18 @@ function basePayload(overrides: Partial<IntakeFormPayload> = {}): IntakeFormPayl
 describe('validateIntakePayload funding optional', () => {
   it('allows repair-only without funding amount/use', () => {
     assert.equal(validateIntakePayload(basePayload()), null)
+  })
+
+  it('keeps referred by optional on standard intake', () => {
+    assert.equal(validateIntakePayload(basePayload()), null)
+    assert.equal(validateIntakePayload(basePayload({ referredBy: 'Alex Rivera' })), null)
+    const parsed = parseIntakePayload({ referredBy: '  Alex Rivera  ', extra: 'nope' })
+    assert.equal(parsed.referredBy, 'Alex Rivera')
+    assert.equal(parseIntakePayload({}).referredBy, '')
+    const form = readFileSync('src/components/credit-funding/CreditFundingForm.tsx', 'utf8')
+    const personal = form.slice(form.indexOf("currentStepId === 'personal'"), form.indexOf("currentStepId === 'contact'"))
+    assert.match(personal, /Referred by/)
+    assert.doesNotMatch(personal, /Referred by \*/)
   })
 
   it('requires funding fields when seeking funding', () => {

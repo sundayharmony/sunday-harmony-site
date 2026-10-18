@@ -48,6 +48,7 @@ type DraftFormState = {
   businessName: string
   fundingTimeframe: string
   goalsNotes: string
+  referredBy: string
   businessProfile: BusinessProfile
   consent: ConsentData
   typedSignature: string
@@ -82,6 +83,7 @@ const emptyForm = (): DraftFormState => ({
   businessName: '',
   fundingTimeframe: '',
   goalsNotes: '',
+  referredBy: '',
   businessProfile: {},
   consent: { accurateInfo: false, authorizeReview: false, agreeTerms: false },
   typedSignature: '',
@@ -181,6 +183,7 @@ function mapDraftToForm(draft: Record<string, unknown>): DraftFormState {
     businessName: String(draft.business_name || ''),
     fundingTimeframe: String(draft.funding_timeframe || ''),
     goalsNotes: String(draft.goals_notes || ''),
+    referredBy: String(draft.referred_by || ''),
     businessProfile: (draft.business_profile as BusinessProfile) || {},
     consent: (draft.consent_data as ConsentData) || base.consent,
     typedSignature: '',
@@ -277,6 +280,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
     businessName: form.businessName,
     fundingTimeframe: form.fundingTimeframe,
     goalsNotes: form.goalsNotes,
+    referredBy: form.referredBy,
     businessProfile: form.businessProfile,
     consent: form.consent,
     typedSignature: form.typedSignature,
@@ -449,6 +453,15 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
           <div>
             <label className={labelClass}>SSN {secretsOnFile.ssnSet ? '(on file — leave blank to keep)' : ''}</label>
             <SsnInputField value={form.ssn} onChange={(v) => update('ssn', v)} className={inputClass} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Referred by</label>
+            <input
+              className={inputClass}
+              value={form.referredBy}
+              placeholder="Name of the person who referred you"
+              onChange={(e) => update('referredBy', e.target.value)}
+            />
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Address</label>

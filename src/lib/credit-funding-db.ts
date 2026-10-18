@@ -42,6 +42,7 @@ export function generateApplicationId(): string {
 const OPTIONAL_EXPERIAN_COLUMNS = [
   'experian_security_answer_encrypted',
   'experian_pin_encrypted',
+  'referred_by',
 ] as const
 
 function isMissingColumnError(error: { code?: string; message?: string } | null | undefined): boolean {

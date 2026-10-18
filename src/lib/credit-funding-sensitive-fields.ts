@@ -146,6 +146,7 @@ export function buildEncryptedApplicationRow(payload: IntakeFormPayload, link?: 
     business_name: payload.businessProfile.legalName || payload.businessName || null,
     funding_timeframe: payload.fundingTimeframe,
     goals_notes: encryptFieldIfPresent(payload.goalsNotes),
+    referred_by: payload.referredBy.trim() || null,
     consent_data: payload.consent,
     typed_signature: encryptField(payload.typedSignature),
     signature_date: payload.signatureDate,
@@ -221,6 +222,7 @@ export function buildPartialEncryptedApplicationRow(
     goals_notes: payload.goalsNotes.trim()
       ? encryptFieldIfPresent(payload.goalsNotes)
       : existing?.goals_notes || null,
+    referred_by: payload.referredBy.trim() || null,
     consent_data: payload.consent || existing?.consent_data || {},
     typed_signature: payload.typedSignature.trim()
       ? encryptField(payload.typedSignature)
@@ -313,6 +315,7 @@ export function mergeIntakePayloadWithExistingSecrets(
     primaryCreditGoalsText:
       payload.primaryCreditGoalsText.trim() || decrypted.primary_credit_goals_text || '',
     goalsNotes: payload.goalsNotes.trim() || decrypted.goals_notes || '',
+    referredBy: payload.referredBy.trim() || existing.referred_by || '',
     fundingAmount: payload.fundingAmount || existing.funding_amount || '',
     fundingUse: payload.fundingUse || existing.funding_use || '',
     fundingTimeframe: payload.fundingTimeframe || existing.funding_timeframe || '',
@@ -370,6 +373,7 @@ export function buildInvitePrefillFromApplication(app: CreditFundingApplication)
     businessName: app.business_name || '',
     fundingTimeframe: app.funding_timeframe || '',
     goalsNotes: decrypted.goals_notes || '',
+    referredBy: app.referred_by || '',
     creditProfile,
     businessProfile,
     einSet,

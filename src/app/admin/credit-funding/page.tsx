@@ -69,6 +69,7 @@ interface ApplicationDetail {
   funding_use?: string
   funding_timeframe?: string
   goals_notes?: string
+  referred_by?: string | null
   owns_business?: boolean
   business_name?: string
   invite_expires_at?: string
@@ -1220,6 +1221,7 @@ function CreditFundingAdminContent() {
                     <DetailField label="Email" value={selected.email} />
                     <DetailField label="Phone" value={selected.phone} />
                     <DetailField label="Address" value={`${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`} />
+                    <DetailField label="Referred by" value={selected.referred_by} />
                   </DetailSection>
 
                   <DetailSection title="Credit Profile">
