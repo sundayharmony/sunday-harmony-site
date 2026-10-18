@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/internal/consultation-reminders",
-      "schedule": "15 * * * *"
+      "schedule": "15 13 * * *"
     }
   ]
 }
