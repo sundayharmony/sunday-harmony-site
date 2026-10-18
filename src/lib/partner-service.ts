@@ -11,6 +11,7 @@ import {
   countReferralClicks,
   updateReferralProfile,
 } from '@/lib/referral-db'
+import { partnerLogoPublicUrl } from '@/lib/partner-logos'
 import {
   getPartnerProfileById,
   getPartnerProfileByUserId,
@@ -243,6 +244,7 @@ function adminPartnerRow(
     status: profile.status,
     code,
     createdAt: profile.created_at,
+    logoUrl: partnerLogoPublicUrl(profile.logo_path),
   }
 }
 

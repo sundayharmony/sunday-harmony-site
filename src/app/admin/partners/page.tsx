@@ -19,6 +19,7 @@ type PartnerRow = {
   submitted: number
   inProgress: number
   completed: number
+  logoUrl: string | null
 }
 
 type ReferralRow = {
@@ -52,6 +53,8 @@ export default function AdminPartnersPage() {
   const [inviteName, setInviteName] = useState('')
   const [inviteBusy, setInviteBusy] = useState(false)
   const [inviteNote, setInviteNote] = useState('')
+  const [logoBusy, setLogoBusy] = useState(false)
+  const [logoNote, setLogoNote] = useState('')
 
   const load = useCallback(async () => {
     setError('')
@@ -70,6 +73,7 @@ export default function AdminPartnersPage() {
   const openPartner = useCallback(async (id: string) => {
     setSelectedId(id)
     setDetailLoading(true)
+    setLogoNote('')
     setError('')
     try {
       const res = await fetch(`/api/admin/partners?id=${encodeURIComponent(id)}`)
@@ -108,6 +112,55 @@ export default function AdminPartnersPage() {
     }
   }
 
+  const uploadLogo = async (file: File) => {
+    if (!selectedId) return
+    setLogoBusy(true)
+    setLogoNote('')
+    setError('')
+    try {
+      const body = new FormData()
+      body.set('id', selectedId)
+      body.set('file', file)
+      const res = await fetch('/api/admin/partners/logo', { method: 'POST', body })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(payload.error || 'The logo could not be saved.')
+      setLogoNote('Logo saved. It appears on the About page while this partner is active.')
+      setDetail(current =>
+        current ? { ...current, partner: { ...current.partner, logoUrl: payload.logoUrl || null } } : current
+      )
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The logo could not be saved.')
+    } finally {
+      setLogoBusy(false)
+    }
+  }
+
+  const removeLogo = async () => {
+    if (!selectedId) return
+    setLogoBusy(true)
+    setLogoNote('')
+    setError('')
+    try {
+      const res = await fetch('/api/admin/partners/logo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedId }),
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(payload.error || 'The logo could not be removed.')
+      setLogoNote('Logo removed from this profile.')
+      setDetail(current =>
+        current ? { ...current, partner: { ...current.partner, logoUrl: null } } : current
+      )
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The logo could not be removed.')
+    } finally {
+      setLogoBusy(false)
+    }
+  }
+
   const sendInvite = async () => {
     setInviteBusy(true)
     setInviteNote('')
@@ -134,7 +187,7 @@ export default function AdminPartnersPage() {
     <div>
       <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Partners</h1>
       <p className="text-sm text-brand-muted mb-6">
-        Click a partner to see everyone they referred and open that credit file.
+        Click a partner to see everyone they referred, open that credit file, and upload the logo for the About page.
       </p>
       <form
         className="mb-6 bg-white border border-brand-border rounded-xl p-5"
@@ -204,7 +257,15 @@ export default function AdminPartnersPage() {
                       <div className="text-xs text-brand-muted">{partner.email}</div>
                       <div className="text-xs text-brand-dim">{partner.phone}</div>
                     </td>
-                    <td className="p-3">{partner.companyName}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        {partner.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={partner.logoUrl} alt="" className="h-8 w-8 object-contain" />
+                        ) : null}
+                        <span>{partner.companyName}</span>
+                      </div>
+                    </td>
                     <td className="p-3">{partner.serviceArea}</td>
                     <td className="p-3">{partner.profession}</td>
                     <td className="p-3">{partner.clicks}</td>
@@ -258,6 +319,63 @@ export default function AdminPartnersPage() {
               <p className="text-xs text-brand-dim max-w-md break-all">{detail.partner.link}</p>
             ) : null}
           </div>
+          {detail && !detailLoading ? (
+            <form
+              className="p-5 border-b border-brand-border flex flex-col sm:flex-row sm:items-center gap-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const input = event.currentTarget.elements.namedItem('logo')
+                const file = input instanceof HTMLInputElement ? input.files?.[0] : null
+                if (!file) {
+                  setError('Choose a logo file.')
+                  return
+                }
+                void uploadLogo(file)
+              }}
+            >
+              <div className="h-16 w-28 shrink-0 bg-neutral-50 border border-brand-border rounded-xl flex items-center justify-center overflow-hidden">
+                {detail.partner.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={detail.partner.logoUrl} alt={`${detail.partner.companyName} logo`} className="max-h-12 max-w-[6.5rem] object-contain" />
+                ) : (
+                  <span className="text-[11px] text-brand-dim">No logo</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-brand-text">Partner logo</h3>
+                <p className="text-xs text-brand-muted mt-1">
+                  PNG, JPG, or WebP, up to 2 MB. Active partners show in the About page slideshow.
+                </p>
+                {logoNote ? <p className="text-xs text-brand-text mt-2">{logoNote}</p> : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  name="logo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  disabled={logoBusy}
+                  className="text-xs text-brand-muted max-w-[220px]"
+                />
+                <button
+                  type="submit"
+                  disabled={logoBusy}
+                  className="px-3 py-2 bg-brand-text text-white text-xs font-semibold rounded-[10px] disabled:opacity-50"
+                >
+                  {logoBusy ? 'Saving…' : 'Upload logo'}
+                </button>
+                {detail.partner.logoUrl ? (
+                  <button
+                    type="button"
+                    disabled={logoBusy}
+                    onClick={() => void removeLogo()}
+                    className="px-3 py-2 text-xs font-semibold text-brand-muted hover:underline disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          ) : null}
           {detailLoading ? <p className="p-5 text-sm text-brand-muted">Loading referrals…</p> : null}
           {detail && !detailLoading ? (
             <div className="overflow-x-auto">

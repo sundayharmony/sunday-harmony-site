@@ -12,12 +12,21 @@ export type PartnerProfileRow = {
   years_in_field: number
   profession: PartnerProfession
   status: PartnerStatus
+  logo_path: string | null
   created_at: string
   updated_at: string
 }
 
 function missingTable(error: { code?: string } | null): boolean {
   return error?.code === '42P01' || error?.code === 'PGRST205'
+}
+
+function missingLogoColumn(error: { code?: string; message?: string } | null): boolean {
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    /logo_path|schema cache/i.test(error?.message || '')
+  )
 }
 
 export async function getPartnerProfileByUserId(userId: string): Promise<PartnerProfileRow | null> {
@@ -85,6 +94,40 @@ export async function insertPartnerProfile(row: {
     return null
   }
   return data as PartnerProfileRow
+}
+
+export async function listActivePartnerLogoRows(): Promise<{ company_name: string; logo_path: string }[]> {
+  const { data, error } = await getSupabase()
+    .from('partner_profiles')
+    .select('company_name, logo_path')
+    .eq('status', 'active')
+    .not('logo_path', 'is', null)
+    .order('company_name', { ascending: true })
+  if (error) {
+    if (missingTable(error) || missingLogoColumn(error)) return []
+    console.error('listActivePartnerLogoRows:', error)
+    return []
+  }
+  return ((data || []) as { company_name: string; logo_path: string | null }[]).flatMap(row =>
+    row.logo_path ? [{ company_name: row.company_name, logo_path: row.logo_path }] : []
+  )
+}
+
+export async function updatePartnerLogoPath(
+  id: string,
+  logoPath: string | null
+): Promise<{ ok: true; profile: PartnerProfileRow } | { ok: false; missingColumn: boolean }> {
+  const { data, error } = await getSupabase()
+    .from('partner_profiles')
+    .update({ logo_path: logoPath, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) {
+    console.error('updatePartnerLogoPath:', error)
+    return { ok: false, missingColumn: missingLogoColumn(error) }
+  }
+  return { ok: true, profile: data as PartnerProfileRow }
 }
 
 export async function updatePartnerProfileStatus(

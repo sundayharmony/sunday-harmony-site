@@ -9,6 +9,7 @@ import {
   toPartnerReferralProgress,
 } from '../partner-progress'
 import { partnerSignupInviteEmailHtml } from '../partner-invite-email'
+import { detectPartnerLogo, partnerLogoPublicUrl, validatePartnerLogo } from '../partner-logos'
 import { parsePartnerSignup } from '../partner-signup'
 
 function source(path: string): string {
@@ -102,6 +103,34 @@ describe('partner signup invite email', () => {
   })
 })
 
+describe('partner logos', () => {
+  it('accepts png, jpeg, and webp and rejects other files', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00])
+    const webp = Buffer.concat([Buffer.from('RIFF'), Buffer.from([0, 0, 0, 0]), Buffer.from('WEBP')])
+    assert.equal(detectPartnerLogo(png)?.ext, 'png')
+    assert.equal(validatePartnerLogo(jpeg).ok, true)
+    assert.equal(detectPartnerLogo(webp)?.mime, 'image/webp')
+    assert.equal(validatePartnerLogo(Buffer.from('not a logo')).ok, false)
+    assert.equal(validatePartnerLogo(Buffer.alloc(0)).ok, false)
+    assert.equal(validatePartnerLogo(Buffer.concat([png, Buffer.alloc(2 * 1024 * 1024)])).ok, false)
+  })
+
+  it('builds a public storage url and hides the slideshow when there are no logos', () => {
+    assert.equal(
+      partnerLogoPublicUrl('partner-1/logo.png', 'https://example.supabase.co'),
+      'https://example.supabase.co/storage/v1/object/public/partner-logos/partner-1/logo.png'
+    )
+    assert.equal(partnerLogoPublicUrl('../secret.png', 'https://example.supabase.co'), null)
+    assert.equal(partnerLogoPublicUrl('', 'https://example.supabase.co'), null)
+    const strip = source('src/components/PartnerLogos.tsx')
+    assert.match(strip, /if \(logos\.length === 0\) return null/)
+    assert.match(source('src/lib/partner-db.ts'), /eq\('status', 'active'\)/)
+    assert.match(strip, /partner-logo-marquee/)
+    assert.match(strip, /aria-hidden/)
+  })
+})
+
 describe('partner surfaces', () => {
   it('sends partners to their dashboard and keeps signup off the client portal', () => {
     assert.equal(destinationAfterLogin({ role: 'partner' }), '/partner')
@@ -114,7 +143,16 @@ describe('partner surfaces', () => {
     assert.match(source('src/app/api/admin/partners/route.ts'), /requireAdminSession/)
     assert.match(source('src/app/api/admin/partners/route.ts'), /getAdminPartnerDetail/)
     assert.match(source('src/app/api/admin/partners/route.ts'), /action === 'invite'/)
+    assert.match(source('src/app/api/admin/partners/logo/route.ts'), /requireAdminSession/)
+    assert.match(source('src/app/api/admin/partners/logo/route.ts'), /savePartnerLogo/)
     assert.match(source('src/app/admin/partners/page.tsx'), /Email a signup link/)
+    assert.match(source('src/app/admin/partners/page.tsx'), /Upload logo/)
+    assert.match(source('src/app/about/page.tsx'), /PartnerLogos/)
+    assert.match(source('src/app/about/page.tsx'), /listPublicPartnerLogos/)
+    assert.match(source('src/components/PartnerLogos.tsx'), /partner-logo-marquee/)
+    assert.match(source('supabase-migration-045-partner-logos.sql'), /logo_path/)
+    assert.match(source('supabase-migration-045-partner-logos.sql'), /partner-logos/)
+    assert.match(source('src/lib/partner-logos.ts'), /listActivePartnerLogoRows/)
     assert.match(source('src/app/admin/partners/page.tsx'), /Open /)
     assert.match(source('src/app/api/partner/route.ts'), /requirePartnerSession/)
     assert.match(source('src/app/partner/page.tsx'), /Current scores/)
