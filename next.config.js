@@ -94,6 +94,26 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/admin/revenue',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/revenue/:path*',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/ads',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/ads/:path*',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
         source: '/api/case-studies',
         destination: '/',
         permanent: true,
