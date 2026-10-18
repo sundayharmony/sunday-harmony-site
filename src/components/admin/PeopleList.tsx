@@ -2,7 +2,26 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import type { PersonSummary } from '@/lib/people'
+import {
+  groupPeopleByLane,
+  personMatchesFilter,
+  sortPeople,
+  summarizePeople,
+  type PeopleFilter,
+  type PeopleLane,
+  type PeopleSort,
+  type PersonScope,
+  type PersonSummary,
+} from '@/lib/people'
+
+const LANE_LABEL: Record<PeopleLane, string> = {
+  owes: 'Owes money',
+  waiting: 'Waiting on review',
+  consultation: 'Consultations',
+  credit: 'Credit & funding',
+  client: 'Clients',
+  contact: 'Contacts',
+}
 
 function formatWhen(iso: string | null): string {
   if (!iso) return ''
@@ -17,10 +36,47 @@ function formatWhen(iso: string | null): string {
   })
 }
 
+function PersonRow({ person, scope }: { person: PersonSummary; scope: PersonScope }) {
+  return (
+    <Link
+      href={`/admin/people/${person.id}`}
+      className="block bg-white border border-brand-border rounded-xl p-4 hover:border-accent transition-colors"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-brand-text truncate">{person.name}</div>
+          <div className="text-xs text-brand-muted truncate">
+            {[person.business, person.email, person.phone].filter(Boolean).join(' · ') || 'No contact details'}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {person.hasCreditWork && (
+            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-accent-soft text-brand-text">
+              {person.applicationStatus?.replace(/_/g, ' ') || 'Credit'}
+            </span>
+          )}
+          {person.owesMoney && (
+            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-red-50 text-brand-red">
+              {person.oweLabel || 'Owes'}
+            </span>
+          )}
+          {person.nextConsultationAt && scope === 'all' && (
+            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-neutral-100 text-brand-muted">
+              {formatWhen(person.nextConsultationAt)} ET
+            </span>
+          )}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 export default function PeopleList() {
   const [people, setPeople] = useState<PersonSummary[]>([])
-  const [scope, setScope] = useState<'all' | 'credit'>('all')
+  const [scope, setScope] = useState<PersonScope>('all')
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<PeopleFilter>('all')
+  const [sort, setSort] = useState<PeopleSort>('newest')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -43,15 +99,44 @@ export default function PeopleList() {
     })()
   }, [])
 
-  const visible = useMemo(() => {
+  const analytics = useMemo(() => summarizePeople(people, scope), [people, scope])
+  const searched = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return people
-    return people.filter((person) =>
-      [person.name, person.email, person.business, person.phone].some((value) =>
-        (value || '').toLowerCase().includes(q)
+    const matched = q
+      ? people.filter((person) =>
+        [person.name, person.email, person.business, person.phone].some((value) =>
+          (value || '').toLowerCase().includes(q)
+        )
       )
-    )
-  }, [people, query])
+      : people
+    return matched.filter((person) => personMatchesFilter(person, filter, scope))
+  }, [people, query, filter])
+
+  const groups = useMemo(
+    () => (filter === 'all' ? groupPeopleByLane(searched, sort, scope) : []),
+    [searched, sort, filter, scope]
+  )
+  const flat = useMemo(
+    () => (filter === 'all' ? [] : sortPeople(searched, sort)),
+    [searched, sort, filter]
+  )
+
+  const cards: { id: PeopleFilter; label: string; value: number }[] = scope === 'credit'
+    ? [
+      { id: 'all', label: 'People', value: analytics.total },
+      { id: 'owes', label: 'Owes', value: analytics.owes },
+      { id: 'waiting', label: 'Waiting', value: analytics.waiting },
+      { id: 'credit', label: 'Credit', value: analytics.credit },
+    ]
+    : [
+      { id: 'all', label: 'People', value: analytics.total },
+      { id: 'owes', label: 'Owes', value: analytics.owes },
+      { id: 'waiting', label: 'Waiting', value: analytics.waiting },
+      { id: 'consultation', label: 'Consultations', value: analytics.consultations },
+      { id: 'credit', label: 'Credit', value: analytics.credit },
+      { id: 'client', label: 'Clients', value: analytics.clients },
+      { id: 'contact', label: 'Contacts', value: analytics.contacts },
+    ]
 
   return (
     <div>
@@ -59,65 +144,90 @@ export default function PeopleList() {
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">People</h1>
         <p className="text-sm text-brand-muted">
           {scope === 'credit'
-            ? 'Credit and funding clients. One row per person.'
-            : 'One person per email. Open a file to see their consultation, credit work, billing, and messages.'}
+            ? 'Credit and funding clients, grouped by what needs attention.'
+            : 'One person per email, grouped by what needs attention.'}
         </p>
       </div>
 
-      <input
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search name, email, or business"
-        className="w-full mb-4 py-2.5 px-3 bg-white border border-brand-border rounded-lg text-sm text-brand-text outline-none focus:border-accent"
-      />
+      {!loading && !error && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
+          {cards.filter((card) => card.id === 'all' || card.value > 0).map((card) => {
+            const active = filter === card.id
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={() => setFilter(active && card.id !== 'all' ? 'all' : card.id)}
+                className={`text-left rounded-xl border px-3 py-3 transition-colors ${
+                  active
+                    ? 'bg-accent-soft border-accent'
+                    : 'bg-white border-brand-border hover:border-accent'
+                }`}
+              >
+                <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim">{card.label}</div>
+                <div className="text-2xl font-bold text-brand-text">{card.value}</div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search name, email, or business"
+          className="flex-1 py-2.5 px-3 bg-white border border-brand-border rounded-lg text-sm text-brand-text outline-none focus:border-accent"
+        />
+        <label className="flex items-center gap-2 text-xs font-semibold text-brand-muted bg-white border border-brand-border rounded-lg px-3 py-2.5">
+          Sort
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value as PeopleSort)}
+            className="bg-transparent text-sm font-medium text-brand-text outline-none"
+          >
+            <option value="newest">Newest</option>
+            <option value="name">Name</option>
+            <option value="consultation">Consultation</option>
+          </select>
+        </label>
+      </div>
 
       {loading && <p className="text-sm text-brand-muted">Loading people…</p>}
       {error && <p className="text-sm text-brand-red">{error}</p>}
 
-      {!loading && !error && visible.length === 0 && (
+      {!loading && !error && searched.length === 0 && (
         <div className="bg-white border border-brand-border rounded-xl p-6 text-sm text-brand-muted">
           {people.length === 0
             ? 'No people yet. A consultation, credit intake, or client account will show up here.'
-            : 'No one matches that search.'}
+            : 'No one matches that view.'}
         </div>
       )}
 
-      <div className="space-y-2">
-        {visible.map((person) => (
-          <Link
-            key={person.id}
-            href={`/admin/people/${person.id}`}
-            className="block bg-white border border-brand-border rounded-xl p-4 hover:border-accent transition-colors"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-brand-text truncate">{person.name}</div>
-                <div className="text-xs text-brand-muted truncate">
-                  {[person.business, person.email, person.phone].filter(Boolean).join(' · ') || 'No contact details'}
-                </div>
+      {filter === 'all' ? (
+        <div className="space-y-6">
+          {groups.map((group) => (
+            <section key={group.lane}>
+              <h2 className="text-sm font-bold text-brand-text mb-2">
+                {LANE_LABEL[group.lane]}
+                <span className="ml-2 text-xs font-semibold text-brand-dim">{group.people.length}</span>
+              </h2>
+              <div className="space-y-2">
+                {group.people.map((person) => (
+                  <PersonRow key={person.id} person={person} scope={scope} />
+                ))}
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {person.hasCreditWork && (
-                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-accent-soft text-brand-text">
-                    {person.applicationStatus?.replace(/_/g, ' ') || 'Credit'}
-                  </span>
-                )}
-                {person.owesMoney && scope === 'all' && (
-                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-red-50 text-brand-red">
-                    {person.oweLabel || 'Owes'}
-                  </span>
-                )}
-                {person.nextConsultationAt && scope === 'all' && (
-                  <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-neutral-100 text-brand-muted">
-                    {formatWhen(person.nextConsultationAt)} ET
-                  </span>
-                )}
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {flat.map((person) => (
+            <PersonRow key={person.id} person={person} scope={scope} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -5,10 +5,15 @@ import {
   filterPeople,
   findPersonById,
   groupPeople,
+  groupPeopleByLane,
+  personLane,
+  personMatchesFilter,
   selectPeopleWhoOwe,
   selectReferralPayouts,
   selectUpcomingConsultations,
   selectWaitingApplications,
+  sortPeople,
+  summarizePeople,
   personOwesMoney,
   type PeopleInput,
 } from '../people'
@@ -145,6 +150,40 @@ describe('people resolver', () => {
     assert.equal(payouts.length, 1)
     assert.equal(payouts[0].availableCents, 2500)
     assert.equal(payouts[0].personId, 'client-1')
+  })
+})
+
+describe('people list organization', () => {
+  it('puts each person in one lane and counts that lane', () => {
+    const people = groupPeople(records(), now)
+    const ada = people.find((person) => person.email === 'ada@example.com')
+    const grace = people.find((person) => person.email === 'grace@navy.test')
+    assert.equal(personLane(ada!, 'all'), 'owes')
+    assert.equal(personLane(grace!, 'all'), 'consultation')
+    assert.equal(personMatchesFilter(ada!, 'owes'), true)
+    assert.equal(personMatchesFilter(ada!, 'waiting'), false)
+    assert.equal(personMatchesFilter(grace!, 'credit'), false)
+
+    const stats = summarizePeople(people)
+    assert.equal(stats.total, 2)
+    assert.equal(stats.owes, 1)
+    assert.equal(stats.waiting, 0)
+    assert.equal(stats.consultations, 1)
+    assert.equal(stats.credit, 0)
+    assert.equal(stats.clients, 0)
+    assert.equal(stats.contacts, 0)
+
+    const groups = groupPeopleByLane(people, 'name')
+    assert.deepEqual(groups.map((group) => group.lane), ['owes', 'consultation'])
+    assert.equal(sortPeople(people, 'name')[0].name, 'Ada Lovelace')
+    assert.equal(sortPeople(people, 'consultation')[0].email, 'ada@example.com')
+  })
+
+  it('keeps a credit manager list inside owes, waiting, and credit', () => {
+    const people = filterPeople(groupPeople(records(), now), 'credit')
+    const groups = groupPeopleByLane(people, 'newest', 'credit')
+    assert.deepEqual(groups.map((group) => group.lane), ['owes'])
+    assert.equal(groups[0].people[0].email, 'ada@example.com')
   })
 })
 

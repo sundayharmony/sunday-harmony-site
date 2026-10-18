@@ -365,6 +365,94 @@ export function selectPeopleWhoOwe(people: PersonSummary[]): TodayOwe[] {
     }))
 }
 
+const WAITING_STATUS_SET = new Set<string>(WAITING_APPLICATION_STATUSES)
+
+export function applicationIsWaiting(status?: string | null): boolean {
+  return WAITING_STATUS_SET.has(status || '')
+}
+
+/** One home for each person when the list is grouped. Urgent work wins. */
+export const PEOPLE_LANES = ['owes', 'waiting', 'consultation', 'credit', 'client', 'contact'] as const
+export type PeopleLane = (typeof PEOPLE_LANES)[number]
+export type PeopleFilter = 'all' | PeopleLane
+export type PeopleSort = 'newest' | 'name' | 'consultation'
+
+export type PeopleAnalytics = {
+  total: number
+  owes: number
+  waiting: number
+  consultations: number
+  credit: number
+  clients: number
+  contacts: number
+}
+
+export function personLane(person: PersonSummary, scope: PersonScope = 'all'): PeopleLane {
+  if (person.owesMoney) return 'owes'
+  if (applicationIsWaiting(person.applicationStatus)) return 'waiting'
+  if (scope !== 'credit' && person.nextConsultationAt) return 'consultation'
+  if (person.hasCreditWork) return 'credit'
+  if (person.clientId) return 'client'
+  return 'contact'
+}
+
+export function personMatchesFilter(
+  person: PersonSummary,
+  filter: PeopleFilter,
+  scope: PersonScope = 'all'
+): boolean {
+  if (filter === 'all') return true
+  return personLane(person, scope) === filter
+}
+
+export function sortPeople(people: PersonSummary[], sort: PeopleSort): PersonSummary[] {
+  const rows = [...people]
+  if (sort === 'name') {
+    rows.sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email))
+    return rows
+  }
+  if (sort === 'consultation') {
+    rows.sort((a, b) => {
+      if (a.nextConsultationAt && b.nextConsultationAt) return a.nextConsultationAt.localeCompare(b.nextConsultationAt)
+      if (a.nextConsultationAt) return -1
+      if (b.nextConsultationAt) return 1
+      return a.name.localeCompare(b.name)
+    })
+    return rows
+  }
+  rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.name.localeCompare(b.name))
+  return rows
+}
+
+export function summarizePeople(people: PersonSummary[], scope: PersonScope = 'all'): PeopleAnalytics {
+  const lanes = people.map((person) => personLane(person, scope))
+  const count = (lane: PeopleLane) => lanes.filter((item) => item === lane).length
+  return {
+    total: people.length,
+    owes: count('owes'),
+    waiting: count('waiting'),
+    consultations: count('consultation'),
+    credit: count('credit'),
+    clients: count('client'),
+    contacts: count('contact'),
+  }
+}
+
+export function groupPeopleByLane(
+  people: PersonSummary[],
+  sort: PeopleSort,
+  scope: PersonScope = 'all'
+): { lane: PeopleLane; people: PersonSummary[] }[] {
+  const lanes = scope === 'credit'
+    ? (['owes', 'waiting', 'credit'] as const)
+    : PEOPLE_LANES
+  return lanes.flatMap((lane) => {
+    const rows = sortPeople(people.filter((person) => personLane(person, scope) === lane), sort)
+    if (rows.length === 0) return []
+    return [{ lane, people: rows }]
+  })
+}
+
 export function selectReferralPayouts(
   people: PersonSummary[],
   rows: { clientId: string; name?: string; email?: string; availableCents: number }[]
