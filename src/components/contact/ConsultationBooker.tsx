@@ -11,6 +11,21 @@ type SlotsResponse = {
   days: Day[]
 }
 
+const TIMEZONE_LABELS: Record<string, string> = {
+  'America/New_York': 'Eastern Time',
+  'America/Chicago': 'Central Time',
+  'America/Denver': 'Mountain Time',
+  'America/Phoenix': 'Arizona Time',
+  'America/Los_Angeles': 'Pacific Time',
+  'America/Anchorage': 'Alaska Time',
+  'Pacific/Honolulu': 'Hawaii Time',
+  UTC: 'UTC',
+}
+
+function timezoneLabel(zone: string): string {
+  return TIMEZONE_LABELS[zone] || zone.replaceAll('_', ' ')
+}
+
 export default function ConsultationBooker() {
   const [data, setData] = useState<SlotsResponse | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -104,7 +119,10 @@ export default function ConsultationBooker() {
       {data?.calendarConnected && data.days.length > 0 ? (
         <form onSubmit={submit} className="space-y-6">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-dim mb-3">Pick a day</p>
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-dim">Pick a day</p>
+              <p className="text-xs text-brand-muted">{timezoneLabel(data.timezone)}</p>
+            </div>
             <div className="flex gap-2 flex-wrap">
               {data.days.map((item) => (
                 <button
