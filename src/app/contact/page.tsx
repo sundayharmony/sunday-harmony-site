@@ -109,12 +109,6 @@ export default function ContactPage() {
                 >
                   Send a message
                 </a>
-                <a
-                  href="#audit"
-                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
-                >
-                  What&apos;s in the audit
-                </a>
               </div>
               <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-brand-muted">
                 {['Free, no obligation', 'Reply within ~1 business day', 'Brand, strategy & systems'].map((item) => (
