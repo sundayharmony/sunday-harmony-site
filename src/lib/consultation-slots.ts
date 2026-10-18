@@ -180,6 +180,36 @@ export function buildConsultationSlots(input: {
   return slots
 }
 
+export type CalendarCell = { date: string | null; day: number | null }
+
+/** Sunday-first month grid. Date keys are calendar days, not UTC instants. */
+export function calendarMonthCells(year: number, month: number): CalendarCell[] {
+  if (!Number.isInteger(year) || month < 1 || month > 12) return []
+  const lead = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
+  const count = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const cells: CalendarCell[] = []
+  for (let i = 0; i < lead; i += 1) cells.push({ date: null, day: null })
+  for (let day = 1; day <= count; day += 1) {
+    cells.push({
+      date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      day,
+    })
+  }
+  while (cells.length % 7 !== 0) cells.push({ date: null, day: null })
+  return cells
+}
+
+export function shiftCalendarMonth(year: number, month: number, delta: number): { year: number; month: number } {
+  const next = new Date(Date.UTC(year, month - 1 + delta, 1))
+  return { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1 }
+}
+
+export function formatCalendarMonth(year: number, month: number): string {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(year, month - 1, 1))
+  )
+}
+
 export function isOpenSlot(startsAt: string, slots: ConsultationSlot[]): ConsultationSlot | null {
   const target = new Date(startsAt).getTime()
   if (!Number.isFinite(target)) return null

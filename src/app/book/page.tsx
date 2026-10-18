@@ -26,7 +26,7 @@ export default function BookConsultationPage() {
               Pick a day. <span className="gold-text">Then a time.</span>
             </h1>
             <p className="text-[15px] text-brand-muted leading-relaxed mb-8 max-w-[520px]">
-              Choose an open day first. Times for that day show next. We email the Google Meet link right away, and again the day of the conversation.
+              Open days are marked on the calendar. Times for that day show next. We email the Google Meet link right away, and again the day of the conversation.
             </p>
             <ConsultationBooker />
             <p className="mt-6 text-sm text-brand-muted">

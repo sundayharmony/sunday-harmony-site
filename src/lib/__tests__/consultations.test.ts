@@ -6,6 +6,7 @@ import { isGoogleCalendarConfigured } from '../google-calendar'
 import {
   bookingsDueForReminder,
   buildConsultationSlots,
+  calendarMonthCells,
   type ConsultationSettings,
   type WeeklyWindow,
 } from '../consultation-slots'
@@ -33,6 +34,14 @@ describe('consultation slots', () => {
       slots.map((slot) => slot.startsAt),
       ['2026-10-15T14:00:00.000Z', '2026-10-15T14:30:00.000Z']
     )
+  })
+
+  it('builds a Sunday-first month and leaves closed days blank', () => {
+    const cells = calendarMonthCells(2026, 10)
+    assert.equal(cells[0].date, null)
+    assert.deepEqual(cells[4], { date: '2026-10-01', day: 1 })
+    assert.equal(cells.filter((cell) => cell.day != null).length, 31)
+    assert.equal(cells.length % 7, 0)
   })
 
   it('drops a blackout day and a slot that overlaps an existing booking', () => {
@@ -170,6 +179,9 @@ describe('consultation email and calendar gate', () => {
     assert.match(admin, /<select/)
     assert.match(admin, /href="\/book"/)
     assert.match(booker, /Eastern Time/)
+    assert.match(booker, /calendarMonthCells/)
+    assert.match(booker, /grid-cols-7/)
+    assert.match(booker, /Previous month/)
     assert.match(booker, /setStep\('day'\)/)
     assert.match(booker, /step === 'time'/)
     assert.doesNotMatch(booker, /days\?\.\[0\]/)

@@ -1,6 +1,7 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { calendarMonthCells, formatCalendarMonth, shiftCalendarMonth } from '@/lib/consultation-slots'
 
 type Slot = { startsAt: string; endsAt: string; label: string }
 type Day = { date: string; label: string; slots: Slot[] }
@@ -28,14 +29,12 @@ function timezoneLabel(zone: string): string {
   return TIMEZONE_LABELS[zone] || zone.replaceAll('_', ' ')
 }
 
-const choiceClass = (selected: boolean, shape: 'pill' | 'tile') =>
-  `px-4 py-2.5 border text-sm font-semibold transition-colors ${
-    shape === 'pill' ? 'rounded-full' : 'rounded-lg'
-  } ${
+const WEEKDAY_HEADS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+const choiceClass = (selected: boolean) =>
+  `px-4 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${
     selected
-      ? shape === 'pill'
-        ? 'bg-brand-text text-white border-brand-text'
-        : 'bg-accent-soft text-brand-text border-accent'
+      ? 'bg-accent-soft text-brand-text border-accent'
       : 'bg-white text-brand-text border-brand-border hover:border-neutral-400'
   }`
 
@@ -43,6 +42,7 @@ export default function ConsultationBooker() {
   const [data, setData] = useState<SlotsResponse | null>(null)
   const [loadError, setLoadError] = useState('')
   const [step, setStep] = useState<Step>('day')
+  const [month, setMonth] = useState<{ year: number; month: number } | null>(null)
   const [day, setDay] = useState('')
   const [startsAt, setStartsAt] = useState('')
   const [name, setName] = useState('')
@@ -61,7 +61,14 @@ export default function ConsultationBooker() {
       .then(async (res) => {
         const payload = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(payload.error || 'Could not load times')
-        if (!cancelled) setData(payload)
+        if (!cancelled) {
+          setData(payload)
+          const first = Array.isArray(payload.days) ? payload.days[0]?.date : ''
+          if (typeof first === 'string') {
+            const [year, monthNumber] = first.split('-').map(Number)
+            if (year && monthNumber) setMonth({ year, month: monthNumber })
+          }
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Could not load times')
@@ -73,6 +80,13 @@ export default function ConsultationBooker() {
 
   const selectedDay = data?.days.find((item) => item.date === day) ?? null
   const selectedSlot = selectedDay?.slots.find((slot) => slot.startsAt === startsAt) ?? null
+  const openDates = useMemo(() => new Set(data?.days.map((item) => item.date) ?? []), [data])
+  const cells = month ? calendarMonthCells(month.year, month.month) : []
+  const firstOpen = data && data.days.length > 0 ? data.days[0].date : ''
+  const lastOpen = data && data.days.length > 0 ? data.days[data.days.length - 1].date : ''
+  const monthIndex = month ? month.year * 12 + month.month : 0
+  const canPrev = Boolean(month && firstOpen && monthIndex > Number(firstOpen.slice(0, 4)) * 12 + Number(firstOpen.slice(5, 7)))
+  const canNext = Boolean(month && lastOpen && monthIndex < Number(lastOpen.slice(0, 4)) * 12 + Number(lastOpen.slice(5, 7)))
 
   const chooseDay = (date: string) => {
     setDay(date)
@@ -163,23 +177,57 @@ export default function ConsultationBooker() {
             <li className={step === 'details' ? 'text-brand-text' : 'text-brand-dim'}>3 Details</li>
           </ol>
 
-          {step === 'day' ? (
+          {step === 'day' && month ? (
             <div>
-              <div className="flex items-baseline justify-between gap-3 mb-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-dim">Pick a day</p>
-                <p className="text-xs text-brand-muted">{timezoneLabel(data.timezone)}</p>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <button
+                  type="button"
+                  aria-label="Previous month"
+                  disabled={!canPrev}
+                  onClick={() => setMonth((current) => (current ? shiftCalendarMonth(current.year, current.month, -1) : current))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-brand-border text-brand-text disabled:opacity-30"
+                >
+                  ‹
+                </button>
+                <div className="text-center">
+                  <p className="font-serif text-2xl font-extrabold text-brand-text">{formatCalendarMonth(month.year, month.month)}</p>
+                  <p className="text-xs text-brand-muted mt-1">{timezoneLabel(data.timezone)}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Next month"
+                  disabled={!canNext}
+                  onClick={() => setMonth((current) => (current ? shiftCalendarMonth(current.year, current.month, 1) : current))}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-brand-border text-brand-text disabled:opacity-30"
+                >
+                  ›
+                </button>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {data.days.map((item) => (
-                  <button
-                    key={item.date}
-                    type="button"
-                    onClick={() => chooseDay(item.date)}
-                    className={choiceClass(false, 'pill')}
-                  >
-                    {item.label}
-                  </button>
+              <div className="grid grid-cols-7 gap-y-1 text-center">
+                {WEEKDAY_HEADS.map((label) => (
+                  <div key={label} className="py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-brand-dim">
+                    {label}
+                  </div>
                 ))}
+                {cells.map((cell, index) => {
+                  if (!cell.date || cell.day == null) return <span key={`empty-${index}`} className="h-10" />
+                  const open = openDates.has(cell.date)
+                  return (
+                    <button
+                      key={cell.date}
+                      type="button"
+                      disabled={!open}
+                      onClick={() => chooseDay(cell.date as string)}
+                      className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-sm ${
+                        open
+                          ? 'bg-accent-soft font-semibold text-brand-text hover:bg-brand-text hover:text-white'
+                          : 'text-neutral-300'
+                      }`}
+                    >
+                      {cell.day}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           ) : null}
@@ -205,7 +253,7 @@ export default function ConsultationBooker() {
                       setError('')
                       setStep('details')
                     }}
-                    className={choiceClass(false, 'tile')}
+                    className={choiceClass(false)}
                   >
                     {slot.label}
                   </button>
