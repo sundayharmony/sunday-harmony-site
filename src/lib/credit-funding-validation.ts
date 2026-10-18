@@ -55,6 +55,7 @@ export interface IntakeFormPayload {
   businessName: string
   fundingTimeframe: string
   goalsNotes: string
+  referredBy: string
   businessProfile: BusinessProfile
   consent: ConsentData
   typedSignature: string
@@ -155,6 +156,7 @@ export function parseIntakePayload(raw: Record<string, unknown>): IntakeFormPayl
     businessName: str(raw.businessName, 200),
     fundingTimeframe: str(raw.fundingTimeframe, 50),
     goalsNotes: str(raw.goalsNotes, 10000),
+    referredBy: str(raw.referredBy, 200),
     businessProfile: parseBusinessProfile(raw.businessProfile),
     consent,
     typedSignature: str(raw.typedSignature, 200),

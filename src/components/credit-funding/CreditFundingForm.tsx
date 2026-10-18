@@ -108,6 +108,7 @@ interface FormState {
   businessName: string
   fundingTimeframe: string
   goalsNotes: string
+  referredBy: string
   businessProfile: BusinessProfile
   consent: ConsentData
   typedSignature: string
@@ -172,6 +173,7 @@ const initialState: FormState = {
   businessName: '',
   fundingTimeframe: '',
   goalsNotes: '',
+  referredBy: '',
   businessProfile: {},
   consent: { accurateInfo: false, authorizeReview: false, agreeTerms: false },
   typedSignature: '',
@@ -345,6 +347,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
             businessName: p.businessName || prev.businessName,
             fundingTimeframe: p.fundingTimeframe || prev.fundingTimeframe,
             goalsNotes: p.goalsNotes || prev.goalsNotes,
+            referredBy: p.referredBy || prev.referredBy,
             creditProfile: p.creditProfile && typeof p.creditProfile === 'object' ? p.creditProfile : prev.creditProfile,
             businessProfile:
               p.businessProfile && typeof p.businessProfile === 'object' ? p.businessProfile : prev.businessProfile,
@@ -547,6 +550,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
       if (variant === 'funding') fd.append('intakeKind', 'funding')
       fd.append('fundingTimeframe', form.fundingTimeframe)
       fd.append('goalsNotes', form.goalsNotes)
+      fd.append('referredBy', form.referredBy)
       fd.append('businessProfile', JSON.stringify(form.businessProfile))
       fd.append('consent', JSON.stringify(form.consent))
       fd.append('typedSignature', form.typedSignature)
@@ -723,6 +727,18 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
               <label className={labelClass} htmlFor={fid('zipCode')}>ZIP Code *</label>
               <input id={fid('zipCode')} name="zipCode" autoComplete="postal-code" className={inputClass} value={form.zipCode} onChange={(e) => update('zipCode', e.target.value)} />
               {errors.zipCode && <p className="text-xs text-brand-red mt-1">{errors.zipCode}</p>}
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor={fid('referredBy')}>Referred by</label>
+              <input
+                id={fid('referredBy')}
+                name="referredBy"
+                autoComplete="off"
+                className={inputClass}
+                placeholder="Name of the person who referred you"
+                value={form.referredBy}
+                onChange={(e) => update('referredBy', e.target.value)}
+              />
             </div>
           </div>
         )}

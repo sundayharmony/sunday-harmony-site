@@ -539,6 +539,7 @@ export interface CreditFundingApplication {
   business_name?: string
   funding_timeframe?: string
   goals_notes?: string
+  referred_by?: string | null
   consent_data: ConsentData
   typed_signature: string
   signature_date: string
