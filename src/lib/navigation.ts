@@ -13,11 +13,11 @@ export function isSiteNavLinkActive(href: string, pathname: string): boolean {
 }
 
 export const siteNavLinks: SiteNavLink[] = [
-  { label: 'Services', href: '/services' },
+  { label: 'Market', href: '/services' },
+  { label: 'Fund', href: '/funding' },
+  { label: 'Build', href: '/credit' },
   { label: 'Contact', href: '/contact' },
-  { label: 'Funding', href: '/funding' },
-  { label: 'Build Credit', href: '/credit' },
-  { label: 'About', href: '/about', hideBelow: 'lg' },
+  { label: 'About', href: '/about' },
 ]
 
 export const siteFooterExtraLinks: SiteNavLink[] = [
