@@ -55,7 +55,7 @@ describe('resolveCreditFundingStaffAccess', () => {
 })
 
 describe('resolveStaffAccess', () => {
-  it('allows credit_manager for team chat', () => {
+  it('allows credit_manager through the shared staff check', () => {
     const r = resolveStaffAccess({ user: { role: 'credit_manager' } })
     assert.equal(r.ok, true)
   })

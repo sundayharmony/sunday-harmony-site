@@ -17,7 +17,6 @@ const allNavItems = [
   { href: '/admin/referrals', icon: '\u{1F517}', label: 'Referrals' },
   { href: '/admin/partners', icon: '\u{1F91D}', label: 'Partners' },
   { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
-  { href: '/admin/team-messages', icon: '\u{1F91D}', label: 'Team Chat' },
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
   { href: '/admin/research', icon: '\u{1F50D}', label: 'Market Research' },
   { href: '/admin/packages', icon: '\u{1F4E6}', label: 'Packages' },
@@ -28,7 +27,6 @@ const allNavItems = [
 
 const creditManagerHrefs = new Set([
   '/admin/credit-funding',
-  '/admin/team-messages',
   '/admin/settings',
 ])
 

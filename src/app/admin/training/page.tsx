@@ -321,7 +321,7 @@ export default function TrainingPage() {
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Need Help Now?</div>
             <p className="text-sm text-brand-muted">
               If you have questions about payment processing or website navigation before these guides are
-              available, please reach out to your manager or use the Team Chat feature.
+              available, please reach out to your manager.
             </p>
           </div>
         </div>

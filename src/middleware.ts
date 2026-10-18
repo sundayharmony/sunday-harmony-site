@@ -23,7 +23,6 @@ const MFA_INCOMPLETE_ALLOWED = new Set(['/login', '/forgot-password', '/reset-pa
 const CREDIT_MANAGER_ADMIN_PATHS = [
   '/admin/credit-funding',
   '/admin/dispute-letters',
-  '/admin/team-messages',
   '/admin/settings',
 ]
 

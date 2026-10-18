@@ -154,6 +154,16 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/admin/team-messages',
+        destination: '/admin/credit-funding',
+        permanent: true,
+      },
+      {
+        source: '/admin/team-messages/:path*',
+        destination: '/admin/credit-funding',
+        permanent: true,
+      },
+      {
         source: '/api/case-studies',
         destination: '/',
         permanent: true,

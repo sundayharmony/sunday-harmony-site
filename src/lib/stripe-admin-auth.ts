@@ -67,7 +67,7 @@ export async function requireCreditFundingStaffSession(): Promise<Session | Next
   return session as Session
 }
 
-/** Admin or credit_manager — internal team chat APIs. */
+/** Admin or credit_manager — shared staff APIs. */
 export async function requireStaffSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveStaffAccess(session)
