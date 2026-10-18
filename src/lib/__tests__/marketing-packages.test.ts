@@ -54,6 +54,8 @@ describe('marketing packages', () => {
     const nav = source('src/lib/navigation.ts')
     assert.match(nav, /label: 'Services', href: '\/services'/)
     assert.ok(nav.indexOf("label: 'Services'") < nav.indexOf("label: 'Contact'"))
+    assert.match(nav, /label: 'Build Credit', href: '\/credit'/)
+    assert.doesNotMatch(nav, /Repair Credit/)
   })
 
   it('keeps Social Essentials as a billing label for existing clients', () => {

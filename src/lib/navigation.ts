@@ -16,7 +16,7 @@ export const siteNavLinks: SiteNavLink[] = [
   { label: 'Services', href: '/services' },
   { label: 'Contact', href: '/contact' },
   { label: 'Funding', href: '/funding' },
-  { label: 'Repair Credit', href: '/credit' },
+  { label: 'Build Credit', href: '/credit' },
   { label: 'About', href: '/about', hideBelow: 'lg' },
 ]
 
