@@ -200,14 +200,33 @@ body {
   animation: hero-sun 6s ease-in-out infinite;
 }
 
+@keyframes partner-logo-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.partner-logo-marquee {
+  animation: partner-logo-marquee 32s linear infinite;
+}
+
+.partner-logo-marquee:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-float,
   .hero-rise,
   .hero-dash,
   .hero-sway,
   .hero-twinkle,
-  .hero-sun {
+  .hero-sun,
+  .partner-logo-marquee {
     animation: none;
+  }
+
+  .partner-logo-window {
+    overflow-x: auto;
+    mask-image: none;
   }
 }
 
