@@ -114,6 +114,16 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/admin/competitors',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/competitors/:path*',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
         source: '/api/case-studies',
         destination: '/',
         permanent: true,

@@ -70,7 +70,6 @@ export default async function AdminOverview() {
               { href: '/admin/clients', icon: '👥', label: 'Manage Clients', desc: `${activeClients.length} active clients` },
               { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap', desc: 'Track your launch plan' },
               { href: '/admin/outreach', icon: '📨', label: 'Outreach Scripts', desc: '4 ready-to-use templates' },
-              { href: '/admin/competitors', icon: '⚔️', label: 'Competitor Analysis', desc: '6 competitors mapped' },
             ].map(item => (
               <Link
                 key={item.href}

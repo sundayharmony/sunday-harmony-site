@@ -21,7 +21,6 @@ const allNavItems = [
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
   { href: '/admin/files', icon: '\u{1F4C1}', label: 'Files' },
   { href: '/admin/research', icon: '\u{1F50D}', label: 'Market Research' },
-  { href: '/admin/competitors', icon: '\u2694\uFE0F', label: 'Competitors' },
   { href: '/admin/packages', icon: '\u{1F4E6}', label: 'Packages' },
   { href: '/admin/roadmap', icon: '\u{1F5FA}\uFE0F', label: '90-Day Roadmap' },
   { href: '/admin/outreach', icon: '\u{1F4E8}', label: 'Outreach' },
