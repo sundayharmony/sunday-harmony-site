@@ -92,16 +92,6 @@ export const researchPhases = [
   },
 ]
 
-// ══════════ PHASE 3 — POSITIONING CANVAS ══════════
-export const positioningCanvas = [
-  { label: 'Target Client', placeholder: 'e.g., NJ small business owners doing marketing themselves and struggling...' },
-  { label: 'Problem You Solve', placeholder: "e.g., Wasting time on marketing that doesn't work, losing customers to competitors online..." },
-  { label: 'Your Unique Approach', placeholder: 'e.g., All-in-one digital + physical marketing partner with clear ROI reporting...' },
-  { label: 'Why You, Not Them', placeholder: 'e.g., Unlike big agencies, we treat every client like our only client...' },
-  { label: 'Proof / Credibility', placeholder: 'e.g., Free audit results, testimonials, local NJ roots...' },
-  { label: 'One-Liner Pitch', placeholder: "e.g., 'Sunday Harmony helps NJ businesses stop guessing and start growing.'" },
-]
-
 // ══════════ PHASE 4 — DETAILED PACKAGES ══════════
 export interface DetailedPackage {
   tier: string
@@ -172,56 +162,6 @@ export const footInDoorOffer = {
   ],
   conversionRate: '30–40% of audits convert to paid clients when delivered in person.',
 }
-
-// ══════════ COMPETITORS ══════════
-export const competitors = [
-  { name: 'SmartSites', type: 'Enterprise NJ Agency', threat: 'high' as const, price: '$1K–$10K+/mo', founded: '2011', team: '100+',
-    services: ['SEO', 'PPC', 'Web Design', 'Social Media', 'Email/SMS'],
-    strengths: ["1,000+ 5-star reviews, America's #1 rated agency", 'Google Premier Partner, 9x Inc5000 winner', 'Managed $500M+ in paid search', 'Serves Fortune 500 down to local SMBs'],
-    weaknesses: ['Premium pricing exceeds smallest SMBs', 'Large agency — clients may feel like a number', 'Some reviews mention communication issues'],
-    angle: "Position as the personal, hands-on alternative. You're the local partner who knows their name, not a ticket number.",
-  },
-  { name: 'Adapting Social', type: 'Full-Service NJ Agency', threat: 'high' as const, price: '$1K–$5K/mo', founded: '~2000', team: '10–25',
-    services: ['Social Media', 'SEO', 'Web Design', 'Email', 'PPC', 'Graphic Design'],
-    strengths: ['25+ years experience', 'True full-service multi-channel', 'Deep NJ local knowledge', 'Strong creative capabilities'],
-    weaknesses: ['Slower to adopt newer tactics (AI, short-form video)', 'Generalist positioning', 'Higher overhead = higher prices'],
-    angle: "Lead with AI-powered efficiency and modern tactics they're slower to adopt. Be nimble while they're process-heavy.",
-  },
-  { name: 'Wowbix', type: 'Budget NJ Agency', threat: 'medium' as const, price: 'Low-cost', founded: '2015', team: 'Small',
-    services: ['Web Design', 'SEO', 'Social Media', 'Digital Solutions'],
-    strengths: ["Positioned as 'most affordable' in NJ", 'Local Paramus footprint', 'Good budget-tier reviews'],
-    weaknesses: ['Low-cost = potential quality concerns', 'Limited strategic consulting', 'May struggle retaining growing clients'],
-    angle: "Don't compete on price — compete on value and outcomes.",
-  },
-  { name: 'Digital Marketing NJ', type: 'Local Specialist', threat: 'medium' as const, price: '$1K–$3K/mo', founded: '~2024', team: 'Small',
-    services: ['SEO', 'PPC', 'Web Design', 'Local SEO'],
-    strengths: ['Hyper-local NJ positioning', 'BBB A+ accredited', 'Founder story resonates'],
-    weaknesses: ['Very new — limited track record', 'Narrow service focus', 'Direct competitor model'],
-    angle: 'Differentiate with broader all-in-one services, stronger branding, and physical marketing capabilities.',
-  },
-  { name: 'Freelancers (Upwork/Fiverr)', type: 'Gig Economy', threat: 'high' as const, price: '$200–$2K/mo', founded: 'N/A', team: 'Individual',
-    services: ['Varies — social, design, SEO, web'],
-    strengths: ['Extremely cheap', 'Fast turnaround', 'Huge supply', 'No long-term commitments'],
-    weaknesses: ['No strategy', 'Inconsistent quality', 'Client manages everything', 'Each freelancer is a silo'],
-    angle: "You're the strategist + executor in one. SMBs don't need 5 freelancers — they need one partner.",
-  },
-  { name: 'DIY Tools (Canva, Wix)', type: 'Self-Service', threat: 'medium' as const, price: '$0–$100/mo', founded: 'N/A', team: 'N/A',
-    services: ['Templates', 'Website builders', 'Basic email', 'Social scheduling'],
-    strengths: ['Free or cheap', 'Full control', 'Good for early-stage', 'Improving with AI'],
-    weaknesses: ['Takes massive time', 'Poor results without expertise', 'Looks DIY', 'No strategy or growth plan'],
-    angle: "Position as the expert upgrade. 'You've outgrown DIY — let us take it from here.'",
-  },
-]
-
-export const vulnerabilities = [
-  { gap: 'Agencies overpromise, underdeliver', stat: "60% of SMBs left their agency due to 'lack of perceived value'", opportunity: "Lead with radical transparency: show exactly what you'll do, set realistic timelines, and over-communicate results.", priority: 'critical' as const },
-  { gap: 'Clients feel ignored after signing', stat: '56% of SMBs churn within 6–12 months', opportunity: "Design a 'first 90 days' onboarding with weekly check-ins, a shared dashboard, and a quick win in the first 30 days.", priority: 'critical' as const },
-  { gap: 'Jargon and confusing reports', stat: "Many SMBs can't understand agency deliverables", opportunity: "Report in plain English: 'You got 47 calls this month from Google, up from 31. Here's what we did.'", priority: 'high' as const },
-  { gap: 'No physical marketing integration', stat: 'Most digital agencies ignore offline entirely', opportunity: 'Sunday Harmony offers BOTH digital and physical marketing. This is rare. Lean into bundled online + offline campaigns.', priority: 'high' as const },
-  { gap: 'Cookie-cutter packages', stat: "SMBs feel treated like 'smaller versions of enterprise clients'", opportunity: 'Customize every proposal. Start with an audit specific to THEIR business.', priority: 'high' as const },
-  { gap: 'No AI tools or innovation', stat: "60% of SMBs whose agency doesn't offer AI wish they did", opportunity: "Integrate AI into your workflow and position it as a value-add.", priority: 'medium' as const },
-  { gap: 'Google Business Profile neglect', stat: 'Agencies often break GBP listings when offboarding', opportunity: "Make GBP optimization your signature 'quick win' entry offer.", priority: 'medium' as const },
-]
 
 export const roadmapWeeks = [
   { week: 'Week 1–2', title: 'Foundation & First Outreach', color: '#3a8bc2',
