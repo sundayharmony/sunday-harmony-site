@@ -270,7 +270,7 @@ export default function AdminConsultationsPage() {
   const savedOpen = (payload?.hours.length ?? 0) > 0
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-brand-text mb-1">Consultations</h1>
@@ -319,7 +319,7 @@ export default function AdminConsultationsPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
           <label className="text-xs font-semibold text-brand-muted">
             Timezone
             <select
@@ -367,7 +367,7 @@ export default function AdminConsultationsPage() {
               className={fieldClass}
             />
           </label>
-          <label className="text-xs font-semibold text-brand-muted sm:col-span-2">
+          <label className="text-xs font-semibold text-brand-muted">
             Minimum notice (minutes)
             <input
               type="number"
@@ -391,10 +391,10 @@ export default function AdminConsultationsPage() {
             Fill weekdays 10:00–4:00
           </button>
         </div>
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
           {WEEKDAYS.map((label, weekday) => (
-            <div key={label} className="grid grid-cols-1 sm:grid-cols-[9rem_1fr] items-center gap-2 sm:gap-3 py-1">
-              <label className="flex items-center gap-2 text-sm text-brand-text">
+            <div key={label} className="rounded-xl border border-brand-border bg-neutral-50 p-3 min-w-0">
+              <label className="flex items-center gap-2 text-sm font-semibold text-brand-text">
                 <input
                   type="checkbox"
                   checked={enabled[weekday]}
@@ -405,7 +405,7 @@ export default function AdminConsultationsPage() {
                 {label}
               </label>
               {enabled[weekday] ? (
-                <div className="flex items-center gap-2">
+                <div className="mt-3 space-y-2">
                   <input
                     type="time"
                     aria-label={`${label} start`}
@@ -413,9 +413,9 @@ export default function AdminConsultationsPage() {
                     onChange={(event) =>
                       setStart((prev) => prev.map((value, index) => (index === weekday ? event.target.value : value)))
                     }
-                    className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm"
+                    className="w-full py-2 px-2 bg-white border border-brand-border rounded-lg text-sm"
                   />
-                  <span className="text-xs text-brand-dim">to</span>
+                  <p className="text-[11px] text-brand-dim text-center">to</p>
                   <input
                     type="time"
                     aria-label={`${label} end`}
@@ -423,11 +423,11 @@ export default function AdminConsultationsPage() {
                     onChange={(event) =>
                       setEnd((prev) => prev.map((value, index) => (index === weekday ? event.target.value : value)))
                     }
-                    className="py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm"
+                    className="w-full py-2 px-2 bg-white border border-brand-border rounded-lg text-sm"
                   />
                 </div>
               ) : (
-                <span className="text-sm text-brand-dim">Closed</span>
+                <p className="mt-3 text-sm text-brand-dim">Closed</p>
               )}
             </div>
           ))}
