@@ -69,7 +69,6 @@ export default async function AdminOverview() {
               { href: '/admin/leads', icon: '📥', label: 'Manage Leads', desc: `${leads.length} total leads` },
               { href: '/admin/clients', icon: '👥', label: 'Manage Clients', desc: `${activeClients.length} active clients` },
               { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap', desc: 'Track your launch plan' },
-              { href: '/admin/outreach', icon: '📨', label: 'Outreach Scripts', desc: '4 ready-to-use templates' },
             ].map(item => (
               <Link
                 key={item.href}
