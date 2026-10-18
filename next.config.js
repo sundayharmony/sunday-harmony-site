@@ -20,7 +20,7 @@ function buildContentSecurityPolicy() {
     `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com`,
     `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live`,
     `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com`,
-    "worker-src 'self' blob: https://cdn.jsdelivr.net",
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -76,6 +76,41 @@ const nextConfig = {
       {
         source: '/credit-funding/privacy',
         destination: '/credit/privacy',
+        permanent: true,
+      },
+      {
+        source: '/case-studies',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/case-studies/:path*',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/admin/case-studies',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/api/case-studies',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/api/case-studies/:path*',
+        destination: '/',
+        permanent: true,
+      },
+      {
+        source: '/api/admin/case-studies',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/api/admin/case-studies/:path*',
+        destination: '/admin',
         permanent: true,
       },
     ]

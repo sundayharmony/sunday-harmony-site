@@ -6,7 +6,7 @@ describe('seo helpers', () => {
   it('builds absolute URLs without double slashes', () => {
     const base = getSiteUrl()
     assert.equal(absoluteUrl('/'), base)
-    assert.equal(absoluteUrl('/case-studies'), `${base}/case-studies`)
+    assert.equal(absoluteUrl('/credit'), `${base}/credit`)
     assert.equal(absoluteUrl('credit-funding'), `${base}/credit-funding`)
   })
 

@@ -54,7 +54,6 @@ DECLARE
     'credit_funding_status_history',
     'credit_funding_messages',
     'credit_funding_document_requests',
-    'client_case_studies',
     'dispute_sessions',
     'dispute_letter_plans',
     'dispute_letters',
@@ -75,7 +74,7 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- 3. Private buckets (idempotent). Case studies stay public for marketing PDFs.
+-- 3. Private buckets (idempotent).
 -- ---------------------------------------------------------------------------
 UPDATE storage.buckets
 SET public = false
