@@ -25,7 +25,7 @@ describe('login callback sanitization', () => {
   it('allows same-origin relative paths', () => {
     assert.equal(sanitizeLoginCallbackUrl('/dashboard'), '/dashboard')
     assert.equal(sanitizeLoginCallbackUrl('/admin/clients?tab=1'), '/admin/clients?tab=1')
-    assert.equal(sanitizeInternalPath('/case-studies'), '/case-studies')
+    assert.equal(sanitizeInternalPath('/credit'), '/credit')
   })
 
   it('rejects open redirects', () => {

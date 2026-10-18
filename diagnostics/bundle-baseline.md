@@ -13,7 +13,7 @@ ANALYZE=true npm run build
 | Route / feature | Package | Mitigation applied |
 |-----------------|---------|-------------------|
 | `/credit-funding` | CreditFundingForm (~900 lines) | `next/dynamic` on page |
-| `/case-studies` | `pdfjs-dist` | Dynamic `CaseStudyPdfSheet`, server-fetched studies |
+| Dispute letter PDFs | `pdfkit` | Server-side letter packets |
 | Global | Montserrat 7→4 weights | Trimmed in `layout.tsx` |
 
 ## Public vs admin

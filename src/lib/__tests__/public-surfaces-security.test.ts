@@ -7,7 +7,6 @@ import {
   maskInviteEmail,
   verifyApplicationInviteToken,
 } from '../credit-funding-invite'
-import { getCaseStudyPdfRoute } from '../client-case-studies-storage'
 import { hasHoneypotValue } from '../honeypot'
 
 const originalSigningSecret = process.env.CREDIT_FUNDING_SIGNING_SECRET
@@ -63,25 +62,6 @@ describe('Area 11 public surface hardening', () => {
     legit.set('companyWebsite', 'https://autofill.example')
     legit.set('businessProfile', JSON.stringify({ website: 'https://real-business.com' }))
     assert.equal(hasHoneypotValue(legit), false)
-  })
-
-  it('serves case studies through a private app route and migration', () => {
-    const id = '123e4567-e89b-42d3-a456-426614174000'
-    assert.equal(getCaseStudyPdfRoute(id), `/api/case-studies/${id}/pdf`)
-
-    const publicApi = source('src/app/api/case-studies/route.ts')
-    const publicPage = source('src/app/case-studies/page.tsx')
-    const pdfRoute = source('src/app/api/case-studies/[id]/pdf/route.ts')
-    const storage = source('src/lib/client-case-studies-storage.ts')
-    const migration = source('supabase/migrations/20260715200719_private_case_study_delivery.sql')
-
-    assert.match(publicApi, /getCaseStudyPdfRoute/)
-    assert.match(publicPage, /getCaseStudyPdfRoute/)
-    assert.match(pdfRoute, /study\?\.published/)
-    assert.match(storage, /createSignedUrl/)
-    assert.match(migration, /public = false/)
-    assert.match(migration, /DROP POLICY IF EXISTS "client_case_studies_select_public"/)
-    assert.match(migration, /\/api\/case-studies\//)
   })
 
   it('rate-limits contact submissions after validation, not before', () => {

@@ -41,11 +41,10 @@ WHERE conrelid = 'public.uploaded_documents'::regclass
 -- ---------------------------------------------------------------------------
 -- 4. Storage buckets — private vaults vs public marketing
 -- Expected: credit-funding-docs / client-files / dispute-letters public=false
---           client-case-studies public=true (intentional)
 -- ---------------------------------------------------------------------------
 SELECT id, name, public, file_size_limit
 FROM storage.buckets
-WHERE id IN ('credit-funding-docs', 'client-files', 'dispute-letters', 'client-case-studies')
+WHERE id IN ('credit-funding-docs', 'client-files', 'dispute-letters')
 ORDER BY id;
 
 -- ---------------------------------------------------------------------------

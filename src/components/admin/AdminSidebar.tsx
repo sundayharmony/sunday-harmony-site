@@ -13,7 +13,6 @@ const allNavItems = [
   { href: '/admin/leads', icon: '\u{1F525}', label: 'Leads' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
   { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
-  { href: '/admin/case-studies', icon: '\u{1F4C4}', label: 'Case Studies' },
   { href: '/admin/billing', icon: '\u{1F4B3}', label: 'Billing' },
   { href: '/admin/referrals', icon: '\u{1F517}', label: 'Referrals' },
   { href: '/admin/partners', icon: '\u{1F91D}', label: 'Partners' },

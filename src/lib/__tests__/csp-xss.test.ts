@@ -30,14 +30,15 @@ describe('CSP and XSS hardening', () => {
     assert.equal(production['X-XSS-Protection'], '0')
   })
 
-  it('restricts images and isolates the PDF worker CDN', () => {
+  it('restricts images and keeps workers on this origin', () => {
     const csp = loadSecurityHeaders('production')['Content-Security-Policy']
     const imageDirective = csp.split('; ').find((part) => part.startsWith('img-src'))
     const workerDirective = csp.split('; ').find((part) => part.startsWith('worker-src'))
 
     assert.equal(imageDirective?.split(/\s+/).includes('https:'), false)
     assert.match(imageDirective || '', /https:\/\/\*\.supabase\.co/)
-    assert.match(workerDirective || '', /https:\/\/cdn\.jsdelivr\.net/)
+    assert.match(workerDirective || '', /'self'/)
+    assert.doesNotMatch(workerDirective || '', /cdn\.jsdelivr\.net/)
   })
 
   it('has no raw HTML sink in the dispute-letter preview', () => {

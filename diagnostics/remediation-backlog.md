@@ -9,10 +9,10 @@
 | Activity log IDOR (`/api/dashboard/activity`) | **DONE** |
 | Settings password user ID mismatch | **DONE** |
 | Credit intake rollback + idempotency key | **DONE** |
-| Case study storage existence check + migration 019 diagnostic probe | **DONE** |
+| Storage existence checks for private document buckets | **DONE** |
 | Gemini rate limit, admin file_url validation, admin/data whitelist | **DONE** |
 | Upload session TTL-only tokens (legacy removed) | **DONE** |
-| Public perf: dynamic credit form, server case studies, lazy PDF, font trim | **DONE** |
+| Public perf: dynamic credit form and font trim | **DONE** |
 | Lib dedup: storage-utils, stripe-invoice-utils, credit-funding-signing, escHtml | **DONE** |
 | UI dedup: SectionHeader, PublicPageLayout, siteNavLinks, AuditCtaButton, auth/settings | **DONE** |
 | `requireClientSession`, hooks (`useAdminClients`, `useAdminToolkitData`, `useDashboardProfile`) | **DONE** |

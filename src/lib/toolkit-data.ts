@@ -53,7 +53,7 @@ export const researchPhases = [
     ],
     tasks: [
       'Identify 5–8 direct competitors (local agencies, freelancers, platforms like Fiverr/Upwork serving your target market)',
-      'Audit competitor websites: pricing, services, case studies, reviews, positioning',
+      'Audit competitor websites: pricing, services, proof, reviews, positioning',
       'Analyze competitor Google reviews and testimonials for recurring client complaints',
       'Define Sunday Harmony\'s unique value proposition vs. each competitor type',
       'Create a competitive positioning map (price vs. service breadth)',
@@ -84,7 +84,7 @@ export const researchPhases = [
     ],
     tasks: [
       'Define your top 3 client acquisition channels (e.g., local networking, LinkedIn outreach, Google Ads for your own agency)',
-      'Create a case study or proof-of-concept from a pilot client or your own marketing results',
+      'Create a proof-of-concept from a pilot client or your own marketing results',
       'Build a referral program and strategic partnership pipeline (accountants, web developers, business coaches)',
       'Set 90-day targets: pipeline size, proposals sent, clients closed, revenue goal',
       'Design your onboarding process to deliver a \'quick win\' in the first 30 days for every new client',
@@ -98,7 +98,7 @@ export const positioningCanvas = [
   { label: 'Problem You Solve', placeholder: "e.g., Wasting time on marketing that doesn't work, losing customers to competitors online..." },
   { label: 'Your Unique Approach', placeholder: 'e.g., All-in-one digital + physical marketing partner with clear ROI reporting...' },
   { label: 'Why You, Not Them', placeholder: 'e.g., Unlike big agencies, we treat every client like our only client...' },
-  { label: 'Proof / Credibility', placeholder: 'e.g., Free audit results, testimonials, case studies, local NJ roots...' },
+  { label: 'Proof / Credibility', placeholder: 'e.g., Free audit results, testimonials, local NJ roots...' },
   { label: 'One-Liner Pitch', placeholder: "e.g., 'Sunday Harmony helps NJ businesses stop guessing and start growing.'" },
 ]
 
@@ -260,7 +260,7 @@ export const roadmapWeeks = [
     tasks: [
       'Deliver 30-day quick win for every client',
       'Document before/after screenshots',
-      'Create first case study',
+      'Collect the first client testimonial',
       'Post weekly on LinkedIn and Instagram',
       '10 new prospects/week minimum',
       '2+ free audits/week',
@@ -301,7 +301,7 @@ export const channels = [
     description: 'BNI chapters, Chamber events, SCORE. Strong NJ business communities.',
     steps: ['Find local BNI chapter, attend as visitor', 'Join county Chamber, attend every mixer', "Give free 'Marketing Tips' presentations", 'Always bring cards and audit offer'] },
   { name: 'LinkedIn Content', effort: 'medium', cost: 'Free', timeline: '2–6 weeks', conversion: '5–15%', priority: 2,
-    description: 'Post 3–5x/week with tips, insights, case studies. Builds authority.',
+    description: 'Post 3–5x/week with tips, insights, and client results. Builds authority.',
     steps: ['Post Mon/Wed/Fri with tips and wins', "Comment on 10 local owners' posts daily", 'Personalized connection requests (no pitch)', 'After connecting, share a tip or free audit'] },
   { name: 'Instagram & Facebook', effort: 'medium', cost: 'Free', timeline: '2–4 weeks', conversion: '5–10%', priority: 2,
     description: 'Great for restaurants, salons, home services. Show work, share tips, DM prospects.',
