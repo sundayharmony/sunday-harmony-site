@@ -20,7 +20,6 @@ const allNavItems = [
   { href: '/admin/team-messages', icon: '\u{1F91D}', label: 'Team Chat' },
   { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
   { href: '/admin/files', icon: '\u{1F4C1}', label: 'Files' },
-  { href: '/admin/approvals', icon: '\u{1F44D}', label: 'Approvals' },
   { href: '/admin/revenue', icon: '\u{1F4B0}', label: 'Revenue' },
   { href: '/admin/research', icon: '\u{1F50D}', label: 'Market Research' },
   { href: '/admin/competitors', icon: '\u2694\uFE0F', label: 'Competitors' },

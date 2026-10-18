@@ -762,55 +762,6 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
   await getSupabase().from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
 }
 
-// ââââââââââ APPROVALS ââââââââââ
-export interface Approval {
-  id: string
-  client_id: string
-  title: string
-  description: string
-  content_type: 'social_post' | 'ad_copy' | 'email' | 'blog' | 'graphic' | 'other'
-  content_url: string
-  content_text: string
-  status: 'pending' | 'approved' | 'revision_requested'
-  admin_notes: string
-  client_feedback: string
-  created_at: string
-  updated_at: string
-}
-
-export async function getApprovalsByClient(clientId: string): Promise<Approval[]> {
-  const { data, error } = await getSupabase().from('approvals').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
-  if (error) { console.error('getApprovals error:', error); return [] }
-  return data || []
-}
-
-export async function getApprovalById(id: string): Promise<Approval | null> {
-  const { data, error } = await getSupabase().from('approvals').select('*').eq('id', id).single()
-  if (error) return null
-  return data
-}
-
-export async function createApproval(approval: Omit<Approval, 'id' | 'created_at' | 'updated_at'>): Promise<Approval | null> {
-  const { data, error } = await getSupabase().from('approvals').insert(approval).select().single()
-  if (error) { console.error('createApproval error:', error); return null }
-  return data
-}
-
-export async function updateApproval(id: string, updates: Partial<Omit<Approval, 'id' | 'created_at'>>): Promise<Approval | null> {
-  const { data, error } = await getSupabase().from('approvals').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single()
-  if (error) { console.error('updateApproval error:', error); return null }
-  return data
-}
-
-export async function deleteApproval(id: string): Promise<boolean> {
-  const { error } = await getSupabase().from('approvals').delete().eq('id', id)
-  if (error) {
-    console.error('deleteApproval error:', error)
-    return false
-  }
-  return true
-}
-
 /** Insert event id before processing. Returns duplicate if already handled. */
 export async function claimStripeWebhookEvent(
   eventId: string

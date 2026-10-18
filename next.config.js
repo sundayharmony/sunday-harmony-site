@@ -113,6 +113,46 @@ const nextConfig = {
         destination: '/admin',
         permanent: true,
       },
+      {
+        source: '/admin/approvals',
+        destination: '/admin/clients',
+        permanent: true,
+      },
+      {
+        source: '/admin/approvals/:path*',
+        destination: '/admin/clients',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/approvals',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/dashboard/approvals/:path*',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/api/admin/approvals',
+        destination: '/admin/clients',
+        permanent: true,
+      },
+      {
+        source: '/api/admin/approvals/:path*',
+        destination: '/admin/clients',
+        permanent: true,
+      },
+      {
+        source: '/api/dashboard/approvals',
+        destination: '/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/api/dashboard/approvals/:path*',
+        destination: '/dashboard',
+        permanent: true,
+      },
     ]
   },
 }

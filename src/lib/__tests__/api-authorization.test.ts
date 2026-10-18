@@ -163,18 +163,33 @@ describe('Area 06 API authorization hardening', () => {
 
   it('keeps dashboard ID ownership checks while using shared client auth', () => {
     const files = readFileSync('src/app/api/dashboard/files/route.ts', 'utf8')
-    const approvals = readFileSync('src/app/api/dashboard/approvals/route.ts', 'utf8')
     const notifications = readFileSync(
       'src/app/api/dashboard/notifications/route.ts',
       'utf8'
     )
 
-    for (const source of [files, approvals, notifications]) {
+    for (const source of [files, notifications]) {
       assert.match(source, /requireClientSession/)
       assert.doesNotMatch(source, /getServerSession/)
     }
     assert.match(files, /file\.client_id !== clientId/)
-    assert.match(approvals, /existing\.client_id !== clientId/)
     assert.match(notifications, /notification\.user_id !== userId/)
+  })
+
+  it('does not keep a standalone content-approvals tab', () => {
+    const adminNav = readFileSync('src/components/admin/AdminSidebar.tsx', 'utf8')
+    const clientNav = readFileSync('src/components/dashboard/ClientSidebar.tsx', 'utf8')
+    const clientsPage = readFileSync('src/app/admin/clients/page.tsx', 'utf8')
+    const redirects = readFileSync('next.config.js', 'utf8')
+
+    assert.doesNotMatch(adminNav, /\/admin\/approvals/)
+    assert.doesNotMatch(clientNav, /\/dashboard\/approvals/)
+    assert.doesNotMatch(clientsPage, /\/admin\/approvals/)
+    assert.match(redirects, /source: '\/admin\/approvals'/)
+    assert.match(redirects, /source: '\/dashboard\/approvals'/)
+    assert.throws(() => readFileSync('src/app/admin/approvals/page.tsx', 'utf8'))
+    assert.throws(() => readFileSync('src/app/dashboard/approvals/page.tsx', 'utf8'))
+    assert.throws(() => readFileSync('src/app/api/admin/approvals/route.ts', 'utf8'))
+    assert.throws(() => readFileSync('src/app/api/dashboard/approvals/route.ts', 'utf8'))
   })
 })
