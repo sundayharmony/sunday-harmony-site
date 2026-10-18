@@ -1,19 +1,15 @@
-import { getLeads, getClients } from '@/lib/db'
+import { getClients } from '@/lib/db'
 import { packages } from '@/lib/data'
 import StatCard from '@/components/ui/StatCard'
-import StatusBadge from '@/components/ui/StatusBadge'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminOverview() {
-  const leads = await getLeads()
   const clients = await getClients()
 
   const activeClients = clients.filter(c => c.status === 'active')
   const mrr = activeClients.reduce((sum, c) => sum + c.monthly_price, 0)
-  const newLeads = leads.filter(l => l.status === 'new').length
-  const recentLeads = leads.slice(0, 5)
 
   // Revenue by tier
   const tierCounts: Record<string, number> = {}
@@ -29,44 +25,19 @@ export default async function AdminOverview() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard label="Active Clients" value={activeClients.length} />
         <StatCard label="Monthly Revenue" value={`$${mrr.toLocaleString()}`} color="accent" />
-        <StatCard label="New Leads" value={newLeads} />
         <StatCard label="Annual Projection" value={`$${(mrr * 12).toLocaleString()}`} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Recent Leads */}
-        <div className="bg-white border border-brand-border rounded-xl p-6 shadow-sm">
-          <div className="flex justify-between items-center mb-5">
-            <h2 className="text-sm font-bold text-brand-text">Recent Leads</h2>
-            <Link href="/admin/leads" className="text-xs text-accent hover:underline">View all →</Link>
-          </div>
-          {recentLeads.length === 0 ? (
-            <p className="text-sm text-brand-dim">No leads yet. They&apos;ll appear here when someone submits the contact form.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentLeads.map(lead => (
-                <div key={lead.id} className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0">
-                  <div>
-                    <div className="text-sm font-medium text-brand-text">{lead.first_name} {lead.last_name}</div>
-                    <div className="text-xs text-brand-dim">{lead.business}</div>
-                  </div>
-                  <StatusBadge status={lead.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Quick Actions */}
         <div className="bg-white border border-brand-border rounded-xl p-6 shadow-sm">
           <h2 className="text-sm font-bold text-brand-text mb-5">Quick Actions</h2>
           <div className="space-y-2">
             {[
               { href: '/admin/crm', icon: '📋', label: 'CRM Overview', desc: 'Contacts, meetings & pipeline' },
-              { href: '/admin/leads', icon: '📥', label: 'Manage Leads', desc: `${leads.length} total leads` },
               { href: '/admin/clients', icon: '👥', label: 'Manage Clients', desc: `${activeClients.length} active clients` },
               { href: '/admin/roadmap', icon: '🗺️', label: '90-Day Roadmap', desc: 'Track your launch plan' },
             ].map(item => (

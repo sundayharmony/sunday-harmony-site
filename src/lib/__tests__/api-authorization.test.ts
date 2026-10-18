@@ -209,4 +209,20 @@ describe('Area 06 API authorization hardening', () => {
     assert.throws(() => readFileSync('src/app/admin/files/page.tsx', 'utf8'))
     readFileSync('src/app/dashboard/files/page.tsx', 'utf8')
   })
+
+  it('does not keep an admin leads tab or Google Places discovery', () => {
+    const adminNav = readFileSync('src/components/admin/AdminSidebar.tsx', 'utf8')
+    const overview = readFileSync('src/app/admin/page.tsx', 'utf8')
+    const redirects = readFileSync('next.config.js', 'utf8')
+    const contact = readFileSync('src/app/api/contact/route.ts', 'utf8')
+
+    assert.doesNotMatch(adminNav, /\/admin\/leads/)
+    assert.doesNotMatch(overview, /\/admin\/leads/)
+    assert.doesNotMatch(overview, /getLeads/)
+    assert.match(redirects, /source: '\/admin\/leads'/)
+    assert.match(contact, /createLead/)
+    assert.throws(() => readFileSync('src/app/admin/leads/page.tsx', 'utf8'))
+    assert.throws(() => readFileSync('src/app/api/admin/leads/route.ts', 'utf8'))
+    assert.throws(() => readFileSync('src/app/api/admin/leads/discover/route.ts', 'utf8'))
+  })
 })

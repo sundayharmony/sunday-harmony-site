@@ -178,12 +178,6 @@ export async function getLeadById(id: string): Promise<Lead | undefined> {
   return data
 }
 
-export async function getLeadByGooglePlaceId(googlePlaceId: string): Promise<Lead | undefined> {
-  const { data, error } = await getSupabase().from('leads').select('*').eq('google_place_id', googlePlaceId).single()
-  if (error) return undefined
-  return data
-}
-
 export async function createLead(leadData: {
   first_name: string
   last_name?: string
@@ -234,22 +228,6 @@ export async function createLead(leadData: {
     .single()
   if (error) { console.error('createLead error:', error); return null }
   return data
-}
-
-export async function updateLead(id: string, updates: Partial<Omit<Lead, 'id' | 'created_at'>>): Promise<Lead | null> {
-  const updateData = { ...updates, updated_at: new Date().toISOString() }
-  const { data, error } = await getSupabase().from('leads').update(updateData).eq('id', id).select().single()
-  if (error) { console.error('updateLead error:', error); return null }
-  return data
-}
-
-export async function deleteLead(id: string): Promise<boolean> {
-  const { error } = await getSupabase().from('leads').delete().eq('id', id)
-  if (error) {
-    console.error('deleteLead error:', error)
-    return false
-  }
-  return true
 }
 
 // ââââââââââ CLIENTS ââââââââââ
@@ -831,36 +809,4 @@ export async function seedAdmin(): Promise<SeedAdminResult> {
     console.error('seedAdmin error:', err)
     return { seeded: false, reason: 'database_error' }
   }
-}
-
-function normalizeLeadLoose(value?: string): string {
-  return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
-function normalizeLeadPhone(value?: string): string {
-  return (value || '').replace(/\D+/g, '')
-}
-
-/** Find duplicate lead by business + phone or website without loading all leads. */
-export async function findLeadDuplicate(
-  business: string,
-  phone?: string,
-  website?: string
-): Promise<Lead | undefined> {
-  const trimmed = business.trim()
-  if (!trimmed) return undefined
-
-  const { data, error } = await getSupabase().from('leads').select('*').ilike('business', trimmed)
-  if (error || !data?.length) return undefined
-
-  const businessNorm = normalizeLeadLoose(trimmed)
-  const phoneNorm = normalizeLeadPhone(phone)
-  const websiteNorm = normalizeLeadLoose(website)
-
-  return data.find(lead => {
-    if (normalizeLeadLoose(lead.business) !== businessNorm) return false
-    const samePhone = phoneNorm && normalizeLeadPhone(lead.phone) === phoneNorm
-    const sameWebsite = websiteNorm && normalizeLeadLoose(lead.website) === websiteNorm
-    return Boolean(samePhone || sameWebsite)
-  })
 }
