@@ -203,7 +203,7 @@ describe('Area 06 API authorization hardening', () => {
     assert.doesNotMatch(adminNav, /\/admin\/files/)
     assert.doesNotMatch(clientsPage, /\/admin\/files/)
     assert.doesNotMatch(dashboardFiles, /\/admin\/files/)
-    assert.match(dashboardFiles, /pathWithQuery: '\/admin\/clients'/)
+    assert.match(dashboardFiles, /pathWithQuery: `\/admin\/people\/\$\{encodeURIComponent\(clientId\)\}`/)
     assert.match(clientNav, /\/dashboard\/files/)
     assert.match(redirects, /source: '\/admin\/files'/)
     assert.throws(() => readFileSync('src/app/admin/files/page.tsx', 'utf8'))

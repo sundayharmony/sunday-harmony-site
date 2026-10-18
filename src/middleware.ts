@@ -19,8 +19,9 @@ const CLIENT_HOME_PATHS = new Set(['/', '/login', '/forgot-password', '/reset-pa
  */
 const MFA_INCOMPLETE_ALLOWED = new Set(['/login', '/forgot-password', '/reset-password'])
 
-/** Credit managers may only access these admin page prefixes (after MFA). */
+/** Credit managers use Today, People, the credit workspace, and Settings. */
 const CREDIT_MANAGER_ADMIN_PATHS = [
+  '/admin/people',
   '/admin/credit-funding',
   '/admin/dispute-letters',
   '/admin/settings',
@@ -40,6 +41,7 @@ function redirectToLogin(req: NextRequest, reason: 'signin' | 'unauthorized' = '
 }
 
 function creditManagerAllowed(path: string): boolean {
+  if (path === '/admin') return true
   return CREDIT_MANAGER_ADMIN_PATHS.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`)
   )
@@ -80,7 +82,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (role === 'credit_manager' && mfaVerified && path === '/login') {
-    return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+    return NextResponse.redirect(new URL('/admin', req.url))
   }
 
   if (path.startsWith('/admin')) {
@@ -93,9 +95,7 @@ export async function middleware(req: NextRequest) {
 
     if (role === 'credit_manager') {
       if (!creditManagerAllowed(path)) {
-        const url = new URL('/admin/credit-funding', req.url)
-        url.searchParams.set('error', 'unauthorized')
-        return NextResponse.redirect(url)
+        return NextResponse.redirect(new URL('/admin', req.url))
       }
       return NextResponse.next()
     }
@@ -128,7 +128,7 @@ export async function middleware(req: NextRequest) {
           new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
         )
       }
-      return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+      return NextResponse.redirect(new URL('/admin', req.url))
     }
   }
 
@@ -142,6 +142,7 @@ export const config = {
     '/login/:path*',
     '/forgot-password',
     '/reset-password',
+    '/admin',
     '/admin/:path*',
     '/dashboard/:path*',
     '/partner',

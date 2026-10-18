@@ -174,6 +174,51 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/admin/crm',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
+        source: '/admin/crm/:path*',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
+        source: '/admin/billing',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/billing/:path*',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/admin/referrals',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
+        source: '/admin/tasks',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
+        source: '/admin/tasks/:path*',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
+        source: '/admin/messages',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
+        source: '/admin/messages/:path*',
+        destination: '/admin/people',
+        permanent: true,
+      },
+      {
         source: '/api/case-studies',
         destination: '/',
         permanent: true,

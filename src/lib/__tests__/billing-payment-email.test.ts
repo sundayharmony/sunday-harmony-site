@@ -22,7 +22,7 @@ describe('staff payment confirmation email', () => {
     })
     assert.match(copy.subject, /Payment received: \$258\.75/)
     assert.match(copy.subject, /Charlie McNichol/)
-    assert.equal(copy.adminPath, '/admin/clients?client=client-1')
+    assert.equal(copy.adminPath, '/admin/people/client-1')
     assert.match(copy.html, /Credit repair payment of \$258\.75/)
     assert.match(copy.html, /maccesar\.inc@gmail\.com/)
     assert.match(copy.html, /Invoice: ABC-1/)
@@ -35,10 +35,10 @@ describe('staff payment confirmation email', () => {
       amountCents: 9900,
       kind: 'subscription',
     })
-    assert.equal(copy.adminPath, '/admin/billing')
+    assert.equal(copy.adminPath, '/admin')
     assert.match(copy.html, /Marketing subscription/)
     assert.match(copy.html, /Unknown client/)
-    assert.match(copy.html, /Open billing/)
+    assert.match(copy.html, /Open today/)
   })
 
   it('skips $0 invoices and missing SMTP instead of emailing staff', async () => {

@@ -37,8 +37,8 @@ export function buildPaymentProcessedAdminEmail(input: {
   const kindLabel = KIND_LABEL[input.kind]
   const subject = sanitizeEmailSubjectPart(`Payment received: ${amount} — ${clientName}`, 200)
   const adminPath = input.clientId?.trim()
-    ? `/admin/clients?client=${encodeURIComponent(input.clientId.trim())}`
-    : '/admin/billing'
+    ? `/admin/people/${encodeURIComponent(input.clientId.trim())}`
+    : '/admin'
   const paragraphs = [
     `${kindLabel} payment of ${amount} was processed.`,
     `Client: ${clientName}`,
@@ -57,7 +57,7 @@ export function buildPaymentProcessedAdminEmail(input: {
       heading: 'Payment received',
       bodyParagraphs: paragraphs,
       pathWithQuery: adminPath,
-      buttonLabel: input.clientId ? 'Open client' : 'Open billing',
+      buttonLabel: input.clientId ? 'Open client' : 'Open today',
     }),
   }
 }

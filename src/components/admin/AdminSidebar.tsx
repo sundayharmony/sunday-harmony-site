@@ -7,25 +7,15 @@ import { signOut, useSession } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
 
 const allNavItems = [
-  { href: '/admin', icon: '\u{1F4CA}', label: 'Overview' },
-  { href: '/admin/crm', icon: '\u{1F4CB}', label: 'CRM' },
-  { href: '/admin/consultations', icon: '\u{1F4C5}', label: 'Consultations' },
-  { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
-  { href: '/admin/clients', icon: '\u{1F465}', label: 'Clients' },
-  { href: '/admin/billing', icon: '\u{1F4B3}', label: 'Billing' },
-  { href: '/admin/referrals', icon: '\u{1F517}', label: 'Referrals' },
+  { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
+  { href: '/admin/people', icon: '\u{1F464}', label: 'People' },
   { href: '/admin/partners', icon: '\u{1F91D}', label: 'Partners' },
-  { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
-  { href: '/admin/tasks', icon: '\u2705', label: 'Tasks' },
-  { href: '/admin/research', icon: '\u{1F50D}', label: 'Market Research' },
-  { href: '/admin/packages', icon: '\u{1F4E6}', label: 'Packages' },
-  { href: '/admin/roadmap', icon: '\u{1F5FA}\uFE0F', label: '90-Day Roadmap' },
-  { href: '/admin/training', icon: '\u{1F4DA}', label: 'Sales Training' },
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
 const creditManagerHrefs = new Set([
-  '/admin/credit-funding',
+  '/admin',
+  '/admin/people',
   '/admin/settings',
 ])
 
@@ -51,7 +41,7 @@ export default function AdminSidebar({
     : allNavItems
 
   const dashboardLabel = isCreditManager ? 'Credit Manager' : 'Admin Dashboard'
-  const logoHref = isCreditManager ? '/admin/credit-funding' : '/admin'
+  const logoHref = '/admin'
 
   const desktopHidden = hydrated && collapsed
 

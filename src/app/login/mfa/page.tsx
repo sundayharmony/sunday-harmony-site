@@ -28,7 +28,7 @@ function MfaVerifyForm() {
     if (status !== 'authenticated' || !session?.user) return
     if (session.user.mfaVerified) {
       if (session.user.role === 'admin') router.replace('/admin')
-      else if (session.user.role === 'credit_manager') router.replace('/admin/credit-funding')
+      else if (session.user.role === 'credit_manager') router.replace('/admin')
       else router.replace('/dashboard')
       return
     }
@@ -71,7 +71,7 @@ function MfaVerifyForm() {
     const next = await res.json()
     const role = next?.user?.role
     if (role === 'admin') router.push('/admin')
-    else if (role === 'credit_manager') router.push('/admin/credit-funding')
+    else if (role === 'credit_manager') router.push('/admin')
     else router.push('/dashboard')
   }
 
@@ -120,7 +120,7 @@ function MfaVerifyForm() {
       const next = await res.json()
       const role = next?.user?.role
       if (role === 'admin') router.push('/admin')
-      else if (role === 'credit_manager') router.push('/admin/credit-funding')
+      else if (role === 'credit_manager') router.push('/admin')
       else router.push('/dashboard')
     } catch (err) {
       if (err instanceof Error && err.name === 'NotAllowedError') {

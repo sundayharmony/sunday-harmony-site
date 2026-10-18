@@ -4,19 +4,19 @@ overview: "Replace the separate Consultations, Credit & Funding, Clients, Billin
 todos:
   - id: person-resolver
     content: Resolve one person by normalized email across leads, clients, applications, and consultation bookings, and link matching rows.
-    status: pending
+    status: completed
   - id: people-list
     content: Replace the CRM contact list with /admin/people, one row per person, with credit-manager filtering.
-    status: pending
+    status: completed
   - id: person-file
     content: Build the person file with consultation, credit and funding, client package, billing, referrals, tasks, and messages.
-    status: pending
+    status: completed
   - id: today-queue
     content: Turn the admin overview into Today — upcoming consultations, applications waiting, who owes money, and referral payouts ready.
-    status: pending
+    status: completed
   - id: nav-redirects
     content: Shrink the sidebar, move booking hours into Settings, and permanently redirect the old tabs.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -115,16 +115,20 @@ Credit manager nav:
 
 `CREDIT_MANAGER_ADMIN_PATHS` in `src/middleware.ts` becomes `/admin`, `/admin/people`, `/admin/dispute-letters`, and `/admin/settings`. `/admin` for a credit manager must not bounce to `/admin/credit-funding?error=unauthorized`.
 
-Permanent redirects in `next.config.js`:
+Permanent redirects in `next.config.js` for the list pages the person file replaces:
 
-- `/admin/crm` and `/admin/contacts/:entity/:id` → `/admin/people` (detail redirect can be a small route that resolves the old id)
-- `/admin/consultations` → `/admin/settings` (hours live there; bookings are on Today)
-- `/admin/credit-funding` → `/admin/people`
-- `/admin/clients` → `/admin/people`
-- `/admin/billing` → `/admin`
-- `/admin/referrals` → `/admin/people`
-- `/admin/tasks` → `/admin/people`
-- `/admin/messages` → `/admin/people`
+- `/admin/crm` → `/admin/people`
+- `/admin/billing` → `/admin` (who owes money is on Today; the plan itself is on the person)
+- `/admin/referrals` → `/admin/people` (the payout page `/admin/referrals/[clientId]` stays, linked from the person)
+- `/admin/tasks` and `/admin/messages` → `/admin/people`
+
+These URLs stay, and leave the sidebar:
+
+- `/admin/credit-funding` and `/admin/dispute-letters` — opened from the person’s Credit & Funding section
+- `/admin/consultations` — booking hours, linked from Settings
+- `/admin/clients` — deliverables and notes, linked from the person’s Client section
+
+Old contact URLs `/admin/contacts/:entity/:id` resolve to the canonical person id.
 
 Keep the API routes. The person file calls the same client, billing, task, message, meeting, consultation, and credit-funding handlers. Delete only the list pages after the person sections cover them.
 

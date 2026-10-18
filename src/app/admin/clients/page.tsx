@@ -71,6 +71,14 @@ export default function ClientsPage() {
     })()
   }, [])
 
+  useEffect(() => {
+    if (loading || selected || clients.length === 0) return
+    const id = new URLSearchParams(window.location.search).get('client')
+    if (!id) return
+    const match = clients.find((client) => client.id === id)
+    if (match) setSelected(match)
+  }, [loading, clients, selected])
+
   const refreshClientsAndReselect = async (id: string) => {
     try {
       const r = await fetch('/api/admin/clients')
@@ -559,9 +567,9 @@ export default function ClientsPage() {
 
             {/* Quick Links */}
             <div className="mb-4 flex gap-2 flex-wrap">
-              <a href={`/admin/tasks?client=${selected.id}`}
+              <a href={`/admin/people/${selected.id}`}
                 className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold hover:bg-blue-100 transition-colors">
-                ✅ Tasks
+                Person file
               </a>
             </div>
 

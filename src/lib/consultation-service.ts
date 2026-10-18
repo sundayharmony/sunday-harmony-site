@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { createLead } from '@/lib/db'
+import { createLead, findLeadByEmail, updateLead, type Lead } from '@/lib/db'
 import { createMeeting, updateMeeting } from '@/lib/crm-db'
 import { consultationCancelUrl, consultationEmailHtml } from '@/lib/consultation-email'
 import {
@@ -190,23 +190,38 @@ export async function bookConsultation(input: {
   }
 
   const { first, last } = splitName(input.name)
-  const lead = await createLead({
-    first_name: first,
-    last_name: last,
-    email: input.email.trim(),
-    phone: input.phone.trim(),
-    business: input.business.trim(),
-    message: input.note.trim(),
-    service: 'Consultation',
-    source: 'inbound',
-    lead_type: 'marketing_lead',
-    marketing_lead_status: 'consultation_scheduled',
-  })
+  const existingLead = await findLeadByEmail(input.email)
+  let lead: Lead | null | undefined = existingLead
+  if (!lead) {
+    lead = await createLead({
+      first_name: first,
+      last_name: last,
+      email: input.email.trim(),
+      phone: input.phone.trim(),
+      business: input.business.trim(),
+      message: input.note.trim(),
+      service: 'Consultation',
+      source: 'inbound',
+      lead_type: 'marketing_lead',
+      marketing_lead_status: 'consultation_scheduled',
+    })
+  } else {
+    const updates: Parameters<typeof updateLead>[1] = {}
+    if (existingLead?.marketing_lead_status !== 'converted') {
+      updates.marketing_lead_status = 'consultation_scheduled'
+    }
+    if (!(existingLead?.phone || '').trim() && input.phone.trim()) updates.phone = input.phone.trim()
+    if (!(existingLead?.business || '').trim() && input.business.trim()) updates.business = input.business.trim()
+    if (!(existingLead?.message || '').trim() && input.note.trim()) updates.message = input.note.trim()
+    if (Object.keys(updates).length > 0) {
+      lead = (await updateLead(existingLead!.id, updates)) ?? existingLead
+    }
+  }
 
   let meetingId: string | null = null
   if (lead) {
     const meeting = await createMeeting({
-      client_id: null,
+      client_id: lead.client_id ?? null,
       lead_id: lead.id,
       application_uuid: null,
       title: `Consultation with ${input.name.trim()}`,

@@ -77,6 +77,9 @@ const CREDIT_FUNDING_LIST_SELECT = [
   'invite_personal_message',
   'draft_source',
   'created_by_staff_email',
+  'lead_id',
+  'client_id',
+  'business_name',
   'created_at',
   'updated_at',
 ].join(', ')

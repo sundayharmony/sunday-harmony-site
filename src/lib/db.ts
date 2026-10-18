@@ -178,6 +178,37 @@ export async function getLeadById(id: string): Promise<Lead | undefined> {
   return data
 }
 
+/** Oldest lead with this email, so a new consultation reuses the person instead of creating another lead. */
+export async function findLeadByEmail(email: string): Promise<Lead | undefined> {
+  const pattern = emailIlikePattern(email)
+  if (!pattern) return undefined
+  const { data, error } = await getSupabase()
+    .from('leads')
+    .select('*')
+    .ilike('email', pattern)
+    .order('created_at', { ascending: true })
+    .limit(1)
+  if (error || !data?.[0]) return undefined
+  return data[0]
+}
+
+export async function updateLead(
+  id: string,
+  updates: Partial<Omit<Lead, 'id' | 'created_at'>>
+): Promise<Lead | null> {
+  const { data, error } = await getSupabase()
+    .from('leads')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) {
+    console.error('updateLead error:', error)
+    return null
+  }
+  return data
+}
+
 export async function createLead(leadData: {
   first_name: string
   last_name?: string
@@ -666,6 +697,12 @@ export async function getTasksByClient(clientId: string): Promise<Task[]> {
   const { data, error } = await getSupabase().from('tasks').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
   if (error) { console.error('getTasks error:', error); return [] }
   return data || []
+}
+
+export async function getTaskById(id: string): Promise<Task | undefined> {
+  const { data, error } = await getSupabase().from('tasks').select('*').eq('id', id).single()
+  if (error) return undefined
+  return data
 }
 
 export async function createTask(task: Omit<Task, 'id' | 'created_at' | 'updated_at'>): Promise<Task | null> {

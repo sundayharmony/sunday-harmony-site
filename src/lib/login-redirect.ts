@@ -19,7 +19,7 @@ export function destinationAfterLogin(
     return mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa'
   }
   if (role === 'admin') return '/admin'
-  if (role === 'credit_manager') return '/admin/credit-funding'
+  if (role === 'credit_manager') return '/admin'
   if (role === 'client') return '/dashboard'
   if (role === 'partner') return '/partner'
   return sanitizeLoginCallbackUrl(fallback)

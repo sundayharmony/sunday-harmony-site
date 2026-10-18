@@ -32,7 +32,7 @@ export default function CrmReportsPage() {
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">CRM Reports</h1>
           <p className="text-sm text-brand-muted">Pipeline metrics and conversion analytics.</p>
         </div>
-        <Link href="/admin/crm" className="text-xs text-accent hover:underline">← CRM Overview</Link>
+        <Link href="/admin/people" className="text-xs text-accent hover:underline">← People</Link>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">

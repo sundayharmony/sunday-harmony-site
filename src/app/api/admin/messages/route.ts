@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireStaffSession } from '@/lib/stripe-admin-auth'
+import { staffMayUseClient } from '@/lib/people-db'
 import { getMessages, createMessage, getClientById, createNotification } from '@/lib/db'
 import { getSupabase } from '@/lib/supabase'
 import { escHtml, getPublicSiteUrl, isEmailConfigured, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
@@ -7,7 +8,7 @@ import { escHtml, getPublicSiteUrl, isEmailConfigured, sendHtmlMailNonBlocking }
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const session = await requireAdminSession()
+  const session = await requireStaffSession()
   if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)
@@ -15,18 +16,24 @@ export async function GET(request: Request) {
   if (!clientId) {
     return NextResponse.json([])
   }
+  if (!(await staffMayUseClient(session.user.role, clientId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const messages = await getMessages(clientId)
   return NextResponse.json(messages)
 }
 
 export async function POST(request: Request) {
-  const session = await requireAdminSession()
+  const session = await requireStaffSession()
   if (session instanceof NextResponse) return session
 
   const { clientId, text } = await request.json()
   if (!clientId || !text?.trim()) {
     return NextResponse.json({ error: 'clientId and text required' }, { status: 400 })
+  }
+  if (!(await staffMayUseClient(session.user.role, clientId))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Input length validation

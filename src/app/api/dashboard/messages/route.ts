@@ -71,7 +71,7 @@ export async function POST(request: Request) {
               <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
             </div>
             <p style="font-size:13px;color:#666">
-              Reply from your <a href="${escHtml(siteUrl)}/admin/messages" style="color:#c9a96e">admin dashboard</a>.
+              Reply from your <a href="${escHtml(siteUrl)}/admin/people/${escHtml(clientId)}" style="color:#c9a96e">admin dashboard</a>.
             </p>
           </div>
         `,

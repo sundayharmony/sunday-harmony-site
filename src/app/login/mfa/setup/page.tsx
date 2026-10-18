@@ -24,7 +24,7 @@ export default function MfaSetupPage() {
     }
     if (status !== 'authenticated' || !session?.user) return
     if (session.user.mfaVerified) {
-      router.replace(session.user.role === 'credit_manager' ? '/admin/credit-funding' : '/admin')
+      router.replace('/admin')
       return
     }
     if (session.user.mfaPending && !session.user.mfaEnrollmentRequired) {
@@ -68,7 +68,7 @@ export default function MfaSetupPage() {
       return
     }
     const role = sess?.user?.role || session?.user?.role
-    router.push(role === 'credit_manager' ? '/admin/credit-funding' : '/admin')
+    router.push('/admin')
   }
 
   const handleConfirm = async (e: FormEvent) => {
