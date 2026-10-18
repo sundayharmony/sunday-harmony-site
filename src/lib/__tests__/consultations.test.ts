@@ -144,16 +144,17 @@ describe('consultation email and calendar gate', () => {
   it('wires the public book route, reminder cron, and contact page', () => {
     const book = readFileSync('src/app/api/consultations/route.ts', 'utf8')
     const reminders = readFileSync('src/app/api/internal/consultation-reminders/route.ts', 'utf8')
-    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons?: Array<{ path: string }> }
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as {
+      crons?: Array<{ path: string; schedule: string }>
+    }
     const contact = readFileSync('src/app/contact/page.tsx', 'utf8')
     assert.match(book, /hasHoneypotValue/)
     assert.match(book, /rateLimitDurable/)
     assert.match(book, /bookConsultation/)
     assert.match(reminders, /Bearer \$\{cronSecret\}/)
-    assert.equal(
-      vercel.crons?.some((cron) => cron.path === '/api/internal/consultation-reminders'),
-      true
-    )
+    const reminder = vercel.crons?.find((cron) => cron.path === '/api/internal/consultation-reminders')
+    assert.ok(reminder)
+    assert.match(reminder.schedule, /^\d{1,2} \d{1,2} \* \* \*$/)
     assert.match(contact, /ConsultationBooker/)
     assert.match(contact, /id="book"/)
   })
