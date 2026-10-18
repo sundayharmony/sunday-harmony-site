@@ -33,7 +33,7 @@ async function notifyStaffClientFileUploaded(clientId: string, fileName: string)
     const html = staffPortalEmailHtml({
       heading: 'Client uploaded a file',
       bodyParagraphs: [`${who} uploaded a file to the client vault.`, `File: ${fileName}`],
-      pathWithQuery: `/admin/files?client=${encodeURIComponent(clientId)}`,
+      pathWithQuery: '/admin/clients',
     })
     sendHtmlMailNonBlocking({
       to: getAdminNotifyEmail(),

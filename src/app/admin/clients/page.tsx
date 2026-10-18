@@ -563,10 +563,6 @@ export default function ClientsPage() {
                 className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold hover:bg-blue-100 transition-colors">
                 ✅ Tasks
               </a>
-              <a href={`/admin/files?client=${selected.id}`}
-                className="px-3 py-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-bold hover:bg-purple-100 transition-colors">
-                📁 Files
-              </a>
             </div>
 
             {/* Deliverables */}
