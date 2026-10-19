@@ -28,7 +28,9 @@ import {
   defaultRepairFeeCents,
   formatRepairFeeCents,
   isCreditRepairBillingClient,
+  isRepairInvoice,
   parseRepairFeeToCents,
+  repairFeeMarkedPaid,
   repairInvoiceMetadata,
   resolveRepairCollectionMode,
 } from '@/lib/credit-repair-billing'
@@ -825,8 +827,88 @@ async function listRepairInvoicesForCustomer(customerId: string) {
   return list.data.filter(isTrackedRepairInvoice).map(normalizeStripeInvoice)
 }
 
-export async function getRepairBillingSnapshot(clientId: string): Promise<RepairBillingSnapshot> {
+type NormalizedRepairInvoice = ReturnType<typeof normalizeStripeInvoice>
+
+function latestPaidRepairInvoiceId(invoices: NormalizedRepairInvoice[]): string | null {
+  const paid = invoices
+    .filter((inv) => inv.status === 'paid' && inv.id)
+    .sort((a, b) => b.created - a.created)
+  return paid[0]?.id ?? null
+}
+
+/** Cap Stripe lookups when refreshing People / Today so list loads stay bounded. */
+export const REPAIR_PAYMENT_RECONCILE_LIMIT = 15
+
+/**
+ * When Stripe shows a paid repair invoice but Supabase still has repair_fee_paid_at null
+ * (missed webhook, etc.), backfill the client row so People "owes" matches billing UI.
+ */
+export async function reconcileRepairPaymentFromStripe(
+  clientId: string,
+  options?: { prefetchedInvoices?: NormalizedRepairInvoice[] }
+): Promise<Client | null> {
   const client = await getClientById(clientId)
+  if (!client || !isCreditRepairBillingClient(client)) return null
+  if (repairFeeMarkedPaid(client)) return null
+
+  const customerId = client.stripe_customer_id?.trim()
+  if (!customerId) return null
+
+  const invoices =
+    options?.prefetchedInvoices ?? (await listRepairInvoicesForCustomer(customerId))
+  const invoiceId = latestPaidRepairInvoiceId(invoices)
+  if (!invoiceId) return null
+
+  const stripe = getStripe()
+  const invoice = await stripe.invoices.retrieve(invoiceId)
+  if (invoice.status !== 'paid' || !isRepairInvoice(invoice, client)) return null
+
+  await applyRepairInvoicePaid(clientId, invoice)
+  try {
+    const paidAtRaw = invoice.status_transitions?.paid_at
+    await awardReferralCommissionForPaidClient(clientId, {
+      qualifyingPaymentId: invoice.id,
+      paidAt:
+        typeof paidAtRaw === 'number' && !Number.isNaN(paidAtRaw)
+          ? new Date(paidAtRaw * 1000).toISOString()
+          : new Date().toISOString(),
+    })
+  } catch (err) {
+    console.error('referral commission award on repair reconcile failed:', err)
+  }
+
+  return (await getClientById(clientId)) ?? null
+}
+
+export async function reconcileStaleRepairPayments(clients: Client[]): Promise<Client[]> {
+  const candidateIds = clients
+    .filter(
+      (row) =>
+        isCreditRepairBillingClient(row) &&
+        !repairFeeMarkedPaid(row) &&
+        Boolean(row.stripe_customer_id?.trim())
+    )
+    .slice(0, REPAIR_PAYMENT_RECONCILE_LIMIT)
+    .map((row) => row.id)
+
+  if (candidateIds.length === 0) return clients
+
+  const updates = new Map<string, Client>()
+  for (const id of candidateIds) {
+    try {
+      const synced = await reconcileRepairPaymentFromStripe(id)
+      if (synced) updates.set(synced.id, synced)
+    } catch (err) {
+      console.error('repair payment reconcile failed:', id, err)
+    }
+  }
+
+  if (updates.size === 0) return clients
+  return clients.map((row) => updates.get(row.id) ?? row)
+}
+
+export async function getRepairBillingSnapshot(clientId: string): Promise<RepairBillingSnapshot> {
+  let client = await getClientById(clientId)
   if (!client) return { error: 'Client not found', status: 404 }
 
   const paymentMethods = await listPaymentMethods(clientId)
@@ -835,12 +917,17 @@ export async function getRepairBillingSnapshot(clientId: string): Promise<Repair
   const customerId = client.stripe_customer_id?.trim()
   const invoices = customerId ? await listRepairInvoicesForCustomer(customerId) : []
 
+  if (!repairFeeMarkedPaid(client)) {
+    const synced = await reconcileRepairPaymentFromStripe(clientId, { prefetchedInvoices: invoices })
+    if (synced) client = synced
+  }
+
   return {
     client,
     defaultFeeCents: defaultRepairFeeCents(),
     paymentMethods: paymentMethods.paymentMethods,
     invoices,
-    paid: Boolean(client.repair_fee_paid_at) || client.billing_status === 'paid',
+    paid: repairFeeMarkedPaid(client),
   }
 }
 

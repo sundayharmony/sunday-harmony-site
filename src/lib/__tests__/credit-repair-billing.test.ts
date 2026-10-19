@@ -9,6 +9,7 @@ import {
   isCreditRepairBillingClient,
   isCreditRepairLeadType,
   parseRepairFeeToCents,
+  repairFeeMarkedPaid,
   repairInvoiceMetadata,
   resolveRepairCollectionMode,
   shouldEmailRepairReceiptOnPay,
@@ -66,6 +67,12 @@ describe('credit repair billing helpers', () => {
     assert.equal('error' in parseRepairFeeToCents('0.50'), true)
     assert.equal('error' in parseRepairFeeToCents(''), true)
     assert.equal(formatRepairFeeCents(49900), '$499.00')
+  })
+
+  it('treats repair fee as paid when paid_at or billing_status paid is set', () => {
+    assert.equal(repairFeeMarkedPaid({ repair_fee_paid_at: null, billing_status: 'not_started' }), false)
+    assert.equal(repairFeeMarkedPaid({ repair_fee_paid_at: '2026-10-06', billing_status: 'not_started' }), true)
+    assert.equal(repairFeeMarkedPaid({ repair_fee_paid_at: null, billing_status: 'paid' }), true)
   })
 
   it('emails an invoice when no card is on file instead of charging', () => {

@@ -174,6 +174,14 @@ export function isRepairInvoice(invoice: Stripe.Invoice, client?: { billing_mode
   return Boolean(client && isCreditRepairBillingClient(client))
 }
 
+/** Supabase client row reflects a collected repair fee (People "owes" uses this, not live Stripe). */
+export function repairFeeMarkedPaid(client: {
+  repair_fee_paid_at?: string | null
+  billing_status?: string | null
+}): boolean {
+  return Boolean(client.repair_fee_paid_at) || client.billing_status === 'paid'
+}
+
 export async function applyRepairInvoicePaid(clientId: string, invoice: Stripe.Invoice): Promise<void> {
   const paidAtRaw = invoice.status_transitions?.paid_at
   const paidAt =

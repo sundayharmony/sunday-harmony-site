@@ -20,6 +20,7 @@ import { listScheduledBookings, updateConsultationBooking, type ConsultationBook
 import { getAdminReferralOverview } from './referral-service'
 import { billingPackageLabel, currentBillingPackage } from './billing-packages'
 import { isCreditRepairBillingClient } from './credit-repair-billing'
+import { reconcileStaleRepairPayments } from './billing-service'
 import {
   filterPeople,
   findPersonById,
@@ -160,12 +161,13 @@ function asBooking(booking: ConsultationBookingRow): PersonBooking {
 }
 
 async function loadRecords(now = new Date()): Promise<Loaded> {
-  const [leads, clients, applications, bookings] = await Promise.all([
+  const [leads, clientsRaw, applications, bookings] = await Promise.all([
     getLeads(),
     getClients(),
     getCreditFundingApplications({ status: 'all' }),
     listScheduledBookings(),
   ])
+  const clients = await reconcileStaleRepairPayments(clientsRaw)
   const people = groupPeople(
     {
       leads: leads.map(asLead),
