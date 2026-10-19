@@ -97,6 +97,7 @@ interface DocumentItem {
   file_size: number
   scan_status: string
   signedUrl?: string
+  created_at?: string
 }
 
 interface MessageItem {
@@ -1311,6 +1312,15 @@ function CreditFundingAdminContent() {
               {activeTab === 'intelligence' && selected && (
                 <CreditIntelligencePanel
                   applicationId={selected.id}
+                  intakeCreditReports={documents
+                    .filter((doc) => doc.document_type === 'credit_report')
+                    .map((doc) => ({
+                      id: doc.id,
+                      file_name: doc.file_name,
+                      signedUrl: doc.signedUrl,
+                      created_at: doc.created_at,
+                      document_type: doc.document_type,
+                    }))}
                   fundingContext={{
                     credit_goals: selected.credit_goals || [],
                     funding_goals: selected.funding_goals || '',

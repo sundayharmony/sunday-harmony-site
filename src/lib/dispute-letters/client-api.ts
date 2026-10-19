@@ -174,6 +174,23 @@ export async function fetchDisputeSessionsForApplication(applicationUuid: string
   return res.json() as Promise<{ sessions: import('@/lib/dispute-letters/types').DisputeSessionListItem[] }>
 }
 
+export async function fetchDisputeReportFileUrl(sessionId: string): Promise<{ url: string; fileName: string }> {
+  const res = await fetch(`/api/admin/dispute-letters/${encodeURIComponent(sessionId)}/report-file`)
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{ url: string; fileName: string }>
+}
+
+export async function fetchCreditFundingDocumentViewUrl(
+  documentId: string,
+  applicationId: string
+): Promise<{ url: string; fileName: string }> {
+  const res = await fetch(
+    `/api/admin/credit-funding/documents/${encodeURIComponent(documentId)}?applicationId=${encodeURIComponent(applicationId)}`
+  )
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{ url: string; fileName: string }>
+}
+
 export async function rebuildDisputeIntelligence(
   sessionId: string,
   fundingContext?: import('@/lib/dispute-letters/types').FundingContextPayload

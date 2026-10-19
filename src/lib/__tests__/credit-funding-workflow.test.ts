@@ -370,6 +370,27 @@ describe('business opened month', () => {
   })
 })
 
+describe('credit report viewing in admin workspace', () => {
+  it('wires intake and analysis report open links in Credit & Funding', () => {
+    const panel = readFileSync('src/components/credit-funding/CreditIntelligencePanel.tsx', 'utf8')
+    const reports = readFileSync('src/components/credit-funding/CreditReportsOnFile.tsx', 'utf8')
+    const adminPage = readFileSync('src/app/admin/credit-funding/page.tsx', 'utf8')
+    const reportFileRoute = readFileSync(
+      'src/app/api/admin/dispute-letters/[id]/report-file/route.ts',
+      'utf8'
+    )
+    const docRoute = readFileSync('src/app/api/admin/credit-funding/documents/[id]/route.ts', 'utf8')
+
+    assert.match(panel, /CreditReportsOnFile/)
+    assert.match(panel, /View credit report/)
+    assert.match(reports, /fetchCreditFundingDocumentViewUrl/)
+    assert.match(reports, /View report/)
+    assert.match(adminPage, /intakeCreditReports/)
+    assert.match(reportFileRoute, /getDisputeLetterSignedDownloadUrl/)
+    assert.match(docRoute, /export async function GET/)
+  })
+})
+
 describe('intake questionnaire vs staff credentials', () => {
   it('keeps CFPB and Experian extras on admin drafts only', () => {
     const form = readFileSync('src/components/credit-funding/CreditFundingForm.tsx', 'utf8')

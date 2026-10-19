@@ -7,12 +7,50 @@ import {
   getCreditFundingApplicationById,
   getUploadedDocumentById,
 } from '@/lib/credit-funding-db'
+import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
 import { documentDisplayLabel } from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+export async function GET(req: NextRequest, context: RouteContext) {
+  try {
+    const session = await requireCreditFundingStaffSession()
+    if (session instanceof NextResponse) return session
+
+    const applicationId = new URL(req.url).searchParams.get('applicationId')
+    if (!applicationId) {
+      return NextResponse.json({ error: 'applicationId is required' }, { status: 400 })
+    }
+
+    const application = await getCreditFundingApplicationById(applicationId)
+    if (!application) {
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
+
+    const { id } = await context.params
+    const doc = await getUploadedDocumentById(id)
+    if (!doc || doc.application_uuid !== applicationId) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    }
+
+    const url = await getCreditFundingDocumentSignedUrl(doc.storage_path)
+    if (!url) {
+      return NextResponse.json({ error: 'Could not open document' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      url,
+      fileName: doc.file_name,
+      documentType: doc.document_type,
+    })
+  } catch (error) {
+    logApiRouteError(req, 'admin/credit-funding/documents/[id] GET', error)
+    return NextResponse.json({ error: 'Failed to open document' }, { status: 500 })
+  }
+}
 
 export async function DELETE(req: NextRequest, context: RouteContext) {
   try {

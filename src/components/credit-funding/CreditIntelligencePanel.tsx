@@ -8,6 +8,7 @@ import DisputeLettersWorkflow from '@/components/dispute-letters/DisputeLettersW
 import DisputeRoundsPanel from '@/components/dispute-letters/DisputeRoundsPanel'
 import { ProgressPanel } from '@/components/dispute-letters/ProgressPanel'
 import { DISPUTE_LETTER_MAX_MB } from '@/lib/dispute-letters-storage'
+import CreditReportsOnFile, { useViewDisputeSessionReport } from '@/components/credit-funding/CreditReportsOnFile'
 import {
   fetchDisputeSessionsForApplication,
   rebuildDisputeIntelligence,
@@ -47,15 +48,25 @@ function shortFileName(name: string): string {
 
 type PanelView = 'analysis' | 'letters'
 
+export type CreditIntelligenceIntakeReport = {
+  id: string
+  file_name: string
+  signedUrl?: string
+  created_at?: string
+  document_type?: string
+}
+
 export default function CreditIntelligencePanel({
   applicationId,
   fundingContext,
+  intakeCreditReports = [],
   initialView = 'analysis',
   initialLetterStep = 'health',
   initialSessionId = null,
 }: {
   applicationId: string
   fundingContext: FundingContextPayload
+  intakeCreditReports?: CreditIntelligenceIntakeReport[]
   initialView?: PanelView
   initialLetterStep?: DisputeLetterStep
   initialSessionId?: string | null
@@ -70,6 +81,7 @@ export default function CreditIntelligencePanel({
   const [intelligence, setIntelligence] = useState<CreditIntelligenceReport | null>(null)
   const [view, setView] = useState<PanelView>(initialView)
   const [letterStep, setLetterStep] = useState<DisputeLetterStep>(initialLetterStep)
+  const { viewSessionReport, busySessionId, viewError, setViewError } = useViewDisputeSessionReport()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -454,6 +466,8 @@ export default function CreditIntelligencePanel({
 
   return (
     <div className="space-y-5">
+      <CreditReportsOnFile applicationId={applicationId} intakeReports={intakeCreditReports} />
+
       <div className="rounded-xl border border-brand-border bg-white p-4">
         <h3 className="text-base font-bold text-brand-text">Credit analysis</h3>
         <p className="mt-1 text-sm text-brand-muted">
@@ -480,6 +494,7 @@ export default function CreditIntelligencePanel({
 
         {busy && status && <div className="mt-3"><ProgressPanel status={status} /></div>}
         {error && <p className="mt-3 text-sm text-brand-red">{error}</p>}
+        {viewError && <p className="mt-3 text-sm text-brand-red">{viewError}</p>}
         {success && <p className="mt-3 text-sm text-emerald-700">{success}</p>}
       </div>
 
@@ -604,6 +619,19 @@ export default function CreditIntelligencePanel({
                   Dispute letters
                 </button>
               </div>
+            )}
+            {activeId && (
+              <button
+                type="button"
+                disabled={Boolean(busySessionId)}
+                onClick={() => {
+                  setViewError('')
+                  void viewSessionReport(activeId)
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-accent text-accent hover:bg-accent/5 disabled:opacity-50"
+              >
+                {busySessionId === activeId ? 'Opening…' : 'View credit report'}
+              </button>
             )}
             {activeId && view === 'analysis' && (
               <div className="flex flex-wrap gap-2 items-center">
