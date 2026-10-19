@@ -38,11 +38,52 @@ function formatWhen(iso: string | null): string {
   })
 }
 
-function PersonRow({ person, scope }: { person: PersonSummary; scope: PersonScope }) {
+function LanePanel({
+  lane,
+  people,
+  scope,
+}: {
+  lane: PeopleLane
+  people: PersonSummary[]
+  scope: PersonScope
+}) {
+  return (
+    <section
+      className="flex flex-col min-h-[12rem] max-h-[min(72vh,36rem)] bg-white border border-brand-border rounded-xl shadow-sm overflow-hidden"
+      aria-label={LANE_LABEL[lane]}
+    >
+      <header className="shrink-0 flex items-center justify-between gap-2 px-4 py-3 border-b border-brand-border bg-neutral-50/90">
+        <h2 className="text-sm font-bold text-brand-text">{LANE_LABEL[lane]}</h2>
+        <span className="text-xs font-semibold tabular-nums text-brand-dim bg-white border border-brand-border rounded-full px-2 py-0.5">
+          {people.length}
+        </span>
+      </header>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+        {people.length === 0 ? (
+          <p className="text-xs text-brand-muted px-1 py-2">No one in this group.</p>
+        ) : (
+          people.map((person) => <PersonRow key={person.id} person={person} scope={scope} compact />)
+        )}
+      </div>
+    </section>
+  )
+}
+
+function PersonRow({
+  person,
+  scope,
+  compact = false,
+}: {
+  person: PersonSummary
+  scope: PersonScope
+  compact?: boolean
+}) {
   return (
     <Link
       href={`/admin/people/${person.id}`}
-      className="block bg-white border border-brand-border rounded-xl p-4 hover:border-accent transition-colors"
+      className={`block bg-white border border-brand-border rounded-lg hover:border-accent transition-colors ${
+        compact ? 'p-3' : 'rounded-xl p-4'
+      }`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -125,6 +166,16 @@ export default function PeopleList() {
     () => (filter === 'all' ? [] : sortPeople(searched, sort)),
     [searched, sort, filter]
   )
+
+  const [leftGroups, rightGroups] = useMemo(() => {
+    const left: typeof groups = []
+    const right: typeof groups = []
+    groups.forEach((group, index) => {
+      if (index % 2 === 0) left.push(group)
+      else right.push(group)
+    })
+    return [left, right]
+  }, [groups])
 
   const cards: { id: PeopleFilter; label: string; value: number }[] = scope === 'credit'
     ? [
@@ -212,29 +263,30 @@ export default function PeopleList() {
         </div>
       )}
 
-      {filter === 'all' ? (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <section key={group.lane}>
-              <h2 className="text-sm font-bold text-brand-text mb-2">
-                {LANE_LABEL[group.lane]}
-                <span className="ml-2 text-xs font-semibold text-brand-dim">{group.people.length}</span>
-              </h2>
-              <div className="space-y-2">
-                {group.people.map((person) => (
-                  <PersonRow key={person.id} person={person} scope={scope} />
-                ))}
-              </div>
-            </section>
-          ))}
+      {filter === 'all' && groups.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div className="flex flex-col gap-4 min-w-0">
+            {leftGroups.map((group) => (
+              <LanePanel key={group.lane} lane={group.lane} people={group.people} scope={scope} />
+            ))}
+          </div>
+          <div className="flex flex-col gap-4 min-w-0">
+            {rightGroups.map((group) => (
+              <LanePanel key={group.lane} lane={group.lane} people={group.people} scope={scope} />
+            ))}
+          </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {flat.map((person) => (
-            <PersonRow key={person.id} person={person} scope={scope} />
-          ))}
+      ) : filter !== 'all' && flat.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+          <div className="lg:col-span-2 max-w-3xl">
+            <LanePanel
+              lane={filter as PeopleLane}
+              people={flat}
+              scope={scope}
+            />
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
