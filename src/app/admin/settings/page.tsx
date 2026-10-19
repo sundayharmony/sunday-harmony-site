@@ -39,6 +39,7 @@ export default function AdminSettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
                 { href: '/admin/consultations', label: 'Booking hours', detail: 'What visitors see on the booking page' },
+                { href: '/admin/clients', label: 'Client editor', detail: 'Deliverables, notes, and delete' },
                 { href: '/admin/research', label: 'Market research', detail: 'Notes and sources' },
                 { href: '/admin/packages', label: 'Packages', detail: 'Catalog of plans' },
                 { href: '/admin/roadmap', label: '90-day roadmap', detail: 'Launch plan' },

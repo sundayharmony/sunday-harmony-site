@@ -282,8 +282,10 @@ export async function DELETE(req: NextRequest) {
   await removeAllClientFilesFromVault(id)
   await cleanupStripeForClient(id)
 
-  const ok = await deleteClient(id)
-  if (!ok) return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 })
+  const result = await deleteClient(id)
+  if (!result.ok) {
+    return NextResponse.json({ error: result.reason }, { status: 500 })
+  }
 
   logActivity({
     action: 'deleted',

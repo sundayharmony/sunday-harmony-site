@@ -373,16 +373,23 @@ export async function deleteUsersByClientId(clientId: string): Promise<boolean> 
   return true
 }
 
-export async function deleteClient(id: string): Promise<boolean> {
+export async function deleteClient(
+  id: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   const usersOk = await deleteUsersByClientId(id)
-  if (!usersOk) return false
+  if (!usersOk) {
+    return { ok: false, reason: 'Could not remove the portal login for this client.' }
+  }
 
   const { error } = await getSupabase().from('clients').delete().eq('id', id)
   if (error) {
     console.error('deleteClient error:', error)
-    return false
+    return {
+      ok: false,
+      reason: error.message || 'The database blocked deleting this client.',
+    }
   }
-  return true
+  return { ok: true }
 }
 
 // ââââââââââ MESSAGES ââââââââââ

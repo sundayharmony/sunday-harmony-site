@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import BillingPanel from '@/components/billing/BillingPanel'
 import CreditRepairBillingPanel from '@/components/billing/CreditRepairBillingPanel'
 import type { PersonFile } from '@/lib/people-db'
@@ -54,6 +55,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function PersonFileView({ id }: { id: string }) {
+  const router = useRouter()
   const [file, setFile] = useState<PersonFile | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -159,6 +161,40 @@ export default function PersonFileView({ id }: { id: string }) {
     })
     if (!res.ok) return
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, status } : task)))
+  }
+
+  async function deleteClientAccount() {
+    if (!file?.client?.id) return
+    const label = file.client.name.trim() || file.client.business
+    if (!window.confirm(
+      `Delete the client account for "${label}"? Their portal login, billing, messages, tasks, and vault files will be removed. This cannot be undone.\n\nIf this person still has a lead or credit application, they may remain in People as a contact until you clean that up separately.`
+    )) return
+
+    setBusy('delete-client')
+    setError('')
+    try {
+      const res = await fetch('/api/admin/clients', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: file.client.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = typeof data.error === 'string' ? data.error : 'Failed to delete client'
+        if (res.status === 403) {
+          setError('Only an admin can delete client accounts. Credit managers cannot delete clients.')
+        } else {
+          setError(message)
+        }
+        return
+      }
+      router.push('/admin/people')
+      router.refresh()
+    } catch {
+      setError('Failed to delete client')
+    } finally {
+      setBusy('')
+    }
   }
 
   async function sendMessage() {
@@ -275,9 +311,19 @@ export default function PersonFileView({ id }: { id: string }) {
               ))}
             </ul>
           )}
-          <Link href={`/admin/clients?client=${encodeURIComponent(file.client.id)}`} className="text-xs font-semibold text-accent hover:underline">
-            Edit deliverables and notes
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={`/admin/clients?client=${encodeURIComponent(file.client.id)}`} className="text-xs font-semibold text-accent hover:underline">
+              Edit deliverables and notes
+            </Link>
+            <button
+              type="button"
+              onClick={() => void deleteClientAccount()}
+              disabled={busy === 'delete-client'}
+              className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50"
+            >
+              {busy === 'delete-client' ? 'Deleting…' : 'Delete client account'}
+            </button>
+          </div>
         </Section>
       )}
 
