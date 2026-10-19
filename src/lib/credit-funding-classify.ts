@@ -34,9 +34,34 @@ export function isSeekingFunding(creditGoals: string[], fundingUse: string): boo
   )
 }
 
-/** Workflow path length follows funding intent, not business ownership. */
-export function needsFundingWorkflow(creditGoals: string[], fundingUse: string): boolean {
-  return isSeekingFunding(creditGoals, fundingUse)
+export type NeedsFundingWorkflowInput = {
+  ownsBusiness?: boolean
+  fundingAmount?: string | null
+}
+
+/** True when the applicant chose Personal/Business funding goals or funding use, or entered an amount. */
+export function isApplyingForFunding(
+  creditGoals: string[],
+  fundingUse: string,
+  fundingAmount?: string | null
+): boolean {
+  if (isFundingUse(fundingUse)) return true
+  if ((fundingAmount || '').trim()) return true
+  const goals = creditGoals.map((g) => g.toLowerCase())
+  return goals.some((g) => g.includes('personal funding') || g.includes('business funding'))
+}
+
+/**
+ * Admin workflow strip: funding_review / approved only when they own a business or applied for funding.
+ * Mortgage/auto prep goals alone stay on the repair-only path (credit analysis → completed).
+ */
+export function needsFundingWorkflow(
+  creditGoals: string[],
+  fundingUse: string,
+  input: NeedsFundingWorkflowInput = {}
+): boolean {
+  if (input.ownsBusiness) return true
+  return isApplyingForFunding(creditGoals, fundingUse, input.fundingAmount)
 }
 
 function hasCreditRepairGoals(goals: string[]): boolean {

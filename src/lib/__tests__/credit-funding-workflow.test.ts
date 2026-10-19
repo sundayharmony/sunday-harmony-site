@@ -87,6 +87,18 @@ describe('deriveIntakeClassification', () => {
     assert.equal(needsFundingWorkflow(['Credit Repair'], ''), false)
     assert.equal(needsFundingWorkflow(['Personal Funding'], ''), true)
   })
+
+  it('keeps mortgage and auto prep on repair-only workflow unless funding or business', () => {
+    assert.equal(isSeekingFunding(['Mortgage Preparation'], ''), true)
+    assert.equal(needsFundingWorkflow(['Mortgage Preparation'], ''), false)
+    assert.equal(needsFundingWorkflow(['Credit Repair', 'Auto Loan Preparation'], ''), false)
+    assert.equal(
+      needsFundingWorkflow(['Credit Repair'], '', { ownsBusiness: true }),
+      true
+    )
+    assert.equal(needsFundingWorkflow(['Credit Repair'], 'Personal'), true)
+    assert.equal(needsFundingWorkflow(['Credit Repair'], '', { fundingAmount: '$25,000' }), true)
+  })
 })
 
 describe('getWorkflowOrder', () => {

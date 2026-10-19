@@ -591,10 +591,10 @@ function CreditFundingAdminContent() {
     selected?.status === 'submitted'
 
   const selectedNeedsFunding = selected
-    ? needsFundingWorkflow(
-        selected.credit_goals || [],
-        selected.funding_use || ''
-      )
+    ? needsFundingWorkflow(selected.credit_goals || [], selected.funding_use || '', {
+        ownsBusiness: Boolean(selected.owns_business),
+        fundingAmount: selected.funding_amount,
+      })
     : false
 
   const showDocumentsProminent =

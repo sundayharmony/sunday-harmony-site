@@ -86,10 +86,10 @@ export async function GET() {
           application.funding_use || '',
           application.credit_profile
         ),
-        needs_funding: needsFundingWorkflow(
-          application.credit_goals || [],
-          application.funding_use || ''
-        ),
+        needs_funding: needsFundingWorkflow(application.credit_goals || [], application.funding_use || '', {
+          ownsBusiness: Boolean(application.owns_business),
+          fundingAmount: application.funding_amount,
+        }),
         created_at: application.created_at,
         updated_at: application.updated_at,
       },
