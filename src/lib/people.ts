@@ -83,6 +83,9 @@ export const WAITING_APPLICATION_STATUSES = [
   'additional_information_requested',
 ] as const
 
+/** Credit milestones that no longer need the active “Credit & funding” queue. */
+export const COMPLETED_APPLICATION_STATUSES = ['credit_analysis_complete', 'completed'] as const
+
 export type TodayConsultation = {
   personId: string
   name: string
@@ -371,8 +374,22 @@ export function applicationIsWaiting(status?: string | null): boolean {
   return WAITING_STATUS_SET.has(status || '')
 }
 
+const COMPLETED_STATUS_SET = new Set<string>(COMPLETED_APPLICATION_STATUSES)
+
+export function applicationIsCompleted(status?: string | null): boolean {
+  return COMPLETED_STATUS_SET.has(status || '')
+}
+
 /** One home for each person when the list is grouped. Urgent work wins. */
-export const PEOPLE_LANES = ['owes', 'waiting', 'consultation', 'credit', 'client', 'contact'] as const
+export const PEOPLE_LANES = [
+  'owes',
+  'waiting',
+  'consultation',
+  'credit',
+  'completed',
+  'client',
+  'contact',
+] as const
 export type PeopleLane = (typeof PEOPLE_LANES)[number]
 export type PeopleFilter = 'all' | PeopleLane
 export type PeopleSort = 'newest' | 'name' | 'consultation'
@@ -383,6 +400,7 @@ export type PeopleAnalytics = {
   waiting: number
   consultations: number
   credit: number
+  completed: number
   clients: number
   contacts: number
 }
@@ -391,6 +409,7 @@ export function personLane(person: PersonSummary, scope: PersonScope = 'all'): P
   if (person.owesMoney) return 'owes'
   if (applicationIsWaiting(person.applicationStatus)) return 'waiting'
   if (scope !== 'credit' && person.nextConsultationAt) return 'consultation'
+  if (applicationIsCompleted(person.applicationStatus)) return 'completed'
   if (person.hasCreditWork) return 'credit'
   if (person.clientId) return 'client'
   return 'contact'
@@ -433,6 +452,7 @@ export function summarizePeople(people: PersonSummary[], scope: PersonScope = 'a
     waiting: count('waiting'),
     consultations: count('consultation'),
     credit: count('credit'),
+    completed: count('completed'),
     clients: count('client'),
     contacts: count('contact'),
   }
@@ -444,7 +464,7 @@ export function groupPeopleByLane(
   scope: PersonScope = 'all'
 ): { lane: PeopleLane; people: PersonSummary[] }[] {
   const lanes = scope === 'credit'
-    ? (['owes', 'waiting', 'credit'] as const)
+    ? (['owes', 'waiting', 'credit', 'completed'] as const)
     : PEOPLE_LANES
   return lanes.flatMap((lane) => {
     const rows = sortPeople(people.filter((person) => personLane(person, scope) === lane), sort)

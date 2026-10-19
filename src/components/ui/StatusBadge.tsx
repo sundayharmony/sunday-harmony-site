@@ -11,7 +11,7 @@ const styles: Record<string, { bg: string; text: string; border: string }> = {
   submitted: { bg: 'bg-yellow-50', text: 'text-yellow-800', border: 'border border-yellow-200' },
   documents_pending: { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border border-orange-200' },
   under_review: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border border-blue-200' },
-  credit_analysis_complete: { bg: 'bg-indigo-50', text: 'text-indigo-800', border: 'border border-indigo-200' },
+  credit_analysis_complete: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },
   funding_review: { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border border-purple-200' },
   additional_information_requested: { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border border-amber-200' },
   approved: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },

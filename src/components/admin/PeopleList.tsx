@@ -13,12 +13,14 @@ import {
   type PersonScope,
   type PersonSummary,
 } from '@/lib/people'
+import StatusBadge from '@/components/ui/StatusBadge'
 
 const LANE_LABEL: Record<PeopleLane, string> = {
   owes: 'Owes money',
   waiting: 'Waiting on review',
   consultation: 'Consultations',
   credit: 'Credit & funding',
+  completed: 'Completed',
   client: 'Clients',
   contact: 'Contacts',
 }
@@ -50,9 +52,12 @@ function PersonRow({ person, scope }: { person: PersonSummary; scope: PersonScop
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {person.hasCreditWork && (
+          {person.hasCreditWork && person.applicationStatus && (
+            <StatusBadge status={person.applicationStatus} />
+          )}
+          {person.hasCreditWork && !person.applicationStatus && (
             <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-accent-soft text-brand-text">
-              {person.applicationStatus?.replace(/_/g, ' ') || 'Credit'}
+              Credit
             </span>
           )}
           {person.owesMoney && (
@@ -110,7 +115,7 @@ export default function PeopleList() {
       )
       : people
     return matched.filter((person) => personMatchesFilter(person, filter, scope))
-  }, [people, query, filter])
+  }, [people, query, filter, scope])
 
   const groups = useMemo(
     () => (filter === 'all' ? groupPeopleByLane(searched, sort, scope) : []),
@@ -127,6 +132,7 @@ export default function PeopleList() {
       { id: 'owes', label: 'Owes', value: analytics.owes },
       { id: 'waiting', label: 'Waiting', value: analytics.waiting },
       { id: 'credit', label: 'Credit', value: analytics.credit },
+      { id: 'completed', label: 'Completed', value: analytics.completed },
     ]
     : [
       { id: 'all', label: 'People', value: analytics.total },
@@ -134,6 +140,7 @@ export default function PeopleList() {
       { id: 'waiting', label: 'Waiting', value: analytics.waiting },
       { id: 'consultation', label: 'Consultations', value: analytics.consultations },
       { id: 'credit', label: 'Credit', value: analytics.credit },
+      { id: 'completed', label: 'Completed', value: analytics.completed },
       { id: 'client', label: 'Clients', value: analytics.clients },
       { id: 'contact', label: 'Contacts', value: analytics.contacts },
     ]

@@ -15,6 +15,7 @@ import {
   sortPeople,
   summarizePeople,
   personOwesMoney,
+  applicationIsCompleted,
   type PeopleInput,
 } from '../people'
 
@@ -170,6 +171,7 @@ describe('people list organization', () => {
     assert.equal(stats.waiting, 0)
     assert.equal(stats.consultations, 1)
     assert.equal(stats.credit, 0)
+    assert.equal(stats.completed, 0)
     assert.equal(stats.clients, 0)
     assert.equal(stats.contacts, 0)
 
@@ -184,6 +186,33 @@ describe('people list organization', () => {
     const groups = groupPeopleByLane(people, 'newest', 'credit')
     assert.deepEqual(groups.map((group) => group.lane), ['owes'])
     assert.equal(groups[0].people[0].email, 'ada@example.com')
+  })
+
+  it('groups credit analysis complete and completed applications in the completed lane', () => {
+    assert.equal(applicationIsCompleted('credit_analysis_complete'), true)
+    assert.equal(applicationIsCompleted('completed'), true)
+    assert.equal(applicationIsCompleted('under_review'), false)
+
+    const people = groupPeople({
+      leads: [],
+      clients: [{ id: 'c1', name: 'Charle', email: 'charle@test.com', created_at: '2026-01-01T00:00:00.000Z' }],
+      applications: [
+        {
+          id: 'app-done',
+          email: 'charle@test.com',
+          full_name: 'Charle C.',
+          status: 'credit_analysis_complete',
+          created_at: '2026-02-01T00:00:00.000Z',
+        },
+      ],
+      bookings: [],
+    }, now)
+    assert.equal(personLane(people[0], 'all'), 'completed')
+    const stats = summarizePeople(people)
+    assert.equal(stats.completed, 1)
+    assert.equal(stats.credit, 0)
+    const groups = groupPeopleByLane(people, 'name')
+    assert.deepEqual(groups.map((group) => group.lane), ['completed'])
   })
 })
 
