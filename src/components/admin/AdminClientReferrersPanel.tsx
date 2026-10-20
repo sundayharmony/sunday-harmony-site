@@ -3,13 +3,13 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
-import { buildPartnerReferralUrl } from '@/lib/referral-qr'
 
 type ClientReferrerRow = {
   clientId: string
   name: string
   email: string
   code: string
+  link: string
   status: string
 }
 
@@ -33,6 +33,7 @@ export default function AdminClientReferrersPanel() {
             name: row.name,
             email: row.email,
             code: row.code,
+            link: row.link || '',
             status: row.status,
           }))
         )
@@ -83,7 +84,7 @@ export default function AdminClientReferrersPanel() {
               </tr>
             ) : (
               filtered.map((row) => {
-                const link = row.code ? buildPartnerReferralUrl(row.code) : ''
+                const link = row.link || ''
                 const open = expandedId === row.clientId
                 return (
                   <Fragment key={row.clientId}>

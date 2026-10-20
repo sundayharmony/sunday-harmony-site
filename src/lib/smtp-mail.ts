@@ -1,4 +1,7 @@
 import nodemailer from 'nodemailer'
+import { getPublicSiteUrl } from '@/lib/public-site-url'
+
+export { getPublicSiteUrl } from '@/lib/public-site-url'
 
 /** True when Google Workspace / SMTP outbound email is configured. */
 export function isEmailConfigured(): boolean {
@@ -83,20 +86,6 @@ export function createEmailTransporter() {
       pass: process.env.SMTP_PASS!,
     },
   })
-}
-
-/**
- * Base origin for login / dashboard links in email (no trailing slash).
- * Prefer NEXTAUTH_URL, then NEXT_PUBLIC_SITE_URL.
- */
-export function getPublicSiteUrl(): string {
-  const raw = (process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').trim()
-  const noTrail = raw.replace(/\/+$/, '')
-  try {
-    return new URL(noTrail || 'http://localhost:3000').origin
-  } catch {
-    return 'http://localhost:3000'
-  }
 }
 
 /** Inbox for contact form + client message alerts to staff. */

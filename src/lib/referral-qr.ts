@@ -1,4 +1,4 @@
-import { getPublicSiteUrl } from '@/lib/smtp-mail'
+import { getPublicSiteUrl } from '@/lib/public-site-url'
 import { buildReferralPath, normalizeReferralCode } from '@/lib/referrals'
 import { CREDIT_INTAKE_PATH, isPublicCreditIntakePath } from '@/lib/credit-intake-routes'
 

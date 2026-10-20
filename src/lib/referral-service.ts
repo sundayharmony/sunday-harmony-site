@@ -562,6 +562,7 @@ export async function getAdminReferralOverview() {
       name: client?.name || 'Client',
       email: client?.email || '',
       code: profile.referral_code,
+      link: publicReferralUrl(profile.referral_code),
       status: profile.status,
       payoutReady: profile.payout_ready,
       ...dash.summary,

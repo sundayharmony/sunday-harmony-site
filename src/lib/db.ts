@@ -180,12 +180,11 @@ export async function getLeadById(id: string): Promise<Lead | undefined> {
 
 /** Oldest lead with this email, so a new consultation reuses the person instead of creating another lead. */
 export async function findLeadByEmail(email: string): Promise<Lead | undefined> {
-  const pattern = emailIlikePattern(email)
-  if (!pattern) return undefined
+  if (!emailIlikePattern(email)) return undefined
   const { data, error } = await getSupabase()
     .from('leads')
     .select('*')
-    .ilike('email', pattern)
+    .ilike('email', emailIlikePattern(email))
     .order('created_at', { ascending: true })
     .limit(1)
   if (error || !data?.[0]) return undefined
