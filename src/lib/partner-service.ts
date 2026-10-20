@@ -2,8 +2,8 @@ import { randomBytes } from 'crypto'
 import { createUser, getUserByEmail, getUserById } from '@/lib/db'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { getSupabase } from '@/lib/supabase'
-import { buildReferralPath, generateReferralCode } from '@/lib/referrals'
-import { getPublicSiteUrl } from '@/lib/smtp-mail'
+import { buildPartnerReferralUrl } from '@/lib/referral-qr'
+import { generateReferralCode } from '@/lib/referrals'
 import {
   getReferralProfileByPartnerId,
   insertReferralProfile,
@@ -138,7 +138,7 @@ export async function getPartnerDashboard(userId: string) {
       yearsInField: profile.years_in_field,
       status: profile.status,
       code: referral?.referral_code || '',
-      link: referral ? `${getPublicSiteUrl()}${buildReferralPath(referral.referral_code)}` : '',
+      link: referral ? buildPartnerReferralUrl(referral.referral_code) : '',
       linkActive: profile.status === 'active' && referral?.status === 'active',
     },
     summary: {
@@ -198,9 +198,13 @@ export async function listPartnersForAdmin() {
   const rows = []
   for (const profile of profiles) {
     const user = await getUserById(profile.user_id)
+    await ensurePartnerReferralCode(profile.id, profile.status === 'active' ? 'active' : 'disabled')
     const activity = await partnerReferralActivity(profile.id)
+    const code = activity.referral?.referral_code || ''
     rows.push({
-      ...adminPartnerRow(profile, user?.name || '', user?.email || '', activity.referral?.referral_code || ''),
+      ...adminPartnerRow(profile, user?.name || '', user?.email || '', code),
+      link: code ? buildPartnerReferralUrl(code) : '',
+      linkActive: profile.status === 'active' && activity.referral?.status === 'active',
       clicks: activity.summary.clicks,
       submitted: activity.summary.submitted,
       inProgress: activity.summary.inProgress,
@@ -214,11 +218,12 @@ export async function getAdminPartnerDetail(partnerId: string) {
   const profile = await getPartnerProfileById(partnerId)
   if (!profile) return { error: 'Partner not found.', status: 404 as const }
   const user = await getUserById(profile.user_id)
+  await ensurePartnerReferralCode(profile.id, profile.status === 'active' ? 'active' : 'disabled')
   const activity = await partnerReferralActivity(profile.id)
   return {
     partner: {
       ...adminPartnerRow(profile, user?.name || '', user?.email || '', activity.referral?.referral_code || ''),
-      link: activity.referral ? `${getPublicSiteUrl()}${buildReferralPath(activity.referral.referral_code)}` : '',
+      link: activity.referral ? buildPartnerReferralUrl(activity.referral.referral_code) : '',
       linkActive: profile.status === 'active' && activity.referral?.status === 'active',
     },
     summary: activity.summary,

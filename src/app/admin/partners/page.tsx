@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import AdminClientReferrersPanel from '@/components/admin/AdminClientReferrersPanel'
+import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
 
 type PartnerRow = {
   id: string
@@ -14,6 +16,8 @@ type PartnerRow = {
   profession: string
   status: string
   code: string
+  link: string
+  linkActive: boolean
   createdAt: string
   clicks: number
   submitted: number
@@ -21,6 +25,8 @@ type PartnerRow = {
   completed: number
   logoUrl: string | null
 }
+
+type PartnersTab = 'partners' | 'client-referrers'
 
 type ReferralRow = {
   id: string
@@ -55,6 +61,7 @@ export default function AdminPartnersPage() {
   const [inviteNote, setInviteNote] = useState('')
   const [logoBusy, setLogoBusy] = useState(false)
   const [logoNote, setLogoNote] = useState('')
+  const [tab, setTab] = useState<PartnersTab>('partners')
 
   const load = useCallback(async () => {
     setError('')
@@ -186,6 +193,36 @@ export default function AdminPartnersPage() {
   return (
     <div>
       <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Partners</h1>
+      <p className="text-sm text-brand-muted mb-4">
+        Manage partner referral links and client (credit repair) referrer links. Each link has a downloadable QR code.
+      </p>
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => setTab('partners')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg border ${
+            tab === 'partners'
+              ? 'bg-brand-text text-white border-brand-text'
+              : 'bg-white text-brand-muted border-brand-border hover:bg-neutral-50'
+          }`}
+        >
+          Partner accounts
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('client-referrers')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg border ${
+            tab === 'client-referrers'
+              ? 'bg-brand-text text-white border-brand-text'
+              : 'bg-white text-brand-muted border-brand-border hover:bg-neutral-50'
+          }`}
+        >
+          Client referrers
+        </button>
+      </div>
+      {tab === 'client-referrers' ? <AdminClientReferrersPanel /> : null}
+      {tab === 'partners' ? (
+      <>
       <p className="text-sm text-brand-muted mb-6">
         Click a partner to see everyone they referred, open that credit file, and upload the logo for the About page.
       </p>
@@ -315,10 +352,19 @@ export default function AdminPartnersPage() {
                   : 'Loading referrals…'}
               </p>
             </div>
-            {detail?.partner.link ? (
-              <p className="text-xs text-brand-dim max-w-md break-all">{detail.partner.link}</p>
-            ) : null}
           </div>
+          {detail && !detailLoading && detail.partner.link ? (
+            <div className="p-5 border-b border-brand-border">
+              <ReferralLinkQrPanel
+                title="Partner referral link"
+                link={detail.partner.link}
+                code={detail.partner.code}
+                active={detail.partner.linkActive}
+                inactiveHint="Link stays inactive until this partner is approved."
+                downloadLabelPrefix={detail.partner.companyName || 'partner'}
+              />
+            </div>
+          ) : null}
           {detail && !detailLoading ? (
             <form
               className="p-5 border-b border-brand-border flex flex-col sm:flex-row sm:items-center gap-4"
@@ -422,6 +468,8 @@ export default function AdminPartnersPage() {
             </div>
           ) : null}
         </section>
+      ) : null}
+      </>
       ) : null}
     </div>
   )

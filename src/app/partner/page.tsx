@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
+import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
 import StatCard from '@/components/ui/StatCard'
 
 type CurrentScores = {
@@ -66,7 +67,6 @@ export default function PartnerDashboardPage() {
   const [data, setData] = useState<DashboardPayload | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -88,17 +88,6 @@ export default function PartnerDashboardPage() {
   useEffect(() => {
     void load()
   }, [load])
-
-  const copyLink = async () => {
-    if (!data?.profile.link) return
-    try {
-      await navigator.clipboard.writeText(data.profile.link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setCopied(false)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-brand-bg-soft">
@@ -128,27 +117,15 @@ export default function PartnerDashboardPage() {
                 Sunday Harmony still needs to approve this account. Your referral link is saved and stays inactive until then.
               </div>
             ) : null}
-            <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">
-              <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Your referral link</div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  readOnly
-                  value={data.profile.link}
-                  className="flex-1 py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-sm text-brand-text"
-                />
-                <button
-                  type="button"
-                  onClick={copyLink}
-                  disabled={!data.profile.linkActive}
-                  className="px-4 py-3 bg-brand-text text-white text-sm font-semibold rounded-[10px] disabled:opacity-50"
-                >
-                  {copied ? 'Copied' : 'Copy link'}
-                </button>
-              </div>
-              <p className="text-xs text-brand-muted mt-2">
-                Code {data.profile.code || '—'}
-                {data.profile.linkActive ? '' : ' · Inactive until approved'}
-              </p>
+            <div className="mb-6">
+              <ReferralLinkQrPanel
+                title="Partner referral link"
+                link={data.profile.link}
+                code={data.profile.code}
+                active={data.profile.linkActive}
+                inactiveHint="Your QR code is ready, but the link stays inactive until Sunday Harmony approves your account."
+                downloadLabelPrefix={data.profile.companyName || 'partner'}
+              />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <StatCard label="Link clicks" value={data.summary.clicks} />
