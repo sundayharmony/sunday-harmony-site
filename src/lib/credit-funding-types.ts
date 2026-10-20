@@ -148,6 +148,33 @@ export const BUSINESS_OWNER_WORKFLOW_STATUSES = FUNDING_WORKFLOW_ONLY_STATUSES
 
 export const TERMINAL_STATUSES: ApplicationStatus[] = ['declined', 'archived', 'completed']
 
+/** Admin Credit & Funding list: active pipeline first, then waiting on client, then closed. */
+const ADMIN_LIST_STATUS_RANK: Record<ApplicationStatus, number> = {
+  submitted: 10,
+  documents_pending: 11,
+  additional_information_requested: 12,
+  under_review: 20,
+  credit_analysis_complete: 30,
+  funding_review: 40,
+  approved: 50,
+  invitation_pending: 60,
+  draft: 61,
+  completed: 90,
+  declined: 91,
+  archived: 92,
+}
+
+export function compareCreditFundingApplicationsByStatus(
+  a: { status: ApplicationStatus | string; updated_at: string },
+  b: { status: ApplicationStatus | string; updated_at: string }
+): number {
+  const rank = (status: string) =>
+    ADMIN_LIST_STATUS_RANK[status as ApplicationStatus] ?? 45
+  const byStatus = rank(a.status) - rank(b.status)
+  if (byStatus !== 0) return byStatus
+  return b.updated_at.localeCompare(a.updated_at)
+}
+
 export const STATUS_DESCRIPTIONS: Record<ApplicationStatus, string> = {
   draft: 'Staff-entered draft — incomplete. Save and return later, finalize, or email the client to finish.',
   invitation_pending: 'Application link sent — waiting for the client to complete the intake form.',

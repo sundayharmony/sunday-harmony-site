@@ -17,6 +17,7 @@ import {
   DOCUMENT_LABELS,
   DOCUMENT_TYPES,
   STATUS_LABELS,
+  compareCreditFundingApplicationsByStatus,
   documentDisplayLabel,
   establishedMonthLabel,
   needsFundingWorkflow,
@@ -538,15 +539,17 @@ function CreditFundingAdminContent() {
   }
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return applications
-    const q = search.toLowerCase()
-    return applications.filter(
-      (a) =>
-        a.full_name.toLowerCase().includes(q) ||
-        a.application_id.toLowerCase().includes(q) ||
-        a.email.toLowerCase().includes(q) ||
-        (a.assigned_specialist || '').toLowerCase().includes(q)
-    )
+    const q = search.trim().toLowerCase()
+    const rows = q
+      ? applications.filter(
+        (a) =>
+          a.full_name.toLowerCase().includes(q) ||
+          a.application_id.toLowerCase().includes(q) ||
+          a.email.toLowerCase().includes(q) ||
+          (a.assigned_specialist || '').toLowerCase().includes(q)
+      )
+      : applications
+    return [...rows].sort(compareCreditFundingApplicationsByStatus)
   }, [applications, search])
 
   const pendingDocCount = docRequests.filter((d) => d.status === 'pending').length

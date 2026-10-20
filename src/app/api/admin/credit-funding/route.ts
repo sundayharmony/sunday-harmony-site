@@ -32,6 +32,7 @@ import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
 import {
   APPLICATION_STATUSES,
   STATUS_LABELS,
+  compareCreditFundingApplicationsByStatus,
   type ApplicationStatus,
   type FundingScores,
 } from '@/lib/credit-funding-types'
@@ -96,7 +97,9 @@ export async function GET(req: NextRequest) {
     }
 
     const applications = await getCreditFundingApplications({ status, search })
-    return NextResponse.json(applications.map(formatApplicationListItemForAdmin))
+    const rows = applications.map(formatApplicationListItemForAdmin)
+    rows.sort(compareCreditFundingApplicationsByStatus)
+    return NextResponse.json(rows)
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding', error)
     return NextResponse.json({ error: 'Failed to load applications' }, { status: 500 })

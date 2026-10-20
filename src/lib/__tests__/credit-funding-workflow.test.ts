@@ -12,6 +12,7 @@ import {
   goalsForIntakeFocus,
   getNextWorkflowStatus,
   getPreviousWorkflowStatus,
+  compareCreditFundingApplicationsByStatus,
   getWorkflowOrder,
   isInWorkflow,
   parseEstablishedMonth,
@@ -98,6 +99,22 @@ describe('deriveIntakeClassification', () => {
     )
     assert.equal(needsFundingWorkflow(['Credit Repair'], 'Personal'), true)
     assert.equal(needsFundingWorkflow(['Credit Repair'], '', { fundingAmount: '$25,000' }), true)
+  })
+})
+
+describe('compareCreditFundingApplicationsByStatus', () => {
+  it('orders active pipeline before completed and newest first within a status', () => {
+    const rows = [
+      { status: 'completed', updated_at: '2026-10-01T00:00:00.000Z' },
+      { status: 'under_review', updated_at: '2026-10-10T00:00:00.000Z' },
+      { status: 'submitted', updated_at: '2026-10-15T00:00:00.000Z' },
+      { status: 'under_review', updated_at: '2026-10-20T00:00:00.000Z' },
+    ].sort(compareCreditFundingApplicationsByStatus)
+    assert.deepEqual(
+      rows.map((r) => r.status),
+      ['submitted', 'under_review', 'under_review', 'completed']
+    )
+    assert.equal(rows[1].updated_at, '2026-10-20T00:00:00.000Z')
   })
 })
 
