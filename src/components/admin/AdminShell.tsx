@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { SessionProvider } from 'next-auth/react'
+import { SessionProvider, signOut, useSession } from 'next-auth/react'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 
 const STORAGE_KEY = 'admin-sidebar-collapsed'
@@ -17,6 +17,40 @@ export function useAdminShell() {
   const ctx = useContext(AdminShellContext)
   if (!ctx) throw new Error('useAdminShell must be used within AdminShell')
   return ctx
+}
+
+function AdminSessionGuard() {
+  const { data } = useSession()
+
+  useEffect(() => {
+    if (data?.user?.sessionExpired) {
+      void signOut({ callbackUrl: '/login' })
+    }
+  }, [data?.user?.sessionExpired])
+
+  useEffect(() => {
+    const original = window.fetch.bind(window)
+    window.fetch = async (input, init) => {
+      const response = await original(input, init)
+      if (response.status !== 401) return response
+      let code = ''
+      try {
+        const body = await response.clone().json()
+        code = typeof body?.code === 'string' ? body.code : ''
+      } catch {
+        code = ''
+      }
+      if (code === 'SESSION_EXPIRED') {
+        void signOut({ callbackUrl: '/login' })
+      }
+      return response
+    }
+    return () => {
+      window.fetch = original
+    }
+  }, [])
+
+  return null
 }
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
@@ -51,7 +85,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       : 'md:ml-[240px]'
 
   return (
-    <SessionProvider>
+    <SessionProvider refetchInterval={60} refetchOnWindowFocus>
+      <AdminSessionGuard />
       <AdminShellContext.Provider value={{ sidebarCollapsed, toggleSidebar }}>
         <AdminSidebar collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} hydrated={hydrated} />
         <main className={`${marginClass} p-4 pt-14 pl-12 md:p-8 md:pt-8 md:pl-8 transition-[margin] duration-200 min-h-screen`}>

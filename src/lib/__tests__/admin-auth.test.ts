@@ -39,6 +39,18 @@ describe('resolveAdminAccess', () => {
     const r = resolveAdminAccess({ user: { role: 'admin' } })
     assert.equal(r.ok, true)
   })
+
+  it('treats an ended staff session as signed out', () => {
+    const r = resolveAdminAccess({ user: { role: 'admin', sessionExpired: true } })
+    assert.equal(r.ok, false)
+    if (!r.ok) {
+      assert.equal(r.status, 401)
+      assert.equal(r.code, 'SESSION_EXPIRED')
+    }
+    const staff = resolveCreditFundingStaffAccess({ user: { sessionExpired: true } })
+    assert.equal(staff.ok, false)
+    if (!staff.ok) assert.equal(staff.code, 'SESSION_EXPIRED')
+  })
 })
 
 describe('resolveCreditFundingStaffAccess', () => {

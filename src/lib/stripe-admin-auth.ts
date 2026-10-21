@@ -16,29 +16,45 @@ export function isCreditFundingStaffRole(role?: string | null): boolean {
   return isSharedStaffRole(role)
 }
 
+type AccessResult =
+  | { ok: true }
+  | { ok: false; status: 401 | 403; code?: 'SESSION_EXPIRED' }
+
+function sessionHasEnded(session: { user?: { sessionExpired?: boolean } } | null): boolean {
+  return Boolean(session?.user?.sessionExpired)
+}
+
 export function resolveAdminAccess(
-  session: { user?: { role?: string } } | null
-): { ok: true } | { ok: false; status: 401 | 403 } {
+  session: { user?: { role?: string; sessionExpired?: boolean } } | null
+): AccessResult {
+  if (sessionHasEnded(session)) return { ok: false, status: 401, code: 'SESSION_EXPIRED' }
   if (!session?.user) return { ok: false, status: 401 }
   if (!isAdminRole(session.user.role)) return { ok: false, status: 403 }
   return { ok: true }
 }
 
 export function resolveCreditFundingStaffAccess(
-  session: { user?: { role?: string } } | null
-): { ok: true } | { ok: false; status: 401 | 403 } {
+  session: { user?: { role?: string; sessionExpired?: boolean } } | null
+): AccessResult {
+  if (sessionHasEnded(session)) return { ok: false, status: 401, code: 'SESSION_EXPIRED' }
   if (!session?.user) return { ok: false, status: 401 }
   if (!isCreditFundingStaffRole(session.user.role)) return { ok: false, status: 403 }
   return { ok: true }
 }
 
 export function resolveStaffAccess(
-  session: { user?: { role?: string } } | null
-): { ok: true } | { ok: false; status: 401 | 403 } {
+  session: { user?: { role?: string; sessionExpired?: boolean } } | null
+): AccessResult {
   return resolveCreditFundingStaffAccess(session)
 }
 
-function forbiddenResponse(status: 401 | 403): NextResponse {
+function forbiddenResponse(status: 401 | 403, code?: 'SESSION_EXPIRED'): NextResponse {
+  if (code === 'SESSION_EXPIRED') {
+    return NextResponse.json(
+      { error: 'Your session has ended. Sign in again.', code: 'SESSION_EXPIRED' },
+      { status: 401 }
+    )
+  }
   return NextResponse.json(
     { error: status === 401 ? 'Unauthorized' : 'Forbidden' },
     { status }
@@ -49,7 +65,7 @@ function forbiddenResponse(status: 401 | 403): NextResponse {
 export async function requireAdminSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveAdminAccess(session)
-  if (!access.ok) return forbiddenResponse(access.status)
+  if (!access.ok) return forbiddenResponse(access.status, access.code)
   if (!session?.user?.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
   }
@@ -60,7 +76,7 @@ export async function requireAdminSession(): Promise<Session | NextResponse> {
 export async function requireCreditFundingStaffSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveCreditFundingStaffAccess(session)
-  if (!access.ok) return forbiddenResponse(access.status)
+  if (!access.ok) return forbiddenResponse(access.status, access.code)
   if (!session?.user?.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
   }
@@ -71,7 +87,7 @@ export async function requireCreditFundingStaffSession(): Promise<Session | Next
 export async function requireStaffSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveStaffAccess(session)
-  if (!access.ok) return forbiddenResponse(access.status)
+  if (!access.ok) return forbiddenResponse(access.status, access.code)
   if (!session?.user?.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
   }

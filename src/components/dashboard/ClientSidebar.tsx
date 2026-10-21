@@ -55,7 +55,7 @@ export default function ClientSidebar() {
   return (
     <>
       {/* Mobile toggle + notification bell */}
-      <div className="md:hidden fixed top-4 left-4 z-[60] flex items-center gap-2">
+      <div className="md:hidden fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-[60] flex items-center gap-2">
         <button
           onClick={() => setOpen(!open)}
           className="p-2 rounded-lg bg-white border border-brand-border text-brand-text"
@@ -81,10 +81,10 @@ export default function ClientSidebar() {
         />
       )}
 
-      <aside className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
+      <aside className={`w-[240px] h-dvh max-h-dvh overflow-hidden bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 z-50 transition-transform duration-200 ${
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
-        <div className="p-5 pb-4 border-b border-brand-border overflow-visible">
+        <div className="shrink-0 p-5 pl-14 md:pl-5 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-brand-border overflow-visible">
           <div className="flex items-center justify-between">
             <BrandLogo href="/dashboard" height={32} />
             <div className="hidden md:block">
@@ -94,7 +94,7 @@ export default function ClientSidebar() {
           <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">Client Dashboard</div>
         </div>
 
-        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+        <nav className="flex-1 min-h-0 py-4 px-3 overflow-y-auto">
           {navItems
             .filter(item => !(hideMarketing && item.marketingOnly))
             .filter(item => !item.repairOnly || hideMarketing)
@@ -113,10 +113,13 @@ export default function ClientSidebar() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-brand-border">
-          <button onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full text-left text-xs text-brand-dim hover:text-brand-red transition-colors">
-            Sign out
+        <div className="shrink-0 border-t border-brand-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="w-full rounded-[10px] bg-brand-text px-3 py-2.5 text-left text-sm font-semibold text-white"
+          >
+            Log out
           </button>
         </div>
       </aside>

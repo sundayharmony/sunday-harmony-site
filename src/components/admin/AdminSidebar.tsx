@@ -49,7 +49,7 @@ export default function AdminSidebar({
     <>
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
-        className="md:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-gray-50 border border-brand-border text-brand-text"
+        className="md:hidden fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-[60] p-2 rounded-lg bg-gray-50 border border-brand-border text-brand-text"
         aria-label="Toggle menu"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -85,11 +85,11 @@ export default function AdminSidebar({
       )}
 
       <aside
-        className={`w-[240px] min-h-screen bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-transform duration-200 ${
+        className={`w-[240px] h-dvh max-h-dvh overflow-hidden bg-white border-r border-brand-border flex flex-col fixed left-0 top-0 z-50 transition-transform duration-200 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } ${desktopHidden ? 'md:-translate-x-full' : 'md:translate-x-0'}`}
       >
-        <div className="p-5 pb-4 border-b border-brand-border flex items-start justify-between gap-2">
+        <div className="shrink-0 p-5 pl-14 md:pl-5 pb-4 pt-[max(1.25rem,env(safe-area-inset-top))] border-b border-brand-border flex items-start justify-between gap-2">
           <div className="min-w-0">
             <BrandLogo href={logoHref} height={32} />
             <div className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim mt-1">
@@ -111,7 +111,7 @@ export default function AdminSidebar({
           )}
         </div>
 
-        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+        <nav className="flex-1 min-h-0 py-4 px-3 overflow-y-auto">
           {navItems.map((item) => {
             const active =
               item.href === '/admin'
@@ -135,19 +135,20 @@ export default function AdminSidebar({
           })}
         </nav>
 
-        <div className="p-4 border-t border-brand-border">
+        <div className="shrink-0 space-y-3 border-t border-brand-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="w-full rounded-[10px] bg-brand-text px-3 py-2.5 text-left text-sm font-semibold text-white"
+          >
+            Log out
+          </button>
           <Link
             href="/"
-            className="block text-xs text-brand-dim hover:text-brand-text mb-3 transition-colors"
+            className="block text-xs text-brand-dim hover:text-brand-text transition-colors"
           >
             ← View website
           </Link>
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full text-left text-xs text-brand-dim hover:text-brand-red transition-colors"
-          >
-            Sign out
-          </button>
         </div>
       </aside>
     </>

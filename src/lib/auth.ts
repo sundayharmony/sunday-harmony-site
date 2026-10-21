@@ -21,9 +21,10 @@ import {
   applySessionVersionToToken,
   sessionVersionOf,
 } from './session-version'
+import { isStaffSessionExpired, stampStaffSessionStart } from './staff-session'
 
 /** Staff JWT lifetime (seconds). Clients keep the longer default below. */
-export const STAFF_SESSION_MAX_AGE = 8 * 60 * 60
+export { STAFF_SESSION_MAX_AGE } from './staff-session'
 const CLIENT_SESSION_MAX_AGE = 30 * 24 * 60 * 60
 
 function challengePepper(): string {
@@ -300,13 +301,17 @@ export const authOptions: NextAuthOptions = {
         if (user.id || token.sub) {
           token.mfaChallenge = buildMfaChallenge(String(user.id || token.sub))
         }
+        stampStaffSessionStart(token, true)
       }
+
+      if (!user) stampStaffSessionStart(token, false)
+      if (isStaffSessionExpired(token)) return { sessionExpired: true }
 
       const email = typeof token.email === 'string' ? token.email : undefined
       if (email) {
         const dbUser = await getUserByEmail(email)
         if (!dbUser) {
-          return { sub: token.sub }
+          return { sessionExpired: true }
         }
 
         const versionCheck = applySessionVersionToToken(
@@ -315,7 +320,7 @@ export const authOptions: NextAuthOptions = {
           Boolean(user)
         )
         if (versionCheck.invalidated) {
-          return { sub: token.sub }
+          return { sessionExpired: true }
         }
 
         token.role = dbUser.role
@@ -329,13 +334,8 @@ export const authOptions: NextAuthOptions = {
           token.mfaEnrollmentRequired = false
           token.passkeyEnabled = false
           delete token.mfaChallenge
+          delete token.staffSessionStartedAt
         } else {
-          // Expire staff sessions after STAFF_SESSION_MAX_AGE
-          const iat = typeof token.iat === 'number' ? token.iat : 0
-          if (iat && Math.floor(Date.now() / 1000) - iat > STAFF_SESSION_MAX_AGE) {
-            return { sub: token.sub }
-          }
-
           if (token.mfaVerified) {
             token.mfaPending = false
             token.mfaEnrollmentRequired = false
@@ -363,6 +363,11 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? ''
+        if (token.sessionExpired) {
+          session.user.sessionExpired = true
+          session.user.mfaVerified = false
+          return session
+        }
         if (token.role) session.user.role = token.role as string
         if (token.clientId) session.user.clientId = token.clientId as string
         else delete (session.user as { clientId?: string }).clientId

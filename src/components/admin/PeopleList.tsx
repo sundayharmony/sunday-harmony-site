@@ -132,6 +132,7 @@ export default function PeopleList() {
         const res = await fetch('/api/admin/people')
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
+          if (data?.code === 'SESSION_EXPIRED') return
           setError(typeof data.error === 'string' ? data.error : 'Could not load people.')
           return
         }
