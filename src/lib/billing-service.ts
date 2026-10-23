@@ -893,13 +893,17 @@ export async function reconcileStaleRepairPayments(clients: Client[]): Promise<C
 
   if (candidateIds.length === 0) return clients
 
+  const results = await Promise.allSettled(
+    candidateIds.map((id) => reconcileRepairPaymentFromStripe(id))
+  )
+
   const updates = new Map<string, Client>()
-  for (const id of candidateIds) {
-    try {
-      const synced = await reconcileRepairPaymentFromStripe(id)
-      if (synced) updates.set(synced.id, synced)
-    } catch (err) {
-      console.error('repair payment reconcile failed:', id, err)
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    if (result.status === 'fulfilled' && result.value) {
+      updates.set(result.value.id, result.value)
+    } else if (result.status === 'rejected') {
+      console.error('repair payment reconcile failed:', candidateIds[i], result.reason)
     }
   }
 

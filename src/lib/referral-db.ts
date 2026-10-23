@@ -544,3 +544,49 @@ export async function getCommissionById(id: string): Promise<ReferralCommissionR
   }
   return (data as ReferralCommissionRow) || null
 }
+
+/** Fetch all referrals for multiple profiles in one query. */
+export async function listReferralsForProfiles(profileIds: string[]): Promise<ReferralRow[]> {
+  if (profileIds.length === 0) return []
+  const { data, error } = await getSupabase()
+    .from('referrals')
+    .select('*')
+    .in('referral_profile_id', profileIds)
+    .order('created_at', { ascending: false })
+  if (error) {
+    console.error('listReferralsForProfiles:', error)
+    return []
+  }
+  return (data || []) as ReferralRow[]
+}
+
+/** Fetch all commissions in one query. */
+export async function listAllCommissions(): Promise<ReferralCommissionRow[]> {
+  const { data, error } = await getSupabase()
+    .from('referral_commissions')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') return []
+    console.error('listAllCommissions:', error)
+    return []
+  }
+  return (data || []) as ReferralCommissionRow[]
+}
+
+/** Count clicks grouped by profile_id in one query. */
+export async function countClicksByProfile(): Promise<Map<string, number>> {
+  const { data, error } = await getSupabase()
+    .from('referral_clicks')
+    .select('referral_profile_id')
+  if (error) {
+    console.error('countClicksByProfile:', error)
+    return new Map()
+  }
+  const counts = new Map<string, number>()
+  for (const row of data || []) {
+    const id = row.referral_profile_id
+    counts.set(id, (counts.get(id) || 0) + 1)
+  }
+  return counts
+}
