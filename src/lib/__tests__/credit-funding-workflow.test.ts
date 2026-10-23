@@ -100,6 +100,29 @@ describe('deriveIntakeClassification', () => {
     assert.equal(needsFundingWorkflow(['Credit Repair'], 'Personal'), true)
     assert.equal(needsFundingWorkflow(['Credit Repair'], '', { fundingAmount: '$25,000' }), true)
   })
+
+  it('returns false when service_type is credit_repair regardless of other inputs', () => {
+    assert.equal(
+      needsFundingWorkflow(['Credit Repair'], '', { serviceType: 'credit_repair' }),
+      false
+    )
+    assert.equal(
+      needsFundingWorkflow(['Credit Repair'], '', { ownsBusiness: true, serviceType: 'credit_repair' }),
+      false
+    )
+    assert.equal(
+      needsFundingWorkflow(['Credit Repair'], 'Personal', { serviceType: 'credit_repair' }),
+      false
+    )
+    assert.equal(
+      needsFundingWorkflow(['Business Funding'], 'Business', { ownsBusiness: true, fundingAmount: '$50,000', serviceType: 'credit_repair' }),
+      false
+    )
+    assert.equal(
+      needsFundingWorkflow(['Business Funding'], 'Business', { serviceType: 'business_funding' }),
+      true
+    )
+  })
 })
 
 describe('compareCreditFundingApplicationsByStatus', () => {

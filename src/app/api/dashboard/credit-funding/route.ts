@@ -89,6 +89,7 @@ export async function GET() {
         needs_funding: needsFundingWorkflow(application.credit_goals || [], application.funding_use || '', {
           ownsBusiness: Boolean(application.owns_business),
           fundingAmount: application.funding_amount,
+          serviceType: application.service_type,
         }),
         created_at: application.created_at,
         updated_at: application.updated_at,

@@ -597,6 +597,7 @@ function CreditFundingAdminContent() {
     ? needsFundingWorkflow(selected.credit_goals || [], selected.funding_use || '', {
         ownsBusiness: Boolean(selected.owns_business),
         fundingAmount: selected.funding_amount,
+        serviceType: selected.service_type,
       })
     : false
 

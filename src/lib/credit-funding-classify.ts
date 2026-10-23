@@ -37,6 +37,8 @@ export function isSeekingFunding(creditGoals: string[], fundingUse: string): boo
 export type NeedsFundingWorkflowInput = {
   ownsBusiness?: boolean
   fundingAmount?: string | null
+  /** When set to 'credit_repair', funding workflow is never shown regardless of other inputs. */
+  serviceType?: string | null
 }
 
 /** True when the applicant chose Personal/Business funding goals or funding use, or entered an amount. */
@@ -54,12 +56,14 @@ export function isApplyingForFunding(
 /**
  * Admin workflow strip: funding_review / approved only when they own a business or applied for funding.
  * Mortgage/auto prep goals alone stay on the repair-only path (credit analysis → completed).
+ * If service_type is explicitly 'credit_repair', never show funding workflow.
  */
 export function needsFundingWorkflow(
   creditGoals: string[],
   fundingUse: string,
   input: NeedsFundingWorkflowInput = {}
 ): boolean {
+  if (input.serviceType === 'credit_repair') return false
   if (input.ownsBusiness) return true
   return isApplyingForFunding(creditGoals, fundingUse, input.fundingAmount)
 }
