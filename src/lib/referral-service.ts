@@ -1,9 +1,9 @@
 import { randomBytes, createHash } from 'crypto'
 import type { NextRequest, NextResponse } from 'next/server'
-import { getClientById, getUserByEmail, getUserById, createNotification, logActivity, type Client } from '@/lib/db'
+import { getClientById, getClients, getUserByEmail, getUserById, createNotification, logActivity, type Client } from '@/lib/db'
 import { getPartnerProfileById } from '@/lib/partner-db'
 import { isReferralProfileAttributable, shouldSkipPartnerCommission } from '@/lib/partner-progress'
-import { getCreditFundingApplicationById, getCreditFundingApplicationByClientId } from '@/lib/credit-funding-db'
+import { getCreditFundingApplicationById, getCreditFundingApplicationByClientId, getCreditFundingApplications } from '@/lib/credit-funding-db'
 import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
 import { getPublicSiteUrl, sendHtmlMailNonBlocking, clientDashboardAlertEmailHtml } from '@/lib/smtp-mail'
 import { getStripe } from '@/lib/stripe'
@@ -25,6 +25,7 @@ import {
 import { readReferralAttributionFromRequest, setReferralAttributionCookie } from '@/lib/referral-attribution'
 import {
   countClicksAll,
+  countClicksByProfile,
   countReferralClicks,
   getActiveCommissionForReferredClient,
   getCommissionByPaymentId,
@@ -36,6 +37,7 @@ import {
   getReferralProfileByCode,
   getReferralProfileById,
   getReferralsByReferredClientId,
+  listAllCommissions,
   listAllPayouts,
   insertCommission,
   insertPayout,
@@ -50,6 +52,7 @@ import {
   listPayoutsForClient,
   listReferralEvents,
   listReferralsForProfile,
+  listReferralsForProfiles,
   updateCommission,
   updatePayout,
   updateReferral,
@@ -538,7 +541,32 @@ export async function getClientReferralDashboard(clientId: string) {
 
 export async function getAdminReferralOverview() {
   const profiles = await listAllReferralProfiles()
-  const clicks = await countClicksAll()
+  const clientProfileIds = profiles.filter((p) => p.client_id && !p.partner_profile_id).map((p) => p.id)
+
+  const [totalClicks, allClients, allReferrals, allCommissions, allPayouts, clicksByProfile] = await Promise.all([
+    countClicksAll(),
+    getClients(),
+    listReferralsForProfiles(clientProfileIds),
+    listAllCommissions(),
+    listAllPayouts(),
+    countClicksByProfile(),
+  ])
+
+  const clientMap = new Map(allClients.map((c) => [c.id, c]))
+  const referralsByProfile = new Map<string, typeof allReferrals>()
+  for (const r of allReferrals) {
+    const list = referralsByProfile.get(r.referral_profile_id) || []
+    list.push(r)
+    referralsByProfile.set(r.referral_profile_id, list)
+  }
+  const commissionByReferral = new Map(allCommissions.map((c) => [c.referral_id, c]))
+  const payoutsByClient = new Map<string, typeof allPayouts>()
+  for (const p of allPayouts) {
+    const list = payoutsByClient.get(p.client_id) || []
+    list.push(p)
+    payoutsByClient.set(p.client_id, list)
+  }
+
   let submitted = 0
   let paidApplicants = 0
   let earned = 0
@@ -549,14 +577,31 @@ export async function getAdminReferralOverview() {
 
   for (const profile of profiles) {
     if (!profile.client_id || profile.partner_profile_id) continue
-    const client = await getClientById(profile.client_id)
-    const dash = await dashboardRowsForProfile(profile, false)
-    submitted += dash.summary.submitted
-    paidApplicants += dash.summary.paidApplicants
-    earned += dash.summary.earnedCents
-    paid += dash.summary.paidCents
-    outstanding += dash.summary.availableCents + dash.summary.pendingCents
-    pendingPayouts += dash.payouts.filter(p => p.status === 'processing' || p.status === 'requested').length
+
+    const client = clientMap.get(profile.client_id)
+    const referrals = referralsByProfile.get(profile.id) || []
+    const profileClicks = clicksByProfile.get(profile.id) || 0
+    const payouts = payoutsByClient.get(profile.client_id) || []
+
+    let profilePaidApplicants = 0
+    for (const referral of referrals) {
+      const commission = commissionByReferral.get(referral.id)
+      const isPaid = Boolean(commission) || referral.referral_status === 'paid'
+      if (isPaid) profilePaidApplicants++
+    }
+
+    const profileCommissions = referrals
+      .map((r) => commissionByReferral.get(r.id))
+      .filter((c): c is ReferralCommissionRow => Boolean(c))
+    const totals = summarizeCommissions(profileCommissions)
+
+    submitted += referrals.length
+    paidApplicants += profilePaidApplicants
+    earned += totals.earned
+    paid += totals.paid
+    outstanding += totals.available + totals.pending + totals.processing
+    pendingPayouts += payouts.filter((p) => p.status === 'processing' || p.status === 'requested').length
+
     clients.push({
       clientId: profile.client_id,
       name: client?.name || 'Client',
@@ -565,14 +610,20 @@ export async function getAdminReferralOverview() {
       link: publicReferralUrl(profile.referral_code),
       status: profile.status,
       payoutReady: profile.payout_ready,
-      ...dash.summary,
+      clicks: profileClicks,
+      submitted: referrals.length,
+      paidApplicants: profilePaidApplicants,
+      earnedCents: totals.earned,
+      paidCents: totals.paid,
+      pendingCents: totals.pending + totals.processing,
+      availableCents: totals.available,
     })
   }
 
   return {
     overview: {
-      referralClients: profiles.length,
-      clicks,
+      referralClients: profiles.filter((p) => p.client_id && !p.partner_profile_id).length,
+      clicks: totalClicks,
       submitted,
       paidApplicants,
       earnedCents: earned,
@@ -585,11 +636,11 @@ export async function getAdminReferralOverview() {
 }
 
 export async function getAdminPayouts() {
-  const payouts = await listAllPayouts()
-  const rows = []
-  for (const payout of payouts) {
-    const client = await getClientById(payout.client_id)
-    rows.push({
+  const [payouts, allClients] = await Promise.all([listAllPayouts(), getClients()])
+  const clientMap = new Map(allClients.map((c) => [c.id, c]))
+  return payouts.map((payout) => {
+    const client = clientMap.get(payout.client_id)
+    return {
       id: payout.id,
       date: payout.requested_at,
       amountCents: payout.amount_cents,
@@ -600,9 +651,8 @@ export async function getAdminPayouts() {
       clientId: payout.client_id,
       clientName: client?.name || 'Client',
       clientEmail: client?.email || '',
-    })
-  }
-  return rows
+    }
+  })
 }
 
 export async function getAdminReferralClient(clientId: string) {
