@@ -19,6 +19,9 @@ export type PersonClient = {
   business?: string | null
   lead_id?: string | null
   billing_status?: string | null
+  billing_model?: string | null
+  lead_type?: string | null
+  package_tier?: string | null
   repair_fee_cents?: number | null
   repair_fee_paid_at?: string | null
   created_at: string
@@ -64,6 +67,7 @@ export type PersonSummary = {
   phone: string
   createdAt: string
   hasCreditWork: boolean
+  hasMarketingClient: boolean
   clientId: string | null
   leadId: string | null
   applicationId: string | null
@@ -153,6 +157,23 @@ function earliest<T extends { id: string; created_at: string }>(rows: T[]): T | 
 function latest<T extends { created_at: string }>(rows: T[]): T | undefined {
   if (rows.length === 0) return undefined
   return [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+}
+
+const MARKETING_PACKAGE_TIERS = new Set(['free', 'social_essentials', 'spark', 'growth', 'scale'])
+const CREDIT_REPAIR_LEAD_TYPES = new Set(['credit_repair_lead', 'credit_repair_funding'])
+
+/** A client account on a marketing plan, not a credit-repair account. */
+export function isMarketingClient(client: {
+  billing_model?: string | null
+  lead_type?: string | null
+  package_tier?: string | null
+  repair_fee_cents?: number | null
+}): boolean {
+  if (client.billing_model === 'marketing_subscription') return true
+  if (client.billing_model === 'credit_repair_one_time') return false
+  if (CREDIT_REPAIR_LEAD_TYPES.has(client.lead_type || '')) return false
+  if ((client.repair_fee_cents ?? 0) > 0) return false
+  return MARKETING_PACKAGE_TIERS.has(client.package_tier || '')
 }
 
 function oweLabelFor(clients: PersonClient[]): string {
@@ -274,6 +295,7 @@ export function groupPeople(input: PeopleInput, now = new Date()): PersonSummary
       phone,
       createdAt,
       hasCreditWork: bucket.applications.length > 0,
+      hasMarketingClient: bucket.clients.some((row) => isMarketingClient(row)),
       clientId: client?.id ?? null,
       leadId: lead?.id ?? null,
       applicationId: recentApplication?.id ?? null,
@@ -386,6 +408,7 @@ export const PEOPLE_LANES = [
   'waiting',
   'consultation',
   'credit',
+  'marketing',
   'completed',
   'client',
   'contact',
@@ -400,6 +423,7 @@ export type PeopleAnalytics = {
   waiting: number
   consultations: number
   credit: number
+  marketing: number
   completed: number
   clients: number
   contacts: number
@@ -411,6 +435,7 @@ export function personLane(person: PersonSummary, scope: PersonScope = 'all'): P
   if (scope !== 'credit' && person.nextConsultationAt) return 'consultation'
   if (applicationIsCompleted(person.applicationStatus)) return 'completed'
   if (person.hasCreditWork) return 'credit'
+  if (scope !== 'credit' && person.hasMarketingClient) return 'marketing'
   if (person.clientId) return 'client'
   return 'contact'
 }
@@ -452,6 +477,7 @@ export function summarizePeople(people: PersonSummary[], scope: PersonScope = 'a
     waiting: count('waiting'),
     consultations: count('consultation'),
     credit: count('credit'),
+    marketing: count('marketing'),
     completed: count('completed'),
     clients: count('client'),
     contacts: count('contact'),

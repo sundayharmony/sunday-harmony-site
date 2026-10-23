@@ -6,6 +6,7 @@ import {
   findPersonById,
   groupPeople,
   groupPeopleByLane,
+  isMarketingClient,
   personLane,
   personMatchesFilter,
   selectPeopleWhoOwe,
@@ -171,6 +172,7 @@ describe('people list organization', () => {
     assert.equal(stats.waiting, 0)
     assert.equal(stats.consultations, 1)
     assert.equal(stats.credit, 0)
+    assert.equal(stats.marketing, 0)
     assert.equal(stats.completed, 0)
     assert.equal(stats.clients, 0)
     assert.equal(stats.contacts, 0)
@@ -213,6 +215,60 @@ describe('people list organization', () => {
     assert.equal(stats.credit, 0)
     const groups = groupPeopleByLane(people, 'name')
     assert.deepEqual(groups.map((group) => group.lane), ['completed'])
+  })
+
+  it('gives marketing clients their own lane and leaves credit-repair accounts in credit', () => {
+    assert.equal(isMarketingClient({ billing_model: 'marketing_subscription', package_tier: 'spark' }), true)
+    assert.equal(isMarketingClient({ package_tier: 'growth' }), true)
+    assert.equal(isMarketingClient({ billing_model: 'credit_repair_one_time', package_tier: 'spark' }), false)
+    assert.equal(isMarketingClient({ lead_type: 'credit_repair_lead', package_tier: 'spark' }), false)
+    assert.equal(isMarketingClient({ package_tier: 'spark', repair_fee_cents: 15000 }), false)
+
+    const people = groupPeople({
+      leads: [],
+      clients: [
+        {
+          id: 'mkt',
+          name: 'Mina Market',
+          email: 'mina@market.test',
+          package_tier: 'growth',
+          billing_model: 'marketing_subscription',
+          created_at: '2026-05-01T00:00:00.000Z',
+        },
+        {
+          id: 'repair',
+          name: 'Reed Repair',
+          email: 'reed@repair.test',
+          package_tier: 'spark',
+          billing_model: 'credit_repair_one_time',
+          created_at: '2026-05-02T00:00:00.000Z',
+        },
+      ],
+      applications: [
+        {
+          id: 'reed-app',
+          email: 'reed@repair.test',
+          full_name: 'Reed Repair',
+          status: 'analysis_in_progress',
+          created_at: '2026-05-03T00:00:00.000Z',
+        },
+      ],
+      bookings: [],
+    }, now)
+    const mina = people.find((person) => person.email === 'mina@market.test')
+    const reed = people.find((person) => person.email === 'reed@repair.test')
+    assert.equal(mina?.hasMarketingClient, true)
+    assert.equal(personLane(mina!, 'all'), 'marketing')
+    assert.equal(reed?.hasMarketingClient, false)
+    assert.equal(personLane(reed!, 'all'), 'credit')
+    const stats = summarizePeople(people)
+    assert.equal(stats.marketing, 1)
+    assert.equal(stats.credit, 1)
+    assert.equal(stats.clients, 0)
+    assert.deepEqual(groupPeopleByLane(people, 'name').map((group) => group.lane), ['credit', 'marketing'])
+    const list = readFileSync('src/components/admin/PeopleList.tsx', 'utf8')
+    assert.match(list, /label: 'Marketing'/)
+    assert.match(list, /marketing: 'Marketing'/)
   })
 })
 

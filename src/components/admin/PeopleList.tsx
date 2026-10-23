@@ -20,6 +20,7 @@ const LANE_LABEL: Record<PeopleLane, string> = {
   waiting: 'Waiting on review',
   consultation: 'Consultations',
   credit: 'Credit & funding',
+  marketing: 'Marketing',
   completed: 'Completed',
   client: 'Clients',
   contact: 'Contacts',
@@ -99,6 +100,11 @@ function PersonRow({
           {person.hasCreditWork && !person.applicationStatus && (
             <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-accent-soft text-brand-text">
               Credit
+            </span>
+          )}
+          {person.hasMarketingClient && (
+            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-accent-soft text-brand-text">
+              Marketing
             </span>
           )}
           {person.owesMoney && (
@@ -192,6 +198,7 @@ export default function PeopleList() {
       { id: 'waiting', label: 'Waiting', value: analytics.waiting },
       { id: 'consultation', label: 'Consultations', value: analytics.consultations },
       { id: 'credit', label: 'Credit', value: analytics.credit },
+      { id: 'marketing', label: 'Marketing', value: analytics.marketing },
       { id: 'completed', label: 'Completed', value: analytics.completed },
       { id: 'client', label: 'Clients', value: analytics.clients },
       { id: 'contact', label: 'Contacts', value: analytics.contacts },
@@ -259,7 +266,7 @@ export default function PeopleList() {
       {!loading && !error && searched.length === 0 && (
         <div className="bg-white border border-brand-border rounded-xl p-6 text-sm text-brand-muted">
           {people.length === 0
-            ? 'No people yet. A consultation, credit intake, or client account will show up here.'
+            ? 'No people yet. A consultation, credit intake, marketing client, or other client account will show up here.'
             : 'No one matches that view.'}
         </div>
       )}
