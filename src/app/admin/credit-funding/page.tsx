@@ -200,6 +200,7 @@ function CreditFundingAdminContent() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteNotice, setInviteNotice] = useState('')
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [downloadingIntake, setDownloadingIntake] = useState(false)
   const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
   const [referral, setReferral] = useState<{
     referralId: string
@@ -611,9 +612,56 @@ function CreditFundingAdminContent() {
     selected?.status === 'approved' ||
     selected?.status === 'completed'
 
+  const downloadIntakePdf = async () => {
+    if (!selected || downloadingIntake) return
+    setDownloadingIntake(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/credit-funding/${encodeURIComponent(selected.id)}/intake-pdf`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        if (res.status === 401 && data.code === 'SESSION_EXPIRED') return
+        throw new Error(data.error || 'Could not download the intake PDF')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = /filename="([^"]+)"/.exec(disposition)
+      link.href = url
+      link.download = match?.[1] || `Intake-${selected.application_id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not download the intake PDF')
+    } finally {
+      setDownloadingIntake(false)
+    }
+  }
+
+  const renderIntakeDownloadButton = (compact = false) => (
+    <button
+      type="button"
+      onClick={() => void downloadIntakePdf()}
+      disabled={!selected || downloadingIntake}
+      className={
+        compact
+          ? 'text-xs font-semibold text-accent hover:underline disabled:opacity-50'
+          : 'shrink-0 px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50 disabled:opacity-50'
+      }
+    >
+      {downloadingIntake ? 'Preparing PDF…' : 'Download intake PDF'}
+    </button>
+  )
+
   const renderDocumentList = () => (
     <>
-      <h3 className="text-sm font-bold mb-2">Uploaded Documents</h3>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h3 className="text-sm font-bold">Uploaded Documents</h3>
+        {renderIntakeDownloadButton(true)}
+      </div>
       {documents.length === 0 ? (
         <p className="text-sm text-brand-dim">No documents.</p>
       ) : (
@@ -1217,6 +1265,12 @@ function CreditFundingAdminContent() {
 
               {activeTab === 'intake' && (
                 <div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <p className="text-sm text-brand-muted max-w-xl">
+                      Download this intake and the client&apos;s uploaded files as one PDF. Passwords and security answers stay on this screen.
+                    </p>
+                    {renderIntakeDownloadButton()}
+                  </div>
                   <DetailSection title="Personal Information">
                     <DetailField label="Full Name" value={selected.full_name} />
                     {renderSensitiveField('Date of Birth', 'date_of_birth', selected.date_of_birth)}
