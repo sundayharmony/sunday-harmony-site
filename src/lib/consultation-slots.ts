@@ -199,6 +199,14 @@ export function calendarMonthCells(year: number, month: number): CalendarCell[] 
   return cells
 }
 
+export function monthOfDateKey(dateKey: string): { year: number; month: number } | null {
+  const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(dateKey)
+  if (!match) return null
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return null
+  return { year: Number(match[1]), month }
+}
+
 export function shiftCalendarMonth(year: number, month: number, delta: number): { year: number; month: number } {
   const next = new Date(Date.UTC(year, month - 1 + delta, 1))
   return { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1 }

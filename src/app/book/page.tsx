@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import ConsultationBooker from '@/components/contact/ConsultationBooker'
+import { loadPublicSlots } from '@/lib/consultation-service'
+
+export const revalidate = 30
 
 export const metadata: Metadata = {
   title: 'Book a consultation',
@@ -14,7 +17,16 @@ export const metadata: Metadata = {
   },
 }
 
-export default function BookConsultationPage() {
+export default async function BookConsultationPage() {
+  let initial: Awaited<ReturnType<typeof loadPublicSlots>> | null = null
+  let loadError = ''
+  try {
+    initial = await loadPublicSlots()
+  } catch (error) {
+    console.error('consultation page slots failed:', error)
+    loadError = 'Could not load open days. Refresh and try again.'
+  }
+
   return (
     <>
       <Navbar />
@@ -28,7 +40,7 @@ export default function BookConsultationPage() {
             <p className="text-[15px] text-brand-muted leading-relaxed mb-8 max-w-[520px]">
               Open days are marked on the calendar. Times for that day show next. We email the Google Meet link right away, and again the day of the conversation.
             </p>
-            <ConsultationBooker />
+            <ConsultationBooker initial={initial} loadError={loadError} />
             <p className="mt-6 text-sm text-brand-muted">
               Prefer to write?{' '}
               <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent">

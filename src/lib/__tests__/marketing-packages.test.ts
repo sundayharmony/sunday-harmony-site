@@ -42,7 +42,9 @@ describe('marketing packages', () => {
 
     const home = source('src/components/Packages.tsx')
     assert.match(home, /lg:grid-cols-3/)
-    assert.match(home, /Book a consultation|ctaLabel/)
+    assert.match(home, /href="\/book"/)
+    assert.match(home, /ctaLabel/)
+    assert.doesNotMatch(home, /\/contact/)
     assert.doesNotMatch(home, /Social Essentials/)
     assert.match(home, /Three ways to work together/)
   })

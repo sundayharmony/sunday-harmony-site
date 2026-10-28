@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import Packages from '@/components/Packages'
@@ -110,12 +111,12 @@ export default function ServicesPage() {
                 >
                   See pricing →
                 </a>
-                <a
+                <Link
                   href="/book"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg border border-brand-border text-brand-text text-sm font-semibold bg-white/80 backdrop-blur-sm hover:bg-neutral-50 transition-all"
                 >
                   Book a consultation
-                </a>
+                </Link>
               </div>
               <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-brand-muted">
                 {['Free Google Business audit', 'No long-term contracts', 'Cancel anytime'].map((item) => (

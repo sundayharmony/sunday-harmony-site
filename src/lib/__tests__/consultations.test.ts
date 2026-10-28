@@ -7,6 +7,7 @@ import {
   bookingsDueForReminder,
   buildConsultationSlots,
   calendarMonthCells,
+  monthOfDateKey,
   type ConsultationSettings,
   type WeeklyWindow,
 } from '../consultation-slots'
@@ -34,6 +35,12 @@ describe('consultation slots', () => {
       slots.map((slot) => slot.startsAt),
       ['2026-10-15T14:00:00.000Z', '2026-10-15T14:30:00.000Z']
     )
+  })
+
+  it('reads the calendar month from the first open day', () => {
+    assert.deepEqual(monthOfDateKey('2026-10-28'), { year: 2026, month: 10 })
+    assert.equal(monthOfDateKey('2026-13-01'), null)
+    assert.equal(monthOfDateKey('October'), null)
   })
 
   it('builds a Sunday-first month and leaves closed days blank', () => {
@@ -110,6 +117,26 @@ describe('consultation reminders', () => {
       now
     )
     assert.deepEqual(due.map((row) => row.id), ['soon'])
+  })
+})
+
+describe('consultation booking page', () => {
+  it('opens the calendar from package Get Started and paints days on first load', () => {
+    const packages = readFileSync('src/components/Packages.tsx', 'utf8')
+    const services = readFileSync('src/app/services/page.tsx', 'utf8')
+    const page = readFileSync('src/app/book/page.tsx', 'utf8')
+    const booker = readFileSync('src/components/contact/ConsultationBooker.tsx', 'utf8')
+    const slotsRoute = readFileSync('src/app/api/consultations/slots/route.ts', 'utf8')
+    const service = readFileSync('src/lib/consultation-service.ts', 'utf8')
+    assert.match(packages, /href="\/book"/)
+    assert.match(services, /href="\/book"/)
+    assert.match(page, /loadPublicSlots/)
+    assert.match(page, /<ConsultationBooker initial=/)
+    assert.match(booker, /useState<SlotsResponse \| null>\(initial\)/)
+    assert.match(booker, /monthFromDays\(initial\?\.days\)/)
+    assert.match(slotsRoute, /revalidate = 30/)
+    assert.match(service, /listConsultationBusyRanges/)
+    assert.match(service, /refreshPublicConsultationCalendar/)
   })
 })
 

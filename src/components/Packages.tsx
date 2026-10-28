@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { packages, packagePriceDisplay } from '@/lib/data'
 import SectionHeader from '@/components/ui/SectionHeader'
 
@@ -65,8 +66,8 @@ export default function Packages() {
                     ))}
                   </div>
 
-                  <a
-                    href={pkg.ctaLabel === 'Book a consultation' ? '/book' : '/contact'}
+                  <Link
+                    href="/book"
                     className={`block w-full py-3 mt-5 rounded-lg text-center text-[13px] font-semibold transition-all ${
                       pkg.popular
                         ? 'bg-brand-text text-white font-bold hover:bg-neutral-800'
@@ -74,7 +75,7 @@ export default function Packages() {
                     }`}
                   >
                     {pkg.ctaLabel ?? 'Get Started'}
-                  </a>
+                  </Link>
                 </div>
               </div>
             )

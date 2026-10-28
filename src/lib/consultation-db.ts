@@ -149,6 +149,24 @@ export async function listScheduledBookings(): Promise<ConsultationBookingRow[]>
   return (data || []) as ConsultationBookingRow[]
 }
 
+/** Scheduled bookings that overlap a window. Slot building only needs the times. */
+export async function listConsultationBusyRanges(
+  from: Date,
+  to: Date
+): Promise<Array<{ starts_at: string; ends_at: string }>> {
+  const { data, error } = await getSupabase()
+    .from('consultation_bookings')
+    .select('starts_at, ends_at')
+    .eq('status', 'scheduled')
+    .lt('starts_at', to.toISOString())
+    .gt('ends_at', from.toISOString())
+  if (error) {
+    if (error.code !== '42P01') console.error('listConsultationBusyRanges error:', error)
+    return []
+  }
+  return (data || []) as Array<{ starts_at: string; ends_at: string }>
+}
+
 export async function listUpcomingBookings(now = new Date()): Promise<ConsultationBookingRow[]> {
   const { data, error } = await getSupabase()
     .from('consultation_bookings')

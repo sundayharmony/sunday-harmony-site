@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { calendarMonthCells, formatCalendarMonth, shiftCalendarMonth } from '@/lib/consultation-slots'
+import { calendarMonthCells, formatCalendarMonth, monthOfDateKey, shiftCalendarMonth } from '@/lib/consultation-slots'
 
 type Slot = { startsAt: string; endsAt: string; label: string }
 type Day = { date: string; label: string; slots: Slot[] }
@@ -31,6 +31,11 @@ function timezoneLabel(zone: string): string {
 
 const WEEKDAY_HEADS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
+function monthFromDays(days: Day[] | undefined) {
+  const first = days && days.length > 0 ? days[0].date : ''
+  return first ? monthOfDateKey(first) : null
+}
+
 const choiceClass = (selected: boolean) =>
   `px-4 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${
     selected
@@ -38,11 +43,17 @@ const choiceClass = (selected: boolean) =>
       : 'bg-white text-brand-text border-brand-border hover:border-neutral-400'
   }`
 
-export default function ConsultationBooker() {
-  const [data, setData] = useState<SlotsResponse | null>(null)
-  const [loadError, setLoadError] = useState('')
+export default function ConsultationBooker({
+  initial = null,
+  loadError: initialLoadError = '',
+}: {
+  initial?: SlotsResponse | null
+  loadError?: string
+}) {
+  const [data, setData] = useState<SlotsResponse | null>(initial)
+  const [loadError, setLoadError] = useState(initial ? '' : initialLoadError)
   const [step, setStep] = useState<Step>('day')
-  const [month, setMonth] = useState<{ year: number; month: number } | null>(null)
+  const [month, setMonth] = useState<{ year: number; month: number } | null>(() => monthFromDays(initial?.days))
   const [day, setDay] = useState('')
   const [startsAt, setStartsAt] = useState('')
   const [name, setName] = useState('')
@@ -56,27 +67,25 @@ export default function ConsultationBooker() {
   const [booked, setBooked] = useState('')
 
   useEffect(() => {
+    if (initial) return
     let cancelled = false
     fetch('/api/consultations/slots')
       .then(async (res) => {
-        const payload = await res.json().catch(() => ({}))
+        const payload = (await res.json().catch(() => ({}))) as SlotsResponse & { error?: string }
         if (!res.ok) throw new Error(payload.error || 'Could not load times')
-        if (!cancelled) {
-          setData(payload)
-          const first = Array.isArray(payload.days) ? payload.days[0]?.date : ''
-          if (typeof first === 'string') {
-            const [year, monthNumber] = first.split('-').map(Number)
-            if (year && monthNumber) setMonth({ year, month: monthNumber })
-          }
-        }
+        if (cancelled || !Array.isArray(payload.days)) return
+        setData(payload)
+        setLoadError('')
+        setMonth((current) => current ?? monthFromDays(payload.days))
       })
       .catch((err: unknown) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Could not load times')
+        if (cancelled) return
+        setLoadError(err instanceof Error ? err.message : 'Could not load times')
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [initial])
 
   const selectedDay = data?.days.find((item) => item.date === day) ?? null
   const selectedSlot = selectedDay?.slots.find((slot) => slot.startsAt === startsAt) ?? null

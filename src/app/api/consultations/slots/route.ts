@@ -1,22 +1,19 @@
 import { NextResponse } from 'next/server'
-import { groupSlots, loadOpenSlots } from '@/lib/consultation-service'
+import { loadPublicSlots } from '@/lib/consultation-service'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 30
 
 export async function GET() {
   try {
-    const open = await loadOpenSlots()
-    if (!open) {
-      return NextResponse.json({ calendarConnected: false, timezone: 'America/New_York', days: [] })
-    }
-    return NextResponse.json({
-      calendarConnected: open.calendarConnected,
-      timezone: open.settings.timezone,
-      slotMinutes: open.settings.slotMinutes,
-      days: groupSlots(open.slots, open.settings.timezone),
+    const slots = await loadPublicSlots()
+    return NextResponse.json(slots, {
+      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' },
     })
   } catch (error) {
     console.error('consultation slots failed:', error)
-    return NextResponse.json({ calendarConnected: false, timezone: 'America/New_York', days: [] })
+    return NextResponse.json(
+      { error: 'Could not load open days. Refresh and try again.' },
+      { status: 503 }
+    )
   }
 }
