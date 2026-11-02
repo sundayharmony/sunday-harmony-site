@@ -1,5 +1,7 @@
+import { syncClientFromLead } from '@/lib/crm-db'
 import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
-import { getTasksByClient, logActivity, updateClient } from '@/lib/db'
+import { emailIlikePattern } from '@/lib/email-match'
+import { createClient, getTasksByClient, logActivity, updateClient } from '@/lib/db'
 import {
   createProposalDocument,
   ensureDriveFolder,
@@ -36,14 +38,15 @@ import {
   procurementMetrics,
   relationsMetrics,
   roleCanEditStage,
+  roleCanSeeProspect,
   salesHandoffGaps,
   salesMetrics,
   scoreTotal,
   stageFromLegacy,
   stageAfterOutboundEmail,
   stageAfterProspectReply,
-  stagesVisibleToRole,
 } from '@/lib/marketing-pipeline'
+import { TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
 import { getSupabase } from '@/lib/supabase'
 
 export type MarketingActor = {
@@ -182,10 +185,7 @@ async function loadRows(): Promise<LeadRow[]> {
 }
 
 export function prospectVisibleToRole(prospect: MarketingProspect, role?: string | null): boolean {
-  if (role === 'admin') return true
-  const allowed = stagesVisibleToRole(role)
-  if (allowed === 'all') return true
-  return allowed.includes(prospect.stage)
+  return roleCanSeeProspect(role, prospect)
 }
 
 export async function listMarketingProspects(role?: string | null): Promise<MarketingProspect[]> {
@@ -236,6 +236,7 @@ export type ProspectInput = {
   expectations?: string
   paymentStatus?: string
   agreementSigned?: boolean
+  proposalDocUrl?: string | null
 }
 
 function clean(value: unknown): string {
@@ -269,7 +270,8 @@ export async function saveMarketingProspect(
   if (!isLeadSource(source)) throw new Error('Choose a lead source')
   const business = clean(input.business) || existing?.business || ''
   if (!business) throw new Error('Business name is required')
-  const contact = splitContact(clean(input.contactName) || existing?.contactName || business)
+  const contactSource = input.contactName === undefined ? existing?.contactName || '' : clean(input.contactName)
+  const contact = splitContact(contactSource)
   const categoryInput = clean(input.category) || existing?.category || ''
   if (categoryInput && !isProspectCategory(categoryInput)) throw new Error('Prospect category must be established, small, or startup')
 
@@ -279,7 +281,7 @@ export async function saveMarketingProspect(
       : Number(input.estimatedValue)
 
   const payload: Record<string, unknown> = {
-    first_name: contact.first || business,
+    first_name: contact.first,
     last_name: contact.last,
     email: input.email === undefined ? existing?.email || null : clean(input.email) || null,
     phone: input.phone === undefined ? existing?.phone || null : clean(input.phone) || null,
@@ -315,6 +317,8 @@ export async function saveMarketingProspect(
         : input.agreementSigned
           ? existing?.agreementSignedAt || new Date().toISOString()
           : null,
+    proposal_doc_url:
+      input.proposalDocUrl === undefined ? existing?.proposalDocUrl || null : clean(input.proposalDocUrl) || null,
     updated_at: new Date().toISOString(),
   }
   if (payload.lead_type === undefined) delete payload.lead_type
@@ -378,6 +382,62 @@ async function syncWorkspace(prospect: MarketingProspect): Promise<MarketingPros
   return mapProspect(data as LeadRow, prospect.creditApplicationId)
 }
 
+function deliverableList(value: string): string[] {
+  return value.split(/\n|,/).map((item) => item.trim()).filter(Boolean)
+}
+
+function clientNotes(prospect: MarketingProspect): string {
+  return [
+    prospect.expectations ? `Expectations: ${prospect.expectations}` : '',
+    prospect.scope ? `Scope: ${prospect.scope}` : '',
+    prospect.promises ? `Promises: ${prospect.promises}` : '',
+    prospect.notes,
+  ].filter(Boolean).join('\n')
+}
+
+function marketingPackageFor(prospect: MarketingProspect): { package_tier: Exclude<PackageTier, 'free'>; monthly_price: number } {
+  const haystack = `${prospect.servicesPurchased} ${prospect.recommendedService}`.toLowerCase()
+  if (haystack.includes('scale')) return { package_tier: 'scale', monthly_price: TIER_LIST_PRICES.scale }
+  if (haystack.includes('growth')) return { package_tier: 'growth', monthly_price: TIER_LIST_PRICES.growth }
+  if (haystack.includes('social')) return { package_tier: 'social_essentials', monthly_price: TIER_LIST_PRICES.social_essentials }
+  return { package_tier: 'spark', monthly_price: TIER_LIST_PRICES.spark }
+}
+
+async function ensureMarketingClient(prospect: MarketingProspect): Promise<{ id: string; created: boolean }> {
+  if (prospect.clientId) return { id: prospect.clientId, created: false }
+  if (!prospect.email.trim()) throw new Error('Add an email before handing to client relations')
+  const existing = await getSupabase()
+    .from('clients')
+    .select('*')
+    .ilike('email', emailIlikePattern(prospect.email))
+    .limit(1)
+  if (existing.error) throw new Error('Could not open the client file')
+  const found = Array.isArray(existing.data) ? existing.data[0] : null
+  if (found?.id) return { id: String(found.id), created: false }
+
+  const plan = marketingPackageFor(prospect)
+  const created = await createClient({
+    name: prospect.contactName || prospect.business,
+    business: prospect.business,
+    email: prospect.email,
+    phone: prospect.phone,
+    industry: prospect.industry,
+    package_tier: plan.package_tier,
+    monthly_price: plan.monthly_price,
+    start_date: new Date().toISOString(),
+    status: 'active',
+    is_potential: false,
+    billing_status: 'not_started',
+    billing_model: 'marketing_subscription',
+    notes: clientNotes(prospect),
+    deliverables: deliverableList(prospect.deliverables),
+    quick_wins: [],
+    lead_type: 'marketing_lead',
+  })
+  if (!created) throw new Error('Could not open the client file')
+  return { id: created.id, created: true }
+}
+
 export async function handOffProspect(
   id: string,
   target: 'sales_closer' | 'client_relations',
@@ -413,6 +473,7 @@ export async function handOffProspect(
       paymentStatus: prospect.paymentStatus,
       proposalUrl: prospect.proposalDocUrl,
     })
+    if (!prospect.email.trim()) gaps.push('Email')
     if (gaps.length) throw new Error(`Still needed: ${gaps.join(', ')}`)
   }
 
@@ -424,17 +485,19 @@ export async function handOffProspect(
     driveFolderUrl = folder.url
   }
 
+  const clientFile = target === 'client_relations' ? await ensureMarketingClient(prospect) : null
   const now = new Date().toISOString()
   const updates: Record<string, unknown> = {
     assigned_role: target,
     drive_folder_id: driveFolderId,
     drive_folder_url: driveFolderUrl,
     updated_at: now,
+    ...(clientFile ? { client_id: clientFile.id } : {}),
     ...(target === 'sales_closer' ? { handed_to_sales_at: now } : { handed_to_relations_at: now }),
   }
   const { error } = await getSupabase().from('leads').update(updates).eq('id', id)
   if (error) throw new Error('Could not save the handoff')
-  await getSupabase().from('marketing_handoffs').insert({
+  const handoffLog = await getSupabase().from('marketing_handoffs').insert({
     lead_id: id,
     from_role: actor.role || 'admin',
     to_role: target,
@@ -444,10 +507,20 @@ export async function handOffProspect(
     notes: prospect.notes,
     created_by: actor.email || '',
   })
-  if (prospect.clientId && driveFolderId) {
-    await updateClient(prospect.clientId, {
+  if (handoffLog.error) throw new Error('Could not save the handoff')
+  if (clientFile) {
+    await syncClientFromLead(id, clientFile.id)
+    await updateClient(clientFile.id, {
       drive_folder_id: driveFolderId,
       drive_folder_url: driveFolderUrl,
+      onboarding: prospect.onboarding,
+      relations_notes: prospect.notes,
+      ...(clientFile.created
+        ? {
+            notes: clientNotes(prospect),
+            deliverables: deliverableList(prospect.deliverables),
+          }
+        : {}),
     })
   }
   const saved = await getMarketingProspect(id)
@@ -623,9 +696,17 @@ export function scriptsForProspect(prospect: MarketingProspect, actor: Marketing
   })
 }
 
+function attentionHref(prospect: MarketingProspect, role?: string | null): string {
+  if (role === 'client_relations') return '/admin/clients'
+  if (prospect.stage === 'won' && prospect.handedToRelationsAt) return '/admin/clients'
+  return `/admin/pipeline/${prospect.id}`
+}
+
 export async function loadMarketingToday(role?: string | null) {
-  const allProspects = await listMarketingProspects(role === 'client_relations' ? 'admin' : role)
-  const prospects = role === 'client_relations' ? allProspects.filter((prospect) => prospect.stage === 'won') : allProspects
+  const everyone = await listMarketingProspects('admin')
+  const prospects = !role || role === 'admin'
+    ? everyone
+    : everyone.filter((prospect) => prospectVisibleToRole(prospect, role))
   const now = Date.now()
   const week = now + 7 * 24 * 60 * 60 * 1000
   const followUps = prospects
@@ -645,7 +726,8 @@ export async function loadMarketingToday(role?: string | null) {
       if (role === 'lead_procurement') return prospect.stage === 'researching' || prospect.stage === 'ready_to_contact'
       return (
         (Boolean(prospect.handedToSalesAt) && (prospect.stage === 'ready_to_contact' || prospect.stage === 'contacted'))
-        || (prospect.stage === 'won' && !onboardingComplete(prospect.onboarding))
+        || (prospect.stage === 'won' && !prospect.handedToRelationsAt)
+        || (prospect.stage === 'won' && Boolean(prospect.handedToRelationsAt) && !onboardingComplete(prospect.onboarding))
       )
     })
     .slice(0, 12)
@@ -653,10 +735,11 @@ export async function loadMarketingToday(role?: string | null) {
       id: prospect.id,
       business: prospect.business,
       stage: prospect.stage,
-      href: prospect.stage === 'won' ? '/admin/clients' : `/admin/pipeline/${prospect.id}`,
+      href: attentionHref(prospect, role),
     }))
 
-  const metricRows = prospects.map((prospect) => ({
+  const metricSource = role === 'sales_closer' || role === 'client_relations' ? prospects : everyone
+  const metricRows = metricSource.map((prospect) => ({
     stage: prospect.stage,
     hasContact: Boolean(prospect.email || prospect.phone),
     handedToSales: Boolean(prospect.handedToSalesAt),
@@ -669,7 +752,7 @@ export async function loadMarketingToday(role?: string | null) {
   let onTime = 0
   let due = 0
   if (role === 'admin' || role === 'client_relations') {
-    const won = prospects.filter((prospect) => prospect.stage === 'won')
+    const won = everyone.filter((prospect) => roleCanSeeProspect('client_relations', prospect))
     const clientIds = won.map((prospect) => prospect.clientId).filter((id): id is string => Boolean(id))
     const tasks = (await Promise.all(clientIds.map((clientId) => getTasksByClient(clientId).catch(() => [])))).flat()
     const today = new Date().toISOString().slice(0, 10)

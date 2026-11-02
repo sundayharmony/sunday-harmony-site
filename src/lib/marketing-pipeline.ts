@@ -264,6 +264,28 @@ export function stageAfterProspectReply(current: PipelineStage): PipelineStage |
   return null
 }
 
+const SALES_INTAKE = new Set<PipelineStage>(['ready_to_contact', 'contacted'])
+
+/** Procurement stops seeing a lead after the sales handoff. Sales sees intake rows only after that handoff. */
+export function roleCanSeeProspect(
+  role: string | null | undefined,
+  prospect: { stage: PipelineStage; handedToSalesAt?: string | null; handedToRelationsAt?: string | null }
+): boolean {
+  if (role === 'admin') return true
+  if (role === 'lead_procurement') {
+    return PROCUREMENT_STAGES.has(prospect.stage) && !prospect.handedToSalesAt
+  }
+  if (role === 'sales_closer') {
+    if (!SALES_STAGES.has(prospect.stage)) return false
+    if (SALES_INTAKE.has(prospect.stage)) return Boolean(prospect.handedToSalesAt)
+    return true
+  }
+  if (role === 'client_relations') {
+    return prospect.stage === 'won' && Boolean(prospect.handedToRelationsAt)
+  }
+  return false
+}
+
 export function stagesVisibleToRole(role?: string | null): PipelineStage[] | 'all' {
   if (role === 'admin') return 'all'
   if (role === 'lead_procurement') return [...PROCUREMENT_STAGES]

@@ -11,6 +11,11 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(supabaseUrl && supabaseKey)
 }
 
+/** Test hook. Production code leaves this unset and uses the service-role client. */
+export function setSupabaseForTests(client: SupabaseClient | null) {
+  _supabase = client
+}
+
 export function getSupabase(): SupabaseClient {
   if (!_supabase) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''

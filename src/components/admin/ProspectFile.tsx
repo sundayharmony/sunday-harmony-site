@@ -11,6 +11,9 @@ import {
   SCORE_FACTORS,
   SOURCE_LABELS,
   STAGE_LABELS,
+  canHandOffToRelations,
+  canHandOffToSales,
+  canMoveStage,
   scoreBandLabel,
   scoreTotal,
   type PipelineStage,
@@ -74,6 +77,7 @@ export default function ProspectFile({ id }: { id: string }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
 
   function applyProspect(next: Prospect, nextScripts?: Script[]) {
     setProspect(next)
@@ -87,6 +91,13 @@ export default function ProspectFile({ id }: { id: string }) {
       }
     }
   }
+
+  useEffect(() => {
+    void fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => setRole(typeof data?.user?.role === 'string' ? data.user.role : null))
+      .catch(() => setRole(null))
+  }, [])
 
   useEffect(() => {
     void (async () => {
@@ -171,7 +182,7 @@ export default function ProspectFile({ id }: { id: string }) {
       {notice && <p className="text-sm text-brand-muted">{notice}</p>}
       {!workspaceConnected && (
         <p className="text-sm text-brand-muted bg-white border border-brand-border rounded-lg px-3 py-2">
-          Google Workspace is not connected. The prospect still saves. Mail, Calendar, Drive, and Contacts stay off until the sales mailbox token is set.
+          Google Workspace is not connected. Saving still works. Paste a proposal link to finish a handoff. Mail, Calendar, Drive, and Contacts turn on after the sales mailbox token is set.
         </p>
       )}
 
@@ -180,7 +191,7 @@ export default function ProspectFile({ id }: { id: string }) {
           <span className="font-medium">Pipeline stage</span>
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.stage}</span>
           <select className={inputClass} value={prospect.stage} onChange={(event) => patch({ stage: event.target.value as PipelineStage })}>
-            {PIPELINE_STAGES.map((stage) => (
+            {PIPELINE_STAGES.filter((stage) => stage === prospect.stage || canMoveStage(role, prospect.stage, stage)).map((stage) => (
               <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
             ))}
           </select>
@@ -378,6 +389,11 @@ export default function ProspectFile({ id }: { id: string }) {
         <label className="text-sm">Deadline<input className={`${inputClass} mt-1`} value={prospect.deadline} onChange={(event) => patch({ deadline: event.target.value })} /></label>
         <label className="text-sm">Promises<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.promises} onChange={(event) => patch({ promises: event.target.value })} /></label>
         <label className="text-sm">Expectations<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.expectations} onChange={(event) => patch({ expectations: event.target.value })} /></label>
+        <label className="text-sm sm:col-span-2">
+          Proposal link
+          <span className="block text-xs text-brand-muted mb-1">Paste the Google Doc address. The create button turns on after Google is connected.</span>
+          <input className={inputClass} value={prospect.proposalDocUrl || ''} onChange={(event) => patch({ proposalDocUrl: event.target.value || null })} />
+        </label>
         <label className="text-sm flex items-center gap-2 sm:col-span-2">
           <input
             type="checkbox"
@@ -388,25 +404,31 @@ export default function ProspectFile({ id }: { id: string }) {
         </label>
         <div className="flex flex-wrap gap-2 sm:col-span-2">
           <button type="button" disabled={saving} onClick={() => void save()} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg">Save close details</button>
-          <button
-            type="button"
-            disabled={saving || !workspaceConnected}
-            onClick={() => void post(`/api/admin/pipeline/${id}/proposal`, {
-              service: prospect.recommendedService,
-              price: prospect.estimatedValue != null ? String(prospect.estimatedValue) : '',
-              scope: prospect.scope,
-              deadline: prospect.deadline,
-            })}
-            className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg disabled:opacity-60"
-          >
-            Create proposal Doc
-          </button>
-          <button type="button" disabled={saving} onClick={() => void post(`/api/admin/pipeline/${id}/handoff`, { target: 'sales_closer' })} className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60">
-            Hand to sales
-          </button>
-          <button type="button" disabled={saving} onClick={() => void post(`/api/admin/pipeline/${id}/handoff`, { target: 'client_relations' })} className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60">
-            Hand to client relations
-          </button>
+          {(role === 'admin' || role === 'sales_closer') && (
+            <button
+              type="button"
+              disabled={saving || !workspaceConnected}
+              onClick={() => void post(`/api/admin/pipeline/${id}/proposal`, {
+                service: prospect.recommendedService,
+                price: prospect.estimatedValue != null ? String(prospect.estimatedValue) : '',
+                scope: prospect.scope,
+                deadline: prospect.deadline,
+              })}
+              className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg disabled:opacity-60"
+            >
+              Create proposal Doc
+            </button>
+          )}
+          {canHandOffToSales(role, prospect.stage) && (
+            <button type="button" disabled={saving} onClick={() => void post(`/api/admin/pipeline/${id}/handoff`, { target: 'sales_closer' })} className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60">
+              Hand to sales
+            </button>
+          )}
+          {canHandOffToRelations(role, prospect.stage) && (
+            <button type="button" disabled={saving} onClick={() => void post(`/api/admin/pipeline/${id}/handoff`, { target: 'client_relations' })} className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60">
+              Hand to client relations
+            </button>
+          )}
         </div>
         {prospect.proposalDocUrl && (
           <a href={prospect.proposalDocUrl} className="text-sm text-accent hover:underline" target="_blank" rel="noreferrer">Open proposal</a>

@@ -4,6 +4,7 @@ import {
   canHandOffToRelations,
   canHandOffToSales,
   canMoveStage,
+  roleCanSeeProspect,
   followUpError,
   homeForRole,
   marketingRoleAllowedPath,
@@ -104,6 +105,19 @@ describe('marketing role handoffs and navigation', () => {
       proposalUrl: 'https://docs.google.com/document/d/abc',
     })
     assert.deepEqual(gaps, ['Agreement marked signed'])
+  })
+
+  it('moves a lead out of procurement after the sales handoff and into client relations only after the won handoff', () => {
+    const researching = { stage: 'researching' as const, handedToSalesAt: null, handedToRelationsAt: null }
+    assert.equal(roleCanSeeProspect('lead_procurement', researching), true)
+    assert.equal(roleCanSeeProspect('sales_closer', researching), false)
+    const handed = { stage: 'contacted' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: null }
+    assert.equal(roleCanSeeProspect('lead_procurement', handed), false)
+    assert.equal(roleCanSeeProspect('sales_closer', handed), true)
+    const won = { stage: 'won' as const, handedToSalesAt: handed.handedToSalesAt, handedToRelationsAt: null }
+    assert.equal(roleCanSeeProspect('client_relations', won), false)
+    assert.equal(roleCanSeeProspect('sales_closer', won), true)
+    assert.equal(roleCanSeeProspect('client_relations', { ...won, handedToRelationsAt: '2026-11-03T15:00:00.000Z' }), true)
   })
 
   it('keeps each role inside its stages', () => {
