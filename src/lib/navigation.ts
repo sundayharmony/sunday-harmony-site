@@ -8,14 +8,15 @@ export interface SiteNavLink {
 /** True when this public nav link matches the current path (excludes /credit/privacy). */
 export function isSiteNavLinkActive(href: string, pathname: string): boolean {
   const path = pathname.split('?')[0]
-  if (href === '/credit') return path === '/credit'
+  if (href === '/build-fund') {
+    return path === '/build-fund' || path === '/credit' || path === '/funding'
+  }
   return path === href
 }
 
 export const siteNavLinks: SiteNavLink[] = [
   { label: 'Market', href: '/services' },
-  { label: 'Fund', href: '/funding' },
-  { label: 'Build', href: '/credit' },
+  { label: 'Build & Fund', href: '/build-fund' },
   { label: 'Contact', href: '/contact' },
   { label: 'About', href: '/about' },
 ]
