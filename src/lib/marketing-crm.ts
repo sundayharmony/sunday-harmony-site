@@ -27,7 +27,6 @@ import {
   canMoveStage,
   closerMayBillProspect,
   followUpError,
-  isCloseMethod,
   isLeadSource,
   isPipelineStage,
   isProspectCategory,
@@ -331,7 +330,7 @@ export async function saveMarketingProspect(
     close_method:
       input.closeMethod === undefined
         ? existing?.closeMethod || null
-        : isCloseMethod(input.closeMethod) ? input.closeMethod : null,
+        : input.closeMethod ? 'nonstandard' : null,
     updated_at: new Date().toISOString(),
   }
   if (payload.lead_type === undefined) delete payload.lead_type
