@@ -59,6 +59,7 @@ export interface Package {
   tagline: string
   price?: number
   priceLabel?: string
+  priceSuffix?: 'one-time' | 'monthly' | 'quote'
   ctaLabel?: string
   color: string
   icon: string
@@ -75,54 +76,85 @@ export function packagePriceDisplay(pkg: Pick<Package, 'price' | 'priceLabel'>):
 
 export const packages: Package[] = [
   {
-    tier: 'Spark',
-    tagline: 'Clarify the brand',
-    price: 600,
+    tier: 'Business Essentials',
+    tagline: 'Your brand foundation',
+    priceLabel: 'From $599',
+    priceSuffix: 'one-time',
     color: 'green',
     icon: '✦',
-    ideal: 'For businesses defining how they want to be seen and heard.',
+    ideal: 'Businesses launching or refreshing a cohesive brand identity.',
     features: [
-      { text: 'A clear story customers recognize', included: true },
-      { text: 'Outreach that looks and sounds like you', included: true },
-      { text: 'A presence that stays active and on-brand', included: true },
-      { text: 'First impressions and reputation in sight', included: true },
-      { text: 'A simple monthly pulse on how you land', included: true },
+      { text: 'Logo design or redesign', included: true },
+      { text: 'Logo variations for different uses', included: true },
+      { text: 'Color palette and typography', included: true },
+      { text: 'Basic brand guidelines', included: true },
+      { text: 'Business card design', included: true },
+      { text: 'Social profile branding', included: true },
+      { text: 'All files delivered', included: true },
     ],
   },
   {
-    tier: 'Growth',
-    tagline: 'Expand your reach',
-    price: 1400,
-    color: 'gold',
+    tier: 'Business Launch',
+    tagline: 'Brand and web ready to go',
+    priceLabel: 'From $1,799',
+    priceSuffix: 'one-time',
+    color: 'blue',
     icon: '◆',
-    ideal: 'For businesses ready to reach more of the right people.',
+    ideal: 'Businesses ready to launch or relaunch with a polished presence.',
     popular: true,
     features: [
-      { text: 'Everything in Spark', included: true },
-      { text: 'Outreach planned with purpose', included: true },
-      { text: 'More ways to show up where buyers look', included: true },
-      { text: 'Brand consistency as you scale up', included: true },
-      { text: 'A monthly rhythm to stay on message', included: true },
-      { text: 'Plain-language insight you can act on', included: true },
+      { text: 'Complete brand identity', included: true },
+      { text: 'Responsive website (up to 5 pages)', included: true },
+      { text: 'Contact and lead forms', included: true },
+      { text: 'Basic SEO setup', included: true },
+      { text: 'Google Business Profile setup', included: true },
+      { text: 'Social profile setup', included: true },
+      { text: '3 promo graphics', included: true },
+      { text: 'Launch assets delivered', included: true },
     ],
   },
   {
-    tier: 'Scale',
-    tagline: 'Built around you',
-    priceLabel: 'Custom',
+    tier: 'Marketing Partner',
+    tagline: 'Ongoing marketing support',
+    price: 799,
+    priceSuffix: 'monthly',
+    color: 'gold',
+    icon: '★',
+    ideal: 'Businesses that want steady marketing without the in-house overhead.',
+    features: [
+      { text: 'Monthly strategy and planning', included: true },
+      { text: 'Strategy call and report', included: true },
+      { text: 'Up to 12 social posts per month', included: true },
+      { text: '3 campaign graphics per month', included: true },
+      { text: '3 hours of website updates', included: true },
+      { text: 'SEO and Google Business Profile upkeep', included: true },
+      { text: 'Dedicated client relations contact', included: true },
+    ],
+  },
+  {
+    tier: 'Custom Solutions',
+    tagline: 'Built around your goals',
+    priceLabel: 'Custom quote',
+    priceSuffix: 'quote',
     ctaLabel: 'Book a consultation',
     color: 'purple',
-    icon: '★',
-    ideal: 'For businesses that want a branding partner, not a checklist.',
+    icon: '◇',
+    ideal: 'Businesses with specialized needs or larger projects.',
     features: [
-      { text: 'Everything in Growth', included: true },
-      { text: 'Brand and outreach shaped to your goals', included: true },
-      { text: 'Broader reach with hands-on support', included: true },
-      { text: 'A dedicated partner on your story', included: true },
-      { text: 'Room to evolve as the business grows', included: true },
+      { text: 'E-commerce and web apps', included: true },
+      { text: 'Print and collateral', included: true },
+      { text: 'Apparel and merchandise', included: true },
+      { text: 'Vehicle wraps', included: true },
+      { text: 'SEO and paid ads', included: true },
+      { text: 'Business systems and workflows', included: true },
+      { text: 'Campaigns and launches', included: true },
+      { text: 'Milestone payments available', included: true },
     ],
   },
 ]
+
+export const packageDisclaimer =
+  'Printing, hosting, ad spend, and video production are not included unless quoted.'
 
 export const processSteps = [
   {

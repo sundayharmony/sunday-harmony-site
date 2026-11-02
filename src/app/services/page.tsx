@@ -9,12 +9,12 @@ import { packages, processSteps, services } from '@/lib/data'
 export const metadata: Metadata = {
   title: 'Marketing Services',
   description:
-    'Brand, outreach, and a weekly rhythm for the business, plus Spark, Growth, and Scale packages.',
+    'Brand identity, website launch, and ongoing marketing support. Business Essentials, Business Launch, Marketing Partner, and Custom Solutions packages.',
   alternates: { canonical: '/services' },
   openGraph: {
     title: 'Marketing Services | Sunday Harmony',
     description:
-      'See how Sunday Harmony builds the brand, the presence, and the rhythm — and compare Spark, Growth, and Scale.',
+      'See how Sunday Harmony builds the brand, the presence, and the strategy — and compare Business Essentials, Business Launch, Marketing Partner, and Custom Solutions.',
     url: '/services',
   },
 }
@@ -26,23 +26,30 @@ const pillars = services.map((service, index) => ({
 
 const offerings = [
   {
-    tier: 'Spark',
-    body: 'A clear story, outreach that looks like you, and a presence that stays active.',
-    best: 'Businesses defining how they want to be seen',
-    handsOn: 3,
-    reach: 2,
+    tier: 'Business Essentials',
+    body: 'A polished brand identity: logo, colors, typography, guidelines, and social assets.',
+    best: 'Businesses launching or refreshing their brand',
+    handsOn: 2,
+    reach: 1,
   },
   {
-    tier: 'Growth',
-    body: 'Everything in Spark, plus planned outreach and more places to show up.',
-    best: 'Businesses ready to reach more of the right people',
+    tier: 'Business Launch',
+    body: 'Brand identity plus a website, SEO basics, Google Business, and launch graphics.',
+    best: 'Businesses ready to go live with a professional presence',
+    handsOn: 3,
+    reach: 3,
+  },
+  {
+    tier: 'Marketing Partner',
+    body: 'Ongoing strategy, social content, website updates, and SEO to keep the momentum.',
+    best: 'Businesses that want steady marketing support',
     handsOn: 4,
     reach: 4,
   },
   {
-    tier: 'Scale',
-    body: 'A branding partner. The work is shaped to the goals, not a fixed checklist.',
-    best: 'Businesses that want the plan built around them',
+    tier: 'Custom Solutions',
+    body: 'E-commerce, apps, print, apparel, wraps, ads, systems — scoped to the project.',
+    best: 'Businesses with specialized or larger-scale needs',
     handsOn: 5,
     reach: 5,
   },
@@ -51,15 +58,19 @@ const offerings = [
 const faqs = [
   {
     q: 'Are these long-term contracts?',
-    a: 'No. Every package can be cancelled. The free Google Business audit is included so you can see the starting point before you commit.',
+    a: 'No. Business Essentials and Business Launch are one-time projects. Marketing Partner is monthly and can be cancelled anytime. The free Google Business audit is included so you can see the starting point before you commit.',
   },
   {
-    q: 'What is the difference between Spark, Growth, and Scale?',
-    a: 'Spark clarifies the brand and keeps the presence on-message. Growth adds reach and a monthly rhythm. Scale is custom and built around the business.',
+    q: 'What is the difference between the packages?',
+    a: 'Business Essentials covers brand identity. Business Launch adds a website and launch setup. Marketing Partner is ongoing monthly support. Custom Solutions handles specialized projects like e-commerce, print, or ads.',
   },
   {
     q: 'Do I have to pick a package before we talk?',
     a: 'No. The fit check on this page is only a guide. Book a consultation and we will match the work to where the business actually is.',
+  },
+  {
+    q: 'What is not included?',
+    a: 'Printing, hosting, ad spend, and video production are not included unless quoted. We can coordinate these for you, but they are billed separately.',
   },
   {
     q: 'Is funding or credit repair part of these packages?',
@@ -119,7 +130,7 @@ export default function ServicesPage() {
                 </Link>
               </div>
               <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-brand-muted">
-                {['Free Google Business audit', 'No long-term contracts', 'Cancel anytime'].map((item) => (
+                {['Free Google Business audit', 'One-time and monthly options', 'Cancel Marketing Partner anytime'].map((item) => (
                   <li key={item} className="flex items-center gap-2">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft border border-brand-border text-[11px] font-bold text-accent" aria-hidden>
                       ✓
@@ -180,9 +191,9 @@ export default function ServicesPage() {
               The right package depends on <span className="gold-text">stage and reach</span>
             </h2>
             <p className="text-[15px] text-brand-muted leading-relaxed mb-12 max-w-[600px]">
-              Spark clarifies the brand. Growth expands who sees it. Scale is shaped around the business. Hands-on support and reach both rise as the engagement grows.
+              Business Essentials builds the brand. Business Launch adds a website and launch assets. Marketing Partner keeps the momentum going. Custom Solutions handles anything specialized. Hands-on support and reach both rise as the engagement grows.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {offerings.map((option) => {
                 const pkg = packages.find((item) => item.tier === option.tier)
                 return (
@@ -195,8 +206,8 @@ export default function ServicesPage() {
                         {pkg?.icon}
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-brand-text leading-tight">{option.tier}</h3>
-                        <p className="text-xs font-semibold text-accent">{pkg ? packageLabel(pkg.price, pkg.priceLabel) : ''}</p>
+                        <h3 className="text-base font-bold text-brand-text leading-tight">{option.tier}</h3>
+                        <p className="text-xs font-semibold text-accent">{pkg ? packageLabel(pkg.price, pkg.priceLabel, pkg.priceSuffix) : ''}</p>
                       </div>
                     </div>
                     <p className="text-sm text-brand-muted leading-relaxed mb-4">{option.body}</p>
@@ -213,7 +224,7 @@ export default function ServicesPage() {
               })}
             </div>
             <p className="mt-6 text-xs text-brand-dim">
-              Monthly marketing engagements. Full pricing and what is included are in the packages below.
+              Full pricing and what is included are in the packages below.
             </p>
           </div>
         </section>
@@ -280,8 +291,18 @@ export default function ServicesPage() {
   )
 }
 
-function packageLabel(price: number | undefined, priceLabel: string | undefined): string {
-  if (priceLabel) return priceLabel
-  if (price != null) return `$${price.toLocaleString()}/month`
+function packageLabel(
+  price: number | undefined,
+  priceLabel: string | undefined,
+  priceSuffix?: 'one-time' | 'monthly' | 'quote'
+): string {
+  if (priceLabel) {
+    if (priceSuffix === 'one-time') return `${priceLabel} one-time`
+    return priceLabel
+  }
+  if (price != null) {
+    if (priceSuffix === 'monthly') return `From $${price.toLocaleString()}/mo`
+    return `$${price.toLocaleString()}`
+  }
   return 'Custom'
 }

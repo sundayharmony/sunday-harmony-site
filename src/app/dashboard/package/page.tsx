@@ -23,6 +23,7 @@ const packages: {
   name: string
   price: number
   priceLabel?: string
+  priceSuffix?: 'one-time' | 'monthly' | 'quote'
   color: string
   tagline: string
   features: string[]
@@ -46,60 +47,89 @@ const packages: {
     tier: 'social_essentials',
     name: 'Social Essentials',
     price: 250,
+    priceSuffix: 'monthly',
     color: '#4a9e7d',
     tagline: 'Stay Active Online',
     features: [
       'A social presence that stays active',
       'A simple monthly snapshot',
     ],
-    ideal: 'Legacy plan. New clients start on Spark.',
+    ideal: 'Legacy plan.',
   },
   {
     tier: 'spark',
-    name: 'Spark',
-    price: 600,
-    color: '#3a8bc2',
-    tagline: 'Clarify the brand',
+    name: 'Business Essentials',
+    price: 599,
+    priceSuffix: 'one-time',
+    color: '#4a9e7d',
+    tagline: 'Your brand foundation',
     features: [
-      'A clear story customers recognize',
-      'Outreach that looks and sounds like you',
-      'A presence that stays active and on-brand',
-      'First impressions and reputation in sight',
-      'A simple monthly pulse on how you land',
+      'Logo design or redesign',
+      'Logo variations for different uses',
+      'Color palette and typography',
+      'Basic brand guidelines',
+      'Business card design',
+      'Social profile branding',
+      'All files delivered',
     ],
-    ideal: 'For businesses defining how they want to be seen and heard.',
+    ideal: 'Businesses launching or refreshing a cohesive brand identity.',
+  },
+  {
+    tier: 'business_launch',
+    name: 'Business Launch',
+    price: 1799,
+    priceSuffix: 'one-time',
+    color: '#3a8bc2',
+    tagline: 'Brand and web ready to go',
+    features: [
+      'Complete brand identity',
+      'Responsive website (up to 5 pages)',
+      'Contact and lead forms',
+      'Basic SEO setup',
+      'Google Business Profile setup',
+      'Social profile setup',
+      '3 promo graphics',
+      'Launch assets delivered',
+    ],
+    ideal: 'Businesses ready to launch or relaunch with a polished presence.',
   },
   {
     tier: 'growth',
-    name: 'Growth',
-    price: 1400,
+    name: 'Marketing Partner',
+    price: 799,
+    priceSuffix: 'monthly',
     color: '#c9a96e',
-    tagline: 'Expand your reach',
+    tagline: 'Ongoing marketing support',
     features: [
-      'Everything in Spark',
-      'Outreach planned with purpose',
-      'More ways to show up where buyers look',
-      'Brand consistency as you scale up',
-      'A monthly rhythm to stay on message',
-      'Plain-language insight you can act on',
+      'Monthly strategy and planning',
+      'Strategy call and report',
+      'Up to 12 social posts per month',
+      '3 campaign graphics per month',
+      '3 hours of website updates',
+      'SEO and Google Business Profile upkeep',
+      'Dedicated client relations contact',
     ],
-    ideal: 'For businesses ready to reach more of the right people.',
+    ideal: 'Businesses that want steady marketing without the in-house overhead.',
   },
   {
     tier: 'scale',
-    name: 'Scale',
+    name: 'Custom Solutions',
     price: 0,
     priceLabel: 'Custom',
+    priceSuffix: 'quote',
     color: '#7b68c9',
-    tagline: 'Built around you',
+    tagline: 'Built around your goals',
     features: [
-      'Everything in Growth',
-      'Brand and outreach shaped to your goals',
-      'Broader reach with hands-on support',
-      'A dedicated partner on your story',
-      'Room to evolve as the business grows',
+      'E-commerce and web apps',
+      'Print and collateral',
+      'Apparel and merchandise',
+      'Vehicle wraps',
+      'SEO and paid ads',
+      'Business systems and workflows',
+      'Campaigns and launches',
+      'Milestone payments available',
     ],
-    ideal: 'For businesses that want a branding partner, not a checklist.',
+    ideal: 'Businesses with specialized needs or larger projects.',
   },
 ]
 
@@ -222,9 +252,11 @@ export default function PackagePage() {
             </div>
             <div className="text-right">
               <div className="text-3xl font-extrabold" style={{ color: currentPkg.color }}>
-                {currentPkg.priceLabel ?? `$${currentPkg.price}`}
+                {currentPkg.priceLabel ?? `$${currentPkg.price.toLocaleString()}`}
               </div>
-              <div className="text-xs text-brand-dim">{currentPkg.priceLabel ? 'consultation' : '/month'}</div>
+              <div className="text-xs text-brand-dim">
+                {currentPkg.priceSuffix === 'one-time' ? 'one-time' : currentPkg.priceSuffix === 'monthly' ? '/month' : currentPkg.priceLabel ? '' : '/month'}
+              </div>
             </div>
           </div>
 
@@ -271,7 +303,7 @@ export default function PackagePage() {
           <h2 className="text-lg font-bold text-brand-text mb-4">All Packages</h2>
           <div className="grid grid-cols-2 gap-4">
             {packages
-              .filter((pkg) => ['spark', 'growth', 'scale'].includes(pkg.tier) || pkg.tier === client?.package_tier)
+              .filter((pkg) => ['spark', 'business_launch', 'growth', 'scale'].includes(pkg.tier) || pkg.tier === client?.package_tier)
               .map((pkg) => {
               const isCurrent = pkg.tier === client?.package_tier
               const isUpgrade = packages.findIndex((p) => p.tier === pkg.tier) > currentIdx
@@ -296,9 +328,11 @@ export default function PackagePage() {
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-extrabold" style={{ color: pkg.color }}>
-                        {pkg.priceLabel ?? `$${pkg.price}`}
+                        {pkg.priceLabel ?? `$${pkg.price.toLocaleString()}`}
                       </div>
-                      <div className="text-[10px] text-brand-dim">{pkg.priceLabel ? 'consult' : '/mo'}</div>
+                      <div className="text-[10px] text-brand-dim">
+                        {pkg.priceSuffix === 'one-time' ? 'one-time' : pkg.priceSuffix === 'monthly' ? '/mo' : pkg.priceLabel ? '' : '/mo'}
+                      </div>
                     </div>
                   </div>
 
