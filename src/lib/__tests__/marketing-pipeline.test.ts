@@ -141,7 +141,7 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Partners', 'Settings']
+      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Sales Kit', 'Content Kit', 'Partners', 'Settings']
     )
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
       '/admin',
