@@ -22,8 +22,8 @@ export const STAGE_LABELS: Record<PipelineStage, string> = {
   meeting_scheduled: 'Meeting scheduled',
   proposal_sent: 'Proposal sent',
   negotiation: 'Negotiation / follow-up',
-  won: 'Won',
-  lost_nurture: 'Lost / nurture',
+  won: 'Active',
+  lost_nurture: 'Inactive',
 }
 
 export const PROSPECT_CATEGORIES = ['established', 'small', 'startup'] as const

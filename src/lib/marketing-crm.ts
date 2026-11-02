@@ -460,7 +460,7 @@ export async function handOffProspect(
     if (gaps.length) throw new Error(`Still needed: ${gaps.join(', ')}`)
   } else {
     if (!canHandOffToRelations(actor.role, prospect.stage)) {
-      throw new Error('Move the prospect to Won before handing it to client relations')
+      throw new Error('Move the prospect to Active before handing it to client relations')
     }
     const gaps = salesHandoffGaps({
       servicesPurchased: prospect.servicesPurchased,

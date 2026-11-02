@@ -100,7 +100,7 @@ export default function ClientRelationsBoard() {
     <section className="mb-8">
       <h2 className="font-serif text-2xl font-extrabold text-brand-text mb-1">Client relations</h2>
       <p className="text-sm text-brand-muted mb-4">
-        Won marketing clients. Collect assets, set the timeline, and keep the Drive folder current.
+        Active marketing clients. Collect assets, set the timeline, and keep the Drive folder current.
       </p>
       {error && <p className="text-sm text-brand-red mb-2">{error}</p>}
       {notice && <p className="text-sm text-brand-muted mb-2">{notice}</p>}

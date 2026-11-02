@@ -195,7 +195,7 @@ describe('Lumen & Co. Floral continuity', () => {
     }, sales)
     await assert.rejects(
       () => handOffProspect(id, 'client_relations', sales),
-      /Move the prospect to Won/
+      /Move the prospect to Active/
     )
 
     await saveMarketingProspect(id, {

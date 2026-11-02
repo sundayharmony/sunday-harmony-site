@@ -20,6 +20,7 @@ import {
   stageAfterConsultation,
   stageAfterOutboundEmail,
   stageAfterProspectReply,
+  STAGE_LABELS,
   stageFromLegacy,
 } from '../marketing-pipeline'
 
@@ -39,6 +40,8 @@ describe('marketing pipeline scores and stages', () => {
     assert.equal(stageFromLegacy({ legacyStatus: 'proposal' }), 'proposal_sent')
     assert.equal(stageFromLegacy({ marketingStatus: 'converted' }), 'won')
     assert.equal(marketingStatusForStage('won'), 'converted')
+    assert.equal(STAGE_LABELS.won, 'Active')
+    assert.equal(STAGE_LABELS.lost_nurture, 'Inactive')
     assert.equal(marketingStatusForStage('responded'), 'contacted')
   })
 
