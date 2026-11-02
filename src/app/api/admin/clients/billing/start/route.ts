@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { adminStartSubscription, logBillingActivity } from '@/lib/billing-service'
 import { PACKAGE_TIERS, type PackageTier } from '@/lib/stripe-catalog'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireMarketingBillingSession } from '@/lib/billing-access'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = await requireAdminSession()
-  if (session instanceof NextResponse) return session
-
   const body = await req.json().catch(() => ({}))
   const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : ''
+  const session = await requireMarketingBillingSession(clientId)
+  if (session instanceof NextResponse) return session
   if (!clientId) {
     return NextResponse.json({ error: 'clientId is required' }, { status: 400 })
   }

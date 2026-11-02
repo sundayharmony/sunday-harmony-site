@@ -336,7 +336,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
       {
         id: 'active',
         title: 'Active',
-        detail: 'Mark the deal Active, then hand it to client relations.',
+        detail: 'Bill the client from Today, then hand the file to client relations.',
         stages: ['won'],
       },
     ]
@@ -483,6 +483,17 @@ export function canHandOffToSales(role: string | null | undefined, stage: Pipeli
 export function canHandOffToRelations(role: string | null | undefined, stage: PipelineStage): boolean {
   if (role !== 'admin' && role !== 'sales_closer') return false
   return stage === 'won'
+}
+
+/** A closer bills an Active marketing client linked to a deal they can still see. */
+export function closerMayBillProspect(
+  role: string | null | undefined,
+  prospect: { stage: PipelineStage; handedToSalesAt?: string | null; handedToRelationsAt?: string | null } | null,
+  marketingClient: boolean
+): boolean {
+  if (role !== 'sales_closer' || !prospect || !marketingClient) return false
+  if (prospect.stage !== 'won') return false
+  return roleCanSeeProspect(role, prospect)
 }
 
 export type OnboardingChecklist = {

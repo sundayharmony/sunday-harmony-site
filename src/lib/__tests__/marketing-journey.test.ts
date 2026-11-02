@@ -6,6 +6,7 @@ import {
   handOffProspect,
   listMarketingProspects,
   loadMarketingToday,
+  openProspectForBilling,
   saveMarketingProspect,
   scriptsForProspect,
   sendProspectEmail,
@@ -194,6 +195,10 @@ describe('Lumen & Co. Floral continuity', () => {
       estimatedValue: 2400,
     }, sales)
     await assert.rejects(
+      () => openProspectForBilling(id, sales),
+      /Move the prospect to Active before billing/
+    )
+    await assert.rejects(
       () => handOffProspect(id, 'client_relations', sales),
       /Move the prospect to Active/
     )
@@ -214,7 +219,14 @@ describe('Lumen & Co. Floral continuity', () => {
     )
 
     await saveMarketingProspect(id, { agreementSigned: true }, sales)
+    const billed = await openProspectForBilling(id, sales)
+    assert.equal(billed.client.billing_model, 'marketing_subscription')
+    assert.equal(billed.client.package_tier, 'social_essentials')
+    assert.equal(billed.client.monthly_price, 250)
+    assert.equal(billed.prospect.clientId, billed.client.id)
+    await assert.rejects(() => openProspectForBilling(id, procurement), /Forbidden/)
     const won = await handOffProspect(id, 'client_relations', sales)
+    assert.equal(won.clientId, billed.client.id)
     assert.equal(won.stage, 'won')
     assert.ok(won.handedToRelationsAt)
     assert.ok(won.clientId)
@@ -246,6 +258,9 @@ describe('Lumen & Co. Floral continuity', () => {
 
     const salesMetrics = await loadMarketingToday('sales_closer')
     assert.equal(salesMetrics.metrics.find((metric) => metric.label === 'Recorded revenue')?.value, '$2,400')
+    assert.equal(salesMetrics.billable.some((row) => row.business === 'Lumen & Co. Floral'), true)
+    assert.equal((await loadMarketingToday('lead_procurement')).billable.length, 0)
+    assert.equal((await loadMarketingToday('client_relations')).billable.length, 0)
 
     await updateProspectOnboarding(id, {
       onboarding: { welcomed: true, assets: true, access: true, requirements: true, expectations: true },

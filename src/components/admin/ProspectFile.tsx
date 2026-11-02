@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import CloserBilling from '@/components/admin/CloserBilling'
 import {
   CATEGORY_LABELS,
   FIELD_PURPOSES,
@@ -442,6 +443,15 @@ export default function ProspectFile({ id }: { id: string }) {
           </Link>
         )}
       </section>
+
+      {role === 'sales_closer' && prospect.stage === 'won' && (
+        <CloserBilling
+          prospectId={prospect.id}
+          business={prospect.business}
+          servicesPurchased={prospect.servicesPurchased}
+          paymentStatus={prospect.paymentStatus}
+        />
+      )}
     </div>
   )
 }

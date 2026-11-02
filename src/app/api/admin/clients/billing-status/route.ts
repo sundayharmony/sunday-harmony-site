@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getBillingStatusSnapshot } from '@/lib/billing-service'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireMarketingBillingSession } from '@/lib/billing-access'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const session = await requireAdminSession()
-  if (session instanceof NextResponse) return session
-
   const clientId = new URL(req.url).searchParams.get('clientId')?.trim() || ''
+  const session = await requireMarketingBillingSession(clientId)
+  if (session instanceof NextResponse) return session
   if (!clientId) {
     return NextResponse.json({ error: 'clientId is required' }, { status: 400 })
   }

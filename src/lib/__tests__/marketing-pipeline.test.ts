@@ -5,6 +5,7 @@ import {
   boardLanes,
   canHandOffToRelations,
   canHandOffToSales,
+  closerMayBillProspect,
   canMoveStage,
   roleCanEditStage,
   roleCanSeeProspect,
@@ -167,6 +168,19 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(roleMayEditPipeline('client_relations'), false)
     assert.deepEqual(stagesVisibleToRole('client_relations'), [])
     assert.equal(roleCanEditStage('client_relations', 'won'), false)
+  })
+
+  it('lets a closer bill only an Active marketing client they can see', () => {
+    const won = { stage: 'won' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }
+    assert.equal(closerMayBillProspect('sales_closer', won, true), true)
+    assert.equal(closerMayBillProspect('sales_closer', { ...won, handedToRelationsAt: null }, true), true)
+    assert.equal(closerMayBillProspect('sales_closer', { ...won, stage: 'negotiation' }, true), false)
+    assert.equal(closerMayBillProspect('sales_closer', { ...won, stage: 'lost_nurture' }, true), false)
+    assert.equal(closerMayBillProspect('sales_closer', won, false), false)
+    assert.equal(closerMayBillProspect('lead_procurement', won, true), false)
+    assert.equal(closerMayBillProspect('client_relations', won, true), false)
+    assert.equal(closerMayBillProspect('admin', won, true), false)
+    assert.equal(closerMayBillProspect('sales_closer', null, true), false)
   })
 
   it('gives each role only the pipeline lanes they own', () => {

@@ -1,7 +1,7 @@
 import { syncClientFromLead } from '@/lib/crm-db'
 import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
 import { emailIlikePattern } from '@/lib/email-match'
-import { createClient, getTasksByClient, logActivity, updateClient } from '@/lib/db'
+import { createClient, getClientById, getTasksByClient, logActivity, updateClient, type Client } from '@/lib/db'
 import {
   createProposalDocument,
   ensureDriveFolder,
@@ -25,6 +25,7 @@ import {
   canHandOffToRelations,
   canHandOffToSales,
   canMoveStage,
+  closerMayBillProspect,
   followUpError,
   isLeadSource,
   isPipelineStage,
@@ -46,6 +47,7 @@ import {
   stageAfterOutboundEmail,
   stageAfterProspectReply,
 } from '@/lib/marketing-pipeline'
+import { isMarketingClient } from '@/lib/people'
 import { TIER_LIST_PRICES, type PackageTier } from '@/lib/stripe-catalog'
 import { getSupabase } from '@/lib/supabase'
 
@@ -406,9 +408,18 @@ function marketingPackageFor(prospect: MarketingProspect): { package_tier: Exclu
   return { package_tier: 'spark', monthly_price: TIER_LIST_PRICES.spark }
 }
 
-async function ensureMarketingClient(prospect: MarketingProspect): Promise<{ id: string; created: boolean }> {
+async function ensureMarketingClient(
+  prospect: MarketingProspect,
+  purpose: 'handoff' | 'billing' = 'handoff'
+): Promise<{ id: string; created: boolean }> {
   if (prospect.clientId) return { id: prospect.clientId, created: false }
-  if (!prospect.email.trim()) throw new Error('Add an email before handing to client relations')
+  if (!prospect.email.trim()) {
+    throw new Error(
+      purpose === 'billing'
+        ? 'Add an email before billing this client'
+        : 'Add an email before handing to client relations'
+    )
+  }
   const existing = await getSupabase()
     .from('clients')
     .select('*')
@@ -416,7 +427,10 @@ async function ensureMarketingClient(prospect: MarketingProspect): Promise<{ id:
     .limit(1)
   if (existing.error) throw new Error('Could not open the client file')
   const found = Array.isArray(existing.data) ? existing.data[0] : null
-  if (found?.id) return { id: String(found.id), created: false }
+  if (found?.id) {
+    if (!isMarketingClient(found)) throw new Error('This email belongs to a credit repair client')
+    return { id: String(found.id), created: false }
+  }
 
   const plan = marketingPackageFor(prospect)
   const created = await createClient({
@@ -439,6 +453,66 @@ async function ensureMarketingClient(prospect: MarketingProspect): Promise<{ id:
   })
   if (!created) throw new Error('Could not open the client file')
   return { id: created.id, created: true }
+}
+
+async function requireActiveProspect(id: string, actor: MarketingActor): Promise<MarketingProspect> {
+  const prospect = await getMarketingProspect(id)
+  if (!prospect) throw new Error('Prospect not found')
+  if (actor.role !== 'admin' && actor.role !== 'sales_closer') throw new Error('Forbidden')
+  if (!prospectVisibleToRole(prospect, actor.role)) throw new Error('Prospect not found')
+  if (prospect.stage !== 'won') throw new Error('Move the prospect to Active before billing')
+  return prospect
+}
+
+async function linkProspectClient(prospectId: string, clientId: string): Promise<void> {
+  const now = new Date().toISOString()
+  const { error } = await getSupabase().from('leads').update({ client_id: clientId, updated_at: now }).eq('id', prospectId)
+  if (error) throw new Error('Could not link the client file')
+  await syncClientFromLead(prospectId, clientId)
+}
+
+export async function salesCloserOwnsClient(clientId: string): Promise<boolean> {
+  if (!clientId.trim()) return false
+  const client = await getClientById(clientId)
+  if (!client || !isMarketingClient(client)) return false
+  const { data, error } = await getSupabase().from('leads').select('*').eq('client_id', clientId)
+  if (error || !Array.isArray(data)) return false
+  return data.some((row) => closerMayBillProspect('sales_closer', mapProspect(row as LeadRow), true))
+}
+
+export async function readProspectBilling(
+  id: string,
+  actor: MarketingActor
+): Promise<{ prospect: MarketingProspect; client: Client | null }> {
+  const prospect = await requireActiveProspect(id, actor)
+  if (!prospect.clientId) return { prospect, client: null }
+  const client = await getClientById(prospect.clientId)
+  if (!client || !isMarketingClient(client)) throw new Error('This file is not a marketing client')
+  return { prospect, client }
+}
+
+export async function openProspectForBilling(
+  id: string,
+  actor: MarketingActor
+): Promise<{ prospect: MarketingProspect; client: Client }> {
+  const prospect = await requireActiveProspect(id, actor)
+  const clientFile = await ensureMarketingClient(prospect, 'billing')
+  const alreadyLinked = prospect.clientId === clientFile.id
+  if (!alreadyLinked) await linkProspectClient(id, clientFile.id)
+  const client = await getClientById(clientFile.id)
+  if (!client || !isMarketingClient(client)) throw new Error('This file is not a marketing client')
+  if (!alreadyLinked) {
+    await logActivity({
+      action: 'updated',
+      entity_type: 'client',
+      entity_id: client.id,
+      actor_email: actor.email || '',
+      details: `Opened billing for ${prospect.business}`,
+    })
+  }
+  const saved = await getMarketingProspect(id)
+  if (!saved) throw new Error('Prospect not found')
+  return { prospect: saved, client }
 }
 
 export async function handOffProspect(
@@ -782,11 +856,25 @@ export async function loadMarketingToday(role?: string | null) {
     }
   }
 
+  const billable = role === 'sales_closer'
+    ? prospects
+        .filter((prospect) => prospect.stage === 'won')
+        .slice(0, 20)
+        .map((prospect) => ({
+          id: prospect.id,
+          business: prospect.business,
+          paymentStatus: prospect.paymentStatus,
+          servicesPurchased: prospect.servicesPurchased,
+          clientId: prospect.clientId,
+        }))
+    : []
+
   return {
     kind: 'marketing' as const,
     role: role || 'admin',
     followUps,
     handoffs,
+    billable,
     calendarEvents,
     metrics,
     workspaceConnected: isGoogleWorkspaceConfigured(),

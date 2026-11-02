@@ -2,13 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import CloserBilling from '@/components/admin/CloserBilling'
 import { STAGE_LABELS, type PipelineStage } from '@/lib/marketing-pipeline'
+
+type BillableDeal = {
+  id: string
+  business: string
+  paymentStatus: string
+  servicesPurchased: string
+  clientId: string | null
+}
 
 type MarketingToday = {
   kind: 'marketing'
   role: string
   followUps: { id: string; business: string; followUpAt: string | null; stage: PipelineStage }[]
   handoffs: { id: string; business: string; stage: PipelineStage; href: string }[]
+  billable?: BillableDeal[]
   calendarEvents: { id: string; summary: string; start: string; htmlLink: string }[]
   metrics: { label: string; value: string }[]
   workspaceConnected: boolean
@@ -78,6 +88,29 @@ export default function TodayBoard() {
         <p className="text-sm text-brand-muted mb-4">
           Google Calendar is not connected, so follow-up dates stay in the CRM only.
         </p>
+      )}
+
+      {board.role === 'sales_closer' && (
+        <section className="mb-4 rounded-2xl bg-accent-soft/60 p-4 sm:p-5">
+          <h2 className="font-serif text-xl font-semibold text-brand-text">Bill active clients</h2>
+          <p className="text-sm text-brand-muted mt-1 mb-4">
+            Start the marketing subscription for a client you closed. They add their card on their own billing page.
+          </p>
+          {(board.billable || []).length === 0 && (
+            <p className="text-sm text-brand-muted">Move a deal to Active, then bill it here.</p>
+          )}
+          <div className="space-y-3">
+            {(board.billable || []).map((deal) => (
+              <CloserBilling
+                key={deal.id}
+                prospectId={deal.id}
+                business={deal.business}
+                servicesPurchased={deal.servicesPurchased}
+                paymentStatus={deal.paymentStatus}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
