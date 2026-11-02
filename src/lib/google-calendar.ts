@@ -1,15 +1,12 @@
+import { getGoogleAccessToken, isGoogleWorkspaceConfigured } from '@/lib/google-workspace'
+
 export type CreatedMeetEvent = {
   eventId: string
   meetLink: string
 }
 
 export function isGoogleCalendarConfigured(): boolean {
-  return Boolean(
-    process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim() &&
-      process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim() &&
-      process.env.GOOGLE_CALENDAR_REFRESH_TOKEN?.trim() &&
-      process.env.GOOGLE_CALENDAR_ID?.trim()
-  )
+  return isGoogleWorkspaceConfigured()
 }
 
 function calendarEnv(name: string): string {
@@ -19,22 +16,7 @@ function calendarEnv(name: string): string {
 }
 
 async function getAccessToken(): Promise<string> {
-  const body = new URLSearchParams({
-    client_id: calendarEnv('GOOGLE_CALENDAR_CLIENT_ID'),
-    client_secret: calendarEnv('GOOGLE_CALENDAR_CLIENT_SECRET'),
-    refresh_token: calendarEnv('GOOGLE_CALENDAR_REFRESH_TOKEN'),
-    grant_type: 'refresh_token',
-  })
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-  const payload = (await response.json().catch(() => ({}))) as { access_token?: string; error?: string }
-  if (!response.ok || !payload.access_token) {
-    throw new Error(payload.error || 'Google token refresh failed')
-  }
-  return payload.access_token
+  return getGoogleAccessToken()
 }
 
 function meetLinkFromEvent(payload: {

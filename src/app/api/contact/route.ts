@@ -118,7 +118,8 @@ export async function POST(req: NextRequest) {
         budget: body.budget,
         message,
         lead_type: 'marketing_lead',
-        marketing_lead_status: 'new_lead',
+        marketing_lead_status: 'contacted',
+        pipeline_stage: 'responded',
       })
       if (lead) {
         logActivity({

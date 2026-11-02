@@ -5,19 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
-
-const allNavItems = [
-  { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
-  { href: '/admin/people', icon: '\u{1F464}', label: 'People' },
-  { href: '/admin/partners', icon: '\u{1F91D}', label: 'Partners' },
-  { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
-]
-
-const creditManagerHrefs = new Set([
-  '/admin',
-  '/admin/people',
-  '/admin/settings',
-])
+import { homeForRole, navForRole } from '@/lib/marketing-pipeline'
 
 interface AdminSidebarProps {
   collapsed?: boolean
@@ -35,13 +23,9 @@ export default function AdminSidebar({
   const { data: session } = useSession()
   const role = session?.user?.role
   const isCreditManager = role === 'credit_manager'
-
-  const navItems = isCreditManager
-    ? allNavItems.filter((item) => creditManagerHrefs.has(item.href))
-    : allNavItems
-
+  const navItems = navForRole(role || 'admin')
   const dashboardLabel = isCreditManager ? 'Credit Manager' : 'Admin Dashboard'
-  const logoHref = '/admin'
+  const logoHref = role ? homeForRole(role) : '/admin'
 
   const desktopHidden = hydrated && collapsed
 

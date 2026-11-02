@@ -23,7 +23,7 @@ export interface User {
   email: string
   password: string
   name: string
-  role: 'admin' | 'client' | 'credit_manager' | 'partner'
+  role: 'admin' | 'client' | 'credit_manager' | 'partner' | 'lead_procurement' | 'sales_closer' | 'client_relations'
   client_id?: string
   created_at: string
   session_version?: number
@@ -55,7 +55,7 @@ export async function createUser(userData: {
   email: string
   password: string
   name: string
-  role: 'admin' | 'client' | 'credit_manager' | 'partner'
+  role: 'admin' | 'client' | 'credit_manager' | 'partner' | 'lead_procurement' | 'sales_closer' | 'client_relations'
   client_id?: string
 }): Promise<User | null> {
   const { data, error } = await getSupabase()
@@ -162,6 +162,22 @@ export interface Lead {
   assigned_team_member?: string | null
   client_id?: string | null
   notes: string
+  prospect_category?: string | null
+  marketing_opportunity?: string | null
+  recommended_service?: string | null
+  prospect_score?: number | null
+  score_factors?: Record<string, number> | null
+  follow_up_at?: string | null
+  estimated_value?: number | null
+  pipeline_stage?: string | null
+  assigned_role?: string | null
+  gmail_thread_id?: string | null
+  follow_up_event_id?: string | null
+  drive_folder_id?: string | null
+  drive_folder_url?: string | null
+  proposal_doc_id?: string | null
+  proposal_doc_url?: string | null
+  google_contact_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -229,6 +245,7 @@ export async function createLead(leadData: {
   credit_funding_client_status?: string | null
   assigned_team_member?: string | null
   client_id?: string | null
+  pipeline_stage?: string | null
 }): Promise<Lead | null> {
   const { data, error } = await getSupabase()
     .from('leads')
@@ -250,6 +267,7 @@ export async function createLead(leadData: {
       last_contacted_at: leadData.last_contacted_at,
       lead_type: leadData.lead_type || 'marketing_lead',
       marketing_lead_status: leadData.marketing_lead_status ?? 'new_lead',
+      pipeline_stage: leadData.pipeline_stage,
       credit_funding_client_status: leadData.credit_funding_client_status,
       assigned_team_member: leadData.assigned_team_member,
       client_id: leadData.client_id,
@@ -290,6 +308,10 @@ export interface Client {
   notes: string
   deliverables: string[]
   quick_wins: { text: string; done: boolean }[]
+  onboarding?: Record<string, boolean> | null
+  drive_folder_id?: string | null
+  drive_folder_url?: string | null
+  relations_notes?: string | null
   created_at: string
   updated_at: string
 }
@@ -535,7 +557,7 @@ export async function getStaffUsers(): Promise<User[]> {
   const { data, error } = await getSupabase()
     .from('users')
     .select('*')
-    .in('role', ['admin', 'credit_manager'])
+    .in('role', ['admin', 'credit_manager', 'lead_procurement', 'sales_closer', 'client_relations'])
     .order('name', { ascending: true })
 
   if (error) {

@@ -25,6 +25,7 @@ import {
   type FundingScores,
 } from '@/lib/credit-funding-types'
 import { formatSsnFull } from '@/lib/ssn-utils'
+import { applicationIsWaiting } from '@/lib/people'
 import { parseDisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 interface ApplicationListItem {
@@ -64,6 +65,7 @@ interface ApplicationDetail {
   experian_pin?: string
   cfpb_email?: string
   cfpb_password?: string
+  lead_id?: string | null
   credit_profile?: Record<string, unknown>
   primary_credit_goals_text?: string
   funding_amount?: string
@@ -781,6 +783,25 @@ function CreditFundingAdminContent() {
         </div>
       </div>
 
+      {applications.some((app) => applicationIsWaiting(app.status)) && (
+        <section className="mb-6 bg-white border border-brand-border rounded-xl p-4">
+          <h2 className="text-sm font-bold text-brand-text mb-2">Waiting on you</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {applications.filter((app) => applicationIsWaiting(app.status)).map((app) => (
+              <button
+                key={app.id}
+                type="button"
+                onClick={() => selectApplication(app.id)}
+                className="text-left rounded-lg border border-brand-border px-3 py-2 hover:border-accent"
+              >
+                <div className="text-sm font-medium text-brand-text">{app.full_name}</div>
+                <div className="text-xs text-brand-muted">{app.status.replace(/_/g, ' ')} · {app.email}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <CreditExpertsPanel />
 
       {showDraftEditor && (
@@ -1009,6 +1030,11 @@ function CreditFundingAdminContent() {
                   )}
                   <div className="min-w-0">
                   <h2 className="text-xl font-bold text-brand-text">{selected.full_name}</h2>
+                  {selected.lead_id && (
+                    <Link href={`/admin/pipeline/${selected.lead_id}`} className="text-xs font-semibold text-accent hover:underline">
+                      Open marketing pipeline
+                    </Link>
+                  )}
                   <p className="text-sm text-brand-dim">{selected.application_id} · {selected.service_type?.replace(/_/g, ' ')}</p>
                   {referral && (
                     <p className="text-xs text-brand-muted mt-1">

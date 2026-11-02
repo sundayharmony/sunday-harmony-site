@@ -26,6 +26,7 @@ import {
   type ConsultationSlot,
 } from '@/lib/consultation-slots'
 import { createMeetEvent, deleteCalendarEvent, isGoogleCalendarConfigured } from '@/lib/google-calendar'
+import { marketingStatusForStage, stageAfterConsultation, stageFromLegacy } from '@/lib/marketing-pipeline'
 import { getAdminNotifyEmail, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
 
 export type PublicSlotDay = {
@@ -238,11 +239,19 @@ export async function bookConsultation(input: {
       source: 'inbound',
       lead_type: 'marketing_lead',
       marketing_lead_status: 'consultation_scheduled',
+      pipeline_stage: 'meeting_scheduled',
     })
   } else {
     const updates: Parameters<typeof updateLead>[1] = {}
-    if (existingLead?.marketing_lead_status !== 'converted') {
-      updates.marketing_lead_status = 'consultation_scheduled'
+    const currentStage = existingLead?.pipeline_stage || stageFromLegacy({
+      marketingStatus: existingLead?.marketing_lead_status,
+      legacyStatus: existingLead?.status,
+      source: existingLead?.source,
+    })
+    const nextStage = stageAfterConsultation(currentStage)
+    if (nextStage && existingLead?.marketing_lead_status !== 'converted') {
+      updates.pipeline_stage = nextStage
+      updates.marketing_lead_status = marketingStatusForStage(nextStage)
     }
     if (!(existingLead?.phone || '').trim() && input.phone.trim()) updates.phone = input.phone.trim()
     if (!(existingLead?.business || '').trim() && input.business.trim()) updates.business = input.business.trim()

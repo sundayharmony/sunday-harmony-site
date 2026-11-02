@@ -2,18 +2,25 @@ import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
-import { isStaffRole as isSharedStaffRole } from '@/lib/staff-roles'
+import { isMarketingStaffRole, isStaffRole as isAnyStaffRole } from '@/lib/staff-roles'
 
 export { isStaffRole } from '@/lib/staff-roles'
 
-export type UserRole = 'admin' | 'client' | 'credit_manager' | 'partner'
+export type UserRole =
+  | 'admin'
+  | 'client'
+  | 'credit_manager'
+  | 'partner'
+  | 'lead_procurement'
+  | 'sales_closer'
+  | 'client_relations'
 
 export function isAdminRole(role?: string | null): boolean {
   return role === 'admin'
 }
 
 export function isCreditFundingStaffRole(role?: string | null): boolean {
-  return isSharedStaffRole(role)
+  return role === 'admin' || role === 'credit_manager'
 }
 
 type AccessResult =
@@ -46,6 +53,26 @@ export function resolveStaffAccess(
   session: { user?: { role?: string; sessionExpired?: boolean } } | null
 ): AccessResult {
   return resolveCreditFundingStaffAccess(session)
+}
+
+export function resolveAnyStaffAccess(
+  session: { user?: { role?: string; sessionExpired?: boolean } } | null
+): AccessResult {
+  if (sessionHasEnded(session)) return { ok: false, status: 401, code: 'SESSION_EXPIRED' }
+  if (!session?.user) return { ok: false, status: 401 }
+  if (!isAnyStaffRole(session.user.role)) return { ok: false, status: 403 }
+  return { ok: true }
+}
+
+export function resolveMarketingAccess(
+  session: { user?: { role?: string; sessionExpired?: boolean } } | null
+): AccessResult {
+  if (sessionHasEnded(session)) return { ok: false, status: 401, code: 'SESSION_EXPIRED' }
+  if (!session?.user) return { ok: false, status: 401 }
+  if (!isAdminRole(session.user.role) && !isMarketingStaffRole(session.user.role)) {
+    return { ok: false, status: 403 }
+  }
+  return { ok: true }
 }
 
 function forbiddenResponse(status: 401 | 403, code?: 'SESSION_EXPIRED'): NextResponse {
@@ -87,6 +114,28 @@ export async function requireCreditFundingStaffSession(): Promise<Session | Next
 export async function requireStaffSession(): Promise<Session | NextResponse> {
   const session = await getServerSession(authOptions)
   const access = resolveStaffAccess(session)
+  if (!access.ok) return forbiddenResponse(access.status, access.code)
+  if (!session?.user?.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
+  return session as Session
+}
+
+/** Admin, credit managers, and marketing roles. */
+export async function requireAnyStaffSession(): Promise<Session | NextResponse> {
+  const session = await getServerSession(authOptions)
+  const access = resolveAnyStaffAccess(session)
+  if (!access.ok) return forbiddenResponse(access.status, access.code)
+  if (!session?.user?.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
+  return session as Session
+}
+
+/** Admin or a marketing role — pipeline and client relations. */
+export async function requireMarketingSession(): Promise<Session | NextResponse> {
+  const session = await getServerSession(authOptions)
+  const access = resolveMarketingAccess(session)
   if (!access.ok) return forbiddenResponse(access.status, access.code)
   if (!session?.user?.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })

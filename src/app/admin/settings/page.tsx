@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import AccountSettingsPanel from '@/components/settings/AccountSettingsPanel'
 import CreditExpertsPanel from '@/components/credit-funding/CreditExpertsPanel'
+import MarketingTeamPanel from '@/components/admin/MarketingTeamPanel'
+import { isStaffRole } from '@/lib/staff-roles'
 import StaffMfaPanel from '@/components/settings/StaffMfaPanel'
 import PasskeyPanel from '@/components/settings/PasskeyPanel'
 
@@ -18,7 +20,7 @@ export default function AdminSettingsPage() {
         const data = await res.json()
         const role = data?.user?.role
         setIsAdmin(role === 'admin')
-        setIsStaff(role === 'admin' || role === 'credit_manager')
+        setIsStaff(isStaffRole(role))
       }
     })()
   }, [])
@@ -56,6 +58,7 @@ export default function AdminSettingsPage() {
               ))}
             </div>
           </div>
+          <MarketingTeamPanel />
           <CreditExpertsPanel defaultExpanded />
         </div>
       )}

@@ -25,6 +25,7 @@ import {
   filterPeople,
   findPersonById,
   groupPeople,
+  isMarketingClient,
   selectPeopleWhoOwe,
   selectReferralPayouts,
   selectUpcomingConsultations,
@@ -358,6 +359,10 @@ export async function clientHasCreditWork(clientId: string): Promise<boolean> {
 
 export async function staffMayUseClient(role: string | undefined, clientId: string): Promise<boolean> {
   if (role === 'admin') return true
-  if (role !== 'credit_manager') return false
-  return clientHasCreditWork(clientId)
+  if (role === 'credit_manager') return clientHasCreditWork(clientId)
+  if (role === 'lead_procurement' || role === 'sales_closer' || role === 'client_relations') {
+    const client = await getClientById(clientId)
+    return Boolean(client && isMarketingClient(client))
+  }
+  return false
 }

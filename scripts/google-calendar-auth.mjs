@@ -1,5 +1,5 @@
 /**
- * One-time consent for the consultation calendar.
+ * One-time consent for Sunday Harmony Workspace (Calendar, Gmail, Drive, Docs, Contacts).
  *
  *   GOOGLE_CALENDAR_CLIENT_ID=... GOOGLE_CALENDAR_CLIENT_SECRET=... node scripts/google-calendar-auth.mjs
  *
@@ -23,7 +23,17 @@ const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth')
 auth.searchParams.set('client_id', clientId)
 auth.searchParams.set('redirect_uri', redirect)
 auth.searchParams.set('response_type', 'code')
-auth.searchParams.set('scope', 'https://www.googleapis.com/auth/calendar.events')
+auth.searchParams.set(
+  'scope',
+  [
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/documents',
+    'https://www.googleapis.com/auth/contacts',
+  ].join(' ')
+)
 auth.searchParams.set('access_type', 'offline')
 auth.searchParams.set('prompt', 'consent')
 

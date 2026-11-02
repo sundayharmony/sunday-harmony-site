@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  isGoogleWorkspaceConfigured,
+} from '@/lib/google-workspace'
+import { listMarketingProspects, roleMayUsePipeline, saveMarketingProspect } from '@/lib/marketing-crm'
+import { marketingActor, marketingError } from '@/lib/marketing-http'
+import { FIELD_PURPOSES, PIPELINE_STAGES, SCORE_FACTORS, STAGE_LABELS, stagesVisibleToRole } from '@/lib/marketing-pipeline'
+import { requireMarketingSession } from '@/lib/stripe-admin-auth'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  const session = await requireMarketingSession()
+  if (session instanceof NextResponse) return session
+  if (!roleMayUsePipeline(session.user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  const prospects = await listMarketingProspects(session.user.role)
+  const allowed = stagesVisibleToRole(session.user.role)
+  return NextResponse.json({
+    prospects,
+    stages: allowed === 'all' ? PIPELINE_STAGES : allowed,
+    stageLabels: STAGE_LABELS,
+    scoreFactors: SCORE_FACTORS,
+    purposes: FIELD_PURPOSES,
+    workspaceConnected: isGoogleWorkspaceConfigured(),
+  })
+}
+
+export async function POST(req: NextRequest) {
+  const session = await requireMarketingSession()
+  if (session instanceof NextResponse) return session
+  if (!roleMayUsePipeline(session.user.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  try {
+    const body = await req.json()
+    const result = await saveMarketingProspect(null, body, marketingActor(session))
+    return NextResponse.json(result, { status: 201 })
+  } catch (error) {
+    return marketingError(error)
+  }
+}

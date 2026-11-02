@@ -33,6 +33,7 @@ export async function sendCreditManagerSetupEmail(params: {
   to: string
   name: string
   setupCode: string
+  accountTitle?: string
 }): Promise<void> {
   if (!isEmailConfigured()) {
     throw new Error('Email is not configured on the server')
@@ -42,17 +43,18 @@ export async function sendCreditManagerSetupEmail(params: {
   const email = params.to.trim().toLowerCase()
   const resetUrl = `${siteUrl}/reset-password?email=${encodeURIComponent(email)}`
   const firstName = escHtml((params.name || 'there').split(' ')[0])
+  const accountTitle = params.accountTitle || 'Credit Manager'
 
   await sendEmail({
     to: email,
-    subject: 'Set Up Your Sunday Harmony Credit Manager Access',
+    subject: `Set Up Your Sunday Harmony ${accountTitle} Access`,
     html: `
       <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
         <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
           Credit Manager Access
         </h2>
         <p>Hi ${firstName},</p>
-        <p>Your Sunday Harmony <strong>Credit Manager</strong> account is ready. Use the one-time setup code below to choose your password and sign in.</p>
+        <p>Your Sunday Harmony <strong>${escHtml(accountTitle)}</strong> account is ready. Use the one-time setup code below to choose your password and sign in.</p>
         <div style="text-align:center;margin:30px 0">
           <div style="background:#f5f0e6;border:2px solid #c9a96e;border-radius:12px;padding:20px 40px;display:inline-block">
             <span style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#333">${escHtml(params.setupCode)}</span>
@@ -81,7 +83,7 @@ export async function issueAndSendCreditManagerSetupEmail(user: {
   id: string
   email: string
   name: string
-}): Promise<{ emailSent: boolean }> {
+}, accountTitle?: string): Promise<{ emailSent: boolean }> {
   const setupCode = generateSetupCode()
   const stored = await storeCreditManagerSetupCode(user.id, setupCode)
   if (!stored) {
@@ -91,6 +93,7 @@ export async function issueAndSendCreditManagerSetupEmail(user: {
     to: user.email,
     name: user.name,
     setupCode,
+    accountTitle,
   })
   return { emailSent: true }
 }
