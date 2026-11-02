@@ -20,10 +20,12 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const sessionLoading = status === 'loading'
   const role = session?.user?.role
   const isCreditManager = role === 'credit_manager'
-  const navItems = navForRole(role || 'admin')
+  // Don't default to 'admin' while loading to avoid flashing items the user can't access
+  const navItems = sessionLoading ? [] : navForRole(role || 'admin')
   const dashboardLabel = isCreditManager ? 'Credit Manager' : 'Admin Dashboard'
   const logoHref = role ? homeForRole(role) : '/admin'
 

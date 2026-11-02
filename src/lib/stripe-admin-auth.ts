@@ -2,9 +2,9 @@ import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
-import { isMarketingStaffRole, isStaffRole as isAnyStaffRole } from '@/lib/staff-roles'
+import { isMarketingStaffRole, isStaffRole as isAnyStaffRole, isSalesRole, isContentRole } from '@/lib/staff-roles'
 
-export { isStaffRole } from '@/lib/staff-roles'
+export { isStaffRole, isSalesRole, isContentRole } from '@/lib/staff-roles'
 
 export type UserRole =
   | 'admin'
@@ -138,6 +138,32 @@ export async function requireMarketingSession(): Promise<Session | NextResponse>
   const access = resolveMarketingAccess(session)
   if (!access.ok) return forbiddenResponse(access.status, access.code)
   if (!isMarketingStaffRole(session?.user?.role) && !session?.user?.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
+  return session as Session
+}
+
+/** Admin or sales roles (lead_procurement, sales_closer) — Sales Kit. */
+export async function requireSalesSession(): Promise<Session | NextResponse> {
+  const session = await getServerSession(authOptions)
+  if (sessionHasEnded(session)) return forbiddenResponse(401, 'SESSION_EXPIRED')
+  if (!session?.user) return forbiddenResponse(401)
+  if (!isSalesRole(session.user.role)) return forbiddenResponse(403)
+  // Sales marketing roles don't require MFA, admin does
+  if (session.user.role === 'admin' && !session.user.mfaVerified) {
+    return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
+  }
+  return session as Session
+}
+
+/** Admin or content role (client_relations) — Content Kit. */
+export async function requireContentSession(): Promise<Session | NextResponse> {
+  const session = await getServerSession(authOptions)
+  if (sessionHasEnded(session)) return forbiddenResponse(401, 'SESSION_EXPIRED')
+  if (!session?.user) return forbiddenResponse(401)
+  if (!isContentRole(session.user.role)) return forbiddenResponse(403)
+  // Content marketing roles don't require MFA, admin does
+  if (session.user.role === 'admin' && !session.user.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
   }
   return session as Session

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireSalesSession } from '@/lib/stripe-admin-auth'
 import {
   getServiceDocument,
   updateServiceDocument,
@@ -10,7 +10,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireAdminSession()
+  const session = await requireSalesSession()
   if (session instanceof NextResponse) return session
 
   const { id } = await params
@@ -27,7 +27,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireAdminSession()
+  const session = await requireSalesSession()
   if (session instanceof NextResponse) return session
 
   const { id } = await params
@@ -51,7 +51,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireAdminSession()
+  const session = await requireSalesSession()
   if (session instanceof NextResponse) return session
 
   const { id } = await params

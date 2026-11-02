@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireSalesSession } from '@/lib/stripe-admin-auth'
 import {
   createServiceDocument,
   getServiceDocumentsForStaff,
@@ -7,7 +7,7 @@ import {
 } from '@/lib/service-documents'
 
 export async function GET(request: NextRequest) {
-  const session = await requireAdminSession()
+  const session = await requireSalesSession()
   if (session instanceof NextResponse) return session
 
   const { searchParams } = new URL(request.url)
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireAdminSession()
+  const session = await requireSalesSession()
   if (session instanceof NextResponse) return session
 
   try {

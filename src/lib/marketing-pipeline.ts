@@ -394,12 +394,19 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   }
   if (role === 'lead_procurement' || role === 'sales_closer') {
     return ADMIN_NAV.filter((item) =>
-      item.href === '/admin' || item.href === '/admin/pipeline' || item.href === '/admin/settings'
+      item.href === '/admin' ||
+      item.href === '/admin/pipeline' ||
+      item.href === '/admin/sales-kit' ||
+      item.href === '/admin/settings'
     )
   }
   if (role === 'client_relations') {
     return ADMIN_NAV.filter((item) =>
-      item.href === '/admin' || item.href === '/admin/pipeline' || item.href === '/admin/clients' || item.href === '/admin/settings'
+      item.href === '/admin' ||
+      item.href === '/admin/pipeline' ||
+      item.href === '/admin/clients' ||
+      item.href === '/admin/content-kit' ||
+      item.href === '/admin/settings'
     )
   }
   if (role === 'admin') return ADMIN_NAV
@@ -417,13 +424,20 @@ export function homeForRole(role?: string | null): string {
 export function marketingRoleAllowedPath(role: string, path: string): boolean {
   if (path === '/admin' || path === '/admin/settings' || path.startsWith('/admin/settings/')) return true
   if (role === 'lead_procurement' || role === 'sales_closer') {
-    return path === '/admin/pipeline' || path.startsWith('/admin/pipeline/')
+    return (
+      path === '/admin/pipeline' ||
+      path.startsWith('/admin/pipeline/') ||
+      path === '/admin/sales-kit' ||
+      path.startsWith('/admin/sales-kit/')
+    )
   }
   if (role === 'client_relations') {
     return (
-      path === '/admin/pipeline'
-      || path === '/admin/clients'
-      || path.startsWith('/admin/clients/')
+      path === '/admin/pipeline' ||
+      path === '/admin/clients' ||
+      path.startsWith('/admin/clients/') ||
+      path === '/admin/content-kit' ||
+      path.startsWith('/admin/content-kit/')
     )
   }
   return false
