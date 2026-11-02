@@ -19,6 +19,7 @@ const navItems: Array<{
   { href: '/dashboard/onboarding', icon: '📝', label: 'Getting Started', marketingOnly: true },
   { href: '/dashboard/tasks', icon: '✅', label: 'Tasks' },
   { href: '/dashboard/files', icon: '📁', label: 'Files' },
+  { href: '/dashboard/documents', icon: '📄', label: 'Documents' },
   { href: '/dashboard/credit-funding', icon: '💳', label: 'Credit & Funding' },
   { href: '/dashboard/meetings', icon: '📅', label: 'My Meetings' },
   { href: '/dashboard/performance', icon: '📊', label: 'Performance', marketingOnly: true },

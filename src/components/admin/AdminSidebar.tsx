@@ -10,6 +10,8 @@ const allNavItems = [
   { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
   { href: '/admin/people', icon: '\u{1F464}', label: 'People' },
   { href: '/admin/partners', icon: '\u{1F91D}', label: 'Partners' },
+  { href: '/admin/sales-kit', icon: '\u{1F4BC}', label: 'Sales Kit' },
+  { href: '/admin/content-kit', icon: '\u{1F4F1}', label: 'Content Kit' },
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
