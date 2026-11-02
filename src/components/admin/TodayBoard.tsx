@@ -38,6 +38,145 @@ function formatWhen(iso: string | null): string {
   })
 }
 
+function QuickStat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="text-center p-4 rounded-xl bg-white/60">
+      <div className={`text-2xl font-bold ${highlight ? 'text-accent' : 'text-brand-text'}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wide text-brand-dim font-medium mt-1">{label}</div>
+    </div>
+  )
+}
+
+function DealRow({
+  href,
+  business,
+  detail,
+  badge,
+  badgeColor = 'neutral',
+}: {
+  href: string
+  business: string
+  detail?: string
+  badge?: string
+  badgeColor?: 'neutral' | 'blue' | 'orange' | 'green' | 'accent'
+}) {
+  const badgeColors = {
+    neutral: 'bg-neutral-100 text-neutral-600',
+    blue: 'bg-blue-100 text-blue-700',
+    orange: 'bg-orange-100 text-orange-700',
+    green: 'bg-emerald-100 text-emerald-700',
+    accent: 'bg-accent-soft text-accent',
+  }
+
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5 -mx-1 transition-all hover:bg-white/80 hover:shadow-sm group"
+    >
+      <div className="w-8 h-8 rounded-full bg-brand-text/5 flex items-center justify-center text-xs font-bold text-brand-muted group-hover:bg-accent-soft group-hover:text-accent transition-colors">
+        {business.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-brand-text truncate">{business}</div>
+        {detail && <div className="text-xs text-brand-muted truncate">{detail}</div>}
+      </div>
+      {badge && (
+        <span className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full ${badgeColors[badgeColor]}`}>
+          {badge}
+        </span>
+      )}
+    </Link>
+  )
+}
+
+function CalendarRow({
+  href,
+  summary,
+  time,
+}: {
+  href: string
+  summary: string
+  time: string
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5 -mx-1 transition-all hover:bg-white/80 hover:shadow-sm group"
+    >
+      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm group-hover:bg-blue-200 transition-colors">
+        📅
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-brand-text truncate">{summary}</div>
+        <div className="text-xs text-brand-muted">{time}</div>
+      </div>
+    </a>
+  )
+}
+
+type SectionVariant = 'followups' | 'attention' | 'calendar'
+
+const sectionStyles: Record<SectionVariant, { icon: string; accent: string; bg: string; iconBg: string }> = {
+  followups: {
+    icon: '📞',
+    accent: 'border-l-accent',
+    bg: 'bg-gradient-to-br from-accent-soft/30 to-white',
+    iconBg: 'bg-accent-soft',
+  },
+  attention: {
+    icon: '⚡',
+    accent: 'border-l-orange-500',
+    bg: 'bg-gradient-to-br from-orange-50/50 to-white',
+    iconBg: 'bg-orange-100',
+  },
+  calendar: {
+    icon: '📅',
+    accent: 'border-l-blue-500',
+    bg: 'bg-gradient-to-br from-blue-50/50 to-white',
+    iconBg: 'bg-blue-100',
+  },
+}
+
+function Section({
+  title,
+  count,
+  empty,
+  variant,
+  children,
+  className = '',
+}: {
+  title: string
+  count: number
+  empty: string
+  variant: SectionVariant
+  children: React.ReactNode
+  className?: string
+}) {
+  const styles = sectionStyles[variant]
+  return (
+    <section
+      className={`rounded-2xl border-l-4 ${styles.accent} ${styles.bg} p-5 transition-shadow hover:shadow-md ${className}`}
+    >
+      <div className="flex items-center gap-3 mb-4">
+        <span className={`text-xl ${styles.iconBg} w-10 h-10 rounded-xl flex items-center justify-center`}>
+          {styles.icon}
+        </span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-bold text-brand-text">{title}</h2>
+          {count > 0 && (
+            <p className="text-xs text-brand-muted">{count} item{count !== 1 ? 's' : ''}</p>
+          )}
+        </div>
+      </div>
+      {children || (
+        <p className="text-sm text-brand-dim italic pl-[52px]">{empty}</p>
+      )}
+    </section>
+  )
+}
+
 export default function TodayBoard() {
   const [board, setBoard] = useState<MarketingToday | null>(null)
   const [error, setError] = useState('')
@@ -64,95 +203,143 @@ export default function TodayBoard() {
   }, [])
 
   if (error) return <p className="text-sm text-brand-red">{error}</p>
-  if (!board) return <p className="text-sm text-brand-muted">Loading today…</p>
+  if (!board) {
+    return (
+      <div className="flex items-center gap-3 text-brand-muted">
+        <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        <span className="text-sm">Loading your day…</span>
+      </div>
+    )
+  }
+
+  const totalItems = board.followUps.length + board.handoffs.length + board.calendarEvents.length
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Today</h1>
+      <div className="mb-8">
+        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-1">Today</h1>
         <p className="text-sm text-brand-muted">
           Follow-ups, handoffs, and the sales calendar for the marketing pipeline.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {board.metrics.map((metric) => (
-          <section key={metric.label} className="bg-white border border-brand-border rounded-xl p-4">
-            <div className="text-xs text-brand-muted">{metric.label}</div>
-            <div className="text-xl font-bold text-brand-text mt-1">{metric.value}</div>
-          </section>
-        ))}
-      </div>
+      {board.metrics.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8 p-4 rounded-2xl bg-gradient-to-r from-neutral-50 to-white border border-brand-border/50">
+          {board.metrics.map((metric, i) => (
+            <QuickStat key={metric.label} label={metric.label} value={metric.value} highlight={i === 0} />
+          ))}
+        </div>
+      )}
 
       {!board.workspaceConnected && (
-        <p className="text-sm text-brand-muted mb-4">
-          Google Calendar is not connected, so follow-up dates stay in the CRM only.
-        </p>
+        <div className="mb-6 p-4 rounded-xl bg-amber-50/50 border border-amber-200/50 flex items-center gap-3">
+          <span className="text-xl">⚠️</span>
+          <p className="text-sm text-amber-800">
+            Google Calendar is not connected. Follow-up dates stay in the CRM only.
+          </p>
+        </div>
       )}
 
       {board.role === 'sales_closer' && (
-        <section className="mb-4 rounded-2xl bg-accent-soft/60 p-4 sm:p-5">
-          <h2 className="font-serif text-xl font-semibold text-brand-text">Bill active clients</h2>
-          <p className="text-sm text-brand-muted mt-1 mb-4">
-            Start the marketing subscription for a client you closed. They add their card on their own billing page.
-          </p>
-          {(board.billable || []).length === 0 && (
-            <p className="text-sm text-brand-muted">Move a deal to Active, then bill it here.</p>
-          )}
-          <div className="space-y-3">
-            {(board.billable || []).map((deal) => (
-              <CloserBilling
-                key={deal.id}
-                prospectId={deal.id}
-                business={deal.business}
-                servicesPurchased={deal.servicesPurchased}
-                paymentStatus={deal.paymentStatus}
-              />
-            ))}
+        <section className="mb-6 rounded-2xl bg-gradient-to-br from-accent-soft/60 to-accent-soft/20 border border-accent/10 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xl bg-accent/10 w-10 h-10 rounded-xl flex items-center justify-center">💳</span>
+            <div>
+              <h2 className="font-semibold text-brand-text">Bill active clients</h2>
+              <p className="text-xs text-brand-muted">Start subscriptions for closed deals</p>
+            </div>
           </div>
+          {(board.billable || []).length === 0 ? (
+            <p className="text-sm text-brand-muted pl-[52px]">Move a deal to Active, then bill it here.</p>
+          ) : (
+            <div className="space-y-3 mt-2">
+              {(board.billable || []).map((deal) => (
+                <CloserBilling
+                  key={deal.id}
+                  prospectId={deal.id}
+                  business={deal.business}
+                  servicesPurchased={deal.servicesPurchased}
+                  paymentStatus={deal.paymentStatus}
+                />
+              ))}
+            </div>
+          )}
         </section>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="bg-white border border-brand-border rounded-xl p-5">
-          <h2 className="text-sm font-bold text-brand-text mb-3">Follow-ups</h2>
-          {board.followUps.length === 0 && <p className="text-sm text-brand-muted">No follow-ups due this week.</p>}
-          <div className="space-y-1">
-            {board.followUps.map((row) => (
-              <Link key={row.id} href={`/admin/pipeline/${row.id}`} className="block rounded-lg px-2 py-2 -mx-2 hover:bg-neutral-50">
-                <div className="text-sm font-medium text-brand-text">{row.business}</div>
-                <div className="text-xs text-brand-muted">{formatWhen(row.followUpAt)} · {STAGE_LABELS[row.stage]}</div>
-              </Link>
-            ))}
-          </div>
-        </section>
+      {totalItems === 0 ? (
+        <div className="text-center py-16 rounded-2xl bg-gradient-to-br from-accent-soft/20 to-white border border-dashed border-brand-border">
+          <div className="text-4xl mb-3">✨</div>
+          <h2 className="text-lg font-bold text-brand-text mb-1">All caught up!</h2>
+          <p className="text-sm text-brand-muted">Nothing needs your attention right now.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <Section
+            title="Follow-ups"
+            count={board.followUps.length}
+            variant="followups"
+            empty="No follow-ups due this week."
+          >
+            {board.followUps.length > 0 && (
+              <div className="space-y-1">
+                {board.followUps.map((row) => (
+                  <DealRow
+                    key={row.id}
+                    href={`/admin/pipeline/${row.id}`}
+                    business={row.business}
+                    detail={STAGE_LABELS[row.stage]}
+                    badge={formatWhen(row.followUpAt) || undefined}
+                    badgeColor="accent"
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
 
-        <section className="bg-white border border-brand-border rounded-xl p-5">
-          <h2 className="text-sm font-bold text-brand-text mb-3">Needs attention</h2>
-          {board.handoffs.length === 0 && <p className="text-sm text-brand-muted">Nothing is waiting on a handoff.</p>}
-          <div className="space-y-1">
-            {board.handoffs.map((row) => (
-              <Link key={row.id} href={row.href} className="block rounded-lg px-2 py-2 -mx-2 hover:bg-neutral-50">
-                <div className="text-sm font-medium text-brand-text">{row.business}</div>
-                <div className="text-xs text-brand-muted">{STAGE_LABELS[row.stage]}</div>
-              </Link>
-            ))}
-          </div>
-        </section>
+          <Section
+            title="Needs Attention"
+            count={board.handoffs.length}
+            variant="attention"
+            empty="Nothing is waiting on a handoff."
+          >
+            {board.handoffs.length > 0 && (
+              <div className="space-y-1">
+                {board.handoffs.map((row) => (
+                  <DealRow
+                    key={row.id}
+                    href={row.href}
+                    business={row.business}
+                    badge={STAGE_LABELS[row.stage]}
+                    badgeColor="orange"
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
 
-        <section className="bg-white border border-brand-border rounded-xl p-5 lg:col-span-2">
-          <h2 className="text-sm font-bold text-brand-text mb-3">Today on the calendar</h2>
-          {board.calendarEvents.length === 0 && <p className="text-sm text-brand-muted">No events on the sales calendar today.</p>}
-          <div className="space-y-1">
-            {board.calendarEvents.map((event) => (
-              <a key={event.id} href={event.htmlLink || '#'} className="block rounded-lg px-2 py-2 -mx-2 hover:bg-neutral-50" target="_blank" rel="noreferrer">
-                <div className="text-sm font-medium text-brand-text">{event.summary}</div>
-                <div className="text-xs text-brand-muted">{formatWhen(event.start)}</div>
-              </a>
-            ))}
-          </div>
-        </section>
-      </div>
+          <Section
+            title="Today's Calendar"
+            count={board.calendarEvents.length}
+            variant="calendar"
+            empty="No events on the sales calendar today."
+            className="lg:col-span-2"
+          >
+            {board.calendarEvents.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                {board.calendarEvents.map((event) => (
+                  <CalendarRow
+                    key={event.id}
+                    href={event.htmlLink || '#'}
+                    summary={event.summary}
+                    time={formatWhen(event.start)}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        </div>
+      )}
     </div>
   )
 }
