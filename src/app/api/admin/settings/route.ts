@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireStaffSession } from '@/lib/stripe-admin-auth'
+import { requireAnyStaffSession } from '@/lib/stripe-admin-auth'
 import { getUserById, getUserByEmail, updateUser, verifyPassword } from '@/lib/db'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const session = await requireStaffSession()
+    const session = await requireAnyStaffSession()
     if (session instanceof NextResponse) return session
     const user = session.user
     const userId = user.id
@@ -44,7 +44,7 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await requireStaffSession()
+    const session = await requireAnyStaffSession()
     if (session instanceof NextResponse) return session
     const user = session.user
     const userId = user.id
