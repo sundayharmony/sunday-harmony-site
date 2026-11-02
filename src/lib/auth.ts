@@ -11,6 +11,7 @@ import {
   consumeBackupCode,
   decryptTotpSecret,
   isStaffRole,
+  roleRequiresMfa,
   verifyTotpCode,
   type MfaUserRow,
 } from './mfa-totp'
@@ -88,7 +89,7 @@ export const authOptions: NextAuthOptions = {
         await upgradeUserPasswordHash(user.id, credentials.password, user.password)
 
         const staff = isStaffRole(user.role)
-        if (!staff) {
+        if (!staff || !roleRequiresMfa(user.role)) {
           return {
             id: user.id,
             email: user.email,
@@ -335,6 +336,11 @@ export const authOptions: NextAuthOptions = {
           token.passkeyEnabled = false
           delete token.mfaChallenge
           delete token.staffSessionStartedAt
+        } else if (!roleRequiresMfa(dbUser.role)) {
+          token.mfaVerified = true
+          token.mfaPending = false
+          token.mfaEnrollmentRequired = false
+          delete token.mfaChallenge
         } else {
           if (token.mfaVerified) {
             token.mfaPending = false

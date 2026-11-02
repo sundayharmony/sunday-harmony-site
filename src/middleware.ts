@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { loginRedirectPath } from '@/lib/login-redirect'
 import { marketingRoleAllowedPath, isMarketingRole } from '@/lib/marketing-pipeline'
-import { isStaffRole } from '@/lib/staff-roles'
+import { roleRequiresMfa } from '@/lib/staff-roles'
 import { isStaffSessionExpired, sessionCookieNamesToClear } from '@/lib/staff-session'
 
 /**
@@ -76,9 +76,9 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
   const path = req.nextUrl.pathname
   const role = token?.role as string | undefined
-  const staff = isStaffRole(role)
   const mfaVerified = Boolean(token?.mfaVerified)
   const mfaEnrollmentRequired = Boolean(token?.mfaEnrollmentRequired)
+  const mustUseMfa = roleRequiresMfa(role)
 
   // Staff JWTs last 8 hours. The raw cookie can still look signed-in after that,
   // which left people on a Forbidden screen instead of the login page.
@@ -99,7 +99,7 @@ export async function middleware(req: NextRequest) {
 
   // Staff must finish MFA / enrollment before any protected surface.
   // Do not trap them out of login or password-reset — that made emailed codes unusable.
-  if (token && staff && !mfaVerified && !mfaIncompletePathAllowed(path)) {
+  if (token && mustUseMfa && !mfaVerified && !mfaIncompletePathAllowed(path)) {
     return NextResponse.redirect(
       new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
     )
@@ -121,13 +121,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
   }
 
-  if (isMarketingRole(role) && mfaVerified && path === '/login') {
+  if (isMarketingRole(role) && path === '/login') {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
 
   if (path.startsWith('/admin')) {
     if (!token) return redirectToLogin(req)
-    if (staff && !mfaVerified) {
+    if (mustUseMfa && !mfaVerified) {
       return NextResponse.redirect(
         new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
       )

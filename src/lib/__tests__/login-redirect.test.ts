@@ -45,9 +45,17 @@ describe('destinationAfterLogin', () => {
     )
     assert.equal(destinationAfterLogin({ role: 'admin', mfaVerified: true }), '/admin')
     assert.equal(destinationAfterLogin({ role: 'credit_manager', mfaVerified: true }), '/admin/credit-funding')
-    assert.equal(destinationAfterLogin({ role: 'lead_procurement', mfaVerified: true }), '/admin')
+    assert.equal(destinationAfterLogin({ role: 'lead_procurement', mfaVerified: false, mfaEnrollmentRequired: true }), '/admin')
     assert.equal(
       destinationAfterLogin({ role: 'sales_closer', mfaVerified: false, mfaEnrollmentRequired: true }),
+      '/admin'
+    )
+    assert.equal(
+      destinationAfterLogin({ role: 'client_relations', mfaVerified: false, mfaEnrollmentRequired: true }),
+      '/admin'
+    )
+    assert.equal(
+      destinationAfterLogin({ role: 'credit_manager', mfaVerified: false, mfaEnrollmentRequired: true }),
       '/login/mfa/setup'
     )
     assert.equal(destinationAfterLogin({ role: 'client' }), '/dashboard')

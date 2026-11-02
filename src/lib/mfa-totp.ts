@@ -3,7 +3,7 @@ import * as OTPAuth from 'otpauth'
 import QRCode from 'qrcode'
 import { decryptField, encryptField } from '@/lib/field-encryption'
 import { hashVerificationToken, verificationTokenMatches } from '@/lib/verification-token'
-export { isStaffRole } from '@/lib/staff-roles'
+export { isStaffRole, roleRequiresMfa } from '@/lib/staff-roles'
 
 const ISSUER = 'Sunday Harmony'
 const BACKUP_CODE_COUNT = 8

@@ -1,6 +1,6 @@
 import { homeForRole, isMarketingRole } from '@/lib/marketing-pipeline'
 import { sanitizeLoginCallbackUrl } from '@/lib/safe-notification-link'
-import { isStaffRole } from '@/lib/staff-roles'
+import { roleRequiresMfa } from '@/lib/staff-roles'
 
 export type SessionUserForLogin = {
   role?: string
@@ -17,7 +17,7 @@ export function destinationAfterLogin(
   const mfaVerified = user?.mfaVerified
   const mfaEnrollmentRequired = user?.mfaEnrollmentRequired
 
-  if (isStaffRole(role) && !mfaVerified) {
+  if (roleRequiresMfa(role) && !mfaVerified) {
     return mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa'
   }
   if (role === 'admin' || role === 'credit_manager' || isMarketingRole(role)) return homeForRole(role)

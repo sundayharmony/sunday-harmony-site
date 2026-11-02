@@ -126,7 +126,7 @@ export async function requireAnyStaffSession(): Promise<Session | NextResponse> 
   const session = await getServerSession(authOptions)
   const access = resolveAnyStaffAccess(session)
   if (!access.ok) return forbiddenResponse(access.status, access.code)
-  if (!session?.user?.mfaVerified) {
+  if (!isMarketingStaffRole(session?.user?.role) && !session?.user?.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
   }
   return session as Session
@@ -137,7 +137,7 @@ export async function requireMarketingSession(): Promise<Session | NextResponse>
   const session = await getServerSession(authOptions)
   const access = resolveMarketingAccess(session)
   if (!access.ok) return forbiddenResponse(access.status, access.code)
-  if (!session?.user?.mfaVerified) {
+  if (!isMarketingStaffRole(session?.user?.role) && !session?.user?.mfaVerified) {
     return NextResponse.json({ error: 'MFA required', code: 'MFA_REQUIRED' }, { status: 403 })
   }
   return session as Session
