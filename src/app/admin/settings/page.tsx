@@ -25,7 +25,11 @@ export default function AdminSettingsPage() {
 
   return (
     <div>
-      <AccountSettingsPanel title="Settings" description="Manage your account and security" />
+      <AccountSettingsPanel
+        title="Settings"
+        description="Manage your account and security"
+        apiEndpoint="/api/admin/settings"
+      />
       {isStaff && (
         <>
           <StaffMfaPanel />
