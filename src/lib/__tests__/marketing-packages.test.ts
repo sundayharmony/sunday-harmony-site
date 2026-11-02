@@ -20,18 +20,19 @@ describe('marketing packages', () => {
     assert.doesNotMatch(joined, /Local SEO|Meta Ads|Email Marketing/i)
   })
 
-  it('publishes Spark, Growth, and custom Scale only', () => {
+  it('publishes four packages: Business Essentials, Business Launch, Marketing Partner, Custom Solutions', () => {
     assert.deepEqual(
       packages.map((pkg) => pkg.tier),
-      ['Spark', 'Growth', 'Scale']
+      ['Business Essentials', 'Business Launch', 'Marketing Partner', 'Custom Solutions']
     )
-    assert.equal(packages.find((pkg) => pkg.tier === 'Spark')?.price, 600)
-    assert.equal(packages.find((pkg) => pkg.tier === 'Growth')?.price, 1400)
+    assert.equal(packages.find((pkg) => pkg.tier === 'Business Essentials')?.priceLabel, 'From $599')
+    assert.equal(packages.find((pkg) => pkg.tier === 'Business Launch')?.priceLabel, 'From $1,799')
+    assert.equal(packages.find((pkg) => pkg.tier === 'Marketing Partner')?.price, 799)
 
-    const scale = packages.find((pkg) => pkg.tier === 'Scale')
-    assert.equal(scale?.price, undefined)
-    assert.equal(packagePriceDisplay(scale!), 'Custom')
-    assert.equal(scale?.ctaLabel, 'Book a consultation')
+    const custom = packages.find((pkg) => pkg.tier === 'Custom Solutions')
+    assert.equal(custom?.price, undefined)
+    assert.equal(packagePriceDisplay(custom!), 'Custom quote')
+    assert.equal(custom?.ctaLabel, 'Book a consultation')
   })
 
   it('keeps homepage and admin copy simple and included-only', () => {
@@ -41,12 +42,12 @@ describe('marketing packages', () => {
     }
 
     const home = source('src/components/Packages.tsx')
-    assert.match(home, /lg:grid-cols-3/)
+    assert.match(home, /lg:grid-cols-4/)
     assert.match(home, /href="\/book"/)
     assert.match(home, /ctaLabel/)
     assert.doesNotMatch(home, /\/contact/)
     assert.doesNotMatch(home, /Social Essentials/)
-    assert.match(home, /Three ways to work together/)
+    assert.match(home, /Four ways to work together/)
   })
 
   it('moves pricing off the homepage onto /services', () => {
@@ -66,18 +67,19 @@ describe('marketing packages', () => {
 
   it('keeps Social Essentials as a billing label for existing clients', () => {
     assert.equal(TIER_LABELS.social_essentials, 'Social Essentials')
-    assert.equal(formatTierListPrice('spark'), '$600')
+    assert.equal(formatTierListPrice('spark'), '$599')
     assert.equal(formatTierListPrice('scale'), 'Custom')
     assert.match(source('src/app/dashboard/package/page.tsx'), /social_essentials/)
   })
 
-  it('syncs admin toolkit to the same three plans', () => {
+  it('syncs admin toolkit to the same four plans', () => {
     assert.deepEqual(
       detailedPackages.map((pkg) => pkg.tier),
-      ['Spark', 'Growth', 'Scale']
+      ['Business Essentials', 'Business Launch', 'Marketing Partner', 'Custom Solutions']
     )
-    assert.equal(detailedPackages[0]?.price, 600)
-    assert.equal(detailedPackages[1]?.price, 1400)
-    assert.equal(detailedPackages[2]?.priceLabel, 'Custom')
+    assert.equal(detailedPackages[0]?.priceLabel, 'From $599')
+    assert.equal(detailedPackages[1]?.priceLabel, 'From $1,799')
+    assert.equal(detailedPackages[2]?.price, 799)
+    assert.equal(detailedPackages[3]?.priceLabel, 'Custom')
   })
 })
