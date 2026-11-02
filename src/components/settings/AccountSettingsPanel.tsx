@@ -12,11 +12,14 @@ interface UserSettings {
 interface Props {
   title?: string
   description?: string
+  /** API endpoint for settings. Defaults to '/api/dashboard/settings' for clients. */
+  apiEndpoint?: string
 }
 
 export default function AccountSettingsPanel({
   title = 'Account Settings',
   description = 'Manage your account credentials.',
+  apiEndpoint = '/api/dashboard/settings',
 }: Props) {
   const [user, setUser] = useState<UserSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -32,7 +35,7 @@ export default function AccountSettingsPanel({
   useEffect(() => {
     ;(async () => {
       try {
-        const res = await fetch('/api/dashboard/settings')
+        const res = await fetch(apiEndpoint)
         if (!res.ok) throw new Error('Failed to fetch settings')
         setUser(await res.json())
       } catch (err) {
@@ -41,7 +44,7 @@ export default function AccountSettingsPanel({
         setLoading(false)
       }
     })()
-  }, [])
+  }, [apiEndpoint])
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,7 +69,7 @@ export default function AccountSettingsPanel({
 
     setChangingPassword(true)
     try {
-      const res = await fetch('/api/dashboard/settings', {
+      const res = await fetch(apiEndpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),
