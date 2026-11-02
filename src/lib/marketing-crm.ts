@@ -3,6 +3,7 @@ import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
 import { emailIlikePattern } from '@/lib/email-match'
 import { createClient, getClientById, getTasksByClient, logActivity, updateClient, type Client } from '@/lib/db'
 import {
+  createMeetingEvent,
   createProposalDocument,
   ensureDriveFolder,
   isGoogleWorkspaceConfigured,
@@ -14,6 +15,8 @@ import {
   upsertFollowUpEvent,
   upsertWorkspaceContact,
 } from '@/lib/google-workspace'
+import { packages as marketingPackages } from '@/lib/data'
+import { createServiceDocument, sendDocumentToClient } from '@/lib/service-documents'
 import { outreachScripts } from '@/lib/marketing-scripts'
 import {
   type LeadSource,
@@ -40,9 +43,11 @@ import {
   relationsMetrics,
   roleCanEditStage,
   roleCanSeeProspect,
+  roleMayRunSalesActions,
   salesHandoffGaps,
   salesMetrics,
   scoreTotal,
+  stageAfterConsultation,
   stageFromLegacy,
   stageAfterOutboundEmail,
   stageAfterProspectReply,
@@ -738,6 +743,153 @@ export async function uploadProspectFile(
   const saved = await getMarketingProspect(id)
   if (!saved) throw new Error('Prospect not found')
   return saved
+}
+
+function packagePriceAmount(tier: string): { price: number; priceType: 'one-time' | 'monthly' | 'custom'; scope: string } {
+  const pkg = marketingPackages.find((row) => row.tier === tier)
+  if (!pkg) {
+    return { price: 0, priceType: 'custom', scope: '' }
+  }
+  const price =
+    pkg.price != null
+      ? pkg.price
+      : Number((pkg.priceLabel || '').replace(/[^0-9.]/g, '')) || 0
+  const priceType =
+    pkg.priceSuffix === 'monthly' ? 'monthly' : pkg.priceSuffix === 'one-time' ? 'one-time' : 'custom'
+  const scope = pkg.features.filter((feature) => feature.included).map((feature) => feature.text).join('; ')
+  return { price, priceType, scope }
+}
+
+export async function scheduleProspectMeeting(
+  id: string,
+  input: { startsAt: string; durationMinutes?: number; notes?: string },
+  actor: MarketingActor
+): Promise<{ prospect: MarketingProspect; htmlLink: string }> {
+  if (!roleMayRunSalesActions(actor.role)) throw new Error('Only sales can schedule meetings')
+  const prospect = await getMarketingProspect(id)
+  if (!prospect) throw new Error('Prospect not found')
+  if (!prospectVisibleToRole(prospect, actor.role)) throw new Error('You cannot edit this prospect')
+  if (!isGoogleWorkspaceConfigured()) throw new Error('Google Workspace is not connected')
+
+  const startsAt = new Date(input.startsAt)
+  if (Number.isNaN(startsAt.getTime())) throw new Error('Choose a valid meeting time')
+  const durationMinutes = input.durationMinutes && input.durationMinutes > 0 ? input.durationMinutes : 30
+  const notes = clean(input.notes)
+  const description = [
+    prospect.contactName ? `Contact: ${prospect.contactName}` : '',
+    prospect.email ? `Email: ${prospect.email}` : '',
+    prospect.phone ? `Phone: ${prospect.phone}` : '',
+    prospect.opportunity || '',
+    notes,
+  ].filter(Boolean).join('\n')
+
+  const event = await createMeetingEvent({
+    summary: `Meeting: ${prospect.business}`,
+    description,
+    startsAt,
+    durationMinutes,
+    attendeeEmail: prospect.email || null,
+  })
+
+  const nextStage = stageAfterConsultation(prospect.stage) || prospect.stage
+  const { error } = await getSupabase()
+    .from('leads')
+    .update({
+      pipeline_stage: nextStage,
+      marketing_lead_status: marketingStatusForStage(nextStage),
+      status: legacyLeadStatusForStage(nextStage),
+      follow_up_at: startsAt.toISOString(),
+      follow_up_event_id: event.eventId,
+      last_contacted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (error) throw new Error('The meeting was created, but the CRM could not update the prospect')
+
+  const saved = await getMarketingProspect(id)
+  if (!saved) throw new Error('Prospect not found')
+  logActivity({
+    action: 'status_changed',
+    entity_type: 'lead',
+    entity_id: id,
+    actor_email: actor.email || 'staff',
+    details: `Scheduled meeting for ${saved.business}`,
+  })
+  return { prospect: saved, htmlLink: event.htmlLink }
+}
+
+export async function sendProspectAgreement(
+  id: string,
+  input: { packageTier?: string; packagePrice?: number; priceType?: string; customScope?: string },
+  actor: MarketingActor
+): Promise<{ prospect: MarketingProspect; documentId: string; documentNumber: string }> {
+  if (!roleMayRunSalesActions(actor.role)) throw new Error('Only sales can send agreements')
+  const prospect = await getMarketingProspect(id)
+  if (!prospect) throw new Error('Prospect not found')
+  if (!prospectVisibleToRole(prospect, actor.role)) throw new Error('You cannot edit this prospect')
+  if (!prospect.email.trim()) throw new Error('Add an email before sending an agreement')
+  if (!prospect.contactName.trim()) throw new Error('Add a contact name before sending an agreement')
+
+  const tier = clean(input.packageTier) || clean(prospect.servicesPurchased) || clean(prospect.recommendedService)
+  if (!tier) throw new Error('Choose a package for the agreement')
+  const defaults = packagePriceAmount(tier)
+  const price = input.packagePrice != null && Number.isFinite(input.packagePrice) ? Number(input.packagePrice) : defaults.price
+  const priceType =
+    input.priceType === 'monthly' || input.priceType === 'one-time' || input.priceType === 'custom'
+      ? input.priceType
+      : defaults.priceType
+  const scope = clean(input.customScope) || clean(prospect.scope) || defaults.scope
+
+  const created = await createServiceDocument({
+    document_type: 'agreement',
+    client_name: prospect.contactName,
+    client_email: prospect.email,
+    business_name: prospect.business,
+    package_tier: tier,
+    package_price: price,
+    price_type: priceType,
+    custom_scope: scope || undefined,
+    effective_date: new Date().toISOString().slice(0, 10),
+    created_by: actor.userId || actor.email || 'sales',
+  })
+  if (!created) throw new Error('Could not create the agreement')
+
+  const sent = await sendDocumentToClient(created.document.id)
+  if (!sent.success) throw new Error(sent.error || 'Could not email the agreement')
+
+  const stage: PipelineStage =
+    prospect.stage === 'won' || prospect.stage === 'negotiation' ? prospect.stage : 'proposal_sent'
+  const signHint = `Agreement ${created.document.document_number}`
+
+  const { error } = await getSupabase()
+    .from('leads')
+    .update({
+      services_purchased: tier,
+      scope_text: scope || prospect.scope,
+      estimated_value: price || prospect.estimatedValue,
+      proposal_doc_url: signHint,
+      pipeline_stage: stage,
+      marketing_lead_status: marketingStatusForStage(stage),
+      status: legacyLeadStatusForStage(stage),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (error) throw new Error('Agreement emailed, but the CRM could not store the link')
+
+  const saved = await getMarketingProspect(id)
+  if (!saved) throw new Error('Prospect not found')
+  logActivity({
+    action: 'status_changed',
+    entity_type: 'lead',
+    entity_id: id,
+    actor_email: actor.email || 'staff',
+    details: `Sent agreement ${created.document.document_number} to ${saved.business}`,
+  })
+  return {
+    prospect: saved,
+    documentId: created.document.id,
+    documentNumber: created.document.document_number,
+  }
 }
 
 export async function updateProspectOnboarding(

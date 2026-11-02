@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   GOOGLE_WORKSPACE_SCOPES,
   buildRfc822Message,
+  createMeetingEvent,
   encodeBase64Url,
   proposalDocumentText,
   prospectReplied,
@@ -82,5 +83,38 @@ describe('google workspace mappers', () => {
       scope: 'Five pages',
       deadline: 'Dec 1',
     }), /Abbs Trucking/)
+  })
+
+  it('creates a calendar meeting with an attendee invite', async () => {
+    const calls: string[] = []
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method || 'GET'} ${url}`)
+      if (url.includes('oauth2.googleapis.com')) {
+        return new Response(JSON.stringify({ access_token: 'token' }), { status: 200 })
+      }
+      const body = JSON.parse(String(init?.body || '{}')) as {
+        summary?: string
+        attendees?: Array<{ email?: string }>
+      }
+      assert.equal(body.summary, 'Meeting: Sample Co')
+      assert.equal(body.attendees?.[0]?.email, 'owner@example.com')
+      return new Response(JSON.stringify({ id: 'evt-1', htmlLink: 'https://calendar.google.com/event' }), { status: 200 })
+    }
+    process.env.GOOGLE_CALENDAR_CLIENT_ID = 'id'
+    process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'secret'
+    process.env.GOOGLE_CALENDAR_REFRESH_TOKEN = 'refresh'
+    process.env.GOOGLE_CALENDAR_ID = 'sales@sundayharmony.com'
+    const created = await createMeetingEvent(
+      {
+        summary: 'Meeting: Sample Co',
+        description: 'Intro call',
+        startsAt: new Date('2026-11-05T15:00:00.000Z'),
+        durationMinutes: 45,
+        attendeeEmail: 'owner@example.com',
+      },
+      fetchImpl
+    )
+    assert.equal(created.eventId, 'evt-1')
+    assert.ok(calls.some((call) => call.includes('sendUpdates=all')))
   })
 })

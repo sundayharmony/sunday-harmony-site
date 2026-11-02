@@ -392,12 +392,20 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'credit_manager') {
     return ADMIN_NAV.filter((item) => item.href === '/admin/credit-funding' || item.href === '/admin/settings')
   }
-  if (role === 'lead_procurement' || role === 'sales_closer') {
+  if (role === 'lead_procurement') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/sales-kit' ||
       item.href === '/admin/settings'
+    )
+  }
+  if (role === 'sales_closer') {
+    return ADMIN_NAV.filter((item) =>
+      item.href === '/admin'
+      || item.href === '/admin/pipeline'
+      || item.href === '/admin/sales-kit'
+      || item.href === '/admin/settings'
     )
   }
   if (role === 'client_relations') {
@@ -441,6 +449,11 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
     )
   }
   return false
+}
+
+/** Sales closers and admins can schedule meetings and send agreements from a prospect file. */
+export function roleMayRunSalesActions(role?: string | null): boolean {
+  return role === 'admin' || role === 'sales_closer'
 }
 
 export type ProcurementChecklistInput = {

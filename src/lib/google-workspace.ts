@@ -213,6 +213,43 @@ export async function upsertFollowUpEvent(
   return { eventId: payload.id, htmlLink: payload.htmlLink || '' }
 }
 
+/** Create a prospect meeting on the sales calendar and email the invite when an attendee is set. */
+export async function createMeetingEvent(
+  input: {
+    summary: string
+    description: string
+    startsAt: Date
+    durationMinutes?: number
+    attendeeEmail?: string | null
+    timeZone?: string
+  },
+  fetchImpl: FetchLike = fetch
+): Promise<{ eventId: string; htmlLink: string }> {
+  const token = await getGoogleAccessToken(fetchImpl)
+  const calendarId = encodeURIComponent(requiredEnv('GOOGLE_CALENDAR_ID'))
+  const minutes = input.durationMinutes && input.durationMinutes > 0 ? input.durationMinutes : 30
+  const endsAt = new Date(input.startsAt.getTime() + minutes * 60 * 1000)
+  const attendee = input.attendeeEmail?.trim()
+  const body: Record<string, unknown> = {
+    summary: input.summary,
+    description: input.description,
+    start: { dateTime: input.startsAt.toISOString(), timeZone: input.timeZone || 'America/New_York' },
+    end: { dateTime: endsAt.toISOString(), timeZone: input.timeZone || 'America/New_York' },
+  }
+  if (attendee) {
+    body.attendees = [{ email: attendee }]
+  }
+  const sendUpdates = attendee ? 'sendUpdates=all' : 'sendUpdates=none'
+  const payload = await googleJson<{ id?: string; htmlLink?: string }>(
+    token,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${sendUpdates}`,
+    { method: 'POST', body: JSON.stringify(body) },
+    fetchImpl
+  )
+  if (!payload.id) throw new Error('Calendar did not return an event')
+  return { eventId: payload.id, htmlLink: payload.htmlLink || '' }
+}
+
 export async function listWorkspaceEvents(
   input: { timeMin: string; timeMax: string },
   fetchImpl: FetchLike = fetch

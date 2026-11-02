@@ -14,6 +14,7 @@ import {
   marketingRoleAllowedPath,
   marketingStatusForStage,
   navForRole,
+  roleMayRunSalesActions,
   onboardingComplete,
   PIPELINE_STAGES,
   procurementHandoffGaps,
@@ -177,6 +178,9 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/sales-kit/agreement/new'), true)
     // Sales roles cannot access Content Kit
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/content-kit'), false)
+    assert.equal(roleMayRunSalesActions('sales_closer'), true)
+    assert.equal(roleMayRunSalesActions('admin'), true)
+    assert.equal(roleMayRunSalesActions('lead_procurement'), false)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/clients'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline/abc'), false)
