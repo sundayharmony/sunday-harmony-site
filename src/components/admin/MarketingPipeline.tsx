@@ -9,6 +9,7 @@ import {
   PROSPECT_CATEGORIES,
   SOURCE_LABELS,
   STAGE_LABELS,
+  scoreBand,
   type LeadSource,
   type PipelineStage,
 } from '@/lib/marketing-pipeline'
@@ -20,53 +21,94 @@ type ProspectCard = {
   stage: PipelineStage
   score: number | null
   followUpAt: string | null
+  handedToRelationsAt: string | null
   source: string
 }
 
-const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
+type BoardLane = {
+  id: string
+  title: string
+  detail: string
+  stages: PipelineStage[]
+}
 
-function formatWhen(iso: string | null): string {
+const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-xl text-sm'
+
+const LANE_WASH = ['bg-accent-soft', 'bg-white', 'bg-neutral-100'] as const
+
+function formatFollowUp(iso: string | null): string {
   if (!iso) return 'No follow-up'
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return 'No follow-up'
-  return date.toLocaleString('en-US', {
+  const when = date.toLocaleString('en-US', {
     timeZone: 'America/New_York',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   })
+  return `Follow-up ${when}`
 }
 
-function StageGroup({ stage, rows }: { stage: PipelineStage; rows: ProspectCard[] }) {
+function scoreMarkClass(score: number): string {
+  const band = scoreBand(score)
+  if (band === 'high') return 'bg-accent text-brand-text'
+  if (band === 'medium') return 'bg-accent-soft text-brand-text'
+  return 'bg-neutral-100 text-brand-muted'
+}
+
+function visibleInStage(role: string, prospects: ProspectCard[], stage: PipelineStage): ProspectCard[] {
+  return prospects.filter((row) => {
+    if (row.stage !== stage) return false
+    if (role === 'sales_closer' && stage === 'won' && row.handedToRelationsAt) return false
+    return true
+  })
+}
+
+function ProspectLink({ row, href }: { row: ProspectCard; href: string }) {
+  const score = row.score != null && Number.isFinite(row.score) ? row.score : null
   return (
-    <section className="bg-white border border-brand-border rounded-xl p-3 min-w-0">
-      <h2 className="text-xs font-bold uppercase tracking-wide text-brand-dim mb-2">
-        {STAGE_LABELS[stage]} <span className="text-brand-muted">({rows.length})</span>
-      </h2>
-      <div className="space-y-2">
-        {rows.length === 0 && <p className="text-xs text-brand-muted">None in this stage.</p>}
-        {rows.map((row) => (
-          <Link
-            key={row.id}
-            href={`/admin/pipeline/${row.id}`}
-            className="block rounded-lg border border-brand-border px-3 py-2 hover:border-accent"
+    <Link
+      href={href}
+      className="flex overflow-hidden rounded-2xl bg-white shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] transition-shadow hover:shadow-[0_16px_32px_-16px_rgba(184,148,63,0.55)]"
+    >
+      <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
+      <span className="flex min-w-0 flex-1 items-start justify-between gap-3 px-3.5 py-3">
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
+          <span className="mt-0.5 block truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
+          <span className="mt-1.5 block text-xs text-brand-dim">{formatFollowUp(row.followUpAt)}</span>
+        </span>
+        {score != null && (
+          <span
+            className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${scoreMarkClass(score)}`}
+            aria-label={`Score ${score} of 10`}
           >
-            <div className="text-sm font-semibold text-brand-text">{row.business}</div>
-            <div className="text-xs text-brand-muted">
-              {row.contactName || 'No contact'} · {formatWhen(row.followUpAt)}
-              {row.score != null ? ` · ${row.score}/10` : ''}
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
+            {score}
+          </span>
+        )}
+      </span>
+    </Link>
+  )
+}
+
+function AddButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full bg-brand-text px-5 py-2 text-sm font-semibold text-white"
+    >
+      {open ? 'Close' : 'Add prospect'}
+    </button>
   )
 }
 
 export default function MarketingPipeline() {
   const [prospects, setProspects] = useState<ProspectCard[]>([])
-  const [stages, setStages] = useState<PipelineStage[]>([])
+  const [lanes, setLanes] = useState<BoardLane[]>([])
+  const [role, setRole] = useState('')
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState(false)
@@ -94,22 +136,38 @@ export default function MarketingPipeline() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       setError(typeof data.error === 'string' ? data.error : 'Could not load the pipeline.')
+      setLoaded(true)
       return
     }
     setProspects(data.prospects || [])
-    setStages(data.stages || [])
+    setLanes(Array.isArray(data.lanes) ? data.lanes : [])
+    setRole(typeof data.role === 'string' ? data.role : '')
+    setLoaded(true)
   }
 
   useEffect(() => {
     void load()
   }, [])
 
-  const grouped = useMemo(() => {
-    return stages.map((stage) => ({
-      stage,
-      rows: prospects.filter((row) => row.stage === stage),
+  const canAdd = loaded && role !== 'client_relations'
+  const singleLane = lanes.length === 1
+  const subtitle = role === 'sales_closer'
+    ? 'Take handed leads through Active, bill them from Today, then hand the client to client relations.'
+    : 'Each role works only the stages they own.'
+
+  const cardHref = (row: ProspectCard) => (
+    role === 'client_relations' ? '/admin/clients' : `/admin/pipeline/${row.id}`
+  )
+
+  const laneRows = useMemo(() => {
+    return lanes.map((lane) => ({
+      lane,
+      stages: lane.stages.map((stage) => ({
+        stage,
+        rows: visibleInStage(role, prospects, stage),
+      })),
     }))
-  }, [prospects, stages])
+  }, [lanes, prospects, role])
 
   async function createProspect(event: React.FormEvent) {
     event.preventDefault()
@@ -140,52 +198,55 @@ export default function MarketingPipeline() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-        <div>
-          <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Pipeline</h1>
-          <p className="text-sm text-brand-muted">Marketing prospects, from research through a signed agreement.</p>
+      {!singleLane && (
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="font-serif text-3xl font-extrabold text-brand-text">Pipeline</h1>
+            <p className="mt-1 max-w-xl text-sm text-brand-muted">{loaded ? subtitle : 'Loading the pipeline.'}</p>
+          </div>
+          {canAdd && <AddButton open={open} onClick={() => setOpen((value) => !value)} />}
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg"
-        >
-          {open ? 'Close' : 'Add prospect'}
-        </button>
-      </div>
-      {error && <p className="text-sm text-brand-red mb-3">{error}</p>}
-      {notice && <p className="text-sm text-brand-muted mb-3">{notice}</p>}
+      )}
 
-      {open && (
-        <form onSubmit={createProspect} className="bg-white border border-brand-border rounded-xl p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {singleLane && canAdd && (
+        <div className="mb-4 flex justify-end">
+          <AddButton open={open} onClick={() => setOpen((value) => !value)} />
+        </div>
+      )}
+
+      {error && <p className="mb-3 text-sm text-brand-red">{error}</p>}
+      {notice && <p className="mb-3 text-sm text-brand-muted">{notice}</p>}
+
+      {open && canAdd && (
+        <form onSubmit={createProspect} className="mb-6 grid grid-cols-1 gap-3 rounded-3xl bg-white p-4 shadow-[0_16px_40px_-28px_rgba(10,10,10,0.45)] sm:grid-cols-2 sm:p-5">
           <label className="text-sm">
             <span className="font-medium">Business name</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.business}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.business}</span>
             <input className={inputClass} required value={form.business} onChange={(event) => setForm({ ...form, business: event.target.value })} />
           </label>
           <label className="text-sm">
             <span className="font-medium">Contact person</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.contact}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.contact}</span>
             <input className={inputClass} value={form.contactName} onChange={(event) => setForm({ ...form, contactName: event.target.value })} />
           </label>
           <label className="text-sm">
             <span className="font-medium">Email</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.email}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.email}</span>
             <input type="email" className={inputClass} value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
           </label>
           <label className="text-sm">
             <span className="font-medium">Phone</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.phone}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.phone}</span>
             <input className={inputClass} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
           </label>
           <label className="text-sm">
             <span className="font-medium">Follow-up</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.followUp}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.followUp}</span>
             <input type="datetime-local" required className={inputClass} value={form.followUpAt} onChange={(event) => setForm({ ...form, followUpAt: event.target.value })} />
           </label>
           <label className="text-sm">
             <span className="font-medium">Lead source</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.source}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.source}</span>
             <select className={inputClass} value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })}>
               {LEAD_SOURCES.filter((source) => source !== 'inbound').map((source) => (
                 <option key={source} value={source}>{SOURCE_LABELS[source as LeadSource]}</option>
@@ -194,7 +255,7 @@ export default function MarketingPipeline() {
           </label>
           <label className="text-sm">
             <span className="font-medium">Category</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.category}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.category}</span>
             <select className={inputClass} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>
               <option value="">Not set</option>
               {PROSPECT_CATEGORIES.map((category) => (
@@ -204,26 +265,56 @@ export default function MarketingPipeline() {
           </label>
           <label className="text-sm sm:col-span-2">
             <span className="font-medium">Marketing opportunity</span>
-            <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.opportunity}</span>
+            <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.opportunity}</span>
             <textarea className={inputClass} rows={2} value={form.opportunity} onChange={(event) => setForm({ ...form, opportunity: event.target.value })} />
           </label>
           <div className="sm:col-span-2">
-            <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg disabled:opacity-60">
+            <button type="submit" disabled={saving} className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">
               {saving ? 'Saving…' : 'Save prospect'}
             </button>
           </div>
         </form>
       )}
 
-      <div className="hidden md:grid md:grid-cols-3 xl:grid-cols-4 gap-3">
-        {grouped.map((group) => (
-          <StageGroup key={group.stage} stage={group.stage} rows={group.rows} />
-        ))}
-      </div>
-      <div className="md:hidden space-y-3">
-        {grouped.map((group) => (
-          <StageGroup key={group.stage} stage={group.stage} rows={group.rows} />
-        ))}
+      <div className="space-y-5">
+        {laneRows.map(({ lane, stages }, index) => {
+          const count = stages.reduce((sum, group) => sum + group.rows.length, 0)
+          const Heading = singleLane ? 'h1' : 'h2'
+          return (
+            <section
+              key={lane.id}
+              className={`rounded-3xl px-4 py-5 md:px-6 md:py-6 ${LANE_WASH[index % LANE_WASH.length]} ${index % LANE_WASH.length === 1 ? 'shadow-[0_18px_40px_-30px_rgba(10,10,10,0.4)]' : ''}`}
+            >
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0 max-w-2xl">
+                  <Heading className="font-serif text-2xl font-extrabold text-brand-text md:text-3xl">{lane.title}</Heading>
+                  <p className="mt-1 text-sm text-brand-muted">{lane.detail}</p>
+                </div>
+                <p className="text-sm font-semibold tabular-nums text-brand-text">
+                  {count}
+                  <span className="ml-1 font-medium text-brand-muted">{count === 1 ? 'prospect' : 'prospects'}</span>
+                </p>
+              </div>
+              <div className="flex flex-col gap-5 md:flex-row md:gap-3 md:overflow-x-auto md:pb-2">
+                {stages.map((group) => (
+                  <div key={group.stage} className="min-w-0 md:w-[240px] md:shrink-0">
+                    <h3 className="font-serif text-base font-bold text-brand-text">{STAGE_LABELS[group.stage]}</h3>
+                    <div className="mb-3 mt-1 h-px w-8 bg-accent" />
+                    {group.rows.length === 0 ? (
+                      <p className="text-sm text-brand-muted">None yet.</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {group.rows.map((row) => (
+                          <ProspectLink key={row.id} row={row} href={cardHref(row)} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })}
       </div>
     </div>
   )

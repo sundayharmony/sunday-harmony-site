@@ -3,6 +3,7 @@ import { isGoogleWorkspaceConfigured } from '@/lib/google-workspace'
 import {
   getMarketingProspect,
   prospectVisibleToRole,
+  roleMayEditPipeline,
   roleMayUsePipeline,
   saveMarketingProspect,
   scriptsForProspect,
@@ -35,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await requireMarketingSession()
   if (session instanceof NextResponse) return session
-  if (!roleMayUsePipeline(session.user.role)) {
+  if (!roleMayEditPipeline(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   try {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { handOffProspect, roleMayUsePipeline } from '@/lib/marketing-crm'
+import { handOffProspect, roleMayEditPipeline } from '@/lib/marketing-crm'
 import { marketingActor, marketingError } from '@/lib/marketing-http'
 import { requireMarketingSession } from '@/lib/stripe-admin-auth'
 
@@ -10,7 +10,7 @@ type Params = { params: Promise<{ id: string }> }
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await requireMarketingSession()
   if (session instanceof NextResponse) return session
-  if (!roleMayUsePipeline(session.user.role)) {
+  if (!roleMayEditPipeline(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   try {

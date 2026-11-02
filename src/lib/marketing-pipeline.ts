@@ -293,6 +293,84 @@ export function stagesVisibleToRole(role?: string | null): PipelineStage[] | 'al
   return []
 }
 
+export type BoardLane = {
+  id: string
+  title: string
+  detail: string
+  stages: PipelineStage[]
+}
+
+const PROCUREMENT_LANE_STAGES: PipelineStage[] = ['researching', 'ready_to_contact', 'contacted']
+const SALES_WORK_STAGES: PipelineStage[] = [
+  'responded',
+  'meeting_scheduled',
+  'proposal_sent',
+  'negotiation',
+  'lost_nurture',
+]
+
+/** Columns on the board. Edit rights stay on stagesVisibleToRole, which is empty for client relations. */
+export function boardLanes(role?: string | null): BoardLane[] {
+  if (role === 'lead_procurement') {
+    return [{
+      id: 'procurement',
+      title: 'Lead procurement',
+      detail: 'Research the business, make first contact, and hand a qualified lead to sales.',
+      stages: [...PROCUREMENT_LANE_STAGES],
+    }]
+  }
+  if (role === 'sales_closer') {
+    return [
+      {
+        id: 'handed-to-sales',
+        title: 'Handed to sales',
+        detail: 'Qualified leads procurement has passed to you.',
+        stages: ['ready_to_contact', 'contacted'],
+      },
+      {
+        id: 'sales',
+        title: 'Sales',
+        detail: 'Replies, meetings, proposals, and leads that go Inactive.',
+        stages: [...SALES_WORK_STAGES],
+      },
+      {
+        id: 'active',
+        title: 'Active',
+        detail: 'Mark the deal Active, then hand it to client relations.',
+        stages: ['won'],
+      },
+    ]
+  }
+  if (role === 'client_relations') {
+    return [{
+      id: 'client-relations',
+      title: 'Client relations',
+      detail: 'Welcome the active client and start onboarding.',
+      stages: ['won'],
+    }]
+  }
+  return [
+    {
+      id: 'procurement',
+      title: 'Lead procurement',
+      detail: 'Research, first contact, and the handoff to sales.',
+      stages: [...PROCUREMENT_LANE_STAGES],
+    },
+    {
+      id: 'sales',
+      title: 'Sales',
+      detail: 'Replies, meetings, proposals, and inactive leads.',
+      stages: [...SALES_WORK_STAGES],
+    },
+    {
+      id: 'client-relations',
+      title: 'Client relations',
+      detail: 'Active clients after the sale.',
+      stages: ['won'],
+    },
+  ]
+}
+
 export function roleCanEditStage(role: string | null | undefined, stage: PipelineStage): boolean {
   if (role === 'admin') return true
   const visible = stagesVisibleToRole(role)
@@ -318,7 +396,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   }
   if (role === 'client_relations') {
     return ADMIN_NAV.filter((item) =>
-      item.href === '/admin' || item.href === '/admin/clients' || item.href === '/admin/settings'
+      item.href === '/admin' || item.href === '/admin/pipeline' || item.href === '/admin/clients' || item.href === '/admin/settings'
     )
   }
   if (role === 'admin') return ADMIN_NAV
@@ -339,7 +417,11 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
     return path === '/admin/pipeline' || path.startsWith('/admin/pipeline/')
   }
   if (role === 'client_relations') {
-    return path === '/admin/clients' || path.startsWith('/admin/clients/')
+    return (
+      path === '/admin/pipeline'
+      || path === '/admin/clients'
+      || path.startsWith('/admin/clients/')
+    )
   }
   return false
 }

@@ -251,6 +251,9 @@ export async function saveMarketingProspect(
   const existing = id ? await getMarketingProspect(id) : null
   if (id && !existing) throw new Error('Prospect not found')
   if (existing && !prospectVisibleToRole(existing, actor.role)) throw new Error('You cannot edit this prospect')
+  if (existing && actor.role !== 'admin' && !roleCanEditStage(actor.role, existing.stage)) {
+    throw new Error('You cannot edit this prospect')
+  }
 
   const stage = isPipelineStage(input.stage) ? input.stage : existing?.stage || 'researching'
   if (existing && !canMoveStage(actor.role, existing.stage, stage)) {
@@ -791,6 +794,11 @@ export async function loadMarketingToday(role?: string | null) {
 }
 
 export function roleMayUsePipeline(role?: string | null): boolean {
+  return role === 'admin' || role === 'lead_procurement' || role === 'sales_closer' || role === 'client_relations'
+}
+
+/** Client relations can open the board. Stage edits stay with procurement, sales, and admin. */
+export function roleMayEditPipeline(role?: string | null): boolean {
   return role === 'admin' || role === 'lead_procurement' || role === 'sales_closer'
 }
 

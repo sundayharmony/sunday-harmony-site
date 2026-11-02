@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { roleMayEditPipeline, roleMayUsePipeline } from '../marketing-crm'
 import {
+  boardLanes,
   canHandOffToRelations,
   canHandOffToSales,
   canMoveStage,
+  roleCanEditStage,
   roleCanSeeProspect,
   followUpError,
   homeForRole,
@@ -11,6 +14,7 @@ import {
   marketingStatusForStage,
   navForRole,
   onboardingComplete,
+  PIPELINE_STAGES,
   procurementHandoffGaps,
   procurementMetrics,
   salesHandoffGaps,
@@ -22,6 +26,7 @@ import {
   stageAfterProspectReply,
   STAGE_LABELS,
   stageFromLegacy,
+  stagesVisibleToRole,
 } from '../marketing-pipeline'
 
 describe('marketing pipeline scores and stages', () => {
@@ -144,6 +149,7 @@ describe('marketing role handoffs and navigation', () => {
     ])
     assert.deepEqual(navForRole('client_relations').map((item) => item.href), [
       '/admin',
+      '/admin/pipeline',
       '/admin/clients',
       '/admin/settings',
     ])
@@ -155,7 +161,34 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/pipeline/abc'), true)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/credit-funding'), false)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/clients'), true)
-    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline'), false)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline'), true)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline/abc'), false)
+    assert.equal(roleMayUsePipeline('client_relations'), true)
+    assert.equal(roleMayEditPipeline('client_relations'), false)
+    assert.deepEqual(stagesVisibleToRole('client_relations'), [])
+    assert.equal(roleCanEditStage('client_relations', 'won'), false)
+  })
+
+  it('gives each role only the pipeline lanes they own', () => {
+    const procurement = boardLanes('lead_procurement')
+    assert.equal(procurement.length, 1)
+    assert.deepEqual(procurement[0].stages, ['researching', 'ready_to_contact', 'contacted'])
+
+    const sales = boardLanes('sales_closer')
+    const salesStages = sales.flatMap((lane) => lane.stages)
+    assert.equal(sales.length, 3)
+    assert.equal(salesStages.includes('researching'), false)
+    assert.equal(sales.some((lane) => lane.title === 'Handed to sales'), true)
+
+    const relations = boardLanes('client_relations')
+    assert.equal(relations.length, 1)
+    assert.deepEqual(relations[0].stages, ['won'])
+
+    const adminStages = boardLanes('admin').flatMap((lane) => lane.stages)
+    assert.equal(new Set(adminStages).size, adminStages.length)
+    assert.deepEqual([...adminStages].sort(), [...PIPELINE_STAGES].sort())
+    assert.deepEqual(boardLanes(null).flatMap((lane) => lane.stages), adminStages)
+    assert.deepEqual(boardLanes('unknown').flatMap((lane) => lane.stages), adminStages)
   })
 
   it('counts role metrics from pipeline rows', () => {
