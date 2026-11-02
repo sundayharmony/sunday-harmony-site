@@ -27,6 +27,7 @@ import {
   canMoveStage,
   closerMayBillProspect,
   followUpError,
+  isCloseMethod,
   isLeadSource,
   isPipelineStage,
   isProspectCategory,
@@ -102,6 +103,7 @@ export type MarketingProspect = {
   clientId: string | null
   createdAt: string
   creditApplicationId: string | null
+  closeMethod: string | null
 }
 
 type LeadRow = Record<string, unknown>
@@ -169,6 +171,7 @@ export function mapProspect(row: LeadRow, creditApplicationId: string | null = n
     clientId: text(row.client_id) || null,
     createdAt: text(row.created_at),
     creditApplicationId,
+    closeMethod: text(row.close_method) || null,
   }
 }
 
@@ -239,6 +242,7 @@ export type ProspectInput = {
   paymentStatus?: string
   agreementSigned?: boolean
   proposalDocUrl?: string | null
+  closeMethod?: string | null
 }
 
 function clean(value: unknown): string {
@@ -324,6 +328,10 @@ export async function saveMarketingProspect(
           : null,
     proposal_doc_url:
       input.proposalDocUrl === undefined ? existing?.proposalDocUrl || null : clean(input.proposalDocUrl) || null,
+    close_method:
+      input.closeMethod === undefined
+        ? existing?.closeMethod || null
+        : isCloseMethod(input.closeMethod) ? input.closeMethod : null,
     updated_at: new Date().toISOString(),
   }
   if (payload.lead_type === undefined) delete payload.lead_type

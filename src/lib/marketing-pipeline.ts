@@ -58,6 +58,29 @@ export const SOURCE_LABELS: Record<LeadSource, string> = {
   inbound: 'Website',
 }
 
+export const CLOSE_METHODS = [
+  'standard',
+  'verbal',
+  'email_only',
+  'referral_fast',
+  'reactivated',
+  'other',
+] as const
+export type CloseMethod = (typeof CLOSE_METHODS)[number]
+
+export const CLOSE_METHOD_LABELS: Record<CloseMethod, string> = {
+  standard: 'Standard (meeting + proposal)',
+  verbal: 'Verbal close (no formal proposal)',
+  email_only: 'Email/phone only (no meeting)',
+  referral_fast: 'Referral fast-track',
+  reactivated: 'Reactivated (previously lost)',
+  other: 'Other / custom',
+}
+
+export function isCloseMethod(value: unknown): value is CloseMethod {
+  return typeof value === 'string' && (CLOSE_METHODS as readonly string[]).includes(value)
+}
+
 export const SCORE_FACTORS = [
   { key: 'weakness', label: 'Has an identifiable marketing weakness' },
   { key: 'operating', label: 'Has an active, operating business' },

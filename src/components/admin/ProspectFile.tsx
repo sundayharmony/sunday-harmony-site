@@ -5,6 +5,8 @@ import Link from 'next/link'
 import CloserBilling from '@/components/admin/CloserBilling'
 import {
   CATEGORY_LABELS,
+  CLOSE_METHODS,
+  CLOSE_METHOD_LABELS,
   FIELD_PURPOSES,
   LEAD_SOURCES,
   PIPELINE_STAGES,
@@ -17,6 +19,7 @@ import {
   canMoveStage,
   scoreBandLabel,
   scoreTotal,
+  type CloseMethod,
   type PipelineStage,
   type ScoreFactors,
 } from '@/lib/marketing-pipeline'
@@ -52,6 +55,7 @@ type Prospect = {
   promises: string
   expectations: string
   creditApplicationId: string | null
+  closeMethod: string | null
 }
 
 type Script = { id: string; label: string; channel: 'email' | 'copy'; subject: string; body: string }
@@ -390,6 +394,20 @@ export default function ProspectFile({ id }: { id: string }) {
         <label className="text-sm">Deadline<input className={`${inputClass} mt-1`} value={prospect.deadline} onChange={(event) => patch({ deadline: event.target.value })} /></label>
         <label className="text-sm">Promises<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.promises} onChange={(event) => patch({ promises: event.target.value })} /></label>
         <label className="text-sm">Expectations<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.expectations} onChange={(event) => patch({ expectations: event.target.value })} /></label>
+        <label className="text-sm sm:col-span-2">
+          Close method
+          <span className="block text-xs text-brand-muted mb-1">How was this deal closed? Helps track outliers to the standard pipeline.</span>
+          <select
+            className={`${inputClass} mt-1`}
+            value={prospect.closeMethod || ''}
+            onChange={(event) => patch({ closeMethod: event.target.value || null })}
+          >
+            <option value="">Not set</option>
+            {CLOSE_METHODS.map((method) => (
+              <option key={method} value={method}>{CLOSE_METHOD_LABELS[method]}</option>
+            ))}
+          </select>
+        </label>
         <label className="text-sm sm:col-span-2">
           Proposal link
           <span className="block text-xs text-brand-muted mb-1">Paste the Google Doc address. The create button turns on after Google is connected.</span>
