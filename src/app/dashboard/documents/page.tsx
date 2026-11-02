@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { formatDocumentStatusBadge } from '@/lib/service-documents'
+import { formatDocumentStatusBadge } from '@/lib/document-status'
 
 interface DocumentData {
   id: string

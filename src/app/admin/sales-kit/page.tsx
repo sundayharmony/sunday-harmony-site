@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { salesMaterials, outreachEmailTemplates, type OutreachEmailTemplate } from '@/lib/sales-materials'
-import type { ServiceDocument, DocumentStatus } from '@/lib/service-documents'
+import type { ServiceDocument } from '@/lib/service-documents'
+import type { DocumentStatus } from '@/lib/document-status'
 
 type Tab = 'materials' | 'documents' | 'emails'
 
