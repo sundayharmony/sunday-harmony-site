@@ -27,7 +27,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!prospect || !prospectVisibleToRole(prospect, session.user.role)) {
     return NextResponse.json({ error: 'Prospect not found' }, { status: 404 })
   }
-  const meetings = await listJoinableMeetings([{ id: prospect.id, business: prospect.business }])
+  const meetings = await listJoinableMeetings([{
+    id: prospect.id,
+    business: prospect.business,
+    stage: prospect.stage,
+    followUpAt: prospect.followUpAt,
+    followUpEventId: prospect.followUpEventId,
+  }])
   return NextResponse.json({
     prospect,
     scripts: scriptsForProspect(prospect, marketingActor(session)),

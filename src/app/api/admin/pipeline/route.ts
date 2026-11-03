@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   isGoogleWorkspaceConfigured,
 } from '@/lib/google-workspace'
-import { listMarketingProspects, roleMayEditPipeline, roleMayUsePipeline, saveMarketingProspect } from '@/lib/marketing-crm'
+import { attachProspectMeetingLinks, listMarketingProspects, roleMayEditPipeline, roleMayUsePipeline, saveMarketingProspect } from '@/lib/marketing-crm'
 import { marketingActor, marketingError } from '@/lib/marketing-http'
 import { boardLanes, FIELD_PURPOSES, PIPELINE_STAGES, SCORE_FACTORS, STAGE_LABELS, stagesVisibleToRole } from '@/lib/marketing-pipeline'
 import { requireMarketingSession } from '@/lib/stripe-admin-auth'
@@ -15,7 +15,10 @@ export async function GET() {
   if (!roleMayUsePipeline(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const prospects = await listMarketingProspects(session.user.role)
+  const prospects = await attachProspectMeetingLinks(
+    await listMarketingProspects(session.user.role),
+    session.user.role
+  )
   const allowed = stagesVisibleToRole(session.user.role)
   return NextResponse.json({
     role: session.user.role,

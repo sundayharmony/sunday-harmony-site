@@ -22,7 +22,7 @@ type MarketingToday = {
   handoffs: { id: string; business: string; stage: PipelineStage; href: string }[]
   billable?: BillableDeal[]
   meetings?: JoinableMeeting[]
-  calendarEvents: { id: string; summary: string; start: string; htmlLink: string }[]
+  calendarEvents: { id: string; summary: string; start: string; htmlLink: string; meetLink?: string }[]
   metrics: { label: string; value: string }[]
   workspaceConnected: boolean
 }
@@ -257,7 +257,7 @@ export default function TodayBoard() {
           <MeetingJoinList
             meetings={meetings}
             showBusiness
-            empty="When a meeting is scheduled, the Join button shows up here."
+            empty="Scheduled meetings show up here with a Join button, including ones that are not today."
           />
         </section>
       )}
@@ -352,7 +352,7 @@ export default function TodayBoard() {
                 {board.calendarEvents.map((event) => (
                   <CalendarRow
                     key={event.id}
-                    href={event.htmlLink || '#'}
+                    href={event.meetLink || event.htmlLink || '#'}
                     summary={event.summary}
                     time={formatWhen(event.start)}
                   />

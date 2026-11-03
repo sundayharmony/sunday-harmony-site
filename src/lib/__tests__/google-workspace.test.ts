@@ -4,6 +4,7 @@ import {
   GOOGLE_WORKSPACE_SCOPES,
   buildRfc822Message,
   createMeetingEvent,
+  listWorkspaceEvents,
   encodeBase64Url,
   proposalDocumentText,
   prospectReplied,
@@ -124,5 +125,33 @@ describe('google workspace mappers', () => {
     assert.equal(created.meetLink, 'https://meet.google.com/abc-defg-hij')
     assert.ok(calls.some((call) => call.includes('conferenceDataVersion=1')))
     assert.ok(calls.some((call) => call.includes('sendUpdates=all')))
+  })
+
+  it('reads the Meet link from a calendar event', async () => {
+    const fetchImpl = async (url: string) => {
+      if (url.includes('oauth2.googleapis.com')) {
+        return new Response(JSON.stringify({ access_token: 'token' }), { status: 200 })
+      }
+      return new Response(JSON.stringify({
+        items: [{
+          id: 'evt-2',
+          summary: 'Meeting: Sample Co',
+          htmlLink: 'https://calendar.google.com/event?eid=evt-2',
+          hangoutLink: 'https://meet.google.com/sample-join',
+          start: { dateTime: '2026-11-05T15:00:00.000Z' },
+          end: { dateTime: '2026-11-05T15:30:00.000Z' },
+        }],
+      }), { status: 200 })
+    }
+    process.env.GOOGLE_CALENDAR_CLIENT_ID = 'id'
+    process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'secret'
+    process.env.GOOGLE_CALENDAR_REFRESH_TOKEN = 'refresh'
+    process.env.GOOGLE_CALENDAR_ID = 'sales@sundayharmony.com'
+    const events = await listWorkspaceEvents(
+      { timeMin: '2026-11-05T00:00:00.000Z', timeMax: '2026-11-06T00:00:00.000Z' },
+      fetchImpl
+    )
+    assert.equal(events[0]?.meetLink, 'https://meet.google.com/sample-join')
+    assert.equal(events[0]?.htmlLink, 'https://calendar.google.com/event?eid=evt-2')
   })
 })

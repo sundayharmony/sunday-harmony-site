@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import MeetingJoinList from '@/components/admin/MeetingJoinList'
+import type { JoinableMeeting } from '@/lib/joinable-meetings'
+import { safeMeetHref } from '@/lib/joinable-meetings'
 import {
   CATEGORY_LABELS,
   FIELD_PURPOSES,
@@ -23,6 +26,8 @@ type ProspectCard = {
   followUpAt: string | null
   handedToRelationsAt: string | null
   source: string
+  meetLink?: string
+  calendarLink?: string
 }
 
 type BoardLane = {
@@ -67,28 +72,46 @@ function visibleInStage(role: string, prospects: ProspectCard[], stage: Pipeline
 
 function ProspectLink({ row, href }: { row: ProspectCard; href: string }) {
   const score = row.score != null && Number.isFinite(row.score) ? row.score : null
+  const meetHref = safeMeetHref(row.meetLink || '')
+  const calendarHref = safeMeetHref(row.calendarLink || '')
+  const action = meetHref
+    ? { href: meetHref, label: 'Join meeting' }
+    : calendarHref
+      ? { href: calendarHref, label: 'Open in Calendar' }
+      : null
   return (
-    <Link
-      href={href}
-      className="flex overflow-hidden rounded-2xl bg-white shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] transition-shadow hover:shadow-[0_16px_32px_-16px_rgba(184,148,63,0.55)]"
-    >
-      <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
-      <span className="flex min-w-0 flex-1 items-start justify-between gap-3 px-3.5 py-3">
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
-          <span className="mt-0.5 block truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
-          <span className="mt-1.5 block text-xs text-brand-dim">{formatFollowUp(row.followUpAt)}</span>
-        </span>
-        {score != null && (
-          <span
-            className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${scoreMarkClass(score)}`}
-            aria-label={`Score ${score} of 10`}
-          >
-            {score}
-          </span>
-        )}
-      </span>
-    </Link>
+    <div className="overflow-hidden rounded-2xl bg-white shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)]">
+      <div className="flex">
+        <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
+        <div className="min-w-0 flex-1 px-3.5 py-3">
+          <Link href={href} className="flex items-start justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
+              <span className="mt-0.5 block truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
+              <span className="mt-1.5 block text-xs text-brand-dim">{formatFollowUp(row.followUpAt)}</span>
+            </span>
+            {score != null && (
+              <span
+                className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${scoreMarkClass(score)}`}
+                aria-label={`Score ${score} of 10`}
+              >
+                {score}
+              </span>
+            )}
+          </Link>
+          {action && (
+            <a
+              href={action.href}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-brand-text px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+            >
+              {action.label}
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -152,8 +175,21 @@ export default function MarketingPipeline() {
   const canAdd = loaded && role !== 'client_relations'
   const singleLane = lanes.length === 1
   const subtitle = role === 'sales_closer'
-    ? 'Take handed leads through Active, bill them from Today, then hand the client to client relations.'
+    ? 'Join a scheduled meeting from its card or from Today, bill Active clients, then hand the client to client relations.'
     : 'Each role works only the stages they own.'
+  const dashboardMeetings: JoinableMeeting[] = (role === 'sales_closer' || role === 'admin')
+    ? prospects
+      .filter((row) => row.meetLink || row.calendarLink || row.stage === 'meeting_scheduled')
+      .map((row) => ({
+        id: row.id,
+        prospectId: row.id,
+        business: row.business,
+        title: row.business,
+        startsAt: row.followUpAt || '',
+        meetLink: row.meetLink || '',
+        calendarLink: row.calendarLink || '',
+      }))
+    : []
 
   const cardHref = (row: ProspectCard) => (
     role === 'client_relations' ? '/admin/clients' : `/admin/pipeline/${row.id}`
@@ -212,6 +248,18 @@ export default function MarketingPipeline() {
         <div className="mb-4 flex justify-end">
           <AddButton open={open} onClick={() => setOpen((value) => !value)} />
         </div>
+      )}
+
+      {(role === 'sales_closer' || role === 'admin') && (
+        <section className="mb-5 rounded-2xl bg-gradient-to-br from-blue-50/70 to-white border border-blue-100 p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-brand-text">Meetings</h2>
+          <p className="mt-1 mb-3 text-xs text-brand-muted">Open the Google Meet from here. The same Join button is on the Meeting scheduled card.</p>
+          <MeetingJoinList
+            meetings={dashboardMeetings}
+            showBusiness
+            empty="When a meeting is scheduled, Join shows up here and on the pipeline card."
+          />
+        </section>
       )}
 
       {error && <p className="mb-3 text-sm text-brand-red">{error}</p>}

@@ -272,10 +272,41 @@ export async function createMeetingEvent(
   return { eventId: payload.id, htmlLink: payload.htmlLink || '', meetLink }
 }
 
+type CalendarEventPayload = {
+  id?: string
+  summary?: string
+  htmlLink?: string
+  hangoutLink?: string
+  start?: { dateTime?: string; date?: string }
+  end?: { dateTime?: string; date?: string }
+  conferenceData?: { entryPoints?: Array<{ entryPointType?: string; uri?: string }> }
+}
+
+export type WorkspaceCalendarEvent = {
+  id: string
+  summary: string
+  start: string
+  end: string
+  htmlLink: string
+  meetLink: string
+}
+
+function mapWorkspaceEvent(item: CalendarEventPayload): WorkspaceCalendarEvent | null {
+  if (!item.id) return null
+  return {
+    id: item.id,
+    summary: item.summary || 'Calendar event',
+    start: item.start?.dateTime || item.start?.date || '',
+    end: item.end?.dateTime || item.end?.date || '',
+    htmlLink: item.htmlLink || '',
+    meetLink: meetLinkFromCalendarEvent(item) || '',
+  }
+}
+
 export async function listWorkspaceEvents(
-  input: { timeMin: string; timeMax: string },
+  input: { timeMin: string; timeMax: string; maxResults?: number },
   fetchImpl: FetchLike = fetch
-): Promise<Array<{ id: string; summary: string; start: string; htmlLink: string }>> {
+): Promise<WorkspaceCalendarEvent[]> {
   const token = await getGoogleAccessToken(fetchImpl)
   const calendarId = encodeURIComponent(requiredEnv('GOOGLE_CALENDAR_ID'))
   const params = new URLSearchParams({
@@ -283,24 +314,36 @@ export async function listWorkspaceEvents(
     timeMax: input.timeMax,
     singleEvents: 'true',
     orderBy: 'startTime',
-    maxResults: '20',
+    maxResults: String(input.maxResults && input.maxResults > 0 ? input.maxResults : 20),
   })
-  const payload = await googleJson<{
-    items?: Array<{ id?: string; summary?: string; htmlLink?: string; start?: { dateTime?: string; date?: string } }>
-  }>(
+  const payload = await googleJson<{ items?: CalendarEventPayload[] }>(
     token,
     `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`,
     { method: 'GET' },
     fetchImpl
   )
-  return (payload.items || [])
-    .filter((item) => item.id)
-    .map((item) => ({
-      id: item.id || '',
-      summary: item.summary || 'Calendar event',
-      start: item.start?.dateTime || item.start?.date || '',
-      htmlLink: item.htmlLink || '',
-    }))
+  return (payload.items || []).map(mapWorkspaceEvent).filter((item): item is WorkspaceCalendarEvent => Boolean(item))
+}
+
+export async function getWorkspaceEvent(
+  eventId: string,
+  fetchImpl: FetchLike = fetch
+): Promise<WorkspaceCalendarEvent | null> {
+  if (!eventId.trim()) return null
+  try {
+    const token = await getGoogleAccessToken(fetchImpl)
+    const calendarId = encodeURIComponent(requiredEnv('GOOGLE_CALENDAR_ID'))
+    const payload = await googleJson<CalendarEventPayload>(
+      token,
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}`,
+      { method: 'GET' },
+      fetchImpl
+    )
+    return mapWorkspaceEvent(payload)
+  } catch (error) {
+    console.error('getWorkspaceEvent error:', error)
+    return null
+  }
 }
 
 export async function upsertWorkspaceContact(

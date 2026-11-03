@@ -1,3 +1,6 @@
+'use client'
+
+import Link from 'next/link'
 import { formatMeetingWhen, safeMeetHref, type JoinableMeeting } from '@/lib/joinable-meetings'
 
 export default function MeetingJoinList({
@@ -16,11 +19,13 @@ export default function MeetingJoinList({
   return (
     <ul className="space-y-3">
       {meetings.map((meeting) => {
-        const href = safeMeetHref(meeting.meetLink)
+        const meetHref = safeMeetHref(meeting.meetLink)
+        const calendarHref = safeMeetHref(meeting.calendarLink || '')
         const when = formatMeetingWhen(meeting.startsAt)
+        const buttonClass = 'inline-flex w-full sm:w-auto items-center justify-center px-4 py-2.5 text-sm font-semibold rounded-lg'
         return (
           <li
-            key={meeting.id}
+            key={`${meeting.prospectId}-${meeting.id}`}
             className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
@@ -29,15 +34,18 @@ export default function MeetingJoinList({
               )}
               <p className="text-xs text-brand-muted">{when || meeting.title}</p>
             </div>
-            {href ? (
-              <a
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex w-full sm:w-auto items-center justify-center px-4 py-2.5 text-sm font-semibold bg-brand-text text-white rounded-lg hover:opacity-90"
-              >
+            {meetHref ? (
+              <a href={meetHref} target="_blank" rel="noreferrer" className={`${buttonClass} bg-brand-text text-white hover:opacity-90`}>
                 Join meeting
               </a>
+            ) : calendarHref ? (
+              <a href={calendarHref} target="_blank" rel="noreferrer" className={`${buttonClass} bg-brand-text text-white hover:opacity-90`}>
+                Open in Calendar
+              </a>
+            ) : meeting.prospectId ? (
+              <Link href={`/admin/pipeline/${meeting.prospectId}`} className={`${buttonClass} border border-brand-border text-brand-text`}>
+                Open meeting
+              </Link>
             ) : (
               <p className="text-xs text-brand-muted">Meet link is not available yet.</p>
             )}

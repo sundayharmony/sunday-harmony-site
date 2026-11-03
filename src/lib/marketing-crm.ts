@@ -1,6 +1,10 @@
 import { createMeeting, getAllMeetings, syncClientFromLead } from '@/lib/crm-db'
 import { listScheduledBookings } from '@/lib/consultation-db'
-import { meetingStillJoinable, safeMeetHref, type JoinableMeeting } from '@/lib/joinable-meetings'
+import {
+  assembleJoinableMeetings,
+  type JoinableMeeting,
+  type MeetingProspectRef,
+} from '@/lib/joinable-meetings'
 import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
 import { emailIlikePattern } from '@/lib/email-match'
 import { createClient, getClientById, getTasksByClient, logActivity, updateClient, type Client } from '@/lib/db'
@@ -8,8 +12,10 @@ import {
   createMeetingEvent,
   createProposalDocument,
   ensureDriveFolder,
+  getWorkspaceEvent,
   isGoogleWorkspaceConfigured,
   listWorkspaceEvents,
+  type WorkspaceCalendarEvent,
   proposalDocumentText,
   readWorkspaceThread,
   sendWorkspaceEmail,
@@ -375,7 +381,7 @@ export async function saveMarketingProspect(
 
 async function syncWorkspace(prospect: MarketingProspect): Promise<MarketingProspect | null> {
   const updates: Record<string, unknown> = {}
-  if (prospect.followUpAt) {
+  if (prospect.followUpAt && prospect.stage !== 'meeting_scheduled') {
     const event = await upsertFollowUpEvent({
       eventId: prospect.followUpEventId,
       summary: `Follow up: ${prospect.business}`,
@@ -826,7 +832,13 @@ export async function scheduleProspectMeeting(
     created_by: actor.email || 'sales',
   })
 
-  const meetings = await listJoinableMeetings([{ id, business: saved.business }])
+  const meetings = await listJoinableMeetings([{
+    id,
+    business: saved.business,
+    stage: saved.stage,
+    followUpAt: saved.followUpAt,
+    followUpEventId: saved.followUpEventId,
+  }])
   if (!meetings.some((row) => row.meetLink === event.meetLink)) {
     meetings.unshift({
       id: meeting?.id || event.eventId,
@@ -1059,7 +1071,7 @@ export async function loadMarketingToday(role?: string | null) {
     : []
 
   const meetings = role === 'sales_closer' || role === 'admin'
-    ? await listJoinableMeetings(prospects.map((prospect) => ({ id: prospect.id, business: prospect.business })))
+    ? await listJoinableMeetings(prospects.map(meetingProspectRef), { includeUnmatchedCalendar: true })
     : []
 
   return {
@@ -1075,65 +1087,92 @@ export async function loadMarketingToday(role?: string | null) {
   }
 }
 
+function meetingProspectRef(prospect: {
+  id: string
+  business: string
+  stage?: string
+  followUpAt?: string | null
+  followUpEventId?: string | null
+}): MeetingProspectRef {
+  return {
+    id: prospect.id,
+    business: prospect.business,
+    stage: prospect.stage,
+    followUpAt: prospect.followUpAt,
+    followUpEventId: prospect.followUpEventId,
+  }
+}
+
 export async function listJoinableMeetings(
-  prospects: Array<{ id: string; business: string }>
+  prospects: MeetingProspectRef[],
+  options?: { includeUnmatchedCalendar?: boolean; calendarEvents?: WorkspaceCalendarEvent[] }
 ): Promise<JoinableMeeting[]> {
-  if (prospects.length === 0) return []
+  if (prospects.length === 0 && !options?.includeUnmatchedCalendar) return []
   try {
-    const names = new Map(prospects.map((prospect) => [prospect.id, prospect.business]))
-    const ids = new Set(names.keys())
     const [stored, bookings] = await Promise.all([
       getAllMeetings().catch(() => []),
       listScheduledBookings().catch(() => []),
     ])
-    const out: JoinableMeeting[] = []
-    const seen = new Set<string>()
-
-    function add(row: JoinableMeeting) {
-      const href = safeMeetHref(row.meetLink)
-      if (!href || !ids.has(row.prospectId)) return
-      const key = `${row.prospectId}|${href}`
-      if (seen.has(key)) return
-      seen.add(key)
-      out.push({ ...row, meetLink: href })
-    }
-
-    for (const meeting of stored) {
-      const prospectId = meeting.lead_id || ''
-      if (meeting.status !== 'scheduled') continue
-      if (!meetingStillJoinable({
-        startsAt: meeting.scheduled_at,
-        durationMinutes: meeting.duration_minutes,
-      })) continue
-      add({
-        id: meeting.id,
-        prospectId,
-        business: names.get(prospectId) || meeting.title || 'Meeting',
-        title: meeting.title || 'Meeting',
-        startsAt: meeting.scheduled_at,
-        meetLink: meeting.google_meet_link || '',
-      })
-    }
-
-    for (const booking of bookings) {
-      const prospectId = booking.lead_id || ''
-      if (!meetingStillJoinable({ startsAt: booking.starts_at, endsAt: booking.ends_at })) continue
-      add({
-        id: booking.id,
-        prospectId,
-        business: names.get(prospectId) || booking.business || 'Consultation',
-        title: booking.business ? `Consultation · ${booking.business}` : 'Consultation',
-        startsAt: booking.starts_at,
-        meetLink: booking.meet_link || '',
-      })
-    }
-
-    out.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-    return out
+    const calendarEvents = options?.calendarEvents ?? await loadCalendarMeetings(prospects)
+    return assembleJoinableMeetings({
+      prospects,
+      meetings: stored,
+      bookings,
+      calendarEvents,
+      includeUnmatchedCalendar: options?.includeUnmatchedCalendar,
+    })
   } catch (error) {
     console.error('listJoinableMeetings error:', error)
     return []
   }
+}
+
+async function loadCalendarMeetings(prospects: MeetingProspectRef[]): Promise<WorkspaceCalendarEvent[]> {
+  if (!isGoogleWorkspaceConfigured()) return []
+  try {
+    const start = new Date(Date.now() - 60 * 60 * 1000)
+    const end = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000)
+    const listed = await listWorkspaceEvents({
+      timeMin: start.toISOString(),
+      timeMax: end.toISOString(),
+      maxResults: 50,
+    })
+    const known = new Set(listed.map((event) => event.id))
+    const missing = prospects
+      .map((prospect) => prospect.followUpEventId || '')
+      .filter((id) => id && !known.has(id))
+      .slice(0, 10)
+    const extras = (await Promise.all(missing.map((id) => getWorkspaceEvent(id)))).filter(
+      (event): event is WorkspaceCalendarEvent => Boolean(event)
+    )
+    return [...listed, ...extras]
+  } catch (error) {
+    console.error('loadCalendarMeetings error:', error)
+    return []
+  }
+}
+
+export async function attachProspectMeetingLinks<T extends MeetingProspectRef>(
+  prospects: T[],
+  role?: string | null
+): Promise<Array<T & { meetLink: string; calendarLink: string }>> {
+  if (role !== 'sales_closer' && role !== 'admin') {
+    return prospects.map((prospect) => ({ ...prospect, meetLink: '', calendarLink: '' }))
+  }
+  const meetings = await listJoinableMeetings(prospects.map(meetingProspectRef))
+  const links = new Map<string, { meetLink: string; calendarLink: string }>()
+  for (const meeting of meetings) {
+    if (!meeting.prospectId) continue
+    const current = links.get(meeting.prospectId) || { meetLink: '', calendarLink: '' }
+    if (!current.meetLink && meeting.meetLink) current.meetLink = meeting.meetLink
+    if (!current.calendarLink && meeting.calendarLink) current.calendarLink = meeting.calendarLink
+    links.set(meeting.prospectId, current)
+  }
+  return prospects.map((prospect) => ({
+    ...prospect,
+    meetLink: links.get(prospect.id)?.meetLink || '',
+    calendarLink: links.get(prospect.id)?.calendarLink || '',
+  }))
 }
 
 export function roleMayUsePipeline(role?: string | null): boolean {
