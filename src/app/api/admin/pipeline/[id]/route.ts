@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { isGoogleWorkspaceConfigured } from '@/lib/google-workspace'
 import {
   getMarketingProspect,
+  listJoinableMeetings,
   prospectVisibleToRole,
   roleMayEditPipeline,
   roleMayUsePipeline,
@@ -26,9 +27,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!prospect || !prospectVisibleToRole(prospect, session.user.role)) {
     return NextResponse.json({ error: 'Prospect not found' }, { status: 404 })
   }
+  const meetings = await listJoinableMeetings([{ id: prospect.id, business: prospect.business }])
   return NextResponse.json({
     prospect,
     scripts: scriptsForProspect(prospect, marketingActor(session)),
+    meetings,
     workspaceConnected: isGoogleWorkspaceConfigured(),
   })
 }

@@ -213,7 +213,17 @@ export async function upsertFollowUpEvent(
   return { eventId: payload.id, htmlLink: payload.htmlLink || '' }
 }
 
-/** Create a prospect meeting on the sales calendar and email the invite when an attendee is set. */
+function meetLinkFromCalendarEvent(payload: {
+  hangoutLink?: string
+  conferenceData?: { entryPoints?: Array<{ entryPointType?: string; uri?: string }> }
+}): string | null {
+  if (payload.hangoutLink && payload.hangoutLink.startsWith('https://')) return payload.hangoutLink
+  const video = payload.conferenceData?.entryPoints?.find((entry) => entry.entryPointType === 'video' && entry.uri)
+  if (video?.uri?.startsWith('https://')) return video.uri
+  return null
+}
+
+/** Create a prospect meeting on the sales calendar, with a Google Meet link, and email the invite when an attendee is set. */
 export async function createMeetingEvent(
   input: {
     summary: string
@@ -224,7 +234,7 @@ export async function createMeetingEvent(
     timeZone?: string
   },
   fetchImpl: FetchLike = fetch
-): Promise<{ eventId: string; htmlLink: string }> {
+): Promise<{ eventId: string; htmlLink: string; meetLink: string }> {
   const token = await getGoogleAccessToken(fetchImpl)
   const calendarId = encodeURIComponent(requiredEnv('GOOGLE_CALENDAR_ID'))
   const minutes = input.durationMinutes && input.durationMinutes > 0 ? input.durationMinutes : 30
@@ -235,19 +245,31 @@ export async function createMeetingEvent(
     description: input.description,
     start: { dateTime: input.startsAt.toISOString(), timeZone: input.timeZone || 'America/New_York' },
     end: { dateTime: endsAt.toISOString(), timeZone: input.timeZone || 'America/New_York' },
+    conferenceData: {
+      createRequest: {
+        requestId: crypto.randomUUID(),
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    },
   }
   if (attendee) {
     body.attendees = [{ email: attendee }]
   }
   const sendUpdates = attendee ? 'sendUpdates=all' : 'sendUpdates=none'
-  const payload = await googleJson<{ id?: string; htmlLink?: string }>(
+  const payload = await googleJson<{
+    id?: string
+    htmlLink?: string
+    hangoutLink?: string
+    conferenceData?: { entryPoints?: Array<{ entryPointType?: string; uri?: string }> }
+  }>(
     token,
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${sendUpdates}`,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1&${sendUpdates}`,
     { method: 'POST', body: JSON.stringify(body) },
     fetchImpl
   )
-  if (!payload.id) throw new Error('Calendar did not return an event')
-  return { eventId: payload.id, htmlLink: payload.htmlLink || '' }
+  const meetLink = meetLinkFromCalendarEvent(payload)
+  if (!payload.id || !meetLink) throw new Error('Google Calendar did not return a Meet link')
+  return { eventId: payload.id, htmlLink: payload.htmlLink || '', meetLink }
 }
 
 export async function listWorkspaceEvents(

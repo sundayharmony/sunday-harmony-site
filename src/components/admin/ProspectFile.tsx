@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import CloserBilling from '@/components/admin/CloserBilling'
+import MeetingJoinList from '@/components/admin/MeetingJoinList'
+import type { JoinableMeeting } from '@/lib/joinable-meetings'
 import { packages } from '@/lib/data'
 import {
   CATEGORY_LABELS,
@@ -97,6 +99,7 @@ export default function ProspectFile({ id }: { id: string }) {
   const [agreementTier, setAgreementTier] = useState('')
   const [agreementPrice, setAgreementPrice] = useState('')
   const [agreementPriceType, setAgreementPriceType] = useState<'one-time' | 'monthly' | 'custom'>('one-time')
+  const [meetings, setMeetings] = useState<JoinableMeeting[]>([])
 
   function applyProspect(next: Prospect, nextScripts?: Script[]) {
     setProspect(next)
@@ -140,6 +143,7 @@ export default function ProspectFile({ id }: { id: string }) {
         return
       }
       applyProspect(data.prospect, data.scripts)
+      setMeetings(Array.isArray(data.meetings) ? data.meetings : [])
       setWorkspaceConnected(Boolean(data.workspaceConnected))
     })()
   }, [id])
@@ -151,7 +155,7 @@ export default function ProspectFile({ id }: { id: string }) {
   const selectedScript = scripts.find((script) => script.id === scriptId)
   const isSales = roleMayRunSalesActions(role)
   const isProcurement = role === 'lead_procurement'
-  const showOutreach = role === 'admin' || isProcurement || isSales
+  const showOutreach = role === 'admin' || isProcurement
   const showClose = role === 'admin' || isSales
   const showScore = role === 'admin' || isProcurement
 
@@ -200,8 +204,9 @@ export default function ProspectFile({ id }: { id: string }) {
       if (!res.ok) throw new Error(data.error || 'Request failed')
       if (data.prospect) applyProspect(data.prospect)
       if (data.messages) setMessages(data.messages)
-      if (data.htmlLink) {
-        setNotice(`Meeting scheduled.${data.htmlLink ? ' Open it in Calendar from Today.' : ''}`)
+      if (Array.isArray(data.meetings)) setMeetings(data.meetings)
+      if (data.meetLink) {
+        setNotice('Meeting scheduled. Join it from the list on this page.')
       } else if (data.documentNumber) {
         setNotice(`Agreement ${data.documentNumber} emailed to the prospect.`)
       } else {
@@ -381,9 +386,19 @@ export default function ProspectFile({ id }: { id: string }) {
           <div>
             <h2 className="text-sm font-bold text-brand-text">Sales actions</h2>
             <p className="text-xs text-brand-muted mt-1">
-              Schedule the meeting, send the agreement, then bill when the deal is Active.
+              Schedule the meeting, join it from this page, send the agreement, then bill when the deal is Active.
             </p>
           </div>
+
+          {(meetings.length > 0 || prospect.stage === 'meeting_scheduled') && (
+            <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-brand-text">Scheduled meeting</h3>
+              <MeetingJoinList
+                meetings={meetings}
+                empty={prospect.stage === 'meeting_scheduled' ? 'The Meet link shows here once the consultation is booked.' : undefined}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3">

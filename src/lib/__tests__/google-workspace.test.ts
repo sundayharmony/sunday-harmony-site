@@ -95,10 +95,16 @@ describe('google workspace mappers', () => {
       const body = JSON.parse(String(init?.body || '{}')) as {
         summary?: string
         attendees?: Array<{ email?: string }>
+        conferenceData?: { createRequest?: { conferenceSolutionKey?: { type?: string } } }
       }
       assert.equal(body.summary, 'Meeting: Sample Co')
       assert.equal(body.attendees?.[0]?.email, 'owner@example.com')
-      return new Response(JSON.stringify({ id: 'evt-1', htmlLink: 'https://calendar.google.com/event' }), { status: 200 })
+      assert.equal(body.conferenceData?.createRequest?.conferenceSolutionKey?.type, 'hangoutsMeet')
+      return new Response(JSON.stringify({
+        id: 'evt-1',
+        htmlLink: 'https://calendar.google.com/event',
+        hangoutLink: 'https://meet.google.com/abc-defg-hij',
+      }), { status: 200 })
     }
     process.env.GOOGLE_CALENDAR_CLIENT_ID = 'id'
     process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'secret'
@@ -115,6 +121,8 @@ describe('google workspace mappers', () => {
       fetchImpl
     )
     assert.equal(created.eventId, 'evt-1')
+    assert.equal(created.meetLink, 'https://meet.google.com/abc-defg-hij')
+    assert.ok(calls.some((call) => call.includes('conferenceDataVersion=1')))
     assert.ok(calls.some((call) => call.includes('sendUpdates=all')))
   })
 })

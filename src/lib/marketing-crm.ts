@@ -1,4 +1,6 @@
-import { syncClientFromLead } from '@/lib/crm-db'
+import { createMeeting, getAllMeetings, syncClientFromLead } from '@/lib/crm-db'
+import { listScheduledBookings } from '@/lib/consultation-db'
+import { meetingStillJoinable, safeMeetHref, type JoinableMeeting } from '@/lib/joinable-meetings'
 import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
 import { emailIlikePattern } from '@/lib/email-match'
 import { createClient, getClientById, getTasksByClient, logActivity, updateClient, type Client } from '@/lib/db'
@@ -764,7 +766,7 @@ export async function scheduleProspectMeeting(
   id: string,
   input: { startsAt: string; durationMinutes?: number; notes?: string },
   actor: MarketingActor
-): Promise<{ prospect: MarketingProspect; htmlLink: string }> {
+): Promise<{ prospect: MarketingProspect; htmlLink: string; meetLink: string; meetings: JoinableMeeting[] }> {
   if (!roleMayRunSalesActions(actor.role)) throw new Error('Only sales can schedule meetings')
   const prospect = await getMarketingProspect(id)
   if (!prospect) throw new Error('Prospect not found')
@@ -808,6 +810,34 @@ export async function scheduleProspectMeeting(
 
   const saved = await getMarketingProspect(id)
   if (!saved) throw new Error('Prospect not found')
+
+  const meeting = await createMeeting({
+    client_id: saved.clientId,
+    lead_id: id,
+    application_uuid: null,
+    title: `Meeting: ${saved.business}`,
+    meeting_type: 'consultation',
+    scheduled_at: startsAt.toISOString(),
+    duration_minutes: durationMinutes,
+    notes,
+    assigned_staff: actor.email || null,
+    google_meet_link: event.meetLink,
+    status: 'scheduled',
+    created_by: actor.email || 'sales',
+  })
+
+  const meetings = await listJoinableMeetings([{ id, business: saved.business }])
+  if (!meetings.some((row) => row.meetLink === event.meetLink)) {
+    meetings.unshift({
+      id: meeting?.id || event.eventId,
+      prospectId: id,
+      business: saved.business,
+      title: `Meeting: ${saved.business}`,
+      startsAt: startsAt.toISOString(),
+      meetLink: event.meetLink,
+    })
+  }
+
   logActivity({
     action: 'status_changed',
     entity_type: 'lead',
@@ -815,7 +845,7 @@ export async function scheduleProspectMeeting(
     actor_email: actor.email || 'staff',
     details: `Scheduled meeting for ${saved.business}`,
   })
-  return { prospect: saved, htmlLink: event.htmlLink }
+  return { prospect: saved, htmlLink: event.htmlLink, meetLink: event.meetLink, meetings }
 }
 
 export async function sendProspectAgreement(
@@ -1028,15 +1058,81 @@ export async function loadMarketingToday(role?: string | null) {
         }))
     : []
 
+  const meetings = role === 'sales_closer' || role === 'admin'
+    ? await listJoinableMeetings(prospects.map((prospect) => ({ id: prospect.id, business: prospect.business })))
+    : []
+
   return {
     kind: 'marketing' as const,
     role: role || 'admin',
     followUps,
     handoffs,
     billable,
+    meetings,
     calendarEvents,
     metrics,
     workspaceConnected: isGoogleWorkspaceConfigured(),
+  }
+}
+
+export async function listJoinableMeetings(
+  prospects: Array<{ id: string; business: string }>
+): Promise<JoinableMeeting[]> {
+  if (prospects.length === 0) return []
+  try {
+    const names = new Map(prospects.map((prospect) => [prospect.id, prospect.business]))
+    const ids = new Set(names.keys())
+    const [stored, bookings] = await Promise.all([
+      getAllMeetings().catch(() => []),
+      listScheduledBookings().catch(() => []),
+    ])
+    const out: JoinableMeeting[] = []
+    const seen = new Set<string>()
+
+    function add(row: JoinableMeeting) {
+      const href = safeMeetHref(row.meetLink)
+      if (!href || !ids.has(row.prospectId)) return
+      const key = `${row.prospectId}|${href}`
+      if (seen.has(key)) return
+      seen.add(key)
+      out.push({ ...row, meetLink: href })
+    }
+
+    for (const meeting of stored) {
+      const prospectId = meeting.lead_id || ''
+      if (meeting.status !== 'scheduled') continue
+      if (!meetingStillJoinable({
+        startsAt: meeting.scheduled_at,
+        durationMinutes: meeting.duration_minutes,
+      })) continue
+      add({
+        id: meeting.id,
+        prospectId,
+        business: names.get(prospectId) || meeting.title || 'Meeting',
+        title: meeting.title || 'Meeting',
+        startsAt: meeting.scheduled_at,
+        meetLink: meeting.google_meet_link || '',
+      })
+    }
+
+    for (const booking of bookings) {
+      const prospectId = booking.lead_id || ''
+      if (!meetingStillJoinable({ startsAt: booking.starts_at, endsAt: booking.ends_at })) continue
+      add({
+        id: booking.id,
+        prospectId,
+        business: names.get(prospectId) || booking.business || 'Consultation',
+        title: booking.business ? `Consultation · ${booking.business}` : 'Consultation',
+        startsAt: booking.starts_at,
+        meetLink: booking.meet_link || '',
+      })
+    }
+
+    out.sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    return out
+  } catch (error) {
+    console.error('listJoinableMeetings error:', error)
+    return []
   }
 }
 

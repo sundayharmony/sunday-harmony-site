@@ -262,6 +262,52 @@ describe('Lumen & Co. Floral continuity', () => {
     assert.equal((await loadMarketingToday('lead_procurement')).billable.length, 0)
     assert.equal((await loadMarketingToday('client_relations')).billable.length, 0)
 
+    const starts = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+    const ends = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
+    db.from('client_meetings').insert({
+      lead_id: id,
+      title: 'Meeting: Lumen & Co. Floral',
+      status: 'scheduled',
+      scheduled_at: starts,
+      duration_minutes: 45,
+      google_meet_link: 'https://meet.google.com/lumen-join',
+      meeting_type: 'consultation',
+      notes: '',
+      created_by: 'sales',
+    })
+    db.from('consultation_bookings').insert({
+      lead_id: id,
+      status: 'scheduled',
+      starts_at: starts,
+      ends_at: ends,
+      meet_link: 'https://meet.google.com/lumen-join',
+      business: 'Lumen & Co. Floral',
+    })
+    db.from('consultation_bookings').insert({
+      lead_id: id,
+      status: 'scheduled',
+      starts_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      ends_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      meet_link: 'https://meet.google.com/lumen-old',
+      business: 'Lumen & Co. Floral',
+    })
+    db.from('client_meetings').insert({
+      lead_id: 'someone-else',
+      title: 'Other',
+      status: 'scheduled',
+      scheduled_at: starts,
+      duration_minutes: 30,
+      google_meet_link: 'https://meet.google.com/other-deal',
+      meeting_type: 'consultation',
+      notes: '',
+      created_by: 'sales',
+    })
+    const joined = await loadMarketingToday('sales_closer')
+    const lumenMeetings = joined.meetings.filter((row) => row.prospectId === id)
+    assert.equal(lumenMeetings.length, 1)
+    assert.equal(lumenMeetings[0]?.meetLink, 'https://meet.google.com/lumen-join')
+    assert.equal((await loadMarketingToday('lead_procurement')).meetings.length, 0)
+
     await updateProspectOnboarding(id, {
       onboarding: { welcomed: true, assets: true, access: true, requirements: true, expectations: true },
     }, relations)

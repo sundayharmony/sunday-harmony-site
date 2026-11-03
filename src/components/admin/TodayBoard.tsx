@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import CloserBilling from '@/components/admin/CloserBilling'
+import MeetingJoinList from '@/components/admin/MeetingJoinList'
+import type { JoinableMeeting } from '@/lib/joinable-meetings'
 import { STAGE_LABELS, type PipelineStage } from '@/lib/marketing-pipeline'
 
 type BillableDeal = {
@@ -19,6 +21,7 @@ type MarketingToday = {
   followUps: { id: string; business: string; followUpAt: string | null; stage: PipelineStage }[]
   handoffs: { id: string; business: string; stage: PipelineStage; href: string }[]
   billable?: BillableDeal[]
+  meetings?: JoinableMeeting[]
   calendarEvents: { id: string; summary: string; start: string; htmlLink: string }[]
   metrics: { label: string; value: string }[]
   workspaceConnected: boolean
@@ -212,6 +215,8 @@ export default function TodayBoard() {
     )
   }
 
+  const meetings = board.meetings || []
+  const showMeetings = board.role === 'sales_closer' || board.role === 'admin'
   const totalItems = board.followUps.length + board.handoffs.length + board.calendarEvents.length
 
   return (
@@ -219,7 +224,7 @@ export default function TodayBoard() {
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-1">Today</h1>
         <p className="text-sm text-brand-muted">
-          Follow-ups, handoffs, and the sales calendar for the marketing pipeline.
+          Follow-ups, handoffs, meetings, and the sales calendar for the marketing pipeline.
         </p>
       </div>
 
@@ -238,6 +243,23 @@ export default function TodayBoard() {
             Google Calendar is not connected. Follow-up dates stay in the CRM only.
           </p>
         </div>
+      )}
+
+      {showMeetings && (
+        <section className="mb-6 rounded-2xl bg-gradient-to-br from-blue-50/70 to-white border border-blue-100 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-xl bg-blue-100 w-10 h-10 rounded-xl flex items-center justify-center">🎥</span>
+            <div>
+              <h2 className="font-semibold text-brand-text">Meetings</h2>
+              <p className="text-xs text-brand-muted">Open the Google Meet after it is scheduled</p>
+            </div>
+          </div>
+          <MeetingJoinList
+            meetings={meetings}
+            showBusiness
+            empty="When a meeting is scheduled, the Join button shows up here."
+          />
+        </section>
       )}
 
       {board.role === 'sales_closer' && (
@@ -267,13 +289,13 @@ export default function TodayBoard() {
         </section>
       )}
 
-      {totalItems === 0 ? (
+      {totalItems === 0 && meetings.length === 0 ? (
         <div className="text-center py-16 rounded-2xl bg-gradient-to-br from-accent-soft/20 to-white border border-dashed border-brand-border">
           <div className="text-4xl mb-3">✨</div>
           <h2 className="text-lg font-bold text-brand-text mb-1">All caught up!</h2>
           <p className="text-sm text-brand-muted">Nothing needs your attention right now.</p>
         </div>
-      ) : (
+      ) : totalItems > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <Section
             title="Follow-ups"
@@ -339,7 +361,7 @@ export default function TodayBoard() {
             )}
           </Section>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
