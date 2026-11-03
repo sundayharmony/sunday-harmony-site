@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { calendarMonthCells, formatCalendarMonth, monthOfDateKey, shiftCalendarMonth } from '@/lib/consultation-slots'
+import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
 
 type Slot = { startsAt: string; endsAt: string; label: string }
 type Day = { date: string; label: string; slots: Slot[] }
@@ -122,6 +123,7 @@ export default function ConsultationBooker({
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Could not book that time')
+      reportGoogleAdsLeadConversion()
       setBooked(payload.whenLabel || 'your selected time')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not book that time')

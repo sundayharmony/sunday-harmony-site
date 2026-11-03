@@ -28,6 +28,7 @@ import {
   IDENTITY_DOCUMENTS,
   BUSINESS_DOCUMENTS,
 } from '@/lib/credit-funding-document-steps'
+import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
 import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
@@ -591,6 +592,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
 
       setUploadProgress(100)
       setApplicationId(intakeData.applicationId || '')
+      reportGoogleAdsLeadConversion()
       setSubmitted(true)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Submission failed')
