@@ -267,6 +267,47 @@ export async function updateStaffDraftApplication(
   return data as CreditFundingApplication
 }
 
+/**
+ * Admin-only correction of intake fields on a non-draft application.
+ * Does not change workflow status; re-derives service/lead classification from goals.
+ */
+export async function updateSubmittedApplicationIntake(
+  id: string,
+  payload: IntakeFormPayload
+): Promise<CreditFundingApplication | null> {
+  const existing = await getCreditFundingApplicationById(id)
+  if (!existing || existing.status === 'draft') return null
+
+  if (payload.email.trim().toLowerCase() !== existing.email.toLowerCase()) {
+    const blocking = await getBlockingIncompleteApplicationByEmail(payload.email)
+    if (blocking && blocking.id !== id) return null
+  }
+
+  const encrypted = buildPartialEncryptedApplicationRow(payload, { preserveSecretsFrom: existing })
+  const fundingGoals = buildFundingGoalsSummary(payload)
+  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .update({
+      ...encrypted,
+      funding_goals: fundingGoals,
+      service_type: classification.serviceType,
+      lead_type: classification.leadType,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .neq('status', 'draft')
+    .select()
+    .single()
+
+  if (error) {
+    console.error('updateSubmittedApplicationIntake error:', error)
+    return null
+  }
+  return data as CreditFundingApplication
+}
+
 export async function finalizeStaffDraftApplication(
   id: string,
   payload: IntakeFormPayload,

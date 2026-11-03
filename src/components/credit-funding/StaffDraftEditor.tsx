@@ -98,8 +98,12 @@ type UploadedDoc = {
   scan_status: string
 }
 
+type EditorMode = 'draft' | 'admin-intake'
+
 type Props = {
   draftId: string | null
+  /** draft = staff drafts; admin-intake = admin corrections on submitted apps */
+  mode?: EditorMode
   onClose: () => void
   onSaved: (id: string) => void
   onFinalized: (id: string) => void
@@ -191,7 +195,14 @@ function mapDraftToForm(draft: Record<string, unknown>): DraftFormState {
   }
 }
 
-export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalized }: Props) {
+export default function StaffDraftEditor({
+  draftId,
+  mode = 'draft',
+  onClose,
+  onSaved,
+  onFinalized,
+}: Props) {
+  const isAdminIntake = mode === 'admin-intake'
   const [form, setForm] = useState<DraftFormState>(emptyForm)
   const [documents, setDocuments] = useState<UploadedDoc[]>([])
   const [applicationId, setApplicationId] = useState('')
@@ -209,6 +220,11 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
 
   useEffect(() => {
     if (!draftId) {
+      if (isAdminIntake) {
+        setError('Select an application to edit intake.')
+        setLoading(false)
+        return
+      }
       setForm(emptyForm())
       setSecretsOnFile(emptySecretsOnFile())
       setDocuments([])
@@ -224,12 +240,15 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
       setLoading(true)
       setError('')
       try {
-        const r = await fetch(`/api/admin/credit-funding/drafts/${draftId}`)
+        const url = isAdminIntake
+          ? `/api/admin/credit-funding/${draftId}/intake`
+          : `/api/admin/credit-funding/drafts/${draftId}`
+        const r = await fetch(url)
         const data = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(data.error || 'Failed to load draft')
+        if (!r.ok) throw new Error(data.error || (isAdminIntake ? 'Failed to load intake' : 'Failed to load draft'))
         if (cancelled) return
         setApplicationId(data.application_id || '')
-        setStatus(data.status || 'draft')
+        setStatus(data.status || (isAdminIntake ? 'submitted' : 'draft'))
         setEditable(Boolean(data.editable))
         setDocuments(data.documents || [])
         if (data.draft) {
@@ -237,7 +256,9 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
           setSecretsOnFile(secretsFromDraft(data.draft))
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load draft')
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : isAdminIntake ? 'Failed to load intake' : 'Failed to load draft')
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -246,7 +267,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
     return () => {
       cancelled = true
     }
-  }, [draftId])
+  }, [draftId, isAdminIntake])
 
   const update = <K extends keyof DraftFormState>(key: K, value: DraftFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -294,25 +315,35 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
     setNotice('')
     try {
       const body = buildBody()
-      const r = await fetch(
-        currentId ? `/api/admin/credit-funding/drafts/${currentId}` : '/api/admin/credit-funding/drafts',
-        {
-          method: currentId ? 'PATCH' : 'POST',
+      let r: Response
+      if (isAdminIntake) {
+        if (!currentId) throw new Error('Application id required')
+        r = await fetch(`/api/admin/credit-funding/${currentId}/intake`, {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-        }
-      )
+        })
+      } else {
+        r = await fetch(
+          currentId ? `/api/admin/credit-funding/drafts/${currentId}` : '/api/admin/credit-funding/drafts',
+          {
+            method: currentId ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }
+        )
+      }
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || 'Save failed')
-      setNotice(currentId ? 'Draft saved.' : 'Draft created.')
+      setNotice(isAdminIntake ? 'Intake corrections saved.' : currentId ? 'Draft saved.' : 'Draft created.')
       setApplicationId(data.application_id || applicationId)
-      setStatus(data.status || 'draft')
+      setStatus(data.status || (isAdminIntake ? status : 'draft'))
       setEditable(true)
       if (data.draft) {
         setForm(mapDraftToForm(data.draft))
         setSecretsOnFile(secretsFromDraft(data.draft))
       }
-      onSaved(data.id)
+      onSaved(data.id || currentId || '')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
@@ -395,7 +426,11 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
   }
 
   if (loading) {
-    return <div className="p-6 text-sm text-brand-muted">Loading draft…</div>
+    return (
+      <div className="p-6 text-sm text-brand-muted">
+        {isAdminIntake ? 'Loading intake…' : 'Loading draft…'}
+      </div>
+    )
   }
 
   return (
@@ -403,14 +438,25 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-brand-text">
-            {currentId ? 'Edit Draft Application' : 'New Draft Application'}
+            {isAdminIntake
+              ? 'Edit Client Intake'
+              : currentId
+                ? 'Edit Draft Application'
+                : 'New Draft Application'}
           </h2>
           <p className="text-sm text-brand-muted mt-1">
-            Save incomplete applications and return later. Finalize when ready, or email the client to finish.
+            {isAdminIntake
+              ? 'Admin-only corrections to submitted intake answers. Sensitive values already on file stay unless you replace them.'
+              : 'Save incomplete applications and return later. Finalize when ready, or email the client to finish.'}
           </p>
           {applicationId && (
             <p className="text-xs font-semibold text-brand-text mt-2">
-              {applicationId} · {status === 'draft' ? 'Draft' : 'Waiting on client'}
+              {applicationId} ·{' '}
+              {isAdminIntake
+                ? status.replace(/_/g, ' ')
+                : status === 'draft'
+                  ? 'Draft'
+                  : 'Waiting on client'}
             </p>
           )}
         </div>
@@ -426,7 +472,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
       {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>}
       {notice && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">{notice}</div>}
 
-      {!editable && (
+      {!editable && !isAdminIntake && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
           A finish link was sent to the client. Editing is locked until you cancel the link or they submit.
         </div>
@@ -605,43 +651,45 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
           />
         )}
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-bold text-brand-text">Documents</h3>
-          <p className="text-xs text-brand-muted">
-            Save the draft once before uploading. Required for client intake: photo ID, mail proof, and 3-bureau credit
-            report.
-          </p>
-          <AnnualCreditReportGuide />
-          <ul className="space-y-2">
-            {[...IDENTITY_DOCUMENTS, ...(showBusiness ? BUSINESS_DOCUMENTS : [])].map((doc) => {
-              const existing = documents.filter((d) => d.document_type === doc.type)
-              return (
-                <li key={doc.type} className="flex flex-wrap items-center justify-between gap-2 border border-brand-border rounded-lg p-3">
-                  <div>
-                    <p className="text-sm font-semibold text-brand-text">
-                      {doc.label}{doc.required ? ' *' : ''}
-                    </p>
-                    {existing.length > 0 ? (
-                      <p className="text-xs text-green-700">{existing.map((d) => d.file_name).join(', ')}</p>
-                    ) : (
-                      <p className="text-xs text-brand-muted">Not uploaded</p>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.txt,image/*,application/pdf"
-                    disabled={!currentId || !editable}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) void uploadDoc(doc.type, file)
-                      e.target.value = ''
-                    }}
-                  />
-                </li>
-              )
-            })}
-          </ul>
-        </section>
+        {!isAdminIntake && (
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold text-brand-text">Documents</h3>
+            <p className="text-xs text-brand-muted">
+              Save the draft once before uploading. Required for client intake: photo ID, mail proof, and 3-bureau credit
+              report.
+            </p>
+            <AnnualCreditReportGuide />
+            <ul className="space-y-2">
+              {[...IDENTITY_DOCUMENTS, ...(showBusiness ? BUSINESS_DOCUMENTS : [])].map((doc) => {
+                const existing = documents.filter((d) => d.document_type === doc.type)
+                return (
+                  <li key={doc.type} className="flex flex-wrap items-center justify-between gap-2 border border-brand-border rounded-lg p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-brand-text">
+                        {doc.label}{doc.required ? ' *' : ''}
+                      </p>
+                      {existing.length > 0 ? (
+                        <p className="text-xs text-green-700">{existing.map((d) => d.file_name).join(', ')}</p>
+                      ) : (
+                        <p className="text-xs text-brand-muted">Not uploaded</p>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.txt,image/*,application/pdf"
+                      disabled={!currentId || !editable}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void uploadDoc(doc.type, file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
 
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -668,7 +716,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
       </fieldset>
 
       <div className="space-y-3 border-t border-brand-border pt-4">
-        {editable && (
+        {editable && !isAdminIntake && (
           <div>
             <label className={labelClass}>Message for client finish email (optional)</label>
             <textarea
@@ -687,10 +735,16 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
               onClick={() => void saveDraft()}
               className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-50"
             >
-              {saving ? 'Saving…' : currentId ? 'Save Draft' : 'Create Draft'}
+              {saving
+                ? 'Saving…'
+                : isAdminIntake
+                  ? 'Save Intake Corrections'
+                  : currentId
+                    ? 'Save Draft'
+                    : 'Create Draft'}
             </button>
           )}
-          {editable && currentId && (
+          {editable && currentId && !isAdminIntake && (
             <>
               <button
                 type="button"
@@ -710,7 +764,7 @@ export default function StaffDraftEditor({ draftId, onClose, onSaved, onFinalize
               </button>
             </>
           )}
-          {!editable && status === 'invitation_pending' && currentId && (
+          {!editable && !isAdminIntake && status === 'invitation_pending' && currentId && (
             <button
               type="button"
               disabled={saving}

@@ -193,6 +193,8 @@ function CreditFundingAdminContent() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showDraftEditor, setShowDraftEditor] = useState(false)
   const [draftEditorId, setDraftEditorId] = useState<string | null>(null)
+  const [draftEditorMode, setDraftEditorMode] = useState<'draft' | 'admin-intake'>('draft')
+  const [isAdmin, setIsAdmin] = useState(false)
   const [inviteForm, setInviteForm] = useState({
     full_name: '',
     email: '',
@@ -216,6 +218,7 @@ function CreditFundingAdminContent() {
     const listed = applications.find((a) => a.id === id)
     if (listed?.status === 'draft' || (listed?.status === 'invitation_pending' && listed.draft_source === 'staff_manual')) {
       setSelected(null)
+      setDraftEditorMode('draft')
       setDraftEditorId(id)
       setShowDraftEditor(true)
       if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
@@ -223,11 +226,39 @@ function CreditFundingAdminContent() {
       }
       return
     }
+    setShowDraftEditor(false)
+    setDraftEditorId(null)
+    setDraftEditorMode('draft')
     loadDetail(id, { resetTab: true })
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
       setListPanelOpen(false)
     }
   }
+
+  const openAdminIntakeEditor = (applicationId: string) => {
+    if (!isAdmin) return
+    setDraftEditorMode('admin-intake')
+    setDraftEditorId(applicationId)
+    setShowDraftEditor(true)
+    setInviteNotice('')
+    setError('')
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      setListPanelOpen(false)
+    }
+  }
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const sessionRes = await fetch('/api/auth/session')
+        if (!sessionRes.ok) return
+        const data = await sessionRes.json()
+        setIsAdmin(data?.user?.role === 'admin')
+      } catch {
+        /* ignore */
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -757,6 +788,7 @@ function CreditFundingAdminContent() {
             type="button"
             onClick={() => {
               setDraftEditorId(null)
+              setDraftEditorMode('draft')
               setShowDraftEditor(true)
               setSelected(null)
               setInviteNotice('')
@@ -808,9 +840,16 @@ function CreditFundingAdminContent() {
         <div className="mb-6">
           <StaffDraftEditor
             draftId={draftEditorId}
+            mode={draftEditorMode}
             onClose={() => {
+              const wasIntake = draftEditorMode === 'admin-intake'
+              const closedId = draftEditorId
               setShowDraftEditor(false)
               setDraftEditorId(null)
+              setDraftEditorMode('draft')
+              if (wasIntake && closedId) {
+                void loadDetail(closedId)
+              }
             }}
             onSaved={(id) => {
               setDraftEditorId(id)
@@ -821,6 +860,10 @@ function CreditFundingAdminContent() {
                   if (statusFilter !== 'all') params.set('status', statusFilter)
                   const r = await fetch(`/api/admin/credit-funding?${params}`)
                   if (r.ok) setApplications(await r.json())
+                  if (draftEditorMode === 'admin-intake' && id) {
+                    await loadDetail(id)
+                    setInviteNotice('Intake corrections saved.')
+                  }
                 } finally {
                   setLoading(false)
                 }
@@ -829,6 +872,7 @@ function CreditFundingAdminContent() {
             onFinalized={(id) => {
               setShowDraftEditor(false)
               setDraftEditorId(null)
+              setDraftEditorMode('draft')
               void (async () => {
                 try {
                   const params = new URLSearchParams()
@@ -1295,7 +1339,18 @@ function CreditFundingAdminContent() {
                     <p className="text-sm text-brand-muted max-w-xl">
                       Download this intake and the client&apos;s uploaded files as one PDF. Passwords and security answers stay on this screen.
                     </p>
-                    {renderIntakeDownloadButton()}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isAdmin && selected.status !== 'draft' && (
+                        <button
+                          type="button"
+                          onClick={() => openAdminIntakeEditor(selected.id)}
+                          className="px-3 py-2 text-xs font-semibold border border-brand-border rounded-lg hover:bg-neutral-50"
+                        >
+                          Edit intake
+                        </button>
+                      )}
+                      {renderIntakeDownloadButton()}
+                    </div>
                   </div>
                   <DetailSection title="Personal Information">
                     <DetailField label="Full Name" value={selected.full_name} />
