@@ -510,12 +510,17 @@ describe('intake questionnaire vs staff credentials', () => {
 })
 
 describe('admin workflow progression strip', () => {
-  it('renders the admin case workflow horizontally on desktop and mobile', () => {
+  it('renders the admin case workflow horizontally and prominently', () => {
     const adminWorkflow = readFileSync('src/components/credit-funding/AdminApplicationWorkflow.tsx', 'utf8')
     const strip = readFileSync('src/components/credit-funding/WorkflowStepStrip.tsx', 'utf8')
+    const page = readFileSync('src/app/admin/credit-funding/page.tsx', 'utf8')
     assert.match(adminWorkflow, /layout="horizontal"/)
+    assert.match(adminWorkflow, /size="prominent"/)
     assert.doesNotMatch(adminWorkflow, /layout="vertical"/)
-    assert.match(strip, /layout \?=== 'horizontal'|layout === 'horizontal'/)
+    assert.match(strip, /layout === 'horizontal'/)
+    assert.match(strip, /size === 'prominent'|prominent = size === 'prominent'/)
     assert.match(strip, /overflow-x-auto/)
+    assert.match(page, /text-sm sm:text-base font-semibold/)
+    assert.match(page, /sm:px-5 sm:py-3/)
   })
 })

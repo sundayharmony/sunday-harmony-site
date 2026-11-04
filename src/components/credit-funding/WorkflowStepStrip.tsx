@@ -19,17 +19,21 @@ function stepKey(step: StepItem, index: number): string {
 interface Props {
   steps: StepItem[]
   layout?: 'vertical' | 'horizontal'
+  /** Larger target for admin case workflow; default stays compact for intake forms. */
+  size?: 'default' | 'prominent'
 }
 
 function hasHistoryEntry(step: StepItem): step is WorkflowStepState {
   return 'historyEntry' in step
 }
 
-export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
+export function WorkflowStepStrip({ steps, layout = 'vertical', size = 'default' }: Props) {
+  const prominent = size === 'prominent'
+
   if (layout === 'horizontal') {
     return (
-      <div className="overflow-x-auto pt-1 pb-2 -mx-1 px-1">
-        <ol className="flex items-start gap-1 min-w-max list-none m-0 p-0">
+      <div className={`overflow-x-auto -mx-1 px-1 ${prominent ? 'pt-2 pb-3' : 'pt-1 pb-2'}`}>
+        <ol className={`flex items-start list-none m-0 p-0 ${prominent ? 'gap-2' : 'gap-1'} min-w-max`}>
           {steps.map((step, i) => {
             const historyLabel =
               hasHistoryEntry(step) && step.historyEntry
@@ -37,13 +41,23 @@ export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
                 : ''
             return (
               <li key={stepKey(step, i)} className="flex items-center">
-                <div className="flex flex-col items-center w-[76px] sm:w-[96px]">
+                <div
+                  className={`flex flex-col items-center ${
+                    prominent ? 'w-[104px] sm:w-[120px]' : 'w-[76px] sm:w-[96px]'
+                  }`}
+                >
                   <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                    className={`rounded-full flex items-center justify-center font-bold shrink-0 ${
+                      prominent
+                        ? 'w-11 h-11 sm:w-12 sm:h-12 text-sm sm:text-base'
+                        : 'w-7 h-7 text-[10px]'
+                    } ${
                       step.isComplete
                         ? 'bg-accent text-white'
                         : step.isCurrent
-                          ? 'bg-brand-text text-white ring-2 ring-accent ring-offset-1'
+                          ? `bg-brand-text text-white ring-2 ring-accent ${
+                              prominent ? 'ring-offset-2' : 'ring-offset-1'
+                            }`
                           : 'bg-neutral-200 text-brand-dim'
                     }`}
                     title={historyLabel ? `${step.label} · ${historyLabel}` : step.label}
@@ -52,7 +66,11 @@ export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
                     {step.isComplete ? '✓' : i + 1}
                   </div>
                   <p
-                    className={`mt-1.5 text-[9px] sm:text-[10px] text-center leading-tight line-clamp-2 ${
+                    className={`mt-2 text-center leading-tight line-clamp-2 ${
+                      prominent
+                        ? 'text-xs sm:text-sm'
+                        : 'text-[9px] sm:text-[10px]'
+                    } ${
                       step.isCurrent
                         ? 'font-semibold text-brand-text'
                         : step.isUpcoming
@@ -63,14 +81,22 @@ export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
                     {step.label}
                   </p>
                   {historyLabel ? (
-                    <p className="mt-0.5 text-[8px] sm:text-[9px] text-center text-brand-dim leading-tight line-clamp-2">
+                    <p
+                      className={`mt-1 text-center text-brand-dim leading-tight line-clamp-2 ${
+                        prominent ? 'text-[10px] sm:text-xs' : 'text-[8px] sm:text-[9px]'
+                      }`}
+                    >
                       {historyLabel}
                     </p>
                   ) : null}
                 </div>
                 {i < steps.length - 1 && (
                   <div
-                    className={`w-4 sm:w-6 h-0.5 mb-6 shrink-0 ${step.isComplete ? 'bg-accent' : 'bg-neutral-200'}`}
+                    className={`shrink-0 ${
+                      prominent
+                        ? `w-6 sm:w-10 h-1 mb-8 ${step.isComplete ? 'bg-accent' : 'bg-neutral-200'}`
+                        : `w-4 sm:w-6 h-0.5 mb-6 ${step.isComplete ? 'bg-accent' : 'bg-neutral-200'}`
+                    }`}
                     aria-hidden
                   />
                 )}
