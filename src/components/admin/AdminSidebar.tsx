@@ -5,7 +5,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
+<<<<<<< HEAD
 import NotificationBell from '@/components/ui/NotificationBell'
+=======
+import { useAdminLiveMessageAlerts } from '@/components/admin/AdminLiveMessageAlerts'
+>>>>>>> cursor/messages-unread-badge-toast-30a6
 import { homeForRole, navForRole } from '@/lib/marketing-pipeline'
 
 interface AdminSidebarProps {
@@ -29,6 +33,7 @@ export default function AdminSidebar({
   const navItems = sessionLoading ? [] : navForRole(role || 'admin')
   const dashboardLabel = isCreditManager ? 'Credit Manager' : 'Admin Dashboard'
   const logoHref = role ? homeForRole(role) : '/admin'
+  const { staffUnreadCount, staffUnreadLabel } = useAdminLiveMessageAlerts()
 
   const desktopHidden = hydrated && collapsed
 
@@ -124,7 +129,15 @@ export default function AdminSidebar({
                 }`}
               >
                 <span className="text-base">{item.icon}</span>
-                {item.label}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.href === '/admin/messages' && staffUnreadCount > 0 ? (
+                  <span
+                    className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white"
+                    aria-label={`${staffUnreadCount} unread message${staffUnreadCount === 1 ? '' : 's'}`}
+                  >
+                    {staffUnreadLabel}
+                  </span>
+                ) : null}
               </Link>
             )
           })}
