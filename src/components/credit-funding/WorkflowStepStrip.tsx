@@ -28,37 +28,56 @@ function hasHistoryEntry(step: StepItem): step is WorkflowStepState {
 export function WorkflowStepStrip({ steps, layout = 'vertical' }: Props) {
   if (layout === 'horizontal') {
     return (
-      <div className="overflow-x-auto pt-1 pb-1 -mx-1 px-1">
-        <div className="flex items-start gap-1 min-w-max">
-          {steps.map((step, i) => (
-            <div key={stepKey(step, i)} className="flex items-center">
-              <div className="flex flex-col items-center w-[72px] sm:w-[88px]">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    step.isComplete
-                      ? 'bg-accent text-white'
-                      : step.isCurrent
-                        ? 'bg-brand-text text-white ring-2 ring-accent ring-offset-1'
-                        : 'bg-neutral-200 text-brand-dim'
-                  }`}
-                  title={step.label}
-                >
-                  {step.isComplete ? '✓' : i + 1}
+      <div className="overflow-x-auto pt-1 pb-2 -mx-1 px-1">
+        <ol className="flex items-start gap-1 min-w-max list-none m-0 p-0">
+          {steps.map((step, i) => {
+            const historyLabel =
+              hasHistoryEntry(step) && step.historyEntry
+                ? new Date(step.historyEntry.created_at).toLocaleString()
+                : ''
+            return (
+              <li key={stepKey(step, i)} className="flex items-center">
+                <div className="flex flex-col items-center w-[76px] sm:w-[96px]">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                      step.isComplete
+                        ? 'bg-accent text-white'
+                        : step.isCurrent
+                          ? 'bg-brand-text text-white ring-2 ring-accent ring-offset-1'
+                          : 'bg-neutral-200 text-brand-dim'
+                    }`}
+                    title={historyLabel ? `${step.label} · ${historyLabel}` : step.label}
+                    aria-current={step.isCurrent ? 'step' : undefined}
+                  >
+                    {step.isComplete ? '✓' : i + 1}
+                  </div>
+                  <p
+                    className={`mt-1.5 text-[9px] sm:text-[10px] text-center leading-tight line-clamp-2 ${
+                      step.isCurrent
+                        ? 'font-semibold text-brand-text'
+                        : step.isUpcoming
+                          ? 'text-brand-dim'
+                          : 'text-brand-muted'
+                    }`}
+                  >
+                    {step.label}
+                  </p>
+                  {historyLabel ? (
+                    <p className="mt-0.5 text-[8px] sm:text-[9px] text-center text-brand-dim leading-tight line-clamp-2">
+                      {historyLabel}
+                    </p>
+                  ) : null}
                 </div>
-                <p
-                  className={`mt-1.5 text-[9px] sm:text-[10px] text-center leading-tight line-clamp-2 ${
-                    step.isCurrent ? 'font-semibold text-brand-text' : step.isUpcoming ? 'text-brand-dim' : 'text-brand-muted'
-                  }`}
-                >
-                  {step.label}
-                </p>
-              </div>
-              {i < steps.length - 1 && (
-                <div className={`w-4 sm:w-6 h-0.5 mb-5 shrink-0 ${step.isComplete ? 'bg-accent' : 'bg-neutral-200'}`} />
-              )}
-            </div>
-          ))}
-        </div>
+                {i < steps.length - 1 && (
+                  <div
+                    className={`w-4 sm:w-6 h-0.5 mb-6 shrink-0 ${step.isComplete ? 'bg-accent' : 'bg-neutral-200'}`}
+                    aria-hidden
+                  />
+                )}
+              </li>
+            )
+          })}
+        </ol>
       </div>
     )
   }

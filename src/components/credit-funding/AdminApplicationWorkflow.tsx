@@ -185,7 +185,7 @@ export default function AdminApplicationWorkflow({
         <StatusBadge status={currentStatus} />
       </div>
 
-      <WorkflowStepStrip steps={steps} layout="vertical" />
+      <WorkflowStepStrip steps={steps} layout="horizontal" />
 
       <div className="mt-3 p-3 bg-neutral-50 rounded-lg border border-brand-border">
         <p className="text-sm font-semibold text-brand-text">
