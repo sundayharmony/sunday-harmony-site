@@ -1153,6 +1153,146 @@ export function isFollowUpOutcomeStatus(status: string | null | undefined): bool
   return FOLLOW_UP_OUTCOME_STATUSES.has(String(status || '').trim().toLowerCase())
 }
 
+/**
+ * Evidence that this lifecycle item already went through a prior dispute
+ * package (letter generated, mailed, or bureau outcome). Soft signal only —
+ * selection is never blocked.
+ */
+export function hasPriorDisputeEvidence(item: DisputeItemRow): boolean {
+  if (item.sent_at) return true
+  if (item.current_status === 'disputed') return true
+  if (isFollowUpOutcomeStatus(item.current_status)) return true
+  if (
+    item.current_status === 'deleted' ||
+    item.current_status === 'withdrawn'
+  ) {
+    return Boolean(item.last_round_number) || Boolean(item.sent_at)
+  }
+  return false
+}
+
+/** True when a prior dispute still needs a follow-up letter (do not auto-skip). */
+export function priorDisputeNeedsFollowUp(
+  status: DisputeItemStatus | string | null | undefined
+): boolean {
+  const value = String(status || '')
+    .trim()
+    .toLowerCase()
+  return value === 'verified' || value === 'updated' || value === 'no_response'
+}
+
+export interface PriorDisputeMark {
+  tradelineId: string
+  disputed: true
+  roundNumber: number | null
+  status: DisputeItemStatus | null
+  sentAt: string | null
+  bureaus: BureauCode[]
+  /** Prefer leaving unchecked unless staff overrides. */
+  preferSkip: boolean
+  label: string
+}
+
+export function priorDisputeMarkLabel(params: {
+  roundNumber?: number | null
+  status?: DisputeItemStatus | string | null
+  sentAt?: string | null
+}): string {
+  const round =
+    params.roundNumber && params.roundNumber >= 1 ? `Round ${params.roundNumber}` : null
+  const status = String(params.status || '')
+    .trim()
+    .toLowerCase()
+  let detail = 'prior package'
+  if (params.sentAt) detail = 'sent'
+  else if (status === 'disputed') detail = 'letter generated'
+  else if (status === 'verified') detail = 'verified'
+  else if (status === 'updated') detail = 'updated'
+  else if (status === 'no_response') detail = 'no response'
+  else if (status === 'deleted') detail = 'deleted'
+  else if (status === 'frivolous') detail = 'frivolous'
+  else if (status === 'withdrawn') detail = 'withdrawn'
+  return round ? `Previously disputed · ${round}` : `Previously disputed · ${detail}`
+}
+
+/**
+ * Match a tradeline to lifecycle items that were already disputed in an earlier
+ * round/package. Uses bureau+account identity so renamed creditors still mark.
+ */
+export function priorDisputeMarkForTradeline(
+  tradeline: Tradeline,
+  items: DisputeItemRow[]
+): PriorDisputeMark | null {
+  if (!items.length) return null
+  const bureaus = (tradeline.bureaus || []).filter(
+    (b): b is BureauCode => b === 'TUC' || b === 'EXP' || b === 'EQF'
+  )
+  const targets = bureaus.length ? bureaus : (['TUC', 'EXP', 'EQF'] as BureauCode[])
+  const matched: DisputeItemRow[] = []
+  const matchedBureaus = new Set<BureauCode>()
+
+  for (const bureau of targets) {
+    const identity = itemIdentityFromTradeline(tradeline, bureau)
+    if (!identity) continue
+    const item =
+      findItemForIdentity(items, identity) ||
+      findTrackedAccountItem(items, {
+        bureau: identity.bureau,
+        accountLast4: identity.accountLast4,
+        matchKey: identity.matchKey,
+        creditorName: identity.creditorName,
+      })
+    if (!item || !hasPriorDisputeEvidence(item)) continue
+    matched.push(item)
+    matchedBureaus.add(item.bureau)
+  }
+
+  if (!matched.length) return null
+
+  const preferred = matched.reduce(preferDuplicateAccountItem)
+  const status = preferred.current_status
+  return {
+    tradelineId: tradeline.id,
+    disputed: true,
+    roundNumber: preferred.last_round_number,
+    status,
+    sentAt: preferred.sent_at || null,
+    bureaus: [...matchedBureaus],
+    preferSkip: !priorDisputeNeedsFollowUp(status),
+    label: priorDisputeMarkLabel({
+      roundNumber: preferred.last_round_number,
+      status,
+      sentAt: preferred.sent_at,
+    }),
+  }
+}
+
+export function buildPriorDisputeMarks(
+  tradelines: Tradeline[],
+  items: DisputeItemRow[]
+): Record<string, PriorDisputeMark> {
+  const marks: Record<string, PriorDisputeMark> = {}
+  if (!tradelines.length || !items.length) return marks
+  for (const tradeline of tradelines) {
+    const mark = priorDisputeMarkForTradeline(tradeline, items)
+    if (mark) marks[tradeline.id] = mark
+  }
+  return marks
+}
+
+/** Drop auto-selected accounts that were already disputed and do not need follow-up. */
+export function unselectPreferSkippedPriorDisputes(
+  tradelines: Tradeline[],
+  marks: Record<string, PriorDisputeMark>
+): Tradeline[] {
+  if (!Object.keys(marks).length) return tradelines
+  return tradelines.map((t) => {
+    const mark = marks[t.id]
+    if (!mark?.preferSkip || !t.selected) return t
+    return { ...t, selected: false }
+  })
+}
+
 export interface PlanSelectionWithStatus {
   id?: string
   selected?: boolean

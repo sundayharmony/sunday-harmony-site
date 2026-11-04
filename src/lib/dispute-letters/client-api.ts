@@ -166,6 +166,28 @@ export async function fetchDisputeHealth(sessionId: string) {
   return res.json() as Promise<ReportHealth>
 }
 
+/** Accounts already disputed in earlier rounds (soft marks for generate/plan UX). */
+export async function fetchPriorDisputeMarks(sessionId: string) {
+  const res = await fetch(`/api/admin/dispute-letters/${encodeURIComponent(sessionId)}/prior-disputes`, {
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    return {
+      marks: [] as import('@/lib/dispute-letters/dispute-lifecycle').PriorDisputeMark[],
+      marksByTradelineId: {} as Record<
+        string,
+        import('@/lib/dispute-letters/dispute-lifecycle').PriorDisputeMark
+      >,
+      itemCount: 0,
+    }
+  }
+  return res.json() as Promise<{
+    marks: import('@/lib/dispute-letters/dispute-lifecycle').PriorDisputeMark[]
+    marksByTradelineId: Record<string, import('@/lib/dispute-letters/dispute-lifecycle').PriorDisputeMark>
+    itemCount: number
+  }>
+}
+
 export async function fetchDisputeSessionsForApplication(applicationUuid: string) {
   const res = await fetch(
     `/api/admin/dispute-letters/by-application?applicationUuid=${encodeURIComponent(applicationUuid)}`

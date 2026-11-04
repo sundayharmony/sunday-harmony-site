@@ -15,6 +15,7 @@ import {
   expandTradelineSelections,
   enrichPlanSelectionsWithItemStatus,
   formatStatusHistory,
+  hasPriorDisputeEvidence,
   isFollowUpOutcomeStatus,
   isRoundClosedForNext,
   isRoundFullySent,
@@ -34,6 +35,11 @@ import {
   uniqueItemsByAccountNumber,
   uniqueNextRoundItems,
   findTrackedAccountItem,
+  buildPriorDisputeMarks,
+  priorDisputeMarkForTradeline,
+  priorDisputeMarkLabel,
+  priorDisputeNeedsFollowUp,
+  unselectPreferSkippedPriorDisputes,
   roundWorkflowView,
   shouldAppendStatusEvent,
   shouldReuseLetterPackage,
@@ -940,5 +946,115 @@ describe('shouldAppendStatusEvent', () => {
       }),
       true
     )
+  })
+})
+
+describe('prior dispute marks for generate/plan UX', () => {
+  it('detects prior dispute evidence from sent, letter, and outcome statuses', () => {
+    assert.equal(hasPriorDisputeEvidence(item({ id: 'p', current_status: 'pending' })), false)
+    assert.equal(
+      hasPriorDisputeEvidence(item({ id: 's', current_status: 'selected_for_round' })),
+      false
+    )
+    assert.equal(hasPriorDisputeEvidence(item({ id: 'd', current_status: 'disputed' })), true)
+    assert.equal(
+      hasPriorDisputeEvidence(
+        item({ id: 'm', current_status: 'disputed', sent_at: '2026-09-15T12:00:00.000Z' })
+      ),
+      true
+    )
+    assert.equal(hasPriorDisputeEvidence(item({ id: 'v', current_status: 'verified' })), true)
+    assert.equal(
+      hasPriorDisputeEvidence(item({ id: 'gone', current_status: 'deleted', last_round_number: 1 })),
+      true
+    )
+    assert.equal(priorDisputeNeedsFollowUp('verified'), true)
+    assert.equal(priorDisputeNeedsFollowUp('disputed'), false)
+    assert.match(priorDisputeMarkLabel({ roundNumber: 1, sentAt: '2026-09-15' }), /Round 1/)
+  })
+
+  it('marks matching tradelines and prefers skipping unless follow-up is needed', () => {
+    const sent = item({
+      id: 'sent-1',
+      match_key: 'a4:TUC:4455',
+      account_last4: '4455',
+      bureau: 'TUC',
+      creditor_name: 'CAPITAL ONE',
+      current_status: 'disputed',
+      sent_at: '2026-09-15T12:00:00.000Z',
+      last_round_number: 1,
+    })
+    const verified = item({
+      id: 'ver-1',
+      match_key: 'a4:EXP:9999',
+      account_last4: '9999',
+      bureau: 'EXP',
+      creditor_name: 'KIKOFF',
+      current_status: 'verified',
+      last_round_number: 1,
+    })
+    const capital = tl({
+      id: 'tl-cap',
+      creditor: 'CAPITAL ONE',
+      account_tu: 'XXXX4455',
+      bureaus: ['TUC'],
+      selected: true,
+    })
+    const kikoff = tl({
+      id: 'tl-kik',
+      creditor: 'KIKOFF',
+      account_exp: 'XXXX9999',
+      bureaus: ['EXP'],
+      selected: true,
+    })
+    const fresh = tl({
+      id: 'tl-new',
+      creditor: 'NEW BANK',
+      account_tu: 'XXXX1111',
+      bureaus: ['TUC'],
+      selected: true,
+    })
+
+    const capMark = priorDisputeMarkForTradeline(capital, [sent, verified])
+    assert.equal(capMark?.disputed, true)
+    assert.equal(capMark?.preferSkip, true)
+    assert.match(capMark?.label || '', /Previously disputed/)
+
+    const kikMark = priorDisputeMarkForTradeline(kikoff, [sent, verified])
+    assert.equal(kikMark?.preferSkip, false)
+    assert.equal(kikMark?.status, 'verified')
+
+    assert.equal(priorDisputeMarkForTradeline(fresh, [sent, verified]), null)
+
+    const marks = buildPriorDisputeMarks([capital, kikoff, fresh], [sent, verified])
+    assert.equal(Object.keys(marks).length, 2)
+    const cleared = unselectPreferSkippedPriorDisputes(
+      [capital, kikoff, fresh],
+      marks
+    )
+    assert.equal(cleared.find((t) => t.id === 'tl-cap')?.selected, false)
+    assert.equal(cleared.find((t) => t.id === 'tl-kik')?.selected, true)
+    assert.equal(cleared.find((t) => t.id === 'tl-new')?.selected, true)
+  })
+
+  it('wires prior-disputes into review/health/confirm UX without blocking selection', () => {
+    const review = readFileSync('src/components/dispute-letters/DisputeReviewStep.tsx', 'utf8')
+    const health = readFileSync('src/components/dispute-letters/DisputeHealthStep.tsx', 'utf8')
+    const confirm = readFileSync('src/components/dispute-letters/DisputeConfirmStep.tsx', 'utf8')
+    const card = readFileSync('src/components/dispute-letters/TradelineCard.tsx', 'utf8')
+    const route = readFileSync(
+      'src/app/api/admin/dispute-letters/[id]/prior-disputes/route.ts',
+      'utf8'
+    )
+    assert.match(review, /fetchPriorDisputeMarks/)
+    assert.match(review, /priorDispute=\{priorMarks/)
+    assert.match(review, /Previously disputed/)
+    assert.match(health, /fetchPriorDisputeMarks/)
+    assert.match(health, /priorDispute=\{priorMarks/)
+    assert.match(confirm, /fetchPriorDisputeMarks/)
+    assert.match(confirm, /prior\.label/)
+    assert.match(card, /priorDispute/)
+    assert.match(card, /Already disputed/)
+    assert.match(route, /loadPriorDisputeMarksForSession/)
   })
 })

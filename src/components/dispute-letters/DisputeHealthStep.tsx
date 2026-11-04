@@ -8,8 +8,16 @@ import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLet
 import { EmptyState } from '@/components/dispute-letters/EmptyState'
 import { StatCard } from '@/components/dispute-letters/StatCard'
 import { TRADELINE_CARD_GRID, TradelineCard } from '@/components/dispute-letters/TradelineCard'
-import { fetchDisputeHealth, patchDisputeTradelines } from '@/lib/dispute-letters/client-api'
+import {
+  fetchDisputeHealth,
+  fetchPriorDisputeMarks,
+  patchDisputeTradelines,
+} from '@/lib/dispute-letters/client-api'
 import { applyRecommendedSelection } from '@/lib/dispute-letters/dispute-selection'
+import {
+  unselectPreferSkippedPriorDisputes,
+  type PriorDisputeMark,
+} from '@/lib/dispute-letters/dispute-lifecycle'
 import { sourceLabel, type Tradeline } from '@/lib/dispute-letters/types'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
@@ -27,6 +35,7 @@ export default function DisputeHealthStep({
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof fetchDisputeHealth>> | null>(null)
   const [tradelines, setTradelines] = useState<Tradeline[]>([])
+  const [priorMarks, setPriorMarks] = useState<Record<string, PriorDisputeMark>>({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -44,19 +53,21 @@ export default function DisputeHealthStep({
   useEffect(() => {
     if (!sessionId) return
     setData(null)
+    setPriorMarks({})
     setError('')
-    fetchDisputeHealth(sessionId)
-      .then((health) => {
+    Promise.all([fetchDisputeHealth(sessionId), fetchPriorDisputeMarks(sessionId)])
+      .then(([health, prior]) => {
         setData(health)
-        setTradelines(
-          applyRecommendedSelection(
-            (health.tradelines_by_priority || []).map((t) => ({
-              ...t,
-              dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
-              dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
-            }))
-          )
-        )
+        const marks = prior.marksByTradelineId || {}
+        setPriorMarks(marks)
+        const mapped = (health.tradelines_by_priority || []).map((t) => ({
+          ...t,
+          dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
+          dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
+        }))
+        const anySelected = mapped.some((t) => t.selected)
+        const next = anySelected ? mapped : applyRecommendedSelection(mapped)
+        setTradelines(unselectPreferSkippedPriorDisputes(next, marks))
       })
       .catch(() => setError('Failed to load credit health summary'))
   }, [sessionId])
@@ -88,6 +99,8 @@ export default function DisputeHealthStep({
 
   const { credit_health: h, consumer_name, report_date, credit_intelligence: intel } = data
   const selectedCount = tradelines.filter((t) => t.selected).length
+  const priorMarkCount = Object.keys(priorMarks).length
+  const priorSelectedCount = tradelines.filter((t) => t.selected && priorMarks[t.id]?.preferSkip).length
 
   return (
     <div className={`${embedded ? '' : 'max-w-4xl'} space-y-6`}>
@@ -148,12 +161,20 @@ export default function DisputeHealthStep({
       )}
 
       <div>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-semibold text-brand-text">
             {embedded ? 'Accounts' : 'Priority dispute queue'}
           </h3>
           <p className="text-sm text-brand-dim">{selectedCount} selected for dispute</p>
         </div>
+
+        {priorMarkCount > 0 && (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {priorMarkCount} account{priorMarkCount === 1 ? '' : 's'} already disputed in an earlier
+            round — marked in amber. Still selectable if needed
+            {priorSelectedCount > 0 ? ` (${priorSelectedCount} re-selected).` : '.'}
+          </div>
+        )}
 
         {tradelines.length === 0 ? (
           <EmptyState
@@ -167,6 +188,7 @@ export default function DisputeHealthStep({
                 key={t.id}
                 tradeline={t}
                 selected={t.selected}
+                priorDispute={priorMarks[t.id] || null}
                 onSelect={(checked) => toggleSelect(t.id, checked)}
                 compact
               />
