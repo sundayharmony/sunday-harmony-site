@@ -91,6 +91,11 @@ def cursor_api_configured() -> bool:
     return bool(os.environ.get("CURSOR_API_KEY", "").strip())
 
 
+def cursor_analyze_agent_enabled() -> bool:
+    """The Cursor agent is opt-in. Empty parses are finished on Vercel with Gemini."""
+    return os.environ.get("CURSOR_ANALYZE_AGENT", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def real_account_count(report: ParsedReport) -> int:
     """Tradelines that look like furnished accounts, not empty or inquiry rows."""
     return sum(1 for tl in report.tradelines if _is_real_account(tl))
@@ -167,6 +172,12 @@ async def analyze_report_async(
             f"Parsed {real_account_count(local)} account(s) locally from the uploaded report."
         )
         return _finalize_report(local, file_name=file_name, doc=doc)
+
+    if not cursor_analyze_agent_enabled():
+        if allow_fallback:
+            local.analysis_summary = "Parsed locally. No accounts matched a known report layout."
+            return _finalize_report(local, file_name=file_name, doc=doc)
+        raise RuntimeError("CURSOR_ANALYZE_AGENT is required for report analysis")
 
     if not cursor_api_configured():
         if allow_fallback:

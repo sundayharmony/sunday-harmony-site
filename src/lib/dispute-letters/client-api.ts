@@ -82,7 +82,14 @@ export async function analyzeReport(
 
     if (status === 'ready') {
       onProgress?.('Loading analysis results…')
-      return fetchDisputeReport(sessionId)
+      const loaded = await fetchDisputeReport(sessionId)
+      if ((loaded.report?.tradelines || []).length > 0) return loaded
+      onProgress?.('Reading this scan…')
+      const modelRes = await fetch(`/api/admin/dispute-letters/${sessionId}/model-read`, {
+        method: 'POST',
+      })
+      if (!modelRes.ok) return loaded
+      return modelRes.json() as Promise<{ session_id: string; report: ParsedReport }>
     }
 
     if (status === 'failed') {

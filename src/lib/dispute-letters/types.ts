@@ -297,6 +297,7 @@ export const FACTOR_LABELS: Record<string, string> = {
 
 export function sourceLabel(source: string) {
   if (source === 'cursor_agent') return 'AI analyzed'
+  if (source === 'gemini') return 'Scan read'
   if (source === 'fallback_parser') return 'Local parse'
   return source
 }

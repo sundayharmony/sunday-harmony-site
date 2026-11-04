@@ -170,6 +170,7 @@ def test_agent_is_called_once_when_local_parse_has_no_accounts(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setenv("CURSOR_API_KEY", "test-key")
+    monkeypatch.setenv("CURSOR_ANALYZE_AGENT", "1")
     monkeypatch.setattr("app.services.report_analyzer._analyze_via_agent", _agent)
     report = asyncio.run(analyze_report_async(_doc(NARRATIVE), file_name="notes.pdf"))
     assert calls == [False]
@@ -201,7 +202,24 @@ def test_agent_result_is_kept_when_local_parse_is_empty(monkeypatch):
         )
 
     monkeypatch.setenv("CURSOR_API_KEY", "test-key")
+    monkeypatch.setenv("CURSOR_ANALYZE_AGENT", "1")
     monkeypatch.setattr("app.services.report_analyzer._analyze_via_agent", _agent)
     report = asyncio.run(analyze_report_async(_doc(NARRATIVE), file_name="mystery.pdf"))
     assert [tl.creditor for tl in report.tradelines] == ["AGENT BANK"]
     assert report.source == "cursor_agent"
+
+
+def test_empty_local_parse_does_not_call_the_agent_by_default(monkeypatch):
+    calls: list[bool] = []
+
+    async def _agent(*_args, **_kwargs):
+        calls.append(True)
+        raise AssertionError("agent should stay off unless CURSOR_ANALYZE_AGENT is set")
+
+    monkeypatch.setenv("CURSOR_API_KEY", "test-key")
+    monkeypatch.delenv("CURSOR_ANALYZE_AGENT", raising=False)
+    monkeypatch.setattr("app.services.report_analyzer._analyze_via_agent", _agent)
+    report = asyncio.run(analyze_report_async(_doc(NARRATIVE), file_name="mystery.pdf"))
+    assert calls == []
+    assert report.tradelines == []
+    assert "known report layout" in report.analysis_summary
