@@ -11,6 +11,7 @@ import type { ReportHealth } from '@/lib/dispute-letters/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 90
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -61,10 +62,26 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!access.ok) return access.response
 
   try {
-    const data = (await disputeLettersJson(`/internal/reports/${id}/health`)) as ReportHealth
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 85_000)
+    let data: ReportHealth
+    try {
+      data = (await disputeLettersJson(`/internal/reports/${id}/health`, {
+        signal: controller.signal,
+      })) as ReportHealth
+    } finally {
+      clearTimeout(timer)
+    }
     return NextResponse.json(await withScoresAcrossReports(data, id))
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to load health summary'
-    return NextResponse.json({ error: message }, { status: 502 })
+    const aborted =
+      (err instanceof Error && err.name === 'AbortError') ||
+      (typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError')
+    const message = aborted
+      ? 'Health summary timed out waiting for the analysis service. Refresh and try again.'
+      : err instanceof Error
+        ? err.message
+        : 'Failed to load health summary'
+    return NextResponse.json({ error: message }, { status: aborted ? 504 : 502 })
   }
 }

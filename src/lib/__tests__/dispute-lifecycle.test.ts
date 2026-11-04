@@ -1070,6 +1070,8 @@ describe('prior dispute marks for generate/plan UX', () => {
     assert.match(review, /Previously disputed/)
     assert.match(health, /fetchPriorDisputeMarks/)
     assert.match(health, /priorDispute=\{priorMarks/)
+    assert.match(health, /Still working/)
+    assert.match(health, /letter service wakes up/)
     assert.match(confirm, /fetchPriorDisputeMarks/)
     assert.match(confirm, /prior\.label/)
     assert.match(card, /priorDispute/)
