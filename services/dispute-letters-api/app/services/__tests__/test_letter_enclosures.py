@@ -47,17 +47,18 @@ def test_template_puts_dob_and_ssn_at_letter_beginning():
             name="Jane Consumer",
             addresses=["123 Main St\nSpringfield, IL 62701"],
             dob="January 15, 1988",
+            ssn="123456789",
             ssn_last4="6789",
         ),
     )
     header_end = text.index("Experian")
     opening = text[:header_end]
     assert "Date of Birth: January 15, 1988" in opening
-    assert "Social Security Number: XXX-XX-6789" in opening
+    assert "Social Security Number: 123-45-6789" in opening
     assert opening.index("JANE CONSUMER") < opening.index("Date of Birth:")
     assert opening.index("Date of Birth:") < opening.index("Social Security Number:")
     assert "Date of Birth: January 15, 1988" in text.split("Consumer Identification", 1)[1]
-    assert "Social Security Number: XXX-XX-6789" in text.split("Consumer Identification", 1)[1]
+    assert "Social Security Number: 123-45-6789" in text.split("Consumer Identification", 1)[1]
     layout = letter_layout(text)
     fields = [
         block.get("text", "")
@@ -65,7 +66,20 @@ def test_template_puts_dob_and_ssn_at_letter_beginning():
         if block.get("variant") == "field"
     ]
     assert any(f.startswith("Date of Birth:") for f in fields)
-    assert any(f.startswith("Social Security Number:") for f in fields)
+    assert any(f.startswith("Social Security Number: 123-45-6789") for f in fields)
+
+
+def test_template_falls_back_to_masked_last4_without_full_ssn():
+    text = _template_fallback(
+        _plan(),
+        ConsumerInfo(
+            name="Jane Consumer",
+            addresses=["123 Main St"],
+            dob="January 15, 1988",
+            ssn_last4="6789",
+        ),
+    )
+    assert "Social Security Number: XXX-XX-6789" in text
 
 
 def test_prompt_requires_identity_enclosures():

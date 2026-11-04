@@ -132,6 +132,8 @@ class GenerateStreamRequest(BaseModel):
     plan_ids: list[str] | None = None
     consumer_name: str | None = None
     consumer_addresses: list[str] | None = None
+    consumer_ssn: str | None = None
+    consumer_dob: str | None = None
 
 
 # In-flight analyze jobs (same process). Survives the HTTP response for /analyze/start.
@@ -457,6 +459,8 @@ async def generate_letters_start(
         body.plan_ids,
         consumer_name=body.consumer_name,
         consumer_addresses=body.consumer_addresses,
+        consumer_ssn=body.consumer_ssn,
+        consumer_dob=body.consumer_dob,
     )
     return {
         "status": "generating",
@@ -499,6 +503,8 @@ async def generate_letters_stream(
                 body.plan_ids,
                 consumer_name=body.consumer_name,
                 consumer_addresses=body.consumer_addresses,
+                consumer_ssn=body.consumer_ssn,
+                consumer_dob=body.consumer_dob,
                 on_event=on_event,
             )
         )
@@ -544,6 +550,8 @@ async def generate_letters(body: GenerateLettersRequest, _: None = Depends(verif
             body.plan_ids,
             consumer_name=body.consumer_name,
             consumer_addresses=body.consumer_addresses,
+            consumer_ssn=body.consumer_ssn,
+            consumer_dob=body.consumer_dob,
         )
     except RuntimeError as e:
         message = str(e)
