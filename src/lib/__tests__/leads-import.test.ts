@@ -100,6 +100,8 @@ class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: stri
   private inserted: Row[] | null = null
   private columns = ''
   private writeError: { message: string; code?: string } | null = null
+  private patch: Row | null = null
+  private filters: Array<(row: Row) => boolean> = []
 
   constructor(
     private table: Row[],
@@ -108,6 +110,16 @@ class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: stri
 
   select(columns = '*') {
     this.columns = columns
+    return this
+  }
+
+  eq(column: string, value: unknown) {
+    this.filters.push((row) => row[column] === value)
+    return this
+  }
+
+  update(payload: Row) {
+    this.patch = payload
     return this
   }
 
@@ -137,6 +149,11 @@ class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: stri
     }
     if (this.writeError) {
       return Promise.resolve({ data: null, error: this.writeError }).then(onfulfilled, onrejected)
+    }
+    if (this.patch) {
+      const matched = this.table.filter((row) => this.filters.every((filter) => filter(row)))
+      for (const row of matched) Object.assign(row, this.patch)
+      return Promise.resolve({ data: matched, error: null }).then(onfulfilled, onrejected)
     }
     const data = this.inserted ?? this.table
     return Promise.resolve({ data, error: null }).then(onfulfilled, onrejected)
@@ -436,6 +453,186 @@ describe('POST /api/internal/leads-import', () => {
     assert.equal(body.inserted, 1)
     assert.equal(body.warning, 'external_lead_id is missing. Run supabase-migration-052-lead-external-id.sql in the Supabase SQL Editor.')
     assert.equal(db.rows('leads')[0].business, 'Nick & Son Heating & AC')
+    assert.equal(db.rows('leads')[0].external_lead_id, undefined)
+  })
+
+  it('backfills a Lead ID by matching the normalized business name', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        id: 'lead-swingstop',
+        business: 'SwingStop, Hammonton',
+        email: 'info@swingstopvineland.com',
+        first_name: 'Existing',
+        notes: 'keep these notes',
+        lead_type: 'marketing_lead',
+        external_lead_id: null,
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      backfillIds: true,
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.equal(body.backfillIds, true)
+    assert.equal(body.matched, 1)
+    assert.equal(body.updated, 1)
+    assert.deepEqual(body.unmatched, [])
+    assert.deepEqual(body.conflicts, [])
+    assert.equal(body.inserted, undefined)
+    const row = db.rows('leads')[0]
+    assert.equal(row.external_lead_id, 'SH-0001')
+    assert.equal(row.first_name, 'Existing')
+    assert.equal(row.notes, 'keep these notes')
+    assert.equal(db.rows('leads').length, 1)
+  })
+
+  it('backfills a Lead ID by falling back to email when the business name does not match', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        id: 'lead-email',
+        business: 'Different Name LLC',
+        email: 'info@swingstopvineland.com',
+        notes: 'keep me',
+        lead_type: 'marketing_lead',
+        external_lead_id: '',
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      backfillIds: true,
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.matched, 1)
+    assert.equal(body.updated, 1)
+    assert.deepEqual(body.unmatched, [])
+    assert.equal(db.rows('leads')[0].external_lead_id, 'SH-0001')
+    assert.equal(db.rows('leads')[0].business, 'Different Name LLC')
+    assert.equal(db.rows('leads')[0].notes, 'keep me')
+  })
+
+  it('does not overwrite an existing non-empty Lead ID', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        id: 'lead-conflict',
+        business: 'SwingStop Hammonton',
+        email: 'info@swingstopvineland.com',
+        notes: 'original',
+        lead_type: 'marketing_lead',
+        external_lead_id: 'SH-9999',
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      backfillIds: true,
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.matched, 1)
+    assert.equal(body.updated, 0)
+    assert.deepEqual(body.conflicts, [
+      { business: 'SwingStop Hammonton', existingId: 'SH-9999', incomingId: 'SH-0001' },
+    ])
+    assert.equal(db.rows('leads')[0].external_lead_id, 'SH-9999')
+    assert.equal(db.rows('leads')[0].notes, 'original')
+  })
+
+  it('reports unmatched payload leads that are not in the CRM', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        id: 'lead-nick',
+        business: 'Nick & Son Heating & AC',
+        email: null,
+        lead_type: 'marketing_lead',
+        external_lead_id: null,
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      backfillIds: true,
+      leads: [
+        { ...sampleLeads[2], externalId: 'SH-0003' },
+        { ...sampleLeads[1], externalId: 'SH-0002' },
+      ],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.matched, 1)
+    assert.equal(body.updated, 1)
+    assert.deepEqual(body.unmatched, [
+      { business: 'Jacobs Plumbing & Heating / Septic (Sal Jacobs)' },
+    ])
+    assert.equal(db.rows('leads').length, 1)
+    assert.equal(db.rows('leads')[0].external_lead_id, 'SH-0003')
+  })
+
+  it('dry-runs a Lead ID backfill without writing', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        id: 'lead-swingstop',
+        business: 'SwingStop Hammonton',
+        email: 'info@swingstopvineland.com',
+        notes: 'untouched',
+        lead_type: 'marketing_lead',
+        external_lead_id: null,
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      backfillIds: true,
+      dryRun: true,
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.ok, true)
+    assert.equal(body.backfillIds, true)
+    assert.equal(body.dryRun, true)
+    assert.equal(body.matched, 1)
+    assert.equal(body.updated, 1)
+    assert.deepEqual(body.unmatched, [])
+    assert.deepEqual(body.conflicts, [])
+    assert.equal(db.rows('leads')[0].external_lead_id, null)
+    assert.equal(db.rows('leads')[0].notes, 'untouched')
+    assert.equal(db.rows('activity_log').length, 0)
+  })
+
+  it('skips backfill and warns when the Lead ID column is not in the database yet', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase(
+      [
+        {
+          id: 'lead-swingstop',
+          business: 'SwingStop Hammonton',
+          email: 'info@swingstopvineland.com',
+          lead_type: 'marketing_lead',
+        },
+      ],
+      { missingExternalIdColumn: true }
+    )
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      backfillIds: true,
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.backfillIds, true)
+    assert.equal(body.matched, 0)
+    assert.equal(body.updated, 0)
+    assert.equal(body.warning, 'external_lead_id is missing. Run supabase-migration-052-lead-external-id.sql in the Supabase SQL Editor.')
     assert.equal(db.rows('leads')[0].external_lead_id, undefined)
   })
 })

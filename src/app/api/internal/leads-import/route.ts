@@ -207,6 +207,145 @@ function validateLead(lead: unknown):
   }
 }
 
+type BackfillResult = {
+  ok: true
+  backfillIds: true
+  dryRun: boolean
+  matched: number
+  updated: number
+  unmatched: Array<{ business: string }>
+  conflicts: Array<{ business: string; existingId: string; incomingId: string }>
+  warning?: string
+}
+
+function rowExternalId(row: Record<string, unknown>): string {
+  return clean(row.external_lead_id)
+}
+
+function payloadBusiness(lead: Record<string, unknown>): string {
+  return clean(lead.business)
+}
+
+async function loadRowsForBackfill(): Promise<{
+  rows: Array<Record<string, unknown>>
+  warning?: string
+}> {
+  const withColumn = await getSupabase().from('leads').select('id, business, email, external_lead_id')
+  if (!withColumn.error) {
+    return { rows: (withColumn.data || []) as Array<Record<string, unknown>> }
+  }
+  if (isUnknownExternalLeadIdColumn(withColumn.error)) {
+    return { rows: [], warning: MISSING_COLUMN_WARNING }
+  }
+  throw new Error(withColumn.error.message || 'Could not load existing leads')
+}
+
+function findBackfillRow(
+  lead: Record<string, unknown>,
+  byBusiness: Map<string, Record<string, unknown>>,
+  byEmail: Map<string, Record<string, unknown>>
+): Record<string, unknown> | undefined {
+  const businessKey = normalizeBusinessName(payloadBusiness(lead))
+  if (businessKey) {
+    const byName = byBusiness.get(businessKey)
+    if (byName) return byName
+  }
+  const emailKey = clean(lead.email).toLowerCase()
+  if (emailKey) return byEmail.get(emailKey)
+  return undefined
+}
+
+async function backfillLeadIds(leads: unknown[], dryRun: boolean): Promise<BackfillResult> {
+  const loaded = await loadRowsForBackfill()
+  if (loaded.warning) {
+    return {
+      ok: true,
+      backfillIds: true,
+      dryRun,
+      matched: 0,
+      updated: 0,
+      unmatched: [],
+      conflicts: [],
+      warning: loaded.warning,
+    }
+  }
+
+  const byBusiness = new Map<string, Record<string, unknown>>()
+  const byEmail = new Map<string, Record<string, unknown>>()
+  for (const row of loaded.rows) {
+    const businessKey = normalizeBusinessName(typeof row.business === 'string' ? row.business : '')
+    if (businessKey && !byBusiness.has(businessKey)) byBusiness.set(businessKey, row)
+    const emailKey = clean(row.email).toLowerCase()
+    if (emailKey && !byEmail.has(emailKey)) byEmail.set(emailKey, row)
+  }
+
+  const unmatched: Array<{ business: string }> = []
+  const conflicts: Array<{ business: string; existingId: string; incomingId: string }> = []
+  const toUpdate: Array<{ id: string; externalId: string }> = []
+  const claimed = new Map<string, string>()
+  let matched = 0
+
+  for (const lead of leads) {
+    if (!lead || typeof lead !== 'object' || Array.isArray(lead)) continue
+    const record = lead as Record<string, unknown>
+    const incomingId = clean(record.externalId)
+    if (!incomingId) continue
+
+    const row = findBackfillRow(record, byBusiness, byEmail)
+    if (!row) {
+      unmatched.push({ business: payloadBusiness(record) })
+      continue
+    }
+
+    matched += 1
+    const id = typeof row.id === 'string' ? row.id : ''
+    const existingId = claimed.get(id) || rowExternalId(row)
+    if (existingId) {
+      if (existingId !== incomingId) {
+        conflicts.push({ business: payloadBusiness(record), existingId, incomingId })
+      }
+      continue
+    }
+    if (!id) {
+      unmatched.push({ business: payloadBusiness(record) })
+      matched -= 1
+      continue
+    }
+    claimed.set(id, incomingId)
+    toUpdate.push({ id, externalId: incomingId })
+  }
+
+  if (!dryRun) {
+    for (const item of toUpdate) {
+      const { error } = await getSupabase()
+        .from('leads')
+        .update({ external_lead_id: item.externalId })
+        .eq('id', item.id)
+      if (error) {
+        throw new Error(error.message || 'Could not backfill lead IDs')
+      }
+    }
+    if (toUpdate.length > 0) {
+      await logActivity({
+        action: 'updated',
+        entity_type: 'lead',
+        actor_email: 'leads-import',
+        details: `Backfilled Lead IDs on ${toUpdate.length} marketing prospects`,
+      })
+    }
+  }
+
+  return {
+    ok: true,
+    backfillIds: true,
+    dryRun,
+    matched,
+    updated: toUpdate.length,
+    unmatched,
+    conflicts,
+  }
+}
+
 async function insertChunks(
   rows: Record<string, unknown>[],
   columnAvailable: boolean
@@ -254,12 +393,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Expected a JSON object' }, { status: 400 })
     }
 
-    const payload = body as { dryRun?: unknown; leads?: unknown }
+    const payload = body as { dryRun?: unknown; backfillIds?: unknown; leads?: unknown }
     if (!Array.isArray(payload.leads)) {
       return NextResponse.json({ error: 'Expected a leads array' }, { status: 400 })
     }
 
     const dryRun = payload.dryRun === true
+    if (payload.backfillIds === true) {
+      return NextResponse.json(await backfillLeadIds(payload.leads, dryRun))
+    }
+
     const existing = await loadExistingKeys()
     const seenBusinesses = new Set(existing.businesses)
     const seenEmails = new Set(existing.emails)
