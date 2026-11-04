@@ -6,7 +6,7 @@ import {
   friendlyDisputeLettersUpstreamError,
 } from '@/lib/dispute-letters/api-client'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
-import { updateDisputeSessionStatus } from '@/lib/dispute-letters/db'
+import { getDisputeSessionById, updateDisputeSessionStatus } from '@/lib/dispute-letters/db'
 import {
   removeDisputeReportObject,
   verifyDisputeReportObject,
@@ -14,7 +14,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 90
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -49,18 +49,16 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: verification.error }, { status: 400 })
     }
 
-    // Wake a sleeping free-tier Render instance, but do not spend the whole
-    // function budget on it. Status stays unchanged until the job is accepted,
-    // so a timed-out wake does not leave the screen polling "assessing" forever.
-    await checkDisputeLettersHealth(12_000).catch(() => false)
+    // Free-tier Render often needs most of a minute to wake. Wait that out here,
+    // then accept the job. A timed-out start is not a failure if the job is already running.
+    await checkDisputeLettersHealth(45_000).catch(() => false)
 
-    // Fail fast with a clear message when Render cannot talk to Supabase.
     try {
       const cfg = await disputeLettersJson<{
         supabase_ok?: boolean
         supabase_error?: string | null
         supabase_configured?: boolean
-      }>('/config', { signal: AbortSignal.timeout(15_000) })
+      }>('/config', { signal: AbortSignal.timeout(8_000) })
       if (cfg.supabase_configured === false || cfg.supabase_ok === false) {
         const detail =
           cfg.supabase_error ||
@@ -69,30 +67,56 @@ export async function POST(request: NextRequest, { params }: Params) {
         return NextResponse.json({ error: detail }, { status: 503 })
       }
     } catch {
-      // Older Render deploys may not expose supabase_* yet — continue to /analyze/start.
+      // A slow /config after wake should not fail the upload. Start still checks Supabase.
     }
 
-    const data = await disputeLettersJson<{
-      status: string
-      session_id: string
-      message?: string
-    }>('/internal/analyze/start', {
-      method: 'POST',
-      signal: AbortSignal.timeout(20_000),
-      body: JSON.stringify({
-        session_id: id,
-        storage_path: storagePath,
-        file_name: access.session.file_name,
-      }),
-    })
+    let lastError: unknown
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const data = await disputeLettersJson<{
+          status: string
+          session_id: string
+          message?: string
+        }>('/internal/analyze/start', {
+          method: 'POST',
+          signal: AbortSignal.timeout(15_000),
+          body: JSON.stringify({
+            session_id: id,
+            storage_path: storagePath,
+            file_name: access.session.file_name,
+          }),
+        })
+        return NextResponse.json(data, { status: 202 })
+      } catch (err) {
+        lastError = err
+        const latest = await getDisputeSessionById(id)
+        if (latest?.status === 'analyzing' || latest?.status === 'ready') {
+          return NextResponse.json({ status: latest.status, session_id: id }, { status: 202 })
+        }
+      }
+    }
 
-    return NextResponse.json(data, { status: 202 })
+    const accepted = await getDisputeSessionById(id)
+    if (accepted?.status === 'analyzing' || accepted?.status === 'ready') {
+      return NextResponse.json({ status: accepted.status, session_id: id }, { status: 202 })
+    }
+
+    const message =
+      lastError instanceof Error
+        ? friendlyDisputeLettersUpstreamError(lastError.message, 502)
+        : 'Analysis failed to start'
+    await updateDisputeSessionStatus(id, 'failed', message)
+    return NextResponse.json({ error: message }, { status: 502 })
   } catch (err) {
     console.error('POST analyze error:', err)
     const message =
       err instanceof Error
         ? friendlyDisputeLettersUpstreamError(err.message, 502)
         : 'Analysis failed to start'
+    const latest = await getDisputeSessionById(id).catch(() => null)
+    if (latest?.status === 'analyzing' || latest?.status === 'ready') {
+      return NextResponse.json({ status: latest.status, session_id: id }, { status: 202 })
+    }
     await updateDisputeSessionStatus(id, 'failed', message)
     return NextResponse.json({ error: message }, { status: 502 })
   }

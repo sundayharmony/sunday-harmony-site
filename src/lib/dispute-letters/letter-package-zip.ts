@@ -1,4 +1,4 @@
-import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
+import { checkDisputeLettersHealth, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import { listDisputeSessionsForApplication, getDisputeSessionById } from '@/lib/dispute-letters/db'
 import {
@@ -360,6 +360,9 @@ export async function prepareLetterPackageZip(sessionId: string): Promise<Prepar
 
   const stopHeartbeat = startZipBuildHeartbeat(pkg.id)
   try {
+    if (lettersNeedGenerator(sessionId, letters)) {
+      await checkDisputeLettersHealth(45_000).catch(() => false)
+    }
     const built = await buildLetterPackageZipBytes(sessionId, letters)
     const persisted = await persistBuiltPackageZip(sessionId, built)
     return persisted

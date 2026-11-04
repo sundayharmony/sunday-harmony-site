@@ -49,6 +49,16 @@ export function letterGenerateFailure(job: LetterGenerateJob): string | null {
   return null
 }
 
+export const LOST_LETTER_JOB_MESSAGE =
+  'Letter generation stopped before it finished. Generate the letters again.'
+
+/** True when the letter service restarted and forgot the in-memory job. */
+export function isLostLetterJob(job: LetterGenerateJob): boolean {
+  if (job.job_running === true) return false
+  const status = (job.status || 'idle').toLowerCase()
+  return status === 'idle' || status === '' || status === 'unknown'
+}
+
 export function isLetterGenerateTerminal(job: LetterGenerateJob): boolean {
   const status = job.status || ''
   return status === 'complete' || status === 'failed' || status === 'error'

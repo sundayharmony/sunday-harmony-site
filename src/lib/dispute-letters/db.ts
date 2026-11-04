@@ -124,6 +124,31 @@ export async function updateDisputeSessionStatus(
   if (error) console.error('updateDisputeSessionStatus error:', error)
 }
 
+/** Mark a dead analysis failed without overwriting a job that already finished. */
+export async function failDisputeSessionIfStillAnalyzing(
+  sessionId: string,
+  errorMessage: string,
+  staleBeforeIso: string
+): Promise<boolean> {
+  const { data, error } = await getSupabase()
+    .from('dispute_sessions')
+    .update({
+      status: 'failed',
+      error_message: errorMessage,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', sessionId)
+    .eq('status', 'analyzing')
+    .lte('updated_at', staleBeforeIso)
+    .select('id')
+
+  if (error) {
+    console.error('failDisputeSessionIfStillAnalyzing error:', error)
+    return false
+  }
+  return Array.isArray(data) && data.length > 0
+}
+
 export async function updateDisputeSessionReport(
   sessionId: string,
   report: ParsedReport,

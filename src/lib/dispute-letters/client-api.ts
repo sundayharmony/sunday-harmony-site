@@ -7,9 +7,17 @@ import type {
   Tradeline,
 } from '@/lib/dispute-letters/types'
 import {
+  isLostLetterJob,
   letterGenerateFailure,
+  LOST_LETTER_JOB_MESSAGE,
   type LetterGenerateJob,
 } from '@/lib/dispute-letters/generate-job'
+
+const TRANSIENT_POLL_LIMIT = 6
+
+function isTransientPollStatus(status: number): boolean {
+  return status === 408 || status === 429 || status === 502 || status === 503 || status === 504
+}
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -54,6 +62,7 @@ export async function analyzeReport(
 
   const deadline = Date.now() + 8 * 60 * 1000
   let attempt = 0
+  let transientPolls = 0
   const progressMessages = [
     'Reading the new credit report…',
     'Extracting accounts and scores…',
@@ -71,8 +80,13 @@ export async function analyzeReport(
       cache: 'no-store',
     })
     if (!statusRes.ok) {
+      if (isTransientPollStatus(statusRes.status)) {
+        transientPolls += 1
+        if (transientPolls < TRANSIENT_POLL_LIMIT) continue
+      }
       throw new Error(await parseError(statusRes))
     }
+    transientPolls = 0
 
     const statusBody = (await statusRes.json()) as {
       status?: string
@@ -95,14 +109,12 @@ export async function analyzeReport(
     if (status === 'failed') {
       throw new Error(
         statusBody.error_message?.trim() ||
-          'Analysis failed. Check Render logs for dispute-letters-api.'
+          'Analysis stopped before it finished. Upload the report again.'
       )
     }
   }
 
-  throw new Error(
-    'Analysis timed out after 8 minutes. Open the Render service logs — OOM on the free plan is the usual cause for image-heavy Credit Hero PDFs.'
-  )
+  throw new Error('Analysis stopped before it finished. Upload the report again.')
 }
 
 /** @deprecated Prefer analyzeReport (start + poll). Kept for any leftover callers. */
@@ -323,6 +335,8 @@ export async function generateDisputeLetters(
 
   const deadline = Date.now() + 8 * 60 * 1000
   let attempt = 0
+  let transientPolls = 0
+  let lostPolls = 0
   let last: LetterGenerateJob = { status: 'generating' }
 
   while (Date.now() < deadline) {
@@ -333,10 +347,25 @@ export async function generateDisputeLetters(
       cache: 'no-store',
     })
     if (!statusRes.ok) {
+      if (isTransientPollStatus(statusRes.status)) {
+        transientPolls += 1
+        if (transientPolls < TRANSIENT_POLL_LIMIT) {
+          onProgress?.({ status: 'generating', title: 'Letter service is waking up…' })
+          continue
+        }
+      }
       throw new Error(await parseError(statusRes))
     }
+    transientPolls = 0
 
     last = (await statusRes.json()) as LetterGenerateJob
+    if (isLostLetterJob(last)) {
+      lostPolls += 1
+      if (lostPolls >= TRANSIENT_POLL_LIMIT) throw new Error(LOST_LETTER_JOB_MESSAGE)
+      onProgress?.({ ...last, status: 'generating', title: 'Letter service is waking up…' })
+      continue
+    }
+    lostPolls = 0
     onProgress?.(last)
 
     const failure = letterGenerateFailure(last)
@@ -357,7 +386,7 @@ export async function generateDisputeLetters(
     }
   }
 
-  throw new Error('Letter generation timed out. Check Render logs for dispute-letters-api.')
+  throw new Error(LOST_LETTER_JOB_MESSAGE)
 }
 
 export async function fetchLetterGenerateStatus(sessionId: string): Promise<LetterGenerateJob> {

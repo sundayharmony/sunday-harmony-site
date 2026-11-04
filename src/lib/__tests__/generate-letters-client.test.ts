@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   emptyLettersError,
+  isLostLetterJob,
   letterGenerateFailure,
   isLetterGenerateTerminal,
 } from '../dispute-letters/generate-job'
@@ -47,6 +48,13 @@ describe('letterGenerateFailure', () => {
     assert.equal(letterGenerateFailure({ status: 'generating', current: 1, total: 3 }), null)
     assert.equal(isLetterGenerateTerminal({ status: 'generating' }), false)
     assert.equal(isLetterGenerateTerminal({ status: 'complete' }), true)
+  })
+
+  it('treats a missing in-memory job as lost and a live job as running', () => {
+    assert.equal(isLostLetterJob({ status: 'idle', job_running: false }), true)
+    assert.equal(isLostLetterJob({}), true)
+    assert.equal(isLostLetterJob({ status: 'generating', job_running: true }), false)
+    assert.equal(isLostLetterJob({ status: 'complete', letters: [{ id: 'l1' }] }), false)
   })
 })
 

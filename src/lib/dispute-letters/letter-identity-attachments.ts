@@ -178,8 +178,8 @@ export async function fetchLetterDocxWithEnclosures(
     try {
       return await withRetries(
         () => fetchEnclosedLetterDocx(sessionId, letterId, attachments),
-        3,
-        400
+        4,
+        1_500
       )
     } catch (error) {
       console.warn(
@@ -190,7 +190,7 @@ export async function fetchLetterDocxWithEnclosures(
     }
   }
 
-  return withRetries(() => fetchPlainLetterDocx(sessionId, letterId), 3, 400)
+  return withRetries(() => fetchPlainLetterDocx(sessionId, letterId), 4, 1_500)
 }
 
 /** Build DOCX letter files for a ZIP in parallel (bounded concurrency). */
