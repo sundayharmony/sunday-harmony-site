@@ -37,6 +37,20 @@ describe('who can use staff messages', () => {
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/messages'), true)
   })
 
+  it('shows a red unread counter on the shared Messages nav item', () => {
+    const sidebar = readFileSync('src/components/admin/AdminSidebar.tsx', 'utf8')
+    const ui = readFileSync('src/components/admin/StaffDirectMessages.tsx', 'utf8')
+    const alerts = readFileSync('src/components/admin/AdminLiveMessageAlerts.tsx', 'utf8')
+    assert.match(sidebar, /staffUnreadCount/)
+    assert.match(sidebar, /bg-red-500/)
+    assert.match(ui, /bg-red-500/)
+    assert.match(ui, /unreadCount/)
+    assert.match(ui, /admin\/messages\?with=/)
+    assert.match(ui, /staff-messages-read/)
+    assert.match(alerts, /Staff message from/)
+    assert.match(alerts, /admin\/messages\?with=/)
+  })
+
   it('links Messages from the shared admin sidebar for admin and credit managers', () => {
     const sidebar = readFileSync('src/components/admin/AdminSidebar.tsx', 'utf8')
     const pipeline = readFileSync('src/lib/marketing-pipeline.ts', 'utf8')

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { SessionProvider, signOut, useSession } from 'next-auth/react'
 import AdminSidebar from '@/components/admin/AdminSidebar'
+import AdminLiveMessageAlerts from '@/components/admin/AdminLiveMessageAlerts'
 
 const STORAGE_KEY = 'admin-sidebar-collapsed'
 
@@ -88,10 +89,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
       <AdminSessionGuard />
       <AdminShellContext.Provider value={{ sidebarCollapsed, toggleSidebar }}>
-        <AdminSidebar collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} hydrated={hydrated} />
-        <main className={`${marginClass} p-4 pt-14 pl-12 md:p-8 md:pt-8 md:pl-8 transition-[margin] duration-200 min-h-screen`}>
-          {children}
-        </main>
+        <AdminLiveMessageAlerts>
+          <AdminSidebar collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} hydrated={hydrated} />
+          <main className={`${marginClass} p-4 pt-14 pl-12 md:p-8 md:pt-8 md:pl-8 transition-[margin] duration-200 min-h-screen`}>
+            {children}
+          </main>
+        </AdminLiveMessageAlerts>
       </AdminShellContext.Provider>
     </SessionProvider>
   )

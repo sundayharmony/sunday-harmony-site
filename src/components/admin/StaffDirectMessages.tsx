@@ -1,7 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatStaffMessageTime } from '@/lib/staff-direct-messages'
+import { formatUnreadBadgeCount } from '@/lib/credit-funding-message-alerts'
 
 type Colleague = {
   id: string
@@ -32,7 +34,10 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return fallback
 }
 
-export default function StaffDirectMessages() {
+function StaffDirectMessagesContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const withParam = searchParams.get('with')
   const [colleagues, setColleagues] = useState<Colleague[]>([])
   const [viewerId, setViewerId] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -45,6 +50,10 @@ export default function StaffDirectMessages() {
   const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const threadRequest = useRef(0)
+  const openedFromQuery = useRef<string | null>(null)
+
+  const unreadCount = useMemo(() => colleagues.filter((person) => person.unread).length, [colleagues])
+  const unreadLabel = formatUnreadBadgeCount(unreadCount)
 
   const loadInbox = useCallback(async () => {
     const res = await fetch('/api/admin/staff-direct-messages')
@@ -68,6 +77,9 @@ export default function StaffDirectMessages() {
       setColleagues((current) =>
         current.map((person) => (person.id === colleagueId ? { ...person, unread: false } : person))
       )
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('staff-messages-read'))
+      }
       setError('')
     } finally {
       if (!quiet && token === threadRequest.current) setThreadLoading(false)
@@ -109,16 +121,29 @@ export default function StaffDirectMessages() {
     bottomRef.current?.scrollIntoView({ block: 'end' })
   }, [messages, selectedId])
 
-  async function openColleague(id: string) {
+  async function openColleague(id: string, options?: { syncUrl?: boolean }) {
     setSelectedId(id)
     setMobileThreadOpen(true)
     setMessages([])
+    if (options?.syncUrl !== false) {
+      router.replace(`/admin/messages?with=${encodeURIComponent(id)}`, { scroll: false })
+    }
     try {
       await loadThread(id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not open that thread.')
     }
   }
+
+  useEffect(() => {
+    if (!withParam || loading) return
+    if (openedFromQuery.current === withParam) return
+    if (!colleagues.some((person) => person.id === withParam)) return
+    openedFromQuery.current = withParam
+    void openColleague(withParam, { syncUrl: false })
+    // openColleague identity changes each render; only react to query + inbox readiness
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [withParam, loading, colleagues])
 
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault()
@@ -170,7 +195,17 @@ export default function StaffDirectMessages() {
   return (
     <div>
       <div className="mb-4 md:mb-6">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-1">Messages</h1>
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text">Messages</h1>
+          {unreadCount > 0 ? (
+            <span
+              className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-2 text-xs font-bold leading-none text-white"
+              aria-label={`${unreadCount} unread staff message${unreadCount === 1 ? '' : 's'}`}
+            >
+              {unreadLabel}
+            </span>
+          ) : null}
+        </div>
         <p className="text-sm text-brand-muted">Message other staff. This inbox stays inside the team.</p>
       </div>
 
@@ -209,8 +244,8 @@ export default function StaffDirectMessages() {
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-semibold text-brand-text">{person.name}</span>
                       {person.unread && (
-                        <span className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                          New
+                        <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white">
+                          1
                         </span>
                       )}
                     </span>
@@ -313,5 +348,13 @@ export default function StaffDirectMessages() {
         </section>
       </div>
     </div>
+  )
+}
+
+export default function StaffDirectMessages() {
+  return (
+    <Suspense fallback={<p className="text-sm text-brand-muted">Loading messages...</p>}>
+      <StaffDirectMessagesContent />
+    </Suspense>
   )
 }
