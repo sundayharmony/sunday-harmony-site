@@ -40,12 +40,43 @@ def test_template_lists_photo_id_and_address_enclosures():
     assert any("residential address" in bullet for bullet in bullets)
 
 
+def test_template_puts_dob_and_ssn_at_letter_beginning():
+    text = _template_fallback(
+        _plan(),
+        ConsumerInfo(
+            name="Jane Consumer",
+            addresses=["123 Main St\nSpringfield, IL 62701"],
+            dob="January 15, 1988",
+            ssn_last4="6789",
+        ),
+    )
+    header_end = text.index("Experian")
+    opening = text[:header_end]
+    assert "Date of Birth: January 15, 1988" in opening
+    assert "Social Security Number: XXX-XX-6789" in opening
+    assert opening.index("JANE CONSUMER") < opening.index("Date of Birth:")
+    assert opening.index("Date of Birth:") < opening.index("Social Security Number:")
+    assert "Date of Birth: January 15, 1988" in text.split("Consumer Identification", 1)[1]
+    assert "Social Security Number: XXX-XX-6789" in text.split("Consumer Identification", 1)[1]
+    layout = letter_layout(text)
+    fields = [
+        block.get("text", "")
+        for block in layout["blocks"]
+        if block.get("variant") == "field"
+    ]
+    assert any(f.startswith("Date of Birth:") for f in fields)
+    assert any(f.startswith("Social Security Number:") for f in fields)
+
+
 def test_prompt_requires_identity_enclosures():
     prompt = build_letter_prompt(_plan(), ConsumerInfo(name="Jane Consumer"))
     assert "Enclosures" in prompt
     assert "government-issued photo identification" in prompt
     assert "Proof of current residential address" in prompt
     assert "Do NOT use em dashes" in prompt
+    assert "Date of Birth" in prompt
+    assert "Social Security Number" in prompt
+    assert "opening identity block" in prompt
 
 
 def test_template_and_cleanup_drop_sentence_em_dashes():

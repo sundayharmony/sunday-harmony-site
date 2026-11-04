@@ -21,6 +21,31 @@ def _current_and_prior_addresses(consumer: ConsumerInfo) -> tuple[str, list[str]
     return addresses[0], addresses[1:]
 
 
+def _format_ssn_for_letter(consumer: ConsumerInfo) -> str:
+    """Format SSN for mailed dispute letters. Prefer masked last-4 when that is all we have."""
+    raw = (consumer.ssn_last4 or "").strip()
+    if not raw:
+        return "Not Provided"
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) == 9:
+        return f"{digits[:3]}-{digits[3:5]}-{digits[5:]}"
+    if len(digits) >= 4:
+        return f"XXX-XX-{digits[-4:]}"
+    return raw
+
+
+def _format_dob_for_letter(consumer: ConsumerInfo) -> str:
+    return (consumer.dob or "").strip() or "Not Provided"
+
+
+def _identity_header_lines(consumer: ConsumerInfo) -> str:
+    """DOB + SSN directly under the consumer address at the top of the letter."""
+    return (
+        f"Date of Birth: {_format_dob_for_letter(consumer)}\n"
+        f"Social Security Number: {_format_ssn_for_letter(consumer)}"
+    )
+
+
 def build_letter_prompt(
     plan: LetterPlan,
     consumer: ConsumerInfo,
@@ -135,16 +160,21 @@ FORMAT: match a polished mailed business letter (like a finished Experian disput
 1) First line: today's date as Month DD, YYYY (e.g. July 24, 2026). Do NOT write "Page X/Y". Pagination is added when printing.
 2) Blank line, then consumer full name in ALL CAPS on its own line.
 3) Consumer current address on the following lines (street, unit if any, city/state/ZIP). No labels here.
-4) Blank line, then recipient name, then recipient address lines.
-5) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
+4) Immediately after the address (still in the opening identity block, before the recipient), include BOTH labeled lines:
+   Date of Birth: ...
+   Social Security Number: ...
+   Use the DOB and SSN values provided above. If SSN last 4 only is provided, format as XXX-XX-1234. Never invent a DOB or SSN.
+5) Blank line, then recipient name, then recipient address lines.
+6) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
    Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
-6) Blank line, then salutation: "Dear Sir or Madam:"
-7) One or two short opening paragraphs stating this is a formal dispute under {plan.statute}, requesting a reasonable reinvestigation{opening_ask}.
+7) Blank line, then salutation: "Dear Sir or Madam:"
+8) One or two short opening paragraphs stating this is a formal dispute under {plan.statute}, requesting a reasonable reinvestigation{opening_ask}.
 
-8) Section heading on its own line (Title Case, NOT ALL CAPS): Consumer Identification
+9) Section heading on its own line (Title Case, NOT ALL CAPS): Consumer Identification
    Then labeled fields (one per line):
    Full Name: ...
    Date of Birth: ...
+   Social Security Number: ...
    Current Address:  (next lines = address, no bullets)
    If more than one consumer address was provided, add:
    Additional Addresses on File:
@@ -152,7 +182,7 @@ FORMAT: match a polished mailed business letter (like a finished Experian disput
    ● address two
    (Use a filled circle bullet "●", not dashes.)
 
-9) Section heading: Disputed Tradelines
+10) Section heading: Disputed Tradelines
    Order accounts so closed, paid, collection, and other obsolete negatives come first.
    For EACH disputed account, use this exact block structure (blank line between accounts):
 
@@ -163,15 +193,15 @@ Reported Balance: ...
 Basis of Dispute:
 <one or two paragraphs citing {plan.statute} and the consumer's dispute reason. For closed/paid/collection accounts, explicitly request deletion of the entire tradeline if unverifiable. Wrap the creditor name on the first line in **double asterisks** for bold.>
 
-10) Section heading: Statutory Reinvestigation Requirements
+11) Section heading: Statutory Reinvestigation Requirements
     Short intro sentence, then ● bullet list of the recipient's statutory duties (bureau: 30-day reinvestigation, 5-business-day furnisher notice, review of evidence, delete/modify unverifiable data, written results). Cite {plan.statute} and related FCRA sections accurately.
 
-11) Section heading: Requested Outcome
+12) Section heading: Requested Outcome
     Lead with deletion: for each disputed tradeline, especially closed, paid, collection, or otherwise obsolete negatives, delete the account if it cannot be verified as accurate and complete. Only alternatively correct inaccurate fields (status, balance, past-due, payment history, delinquency ratings). Ask that written results be mailed to the address above.
 
-12) Closing paragraph thanking them and expecting FCRA compliance.
-13) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS).
-14) After the signature, section heading: Enclosures
+13) Closing paragraph thanking them and expecting FCRA compliance.
+14) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS).
+15) After the signature, section heading: Enclosures
     Then always include both bullets (the mailing packet attaches these copies):
     ● Copy of government-issued photo identification
     ● Proof of current residential address
@@ -180,7 +210,8 @@ Rules:
 - Professional tone suitable for certified mail. No legal-advice disclaimer in the letter body.
 - Do NOT use markdown headers (#), numbered lists, or italic *emphasis*. Only **bold** on creditor name lines.
 - Use "● " for bullets under Additional Addresses and Statutory Requirements.
-- Do NOT invent facts not provided (balances, statuses, addresses, account numbers).
+- Do NOT invent facts not provided (balances, statuses, addresses, account numbers, DOB, SSN).
+- Date of Birth and Social Security Number MUST appear in the opening identity block under the consumer address AND again under Consumer Identification.
 - Do NOT guarantee deletion or score improvement.
 - Do NOT use em dashes (—), en dashes (–), or a spaced hyphen as punctuation. Use a comma or a period. Keep hyphens only inside words such as charge-off.
 - Output ONLY the letter body (no code fences, no commentary).
@@ -391,10 +422,15 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"Please mail written confirmation of your investigation results to the address listed above."
         )
 
+    identity_header = _identity_header_lines(consumer)
+    dob = _format_dob_for_letter(consumer)
+    ssn = _format_ssn_for_letter(consumer)
+
     return f"""{today}
 
 {name_caps}
 {current_addr}
+{identity_header}
 
 {plan.recipient_name}
 {addr}
@@ -407,7 +443,8 @@ Dear Sir or Madam:
 
 Consumer Identification
 Full Name: {consumer.name or "[Your Name]"}
-Date of Birth: {consumer.dob or "Not Provided"}
+Date of Birth: {dob}
+Social Security Number: {ssn}
 Current Address:
 {current_addr}{prior_block}
 

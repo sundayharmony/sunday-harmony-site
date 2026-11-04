@@ -51,7 +51,8 @@ Source provenance: `knowledge/sources.json`
 
 Match a formal mailed dispute letter:
 
-- Date, ALL-CAPS consumer name, consumer address, recipient block, `Re:` line, `Dear Sir or Madam:`
+- Date, ALL-CAPS consumer name, consumer address, then **Date of Birth** and **Social Security Number** on the next lines (opening identity block), recipient block, `Re:` line, `Dear Sir or Madam:`
+- Repeat DOB and SSN under `Consumer Identification` (`Full Name`, `Date of Birth`, `Social Security Number`, `Current Address`). Format last-4-only SSN as `XXX-XX-1234`; never invent values.
 - Title Case sections: `Consumer Identification`, `Disputed Tradelines`, `Statutory Reinvestigation Requirements`, `Requested Outcome`, `Enclosures`
 - Per tradeline: bold creditor name, then `Account Number` / `Reported Status` / `Reported Balance` / `Basis of Dispute`
 - Use `●` bullets for additional addresses and statutory duty lists

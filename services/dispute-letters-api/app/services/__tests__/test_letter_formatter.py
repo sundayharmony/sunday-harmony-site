@@ -13,6 +13,8 @@ September 12, 2026
 WIDJI SELPHIN
 172MEADOWCIR AMAZON
 MAY'S LANDING, NJ 08330
+Date of Birth: January 1, 1990
+Social Security Number: XXX-XX-1234
 
 KIKOFF LENDING LLC
 633 FOLSOM ST STE 300
@@ -28,6 +30,7 @@ reporting information furnished by Kikoff Lending LLC to Experian concerning my 
 Consumer Identification
 Full Name: Widji Selphin
 Date of Birth: January 1, 1990
+Social Security Number: XXX-XX-1234
 
 Disputed Tradelines
 ● Kikoff Lending LLC, Account Number: ****1234
@@ -43,6 +46,11 @@ def test_layout_puts_date_in_header_not_body():
     assert any(block.get("variant") == "heading" and block.get("text") == "Consumer Identification" for block in layout["blocks"])
     assert any(
         block.get("variant") == "field" and str(block.get("text", "")).startswith("Full Name:")
+        for block in layout["blocks"]
+    )
+    assert any(
+        block.get("variant") == "field"
+        and str(block.get("text", "")).startswith("Social Security Number:")
         for block in layout["blocks"]
     )
     assert any(block["kind"] == "bullet" for block in layout["blocks"])

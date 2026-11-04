@@ -23,7 +23,8 @@ SECTION_HEADINGS = frozenset(
 
 _BULLET_RE = re.compile(r"^(?:●|•|▪|◦|[-*+])\s+")
 _FIELD_LABEL_RE = re.compile(
-    r"^(Full Name|Date of Birth|Current Address|Additional Addresses on File|"
+    r"^(Full Name|Date of Birth|Social Security Number|SSN|Current Address|"
+    r"Additional Addresses on File|"
     r"Account Number|Reported Status|Reported Balance|Basis of Dispute)\s*:",
     re.IGNORECASE,
 )
