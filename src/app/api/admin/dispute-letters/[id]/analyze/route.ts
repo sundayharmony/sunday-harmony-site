@@ -49,8 +49,10 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: verification.error }, { status: 400 })
     }
 
-    // Wake a sleeping free-tier Render instance before kicking off analysis.
-    await checkDisputeLettersHealth().catch(() => false)
+    // Wake a sleeping free-tier Render instance, but do not spend the whole
+    // function budget on it. Status stays unchanged until the job is accepted,
+    // so a timed-out wake does not leave the screen polling "assessing" forever.
+    await checkDisputeLettersHealth(12_000).catch(() => false)
 
     // Fail fast with a clear message when Render cannot talk to Supabase.
     try {
@@ -58,7 +60,7 @@ export async function POST(request: NextRequest, { params }: Params) {
         supabase_ok?: boolean
         supabase_error?: string | null
         supabase_configured?: boolean
-      }>('/config')
+      }>('/config', { signal: AbortSignal.timeout(15_000) })
       if (cfg.supabase_configured === false || cfg.supabase_ok === false) {
         const detail =
           cfg.supabase_error ||
@@ -70,14 +72,13 @@ export async function POST(request: NextRequest, { params }: Params) {
       // Older Render deploys may not expose supabase_* yet — continue to /analyze/start.
     }
 
-    await updateDisputeSessionStatus(id, 'analyzing')
-
     const data = await disputeLettersJson<{
       status: string
       session_id: string
       message?: string
     }>('/internal/analyze/start', {
       method: 'POST',
+      signal: AbortSignal.timeout(20_000),
       body: JSON.stringify({
         session_id: id,
         storage_path: storagePath,

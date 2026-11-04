@@ -7,6 +7,7 @@ import {
   listDisputeSessionsForApplication,
 } from '@/lib/dispute-letters/db'
 import { resolveBureauScoresAcrossReports } from '@/lib/dispute-letters/bureau-score-history'
+import { healthFromStoredReport } from '@/lib/dispute-letters/stored-report-health'
 import type { ReportHealth } from '@/lib/dispute-letters/types'
 
 export const dynamic = 'force-dynamic'
@@ -62,6 +63,11 @@ export async function GET(_request: NextRequest, { params }: Params) {
   if (!access.ok) return access.response
 
   try {
+    const stored = healthFromStoredReport(id, access.session.report_json)
+    if (stored) {
+      return NextResponse.json(await withScoresAcrossReports(stored, id))
+    }
+
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 85_000)
     let data: ReportHealth

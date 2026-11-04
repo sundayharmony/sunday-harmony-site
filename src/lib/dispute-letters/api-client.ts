@@ -154,10 +154,13 @@ export async function fetchDisputeLettersConfig(): Promise<{
   }
 }
 
-export async function checkDisputeLettersHealth(): Promise<boolean> {
+export async function checkDisputeLettersHealth(timeoutMs = 12_000): Promise<boolean> {
   if (!process.env.DISPUTE_LETTERS_API_URL?.trim()) return false
   try {
-    const res = await fetch(`${API_BASE()}/health`, { cache: 'no-store' })
+    const res = await fetch(`${API_BASE()}/health`, {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
     if (!res.ok) return false
     const data = (await res.json()) as { status?: string }
     return data.status === 'ok'
