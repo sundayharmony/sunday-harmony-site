@@ -85,7 +85,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       : 'md:ml-[240px]'
 
   return (
-    <SessionProvider refetchInterval={60} refetchOnWindowFocus>
+    <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
       <AdminSessionGuard />
       <AdminShellContext.Provider value={{ sidebarCollapsed, toggleSidebar }}>
         <AdminSidebar collapsed={sidebarCollapsed} onToggleSidebar={toggleSidebar} hydrated={hydrated} />

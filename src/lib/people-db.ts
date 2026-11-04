@@ -1,6 +1,8 @@
 import { getSupabase } from './supabase'
 import { decryptFieldOrLegacy } from './field-encryption'
 import {
+  CLIENT_LIST_SELECT,
+  LEAD_LIST_SELECT,
   getClients,
   getLeads,
   getClientById,
@@ -9,6 +11,9 @@ import {
   type Client,
   type Lead,
 } from './db'
+
+/** Cap first paint for People / Today list endpoints (detail views load without this cap). */
+export const PEOPLE_LIST_LIMIT = 200
 import {
   viewerMayAccessCreditApplication,
   type CreditStaffViewer,
@@ -24,7 +29,6 @@ import { listScheduledBookings, updateConsultationBooking, type ConsultationBook
 import { getAdminReferralOverview } from './referral-service'
 import { billingPackageLabel, currentBillingPackage } from './billing-packages'
 import { isCreditRepairBillingClient } from './credit-repair-billing'
-import { reconcileStaleRepairPayments } from './billing-service'
 import {
   filterPeople,
   filterPeopleForCreditExpert,
@@ -170,14 +174,25 @@ function asBooking(booking: ConsultationBookingRow): PersonBooking {
   }
 }
 
-async function loadRecords(now = new Date()): Promise<Loaded> {
-  const [leads, clientsRaw, applications, bookings] = await Promise.all([
-    getLeads(),
-    getClients(),
-    getCreditFundingApplications({ status: 'all' }),
-    listScheduledBookings(),
+async function loadRecords(
+  now = new Date(),
+  options?: { limit?: number }
+): Promise<Loaded> {
+  const limit = options?.limit
+  // List paths: narrow columns + cap. Detail (getPersonFile) omits limit for full lookup.
+  // Stripe repair reconcile stays off this path — run it from billing panels / cron instead.
+  const [leads, clients, applications, bookings] = await Promise.all([
+    getLeads({
+      limit,
+      columns: limit != null ? LEAD_LIST_SELECT : undefined,
+    }),
+    getClients({
+      limit,
+      columns: limit != null ? CLIENT_LIST_SELECT : undefined,
+    }),
+    getCreditFundingApplications({ status: 'all', limit }),
+    listScheduledBookings({ limit }),
   ])
-  const clients = await reconcileStaleRepairPayments(clientsRaw)
   const people = groupPeople(
     {
       leads: leads.map(asLead),
@@ -203,7 +218,7 @@ export async function listPeople(
   now = new Date(),
   viewer?: CreditStaffViewer
 ): Promise<PersonSummary[]> {
-  const loaded = await loadRecords(now)
+  const loaded = await loadRecords(now, { limit: PEOPLE_LIST_LIMIT })
   return peopleVisibleToViewer(loaded.people, scope, viewer)
 }
 
@@ -212,8 +227,9 @@ export async function findCanonicalPersonId(
   scope: PersonScope = 'all',
   viewer?: CreditStaffViewer
 ): Promise<string | null> {
-  const people = await listPeople(scope, new Date(), viewer)
-  return findPersonById(people, id)?.id ?? null
+  // Unbounded load so deep links beyond PEOPLE_LIST_LIMIT still resolve.
+  const loaded = await loadRecords(new Date())
+  return findPersonById(peopleVisibleToViewer(loaded.people, scope, viewer), id)?.id ?? null
 }
 
 function statusLabel(status: string): string {
@@ -342,7 +358,7 @@ export async function loadTodayQueue(
   now = new Date(),
   viewer?: CreditStaffViewer
 ): Promise<TodayQueue> {
-  const loaded = await loadRecords(now)
+  const loaded = await loadRecords(now, { limit: PEOPLE_LIST_LIMIT })
   const people = peopleVisibleToViewer(
     loaded.people,
     role === 'credit_manager' ? 'credit' : 'all',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
-import { getCrmContacts, getCrmDashboardStats } from '@/lib/crm-db'
+import { getCrmContactsWithStats, getCrmDashboardStats } from '@/lib/crm-db'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(stats)
   }
 
-  const contacts = await getCrmContacts({
+  const { contacts, stats } = await getCrmContactsWithStats({
     lead_type: sp.get('lead_type') || undefined,
     application_status: sp.get('application_status') || undefined,
     assigned_team_member: sp.get('assigned_team_member') || undefined,
@@ -30,6 +30,5 @@ export async function GET(req: NextRequest) {
     search: sp.get('search') || undefined,
   })
 
-  const stats = await getCrmDashboardStats()
   return NextResponse.json({ contacts, stats })
 }

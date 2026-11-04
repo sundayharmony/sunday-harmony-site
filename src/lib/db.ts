@@ -182,10 +182,21 @@ export interface Lead {
   updated_at: string
 }
 
-export async function getLeads(): Promise<Lead[]> {
-  const { data, error } = await getSupabase().from('leads').select('*').order('created_at', { ascending: false })
+/** Columns needed to group People / Today queues (avoid select('*') on list paths). */
+export const LEAD_LIST_SELECT =
+  'id, first_name, last_name, email, phone, business, source, status, lead_type, client_id, notes, created_at, updated_at'
+
+export async function getLeads(options?: { limit?: number; columns?: string }): Promise<Lead[]> {
+  let query = getSupabase()
+    .from('leads')
+    .select(options?.columns || '*')
+    .order('created_at', { ascending: false })
+  if (options?.limit != null && options.limit > 0) {
+    query = query.limit(options.limit)
+  }
+  const { data, error } = await query
   if (error) { console.error('getLeads error:', error); return [] }
-  return data || []
+  return (data || []) as unknown as Lead[]
 }
 
 export async function getLeadById(id: string): Promise<Lead | undefined> {
@@ -316,10 +327,21 @@ export interface Client {
   updated_at: string
 }
 
-export async function getClients(): Promise<Client[]> {
-  const { data, error } = await getSupabase().from('clients').select('*').order('created_at', { ascending: false })
+/** Columns needed to group People / Today queues (avoid select('*') on list paths). */
+export const CLIENT_LIST_SELECT =
+  'id, name, business, email, phone, package_tier, monthly_price, start_date, status, is_potential, billing_status, billing_model, stripe_customer_id, stripe_subscription_id, last_payment_at, next_billing_date, repair_fee_cents, repair_fee_paid_at, stripe_repair_invoice_id, lead_type, lead_id, notes, deliverables, quick_wins, created_at, updated_at'
+
+export async function getClients(options?: { limit?: number; columns?: string }): Promise<Client[]> {
+  let query = getSupabase()
+    .from('clients')
+    .select(options?.columns || '*')
+    .order('created_at', { ascending: false })
+  if (options?.limit != null && options.limit > 0) {
+    query = query.limit(options.limit)
+  }
+  const { data, error } = await query
   if (error) { console.error('getClients error:', error); return [] }
-  return data || []
+  return (data || []) as unknown as Client[]
 }
 
 export async function getClientById(id: string): Promise<Client | undefined> {
@@ -725,6 +747,29 @@ export async function getTasksByClient(clientId: string): Promise<Task[]> {
   const { data, error } = await getSupabase().from('tasks').select('*').eq('client_id', clientId).order('created_at', { ascending: false })
   if (error) { console.error('getTasks error:', error); return [] }
   return data || []
+}
+
+/** Batch-load tasks for many clients (Today metrics) — one query instead of N. */
+export async function getTasksByClientIds(
+  clientIds: string[],
+  options?: { limit?: number; columns?: string }
+): Promise<Task[]> {
+  const ids = [...new Set(clientIds.filter(Boolean))]
+  if (ids.length === 0) return []
+  let query = getSupabase()
+    .from('tasks')
+    .select(options?.columns || 'id, client_id, status, due_date')
+    .in('client_id', ids)
+    .order('created_at', { ascending: false })
+  if (options?.limit != null && options.limit > 0) {
+    query = query.limit(options.limit)
+  }
+  const { data, error } = await query
+  if (error) {
+    console.error('getTasksByClientIds error:', error)
+    return []
+  }
+  return (data || []) as unknown as Task[]
 }
 
 export async function getTaskById(id: string): Promise<Task | undefined> {

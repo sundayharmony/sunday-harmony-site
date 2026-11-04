@@ -21,6 +21,7 @@ import { verifyAuthentication, hasPasskeyEnabled } from './webauthn'
 import {
   applySessionVersionToToken,
   sessionVersionOf,
+  shouldRefreshUserFromDb,
 } from './session-version'
 import { isStaffSessionExpired, stampStaffSessionStart } from './staff-session'
 
@@ -309,7 +310,10 @@ export const authOptions: NextAuthOptions = {
       if (isStaffSessionExpired(token)) return { sessionExpired: true }
 
       const email = typeof token.email === 'string' ? token.email : undefined
-      if (email) {
+      const isFreshLogin = Boolean(user)
+      // Skip Supabase on every /api/auth/session poll — only re-check every few minutes
+      // (or on login). Between checks, trust role / MFA / sessionVersion on the JWT.
+      if (email && shouldRefreshUserFromDb(token, isFreshLogin)) {
         const dbUser = await getUserByEmail(email)
         if (!dbUser) {
           return { sessionExpired: true }
@@ -318,7 +322,7 @@ export const authOptions: NextAuthOptions = {
         const versionCheck = applySessionVersionToToken(
           token,
           sessionVersionOf(dbUser),
-          Boolean(user)
+          isFreshLogin
         )
         if (versionCheck.invalidated) {
           return { sessionExpired: true }
@@ -327,6 +331,7 @@ export const authOptions: NextAuthOptions = {
         token.role = dbUser.role
         if (dbUser.client_id) token.clientId = dbUser.client_id
         else delete token.clientId
+        token.lastDbCheckAt = Date.now()
 
         const staff = isStaffRole(dbUser.role)
         if (!staff) {

@@ -37,5 +37,7 @@ declare module 'next-auth/jwt' {
     sessionVersion?: number
     staffSessionStartedAt?: number
     sessionExpired?: boolean
+    /** Epoch ms of last Supabase user/MFA refresh in the JWT callback. */
+    lastDbCheckAt?: number
   }
 }

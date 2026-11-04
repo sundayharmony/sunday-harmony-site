@@ -7,7 +7,7 @@ import {
 } from '@/lib/joinable-meetings'
 import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
 import { emailIlikePattern } from '@/lib/email-match'
-import { createClient, getClientById, getTasksByClient, logActivity, updateClient, type Client } from '@/lib/db'
+import { createClient, getClientById, getTasksByClientIds, logActivity, updateClient, type Client } from '@/lib/db'
 import {
   createMeetingEvent,
   createProposalDocument,
@@ -1032,7 +1032,10 @@ export async function loadMarketingToday(role?: string | null) {
   if (role === 'admin' || role === 'client_relations') {
     const won = everyone.filter((prospect) => roleCanSeeProspect('client_relations', prospect))
     const clientIds = won.map((prospect) => prospect.clientId).filter((id): id is string => Boolean(id))
-    const tasks = (await Promise.all(clientIds.map((clientId) => getTasksByClient(clientId).catch(() => [])))).flat()
+    const tasks = await getTasksByClientIds(clientIds, {
+      columns: 'id, client_id, status, due_date',
+      limit: 500,
+    })
     const today = new Date().toISOString().slice(0, 10)
     const dated = tasks.filter((task) => task.due_date)
     due = dated.length
