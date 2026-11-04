@@ -5,8 +5,8 @@ from app.parsers import identityiq, smartcredit
 from app.services import report_extractor
 
 
-def parse_document_fallback(doc: ExtractedDocument) -> ParsedReport:
-    """Fallback parsers when Cursor agent analysis is unavailable."""
+def parse_document_fallback(doc: ExtractedDocument, file_name: str = "") -> ParsedReport:
+    """Local parsers. Does not call the Cursor agent."""
     if doc.html:
         if identityiq.can_parse(doc.html):
             report = identityiq.parse(doc.html, doc.file_type, doc.ocr_used, doc.extraction_quality)
@@ -22,7 +22,11 @@ def parse_document_fallback(doc: ExtractedDocument) -> ParsedReport:
             except NotImplementedError:
                 pass
     report = report_extractor.extract_from_text(
-        doc.text, doc.file_type, doc.ocr_used, doc.extraction_quality
+        doc.text,
+        doc.file_type,
+        doc.ocr_used,
+        doc.extraction_quality,
+        file_name=file_name,
     )
     report.source = "fallback_parser"
     _enrich_tradelines_from_fallback(report)
@@ -33,7 +37,5 @@ def _enrich_tradelines_from_fallback(report: ParsedReport) -> None:
     for tl in report.tradelines:
         if not tl.dispute_bureaus:
             tl.dispute_bureaus = list(tl.bureaus)
-        if not tl.suggested_dispute_reason:
-            tl.suggested_dispute_reason = "Account information is inaccurate or unverifiable."
-        if not tl.dispute_reason:
+        if tl.suggested_dispute_reason and not tl.dispute_reason:
             tl.dispute_reason = tl.suggested_dispute_reason

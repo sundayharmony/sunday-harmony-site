@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import os
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 
 from app.models import ExtractedDocument
+
+# Scanned PDFs run on a 512MB Render instance. Cap pages and wall time so OCR
+# cannot occupy the analyze job for the full client poll window.
+DEFAULT_OCR_MAX_PAGES = 8
+DEFAULT_OCR_MAX_SECONDS = 40.0
+DEFAULT_OCR_PAGE_TIMEOUT_SEC = 8.0
 
 
 def _quality_from_chars(count: int) -> str:
@@ -40,44 +49,110 @@ def extract_pdf(path: Path) -> ExtractedDocument:
     )
 
 
-def _ocr_pdf(path: Path) -> tuple[str, bool]:
-    """OCR page-by-page at low DPI to stay within free-tier memory limits."""
+def _ocr_limits() -> tuple[int, float, float]:
+    def _float(name: str, default: float) -> float:
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+
+    pages = int(_float("DISPUTE_OCR_MAX_PAGES", DEFAULT_OCR_MAX_PAGES))
+    seconds = _float("DISPUTE_OCR_MAX_SECONDS", DEFAULT_OCR_MAX_SECONDS)
+    page_timeout = _float("DISPUTE_OCR_PAGE_TIMEOUT_SEC", DEFAULT_OCR_PAGE_TIMEOUT_SEC)
+    return max(1, pages), max(5.0, seconds), max(1.0, page_timeout)
+
+
+def _run_bounded(fn, timeout: float):
+    """Run fn and abandon it when timeout hits. Do not wait for a stuck worker."""
+    pool = ThreadPoolExecutor(max_workers=1)
+    future = pool.submit(fn)
     try:
-        import gc
+        return future.result(timeout=timeout)
+    except FuturesTimeoutError:
+        return None
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
-        from pdf2image import convert_from_path
-        import pytesseract
 
-        parts: list[str] = []
-        # Render free instances are ~512MB; convert one page at a time at low DPI.
-        page = 1
-        while True:
-            try:
-                images = convert_from_path(
-                    str(path),
-                    dpi=100,
-                    first_page=page,
-                    last_page=page,
-                    grayscale=True,
-                )
-            except Exception:
-                break
-            if not images:
-                break
-            img = images[0]
-            try:
-                parts.append(pytesseract.image_to_string(img) or "")
-            finally:
-                try:
-                    img.close()
-                except Exception:
-                    pass
-                del img
-                del images
-                gc.collect()
-            page += 1
-            if page > 30:
-                break
-        return "\n\n".join(parts).strip(), True
+def _ocr_pdf(path: Path) -> tuple[str, bool]:
+    """OCR page-by-page at low DPI, bounded so a scan cannot run for minutes."""
+    try:
+        return _ocr_pdf_budgeted(path)
     except Exception:
         return "", True
+
+
+def _ocr_pdf_budgeted(
+    path: Path,
+    *,
+    convert_page=None,
+    read_image=None,
+    now=None,
+    max_pages: int | None = None,
+    max_seconds: float | None = None,
+    page_timeout: float | None = None,
+    run_bounded=None,
+) -> tuple[str, bool]:
+    import gc
+
+    limit_pages, limit_seconds, limit_page = _ocr_limits()
+    if max_pages is not None:
+        limit_pages = max_pages
+    if max_seconds is not None:
+        limit_seconds = max_seconds
+    if page_timeout is not None:
+        limit_page = page_timeout
+    clock = now or time.monotonic
+    bounded = run_bounded or _run_bounded
+
+    def _convert(pdf_path, page: int):
+        from pdf2image import convert_from_path
+
+        return convert_from_path(
+            str(pdf_path),
+            dpi=100,
+            first_page=page,
+            last_page=page,
+            grayscale=True,
+        )
+
+    def _read(img):
+        import pytesseract
+
+        return pytesseract.image_to_string(img, timeout=limit_page) or ""
+
+    convert = convert_page or _convert
+    read = read_image or _read
+    parts: list[str] = []
+    started = clock()
+    page = 1
+    while page <= limit_pages:
+        if clock() - started >= limit_seconds:
+            break
+        try:
+            images = bounded(lambda page=page: convert(path, page), limit_page)
+        except Exception:
+            break
+        if not images:
+            break
+        img = images[0]
+        try:
+            text = read(img) if read_image is not None else bounded(lambda img=img: read(img), limit_page)
+        except Exception:
+            text = None
+        finally:
+            try:
+                img.close()
+            except Exception:
+                pass
+            del img
+            del images
+            gc.collect()
+        if text is None:
+            break
+        parts.append(text or "")
+        page += 1
+    return "\n\n".join(parts).strip(), True

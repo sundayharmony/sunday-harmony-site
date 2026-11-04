@@ -18,7 +18,6 @@ from app.parsers.base import parse_document_fallback
 from app.services.bureau_scores import fill_missing_scores
 from app.services.credit_health import apply_high_priority_selection, build_health_summary
 from app.services.credit_intelligence import build_credit_intelligence
-from app.services.cursor_client import agent_prompt, result_text
 
 ANALYZE_PROMPT = """You are a credit report analyst with access to federal consumer credit law references in this project.
 
@@ -84,8 +83,58 @@ Credit report text:
 """
 
 
+# One short attempt. The old 90s call plus a 60s retry kept uploads on "Working".
+DEFAULT_AGENT_TIMEOUT_SEC = 25.0
+
+
 def cursor_api_configured() -> bool:
     return bool(os.environ.get("CURSOR_API_KEY", "").strip())
+
+
+def real_account_count(report: ParsedReport) -> int:
+    """Tradelines that look like furnished accounts, not empty or inquiry rows."""
+    return sum(1 for tl in report.tradelines if _is_real_account(tl))
+
+
+def prefer_richer_report(
+    local: ParsedReport,
+    agent: ParsedReport,
+    agent_health: dict | None = None,
+) -> tuple[ParsedReport, dict | None]:
+    """Keep the local parse when the agent found fewer real accounts."""
+    if real_account_count(local) > real_account_count(agent):
+        return local, None
+    return agent, agent_health
+
+
+def _is_real_account(tl: Tradeline) -> bool:
+    creditor = (tl.creditor or "").strip()
+    if len(creditor) < 2 or creditor.lower() in {"unknown", "n/a", "none"}:
+        return False
+    kind = f"{tl.account_type} {tl.item_category} {tl.status}".lower()
+    if "inquir" in kind:
+        return False
+    details = (
+        tl.account_tu,
+        tl.account_exp,
+        tl.account_eqf,
+        tl.balance,
+        tl.status,
+        tl.account_type,
+        tl.date_opened,
+        tl.past_due,
+    )
+    return any((value or "").strip() for value in details)
+
+
+def _agent_timeout_sec() -> float:
+    raw = os.environ.get("CURSOR_ANALYZE_TIMEOUT_SEC", "").strip()
+    if not raw:
+        return DEFAULT_AGENT_TIMEOUT_SEC
+    try:
+        return max(5.0, float(raw))
+    except ValueError:
+        return DEFAULT_AGENT_TIMEOUT_SEC
 
 
 def analyze_report(doc: ExtractedDocument, *, allow_fallback: bool = True, file_name: str = "") -> ParsedReport:
@@ -112,44 +161,46 @@ async def analyze_report_async(
 ) -> ParsedReport:
     import asyncio
 
+    local = _apply_fallback(doc, "local parse", file_name=file_name)
+    if real_account_count(local) > 0:
+        local.analysis_summary = (
+            f"Parsed {real_account_count(local)} account(s) locally from the uploaded report."
+        )
+        return _finalize_report(local, file_name=file_name, doc=doc)
+
     if not cursor_api_configured():
         if allow_fallback:
-            return _finalize_report(
-                _apply_fallback(doc, "CURSOR_API_KEY not set"), file_name=file_name, doc=doc
-            )
+            if not local.analysis_summary:
+                local.analysis_summary = "Parsed locally (CURSOR_API_KEY not set)."
+            return _finalize_report(local, file_name=file_name, doc=doc)
         raise RuntimeError("CURSOR_API_KEY is required for report analysis")
 
     text = _prepare_report_text(doc)
     if len(text.strip()) < 50:
         if allow_fallback:
-            return _finalize_report(
-                _apply_fallback(doc, "insufficient text extracted"), file_name=file_name, doc=doc
-            )
+            local.analysis_summary = local.analysis_summary or "Parsed locally (insufficient text extracted)."
+            return _finalize_report(local, file_name=file_name, doc=doc)
         raise RuntimeError("Could not extract enough text from the uploaded file")
 
-    agent_timeout = float(os.environ.get("CURSOR_ANALYZE_TIMEOUT_SEC", "90"))
+    agent_timeout = _agent_timeout_sec()
 
     try:
         report, agent_health = await asyncio.wait_for(
             _analyze_via_agent(doc, text),
             timeout=agent_timeout,
         )
-        return _finalize_report(report, agent_health, file_name=file_name, doc=doc)
     except Exception as first_error:
-        try:
-            report, agent_health = await asyncio.wait_for(
-                _analyze_via_agent(doc, text, retry_strict=True),
-                timeout=min(60.0, agent_timeout),
-            )
-            return _finalize_report(report, agent_health, file_name=file_name, doc=doc)
-        except Exception:
-            if allow_fallback:
-                report = _apply_fallback(doc, str(first_error))
-                report.analysis_summary = (
-                    f"Agent analysis failed; used fallback parser. ({first_error})"
-                )
-                return _finalize_report(report, file_name=file_name, doc=doc)
-            raise
+        if allow_fallback:
+            local.analysis_summary = f"Agent analysis failed; used fallback parser. ({first_error})"
+            return _finalize_report(local, file_name=file_name, doc=doc)
+        raise
+
+    chosen, health = prefer_richer_report(local, report, agent_health)
+    if chosen is local and real_account_count(local) > 0:
+        chosen.analysis_summary = (
+            f"Parsed {real_account_count(local)} account(s) locally from the uploaded report."
+        )
+    return _finalize_report(chosen, health, file_name=file_name, doc=doc)
 
 
 def _prepare_report_text(doc: ExtractedDocument) -> str:
@@ -190,6 +241,8 @@ def _clip_html_for_agent(html: str) -> str:
 async def _analyze_via_agent(
     doc: ExtractedDocument, text: str, retry_strict: bool = False
 ) -> tuple[ParsedReport, dict | None]:
+    from app.services.cursor_client import agent_prompt, result_text
+
     prompt = ANALYZE_PROMPT.format(text=text)
     if retry_strict:
         prompt += "\n\nIMPORTANT: Return ONLY valid JSON. No markdown. No explanation."
@@ -311,17 +364,14 @@ def _finalize_report(
     return report
 
 
-def _apply_fallback(doc: ExtractedDocument, reason: str) -> ParsedReport:
-    report = parse_document_fallback(doc)
+def _apply_fallback(doc: ExtractedDocument, reason: str, file_name: str = "") -> ParsedReport:
+    report = parse_document_fallback(doc, file_name=file_name)
     report.source = "fallback_parser"
     if not report.analysis_summary:
         report.analysis_summary = f"Parsed locally (agent unavailable: {reason})"
     for tl in report.tradelines:
         if not tl.dispute_bureaus:
             tl.dispute_bureaus = list(tl.bureaus)
-        if not tl.suggested_dispute_reason and not tl.dispute_reason:
-            tl.suggested_dispute_reason = "Account information is inaccurate or unverifiable."
-            tl.dispute_reason = tl.suggested_dispute_reason
         if not tl.analysis_notes:
             tl.analysis_notes = f"Status: {tl.status}; Balance: {tl.balance}"
     return report
