@@ -1,6 +1,7 @@
 'use client'
 
 import type { MouseEvent } from 'react'
+import type { PriorDisputeMark } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { SeverityBadge } from '@/components/dispute-letters/SeverityBadge'
@@ -17,6 +18,8 @@ type TradelineCardProps = {
   showTargets?: boolean
   showReason?: boolean
   compact?: boolean
+  /** Soft mark when this account was disputed in an earlier round/package. */
+  priorDispute?: PriorDisputeMark | null
 }
 
 function isNestedControl(target: EventTarget | null) {
@@ -32,16 +35,25 @@ export function TradelineCard({
   showTargets = false,
   showReason = false,
   compact = false,
+  priorDispute = null,
 }: TradelineCardProps) {
   function handleCardClick(event: MouseEvent<HTMLDivElement>) {
     if (!onSelect || isNestedControl(event.target)) return
     onSelect(!selected)
   }
 
+  const priorSelected = Boolean(priorDispute && selected)
+
   return (
     <div
       className={`h-full rounded-xl border bg-white p-4 shadow-sm ${
-        selected ? 'border-accent ring-1 ring-accent/30' : 'border-brand-border'
+        priorSelected
+          ? 'border-amber-400 ring-1 ring-amber-300/60'
+          : selected
+            ? 'border-accent ring-1 ring-accent/30'
+            : priorDispute
+              ? 'border-amber-200'
+              : 'border-brand-border'
       } ${onSelect ? 'cursor-pointer hover:border-accent/50' : ''}`}
       onClick={onSelect ? handleCardClick : undefined}
     >
@@ -61,6 +73,14 @@ export function TradelineCard({
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold text-brand-text">{t.creditor || 'Unknown creditor'}</h3>
               <SeverityBadge priority={t.repair_priority || 'none'} />
+              {priorDispute && (
+                <span
+                  className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950"
+                  title="Already disputed in an earlier round. You can still select it if needed."
+                >
+                  {priorDispute.label}
+                </span>
+              )}
               {t.item_category && (
                 <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs capitalize text-brand-dim">
                   {t.item_category.replace(/_/g, ' ')}
@@ -71,6 +91,16 @@ export function TradelineCard({
               {t.status || '—'} · Balance {t.balance || '—'}
               {t.past_due ? ` · Past due ${t.past_due}` : ''}
             </p>
+            {priorDispute && (
+              <p className="mt-1 text-xs text-amber-900">
+                {priorDispute.preferSkip
+                  ? 'Already disputed — skip unless a new round is needed.'
+                  : 'Previously disputed and still needs follow-up.'}
+                {priorDispute.bureaus.length
+                  ? ` (${priorDispute.bureaus.join(', ')})`
+                  : ''}
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap gap-1">
               {t.bureaus?.map((b) => (
                 <span key={b} className="rounded bg-neutral-100 px-2 py-0.5 text-xs text-brand-dim">

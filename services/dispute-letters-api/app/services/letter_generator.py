@@ -22,8 +22,8 @@ def _current_and_prior_addresses(consumer: ConsumerInfo) -> tuple[str, list[str]
 
 
 def _format_ssn_for_letter(consumer: ConsumerInfo) -> str:
-    """Format SSN for mailed dispute letters. Prefer masked last-4 when that is all we have."""
-    raw = (consumer.ssn_last4 or "").strip()
+    """Format SSN for mailed dispute letters. Prefer full 9-digit SSN when available."""
+    raw = (consumer.ssn or consumer.ssn_last4 or "").strip()
     if not raw:
         return "Not Provided"
     digits = re.sub(r"\D", "", raw)
@@ -141,7 +141,7 @@ Recipient:
 Consumer:
 Name: {consumer.name}
 DOB: {consumer.dob}
-SSN last 4: {consumer.ssn_last4}
+SSN: {_format_ssn_for_letter(consumer)}
 Addresses (first is current; any others are prior addresses on file):
 {consumer_addrs}
 
@@ -163,7 +163,7 @@ FORMAT: match a polished mailed business letter (like a finished Experian disput
 4) Immediately after the address (still in the opening identity block, before the recipient), include BOTH labeled lines:
    Date of Birth: ...
    Social Security Number: ...
-   Use the DOB and SSN values provided above. If SSN last 4 only is provided, format as XXX-XX-1234. Never invent a DOB or SSN.
+   Use the DOB and SSN values provided above. Prefer the full Social Security Number (XXX-XX-XXXX). Only if a full SSN is unavailable and last-4 alone was provided, format as XXX-XX-1234. Never invent a DOB or SSN.
 5) Blank line, then recipient name, then recipient address lines.
 6) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
    Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
@@ -200,8 +200,8 @@ Basis of Dispute:
     Lead with deletion: for each disputed tradeline, especially closed, paid, collection, or otherwise obsolete negatives, delete the account if it cannot be verified as accurate and complete. Only alternatively correct inaccurate fields (status, balance, past-due, payment history, delinquency ratings). Ask that written results be mailed to the address above.
 
 13) Closing paragraph thanking them and expecting FCRA compliance.
-14) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS).
-15) After the signature, section heading: Enclosures
+14) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS). That printed name is rendered as a cursive signature in the final .docx / preview — keep it as plain text only (do not draw ASCII art).
+15) After the signature name, section heading: Enclosures
     Then always include both bullets (the mailing packet attaches these copies):
     ● Copy of government-issued photo identification
     ● Proof of current residential address

@@ -153,6 +153,9 @@ export interface DisputeRoundLetter {
   package_id?: string | null
 }
 
+/** Lifecycle of the prebuilt Download ZIP artifact. */
+export type LetterPackageZipStatus = 'pending' | 'building' | 'ready' | 'failed'
+
 export interface LetterPackageRow {
   id: string
   case_id: string
@@ -166,6 +169,14 @@ export interface LetterPackageRow {
   sent_confirmed_at: string | null
   created_at: string
   updated_at: string
+  /** Supabase Storage path for the prebuilt ZIP (migration 048). */
+  zip_storage_path?: string | null
+  zip_built_at?: string | null
+  zip_status?: LetterPackageZipStatus | null
+  /** Sorted letter-id signature used to detect stale ZIPs after regenerate. */
+  zip_letter_ids?: string | null
+  zip_error?: string | null
+  zip_byte_size?: number | null
 }
 
 export interface LetterPackageMember {
@@ -198,6 +209,9 @@ export interface LetterPackageSnapshot {
   pendingCount: number
   downloaded: boolean
   allSent: boolean
+  /** True when a matching prebuilt ZIP is stored and ready for fast download. */
+  zipReady: boolean
+  zipStatus: LetterPackageZipStatus
   workflow: RoundWorkflowView
 }
 
@@ -383,6 +397,26 @@ export function roundWorkflowView(params: {
   }
 }
 
+export function letterPackageZipStatus(pkg: LetterPackageRow | null | undefined): LetterPackageZipStatus {
+  const status = pkg?.zip_status
+  if (status === 'building' || status === 'ready' || status === 'failed' || status === 'pending') {
+    return status
+  }
+  return pkg?.zip_storage_path ? 'ready' : 'pending'
+}
+
+/** Ready only when status is ready and a storage path exists. */
+export function isLetterPackageZipReady(pkg: LetterPackageRow | null | undefined): boolean {
+  return Boolean(pkg?.zip_storage_path) && letterPackageZipStatus(pkg) === 'ready'
+}
+
+export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
+  if (zipReady || status === 'ready') return 'ZIP ready'
+  if (status === 'building') return 'Preparing ZIP…'
+  if (status === 'failed') return 'ZIP needs rebuild'
+  return 'Preparing ZIP…'
+}
+
 export function buildLetterPackageSnapshot(params: {
   package: LetterPackageRow
   members: LetterPackageMember[]
@@ -392,6 +426,8 @@ export function buildLetterPackageSnapshot(params: {
   const generatedCount = params.package.letter_count || new Set(params.members.map((m) => m.letter_id).filter(Boolean)).size
   const selectedCount = params.selectedCount ?? params.members.length
   const downloaded = Boolean(params.package.downloaded_at) || params.package.download_count > 0
+  const zipStatus = letterPackageZipStatus(params.package)
+  const zipReady = isLetterPackageZipReady(params.package)
   const workflow = roundWorkflowView({
     selectedCount,
     generatedCount,
@@ -406,6 +442,8 @@ export function buildLetterPackageSnapshot(params: {
     pendingCount: Math.max(0, selectedCount - sentCount),
     downloaded,
     allSent: selectedCount > 0 && sentCount >= selectedCount,
+    zipReady,
+    zipStatus,
     workflow,
   }
 }
@@ -1151,6 +1189,146 @@ export const FOLLOW_UP_OUTCOME_STATUSES: ReadonlySet<string> = new Set([
 
 export function isFollowUpOutcomeStatus(status: string | null | undefined): boolean {
   return FOLLOW_UP_OUTCOME_STATUSES.has(String(status || '').trim().toLowerCase())
+}
+
+/**
+ * Evidence that this lifecycle item already went through a prior dispute
+ * package (letter generated, mailed, or bureau outcome). Soft signal only —
+ * selection is never blocked.
+ */
+export function hasPriorDisputeEvidence(item: DisputeItemRow): boolean {
+  if (item.sent_at) return true
+  if (item.current_status === 'disputed') return true
+  if (isFollowUpOutcomeStatus(item.current_status)) return true
+  if (
+    item.current_status === 'deleted' ||
+    item.current_status === 'withdrawn'
+  ) {
+    return Boolean(item.last_round_number) || Boolean(item.sent_at)
+  }
+  return false
+}
+
+/** True when a prior dispute still needs a follow-up letter (do not auto-skip). */
+export function priorDisputeNeedsFollowUp(
+  status: DisputeItemStatus | string | null | undefined
+): boolean {
+  const value = String(status || '')
+    .trim()
+    .toLowerCase()
+  return value === 'verified' || value === 'updated' || value === 'no_response'
+}
+
+export interface PriorDisputeMark {
+  tradelineId: string
+  disputed: true
+  roundNumber: number | null
+  status: DisputeItemStatus | null
+  sentAt: string | null
+  bureaus: BureauCode[]
+  /** Prefer leaving unchecked unless staff overrides. */
+  preferSkip: boolean
+  label: string
+}
+
+export function priorDisputeMarkLabel(params: {
+  roundNumber?: number | null
+  status?: DisputeItemStatus | string | null
+  sentAt?: string | null
+}): string {
+  const round =
+    params.roundNumber && params.roundNumber >= 1 ? `Round ${params.roundNumber}` : null
+  const status = String(params.status || '')
+    .trim()
+    .toLowerCase()
+  let detail = 'prior package'
+  if (params.sentAt) detail = 'sent'
+  else if (status === 'disputed') detail = 'letter generated'
+  else if (status === 'verified') detail = 'verified'
+  else if (status === 'updated') detail = 'updated'
+  else if (status === 'no_response') detail = 'no response'
+  else if (status === 'deleted') detail = 'deleted'
+  else if (status === 'frivolous') detail = 'frivolous'
+  else if (status === 'withdrawn') detail = 'withdrawn'
+  return round ? `Previously disputed · ${round}` : `Previously disputed · ${detail}`
+}
+
+/**
+ * Match a tradeline to lifecycle items that were already disputed in an earlier
+ * round/package. Uses bureau+account identity so renamed creditors still mark.
+ */
+export function priorDisputeMarkForTradeline(
+  tradeline: Tradeline,
+  items: DisputeItemRow[]
+): PriorDisputeMark | null {
+  if (!items.length) return null
+  const bureaus = (tradeline.bureaus || []).filter(
+    (b): b is BureauCode => b === 'TUC' || b === 'EXP' || b === 'EQF'
+  )
+  const targets = bureaus.length ? bureaus : (['TUC', 'EXP', 'EQF'] as BureauCode[])
+  const matched: DisputeItemRow[] = []
+  const matchedBureaus = new Set<BureauCode>()
+
+  for (const bureau of targets) {
+    const identity = itemIdentityFromTradeline(tradeline, bureau)
+    if (!identity) continue
+    const item =
+      findItemForIdentity(items, identity) ||
+      findTrackedAccountItem(items, {
+        bureau: identity.bureau,
+        accountLast4: identity.accountLast4,
+        matchKey: identity.matchKey,
+        creditorName: identity.creditorName,
+      })
+    if (!item || !hasPriorDisputeEvidence(item)) continue
+    matched.push(item)
+    matchedBureaus.add(item.bureau)
+  }
+
+  if (!matched.length) return null
+
+  const preferred = matched.reduce(preferDuplicateAccountItem)
+  const status = preferred.current_status
+  return {
+    tradelineId: tradeline.id,
+    disputed: true,
+    roundNumber: preferred.last_round_number,
+    status,
+    sentAt: preferred.sent_at || null,
+    bureaus: [...matchedBureaus],
+    preferSkip: !priorDisputeNeedsFollowUp(status),
+    label: priorDisputeMarkLabel({
+      roundNumber: preferred.last_round_number,
+      status,
+      sentAt: preferred.sent_at,
+    }),
+  }
+}
+
+export function buildPriorDisputeMarks(
+  tradelines: Tradeline[],
+  items: DisputeItemRow[]
+): Record<string, PriorDisputeMark> {
+  const marks: Record<string, PriorDisputeMark> = {}
+  if (!tradelines.length || !items.length) return marks
+  for (const tradeline of tradelines) {
+    const mark = priorDisputeMarkForTradeline(tradeline, items)
+    if (mark) marks[tradeline.id] = mark
+  }
+  return marks
+}
+
+/** Drop auto-selected accounts that were already disputed and do not need follow-up. */
+export function unselectPreferSkippedPriorDisputes(
+  tradelines: Tradeline[],
+  marks: Record<string, PriorDisputeMark>
+): Tradeline[] {
+  if (!Object.keys(marks).length) return tradelines
+  return tradelines.map((t) => {
+    const mark = marks[t.id]
+    if (!mark?.preferSkip || !t.selected) return t
+    return { ...t, selected: false }
+  })
 }
 
 export interface PlanSelectionWithStatus {

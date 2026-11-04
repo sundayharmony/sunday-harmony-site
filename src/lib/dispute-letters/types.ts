@@ -135,6 +135,8 @@ export interface FundingContextPayload {
 export interface ConsumerInfo {
   name: string
   dob: string
+  /** Full 9-digit SSN when loaded from the linked application for letter generation. */
+  ssn?: string
   ssn_last4: string
   addresses: string[]
 }
@@ -216,7 +218,14 @@ export interface LetterPlan {
   missing_address?: boolean
 }
 
-export type LetterPreviewVariant = 'heading' | 'name' | 'field' | 'tight' | 'body' | 'closing'
+export type LetterPreviewVariant =
+  | 'heading'
+  | 'name'
+  | 'field'
+  | 'tight'
+  | 'body'
+  | 'closing'
+  | 'signature'
 
 export type LetterPreviewBlock =
   | { kind: 'spacer' }
