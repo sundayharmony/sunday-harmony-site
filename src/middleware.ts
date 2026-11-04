@@ -26,6 +26,7 @@ const CREDIT_MANAGER_ADMIN_PATHS = [
   '/admin/people',
   '/admin/credit-funding',
   '/admin/dispute-letters',
+  '/admin/todos',
   '/admin/messages',
   '/admin/settings',
 ]

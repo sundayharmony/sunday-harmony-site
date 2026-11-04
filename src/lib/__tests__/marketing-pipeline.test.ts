@@ -142,12 +142,13 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Sales Kit', 'Content Kit', 'Partners', 'Messages', 'Settings']
+      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Content Kit', 'Partners', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
       '/admin',
       '/admin/pipeline',
+      '/admin/todos',
       '/admin/sales-kit',
       '/admin/messages',
       '/admin/settings',
@@ -155,6 +156,7 @@ describe('marketing role handoffs and navigation', () => {
     assert.deepEqual(navForRole('sales_closer').map((item) => item.href), [
       '/admin',
       '/admin/pipeline',
+      '/admin/todos',
       '/admin/sales-kit',
       '/admin/messages',
       '/admin/settings',
@@ -164,12 +166,14 @@ describe('marketing role handoffs and navigation', () => {
       '/admin',
       '/admin/pipeline',
       '/admin/clients',
+      '/admin/todos',
       '/admin/content-kit',
       '/admin/messages',
       '/admin/settings',
     ])
     assert.deepEqual(navForRole('credit_manager').map((item) => item.href), [
       '/admin/credit-funding',
+      '/admin/todos',
       '/admin/messages',
       '/admin/settings',
     ])
