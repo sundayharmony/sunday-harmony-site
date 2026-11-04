@@ -981,9 +981,12 @@ function CreditFundingAdminContent() {
                 onClick={() => selectApplication(app.id)}
                 className="rounded-2xl bg-white px-3.5 py-3 text-left shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] hover:ring-2 hover:ring-accent"
               >
-                <div className="text-sm font-semibold text-brand-text">{app.full_name}</div>
-                <div className="mt-0.5 text-xs text-brand-muted">
-                  {STATUS_LABELS[app.status as ApplicationStatus] || app.status.replace(/_/g, ' ')} · {app.email}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-brand-text">{app.full_name}</div>
+                    <div className="mt-0.5 truncate text-xs text-brand-muted">{app.email}</div>
+                  </div>
+                  <StatusBadge status={app.status} />
                 </div>
               </button>
             ))}

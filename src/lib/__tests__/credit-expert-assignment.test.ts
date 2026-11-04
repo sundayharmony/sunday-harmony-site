@@ -92,4 +92,16 @@ describe('credit expert assignment', () => {
     assert.match(page, /sm:hidden/)
     assert.doesNotMatch(page, /Assigned Specialist/)
   })
+
+  it('shows waiting-queue status as a badge next to the name', () => {
+    const page = readFileSync('src/app/admin/credit-funding/page.tsx', 'utf8')
+    const waitingAt = page.indexOf('Waiting on you')
+    assert.ok(waitingAt >= 0)
+    const waitingBlock = page.slice(waitingAt, waitingAt + 900)
+    assert.match(waitingBlock, /StatusBadge status=\{app\.status\}/)
+    assert.doesNotMatch(
+      waitingBlock,
+      /STATUS_LABELS\[app\.status as ApplicationStatus\].*·.*app\.email/
+    )
+  })
 })
