@@ -114,15 +114,39 @@ def test_docx_embeds_identity_images_at_end():
         sample,
         enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Proof of Address.png", MINI_PNG)],
     )
-    assert len(document.inline_shapes) == 2
+    # Cursive signature image + two enclosure identity images.
+    assert len(document.inline_shapes) == 3
     text = "\n".join(p.text for p in document.paragraphs)
     assert "Enclosures" in text
     assert "photo identification" not in text.lower()
     layout = letter_layout(sample)
     assert any(block.get("variant") == "closing" for block in layout["blocks"])
+    assert any(block.get("variant") == "signature" for block in layout["blocks"])
 
 
 def test_html_marks_closing_and_page_counter():
     html = letter_to_html(SAMPLE + "\n\nRespectfully,\n\nJane Consumer\n")
     assert "letter-closing" in html
     assert 'class="letter-header-page">Page 1/1</span>' in html
+
+
+def test_layout_marks_name_after_closing_as_signature():
+    layout = letter_layout(SAMPLE + "\n\nRespectfully,\n\nJane Consumer\n\nEnclosures\n")
+    variants = [
+        (block.get("variant"), block.get("text"))
+        for block in layout["blocks"]
+        if block.get("kind") == "line"
+    ]
+    assert ("closing", "Respectfully,") in variants
+    assert ("signature", "Jane Consumer") in variants
+    assert ("heading", "Enclosures") in variants
+
+
+def test_docx_embeds_cursive_signature_image():
+    sample = SAMPLE + "\n\nRespectfully,\n\nJane Consumer\n\nEnclosures\n"
+    document = letter_to_docx(sample)
+    assert len(document.inline_shapes) >= 1
+    texts = [p.text for p in document.paragraphs]
+    assert "Respectfully," in texts
+    # Signature is an image run; the typed name should not appear as body text.
+    assert "Jane Consumer" not in texts

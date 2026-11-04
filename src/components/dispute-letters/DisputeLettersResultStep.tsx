@@ -1,8 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { Great_Vibes } from 'next/font/google'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@/lib/dispute-letters/types'
+
+const signatureFont = Great_Vibes({
+  weight: '400',
+  subsets: ['latin'],
+  display: 'swap',
+})
 import {
   confirmLetterPackageSent,
   disputeLetterDownloadUrl,
@@ -36,7 +43,10 @@ function lineClassName(block: Extract<LetterPreviewBlock, { kind: 'line' }>) {
   if (block.variant === 'heading') classes.push('letter-heading')
   else if (block.variant === 'name') classes.push('letter-name')
   else if (block.variant === 'closing') classes.push('letter-closing')
-  else if (block.variant === 'field') classes.push('letter-field')
+  else if (block.variant === 'signature') {
+    classes.push('letter-signature')
+    classes.push(signatureFont.className)
+  } else if (block.variant === 'field') classes.push('letter-field')
   else if (block.variant === 'tight') classes.push('letter-tight')
   return classes.join(' ')
 }

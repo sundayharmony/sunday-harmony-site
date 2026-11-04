@@ -66,7 +66,29 @@ Enclosures
       true
     )
     assert.equal(
+      layout.blocks.some(
+        (block) => block.kind === 'line' && block.variant === 'signature' && block.text === 'Jane Consumer'
+      ),
+      true
+    )
+    assert.equal(
       layout.blocks.filter((block) => block.kind === 'bullet').length >= 2,
+      true
+    )
+  })
+
+  it('renders the signed name as signature even when title case looks like a heading', () => {
+    const layout = letterLayout(`${SAMPLE}
+Respectfully,
+
+Jane Consumer
+
+Enclosures
+`)
+    assert.equal(
+      layout.blocks.some(
+        (block) => block.kind === 'line' && block.variant === 'signature' && block.text === 'Jane Consumer'
+      ),
       true
     )
   })

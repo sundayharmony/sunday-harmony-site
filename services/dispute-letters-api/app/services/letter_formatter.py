@@ -241,6 +241,7 @@ def _compact_blocks(blocks: list[dict]) -> list[dict]:
             skip = (nxt or {}).get("variant") == "heading" or (prev or {}).get("variant") in {
                 "closing",
                 "heading",
+                "signature",
             }
             if not skip and prev and _is_run_on(prev) and nxt and not _is_run_on(nxt):
                 compacted.append({"kind": "spacer"})
@@ -249,6 +250,29 @@ def _compact_blocks(blocks: list[dict]) -> list[dict]:
         compacted.append(block)
         i += 1
     return compacted
+
+
+def _mark_signature_block(blocks: list[dict]) -> list[dict]:
+    """Mark the first name line after Respectfully/Sincerely as a cursive signature."""
+    awaiting = False
+    for block in blocks:
+        if block.get("kind") != "line":
+            continue
+        if block.get("variant") == "closing":
+            awaiting = True
+            continue
+        if not awaiting:
+            continue
+        text = str(block.get("text") or "").strip()
+        if not text:
+            continue
+        # Title-case consumer names can look like headings; only stop on known sections.
+        if text in SECTION_HEADINGS:
+            awaiting = False
+            continue
+        block["variant"] = "signature"
+        awaiting = False
+    return blocks
 
 
 def letter_layout(text: str) -> dict:
@@ -306,7 +330,7 @@ def letter_layout(text: str) -> dict:
                 "indent": _indent_level(line),
             }
         )
-    return {"date": letter_date, "blocks": _compact_blocks(blocks)}
+    return {"date": letter_date, "blocks": _mark_signature_block(_compact_blocks(blocks))}
 
 
 def letter_to_html(text: str) -> str:
@@ -341,6 +365,25 @@ def letter_to_html(text: str) -> str:
             classes.append("letter-name")
         elif variant == "closing":
             classes.append("letter-closing")
+        elif variant == "signature":
+            classes.append("letter-signature")
+            png = None
+            try:
+                from app.services.letter_signature import render_signature_png
+
+                png = render_signature_png(block["text"])
+            except Exception:
+                png = None
+            if png:
+                import base64
+
+                b64 = base64.b64encode(png).decode("ascii")
+                parts.append(
+                    f'<p class="{" ".join(classes)}">'
+                    f'<img class="letter-signature-img" alt="{html.escape(block["text"])}" '
+                    f'src="data:image/png;base64,{b64}" /></p>'
+                )
+                continue
         elif variant == "field":
             classes.append("letter-field")
         elif variant == "tight":
@@ -374,6 +417,7 @@ def _add_rich_paragraph(
     field_line: bool = False,
     tight: bool = False,
     closing: bool = False,
+    signature: bool = False,
 ):
     from docx.enum.text import WD_LINE_SPACING
     from docx.shared import Inches, Pt
@@ -386,7 +430,9 @@ def _add_rich_paragraph(
     if heading:
         fmt.space_after = Pt(4)
     elif closing:
-        fmt.space_after = Pt(28)
+        fmt.space_after = Pt(10)
+    elif signature:
+        fmt.space_after = Pt(4)
     elif name_line or field_line or tight:
         fmt.space_after = Pt(0)
     else:
@@ -394,6 +440,26 @@ def _add_rich_paragraph(
 
     if indent_level:
         fmt.left_indent = Inches(0.35 * indent_level)
+
+    if signature:
+        png = None
+        try:
+            from app.services.letter_signature import render_signature_png
+
+            png = render_signature_png(line)
+        except Exception:
+            png = None
+        if png:
+            run = para.add_run()
+            stream = BytesIO(png)
+            # Keep signature readable but not oversized on the page.
+            run.add_picture(stream, width=Inches(min(3.6, max(1.8, 0.22 * max(len(line), 8)))))
+            return para
+        # Fallback: italic Times if image rendering is unavailable.
+        run = para.add_run(line)
+        run.italic = True
+        _set_run_font(run, size_pt=18)
+        return para
 
     _add_runs(para, line, bold_all=heading or name_line)
     return para
@@ -735,6 +801,7 @@ def letter_to_docx(text: str, enclosure_files: list[tuple[str, bytes]] | None = 
             field_line=variant == "field",
             tight=variant == "tight",
             closing=variant == "closing",
+            signature=variant == "signature",
         )
 
     if files:

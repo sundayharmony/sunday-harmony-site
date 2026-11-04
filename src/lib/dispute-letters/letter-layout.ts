@@ -15,7 +15,7 @@ const SECTION_HEADINGS = new Set([
 
 const BULLET_RE = /^(?:●|•|▪|◦|[-*+])\s+/
 const FIELD_LABEL_RE =
-  /^(Full Name|Date of Birth|Current Address|Additional Addresses on File|Account Number|Reported Status|Reported Balance|Basis of Dispute)\s*:/i
+  /^(Full Name|Date of Birth|Social Security Number|SSN|Current Address|Additional Addresses on File|Account Number|Reported Status|Reported Balance|Basis of Dispute)\s*:/i
 const DATE_LINE_RE =
   /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\s*$/
 
@@ -109,7 +109,8 @@ function compactLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBlock[]
       const prev = compacted[compacted.length - 1]
       const skip =
         (next?.kind === 'line' && next.variant === 'heading') ||
-        (prev?.kind === 'line' && (prev.variant === 'closing' || prev.variant === 'heading'))
+        (prev?.kind === 'line' &&
+          (prev.variant === 'closing' || prev.variant === 'heading' || prev.variant === 'signature'))
       if (!skip && prev && isRunOn(prev) && next && !isRunOn(next)) {
         compacted.push({ kind: 'spacer' })
       }
@@ -119,7 +120,28 @@ function compactLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBlock[]
     compacted.push(block)
     i += 1
   }
-  return compacted
+  return markSignatureBlock(compacted)
+}
+
+function markSignatureBlock(blocks: LetterPreviewBlock[]): LetterPreviewBlock[] {
+  let awaiting = false
+  return blocks.map((block) => {
+    if (block.kind !== 'line') return block
+    if (block.variant === 'closing') {
+      awaiting = true
+      return block
+    }
+    if (!awaiting) return block
+    const text = block.text.trim()
+    if (!text) return block
+    // Title-case consumer names can look like headings; only stop on known sections.
+    if (SECTION_HEADINGS.has(text)) {
+      awaiting = false
+      return block
+    }
+    awaiting = false
+    return { ...block, variant: 'signature' }
+  })
 }
 
 function isTightLine(display: string, heading: boolean, nameLine: boolean, fieldLine: boolean, closing: boolean): boolean {
