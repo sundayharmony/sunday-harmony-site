@@ -91,17 +91,35 @@ afterEach(() => {
   else process.env.LEADS_IMPORT_SECRET = originalSecret
 })
 
-class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: string } | null }> {
+const MISSING_COLUMN_ERROR = {
+  message: "Could not find the 'external_lead_id' column of 'leads' in the schema cache",
+  code: 'PGRST204',
+}
+
+class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
   private inserted: Row[] | null = null
+  private columns = ''
+  private writeError: { message: string; code?: string } | null = null
 
-  constructor(private table: Row[]) {}
+  constructor(
+    private table: Row[],
+    private options: { missingExternalIdColumn?: boolean; rejectExternalIdOnInsert?: boolean } = {}
+  ) {}
 
-  select() {
+  select(columns = '*') {
+    this.columns = columns
     return this
   }
 
   insert(payload: Row | Row[]) {
     const items = Array.isArray(payload) ? payload : [payload]
+    if (
+      (this.options.missingExternalIdColumn || this.options.rejectExternalIdOnInsert) &&
+      items.some((item) => Object.prototype.hasOwnProperty.call(item, 'external_lead_id'))
+    ) {
+      this.writeError = MISSING_COLUMN_ERROR
+      return this
+    }
     this.inserted = items.map((item) => {
       const row = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...item }
       this.table.push(row)
@@ -110,21 +128,30 @@ class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: stri
     return this
   }
 
-  then<TResult1 = { data: unknown; error: { message: string } | null }, TResult2 = never>(
-    onfulfilled?: ((value: { data: unknown; error: { message: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = { data: unknown; error: { message: string; code?: string } | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: { message: string; code?: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
+    if (this.options.missingExternalIdColumn && this.columns.includes('external_lead_id')) {
+      return Promise.resolve({ data: null, error: MISSING_COLUMN_ERROR }).then(onfulfilled, onrejected)
+    }
+    if (this.writeError) {
+      return Promise.resolve({ data: null, error: this.writeError }).then(onfulfilled, onrejected)
+    }
     const data = this.inserted ?? this.table
     return Promise.resolve({ data, error: null }).then(onfulfilled, onrejected)
   }
 }
 
-function memorySupabase(seed: Row[] = []) {
+function memorySupabase(
+  seed: Row[] = [],
+  options: { missingExternalIdColumn?: boolean; rejectExternalIdOnInsert?: boolean } = {}
+) {
   const tables = new Map<string, Row[]>([['leads', [...seed]]])
   return {
     from(name: string) {
       if (!tables.has(name)) tables.set(name, [])
-      return new MemoryQuery(tables.get(name)!)
+      return new MemoryQuery(tables.get(name)!, options)
     },
     rows(name: string) {
       return tables.get(name) || []
@@ -296,5 +323,119 @@ describe('POST /api/internal/leads-import', () => {
     assert.equal(row.first_name, 'Sal')
     assert.equal(row.last_name, 'Jacobs')
     assert.equal(row.estimated_value, 9588)
+  })
+
+  it('skips a lead whose externalId is already in the CRM', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        business: 'Old SwingStop Name',
+        email: 'old@example.com',
+        lead_type: 'marketing_lead',
+        external_lead_id: 'SH-0001',
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }, { ...sampleLeads[2], externalId: 'SH-0003' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.inserted, 1)
+    assert.deepEqual(body.skipped, [
+      { business: 'SwingStop Hammonton', reason: 'already imported (Lead ID)' },
+    ])
+    assert.equal(db.rows('leads').some((row) => row.business === 'SwingStop Hammonton'), false)
+    assert.equal(db.rows('leads').find((row) => row.business === 'Nick & Son Heating & AC')?.external_lead_id, 'SH-0003')
+  })
+
+  it('skips a new externalId when the business name already exists', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        business: 'SwingStop Hammonton',
+        email: 'info@swingstopvineland.com',
+        lead_type: 'marketing_lead',
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [{ ...sampleLeads[0], externalId: 'SH-0001' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.inserted, 0)
+    assert.deepEqual(body.skipped, [
+      { business: 'SwingStop Hammonton', reason: 'Already in the CRM' },
+    ])
+    assert.equal(db.rows('leads').length, 1)
+    assert.equal(db.rows('leads')[0].external_lead_id, undefined)
+  })
+
+  it('skips a repeated externalId in the same payload', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [
+        { ...sampleLeads[0], externalId: 'SH-0001' },
+        { ...sampleLeads[1], externalId: 'SH-0001' },
+      ],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.inserted, 1)
+    assert.deepEqual(body.skipped, [
+      { business: 'Jacobs Plumbing & Heating / Septic (Sal Jacobs)', reason: 'Duplicate in this batch' },
+    ])
+    assert.equal(db.rows('leads')[0].external_lead_id, 'SH-0001')
+    assert.equal(db.rows('leads')[0].business, 'SwingStop Hammonton')
+  })
+
+  it('falls back to name and email when external_lead_id is not in the database yet', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase(
+      [
+        {
+          business: 'SwingStop Hammonton',
+          email: 'info@swingstopvineland.com',
+          lead_type: 'marketing_lead',
+        },
+      ],
+      { missingExternalIdColumn: true }
+    )
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [
+        { ...sampleLeads[0], externalId: 'SH-0001' },
+        { ...sampleLeads[2], externalId: 'SH-0003' },
+      ],
+    }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.inserted, 1)
+    assert.equal(body.warning, 'external_lead_id is missing. Run supabase-migration-052-lead-external-id.sql in the Supabase SQL Editor.')
+    assert.deepEqual(body.skipped, [
+      { business: 'SwingStop Hammonton', reason: 'Already in the CRM' },
+    ])
+    const inserted = db.rows('leads').find((row) => row.business === 'Nick & Son Heating & AC')
+    assert.equal(inserted?.external_lead_id, undefined)
+  })
+
+  it('retries the insert without external_lead_id instead of failing the batch', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([], { rejectExternalIdOnInsert: true })
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [{ ...sampleLeads[2], externalId: 'SH-0003' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.inserted, 1)
+    assert.equal(body.warning, 'external_lead_id is missing. Run supabase-migration-052-lead-external-id.sql in the Supabase SQL Editor.')
+    assert.equal(db.rows('leads')[0].business, 'Nick & Son Heating & AC')
+    assert.equal(db.rows('leads')[0].external_lead_id, undefined)
   })
 })
