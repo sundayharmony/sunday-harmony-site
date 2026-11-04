@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isMarketingRole } from '@/lib/marketing-pipeline'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import { createUser, getUserByEmail, logActivity } from '@/lib/db'
 import { validatePassword } from '@/lib/auth-password'
@@ -9,15 +10,16 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
 
   const { getStaffUsers } = await import('@/lib/db')
   const staff = await getStaffUsers()
+  const team = new URL(req.url).searchParams.get('team')
   return NextResponse.json(
     staff
-      .filter((u) => u.role === 'credit_manager')
+      .filter((u) => (team === 'marketing' ? isMarketingRole(u.role) : u.role === 'credit_manager'))
       .map((u) => ({
         id: u.id,
         name: u.name,
@@ -58,15 +60,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
   }
 
+  const requestedRole = typeof body.role === 'string' ? body.role : 'credit_manager'
+  const role = isMarketingRole(requestedRole) ? requestedRole : 'credit_manager'
   const user = await createUser({
     email,
     password: password || generateTempPassword(),
     name,
-    role: 'credit_manager',
+    role,
   })
 
   if (!user) {
-    return NextResponse.json({ error: 'Failed to create credit manager account' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to create the staff account' }, { status: 500 })
   }
 
   logActivity({
@@ -74,12 +78,19 @@ export async function POST(req: NextRequest) {
     entity_type: 'user',
     entity_id: user.id,
     actor_email: session.user.email || 'admin',
-    details: `Created credit manager account for ${name} (${email})`,
+    details: `Created ${role} account for ${name} (${email})`,
   })
 
   let emailSent = false
   try {
-    const result = await issueAndSendCreditManagerSetupEmail(user)
+    const title = role === 'lead_procurement'
+      ? 'Lead Procurement'
+      : role === 'sales_closer'
+        ? 'Sales Closer'
+        : role === 'client_relations'
+          ? 'Client Relations'
+          : 'Credit Manager'
+    const result = await issueAndSendCreditManagerSetupEmail(user, title)
     emailSent = result.emailSent
   } catch (err) {
     console.error('credit manager setup email error:', err)

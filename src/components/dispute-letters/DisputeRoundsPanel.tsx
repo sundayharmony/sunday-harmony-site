@@ -7,6 +7,7 @@ import {
   formatStatusHistory,
   itemStatusLabel,
   letterPackageDisplayCode,
+  zipReadyLabel,
   notYetDisputedFromItems,
   type DisputeCfpbEscalationRow,
   type DisputeItemRow,
@@ -16,7 +17,7 @@ import {
   type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
-import { backfillHistoricalRound1, confirmLetterPackageSent, disputeLettersZipUrl, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
+import { backfillHistoricalRound1, confirmLetterPackageSent, downloadDisputeLettersZip, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
 
 export default function DisputeRoundsPanel({ applicationId }: { applicationId: string }) {
   const [snapshot, setSnapshot] = useState<DisputeLifecycleSnapshot | null>(null)
@@ -467,22 +468,7 @@ function LetterPackageCard({
     setBusy(true)
     onError('')
     try {
-      const res = await fetch(disputeLettersZipUrl(sessionId))
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(typeof body.error === 'string' ? body.error : 'ZIP download failed')
-      }
-      const blob = await res.blob()
-      const header = res.headers.get('content-disposition') || ''
-      const matched = /filename="([^"]+)"/i.exec(header)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = matched?.[1] || 'Dispute Letters.zip'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      await downloadDisputeLettersZip(sessionId)
       onRefresh()
     } catch (e) {
       onError(e instanceof Error ? e.message : 'ZIP download failed')
@@ -515,7 +501,9 @@ function LetterPackageCard({
           <p className="mt-1 text-sm font-semibold text-brand-text">{workflow.label}</p>
           <p className="mt-0.5 text-xs text-brand-dim">
             {generatedCount} letter{generatedCount === 1 ? '' : 's'} generated
-            {downloaded ? ' · ZIP Downloaded ✓' : ''}
+            {downloaded
+              ? ' · ZIP Downloaded ✓'
+              : ` · ${zipReadyLabel(pkg.zipStatus, pkg.zipReady)}`}
             {allSent ? ' · Sent confirmation recorded' : downloaded ? ' · Ready to Send' : ''}
             {' · Photo ID and proof of address are in each letter'}
           </p>
@@ -528,7 +516,15 @@ function LetterPackageCard({
               onClick={() => void downloadZip()}
               className="rounded px-2 py-1 text-xs font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
             >
-              {downloaded ? 'Download again' : 'Download ZIP'}
+              {busy
+                ? pkg.zipReady
+                  ? 'Downloading…'
+                  : 'Building ZIP…'
+                : !pkg.zipReady
+                  ? 'Preparing ZIP…'
+                  : downloaded
+                    ? 'Download again'
+                    : 'Download ZIP'}
             </button>
           )}
           {!allSent && (

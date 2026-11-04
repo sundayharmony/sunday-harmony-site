@@ -13,6 +13,7 @@ import {
   isCreditRepairPackage,
 } from '@/lib/billing-packages'
 import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+import ClientRelationsBoard from '@/components/admin/ClientRelationsBoard'
 
 interface Client {
   id: string; name: string; business: string; email: string; phone?: string
@@ -52,7 +53,15 @@ export default function ClientsPage() {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [showBillingAdvanced, setShowBillingAdvanced] = useState(false)
+  const [viewerRole, setViewerRole] = useState<string | null>(null)
   const PAGE_SIZE = 15
+
+  useEffect(() => {
+    void fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => setViewerRole(data?.user?.role || 'unknown'))
+      .catch(() => setViewerRole('unknown'))
+  }, [])
 
   useEffect(() => {
     (async () => {
@@ -275,8 +284,18 @@ export default function ClientsPage() {
     URL.revokeObjectURL(url)
   }
 
+  if (viewerRole === null) return <p className="text-sm text-brand-muted">Loading clients…</p>
+  if (viewerRole === 'client_relations') {
+    return (
+      <div>
+        <ClientRelationsBoard />
+      </div>
+    )
+  }
+
   return (
     <div>
+      {viewerRole === 'admin' && <ClientRelationsBoard />}
       <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Clients</h1>

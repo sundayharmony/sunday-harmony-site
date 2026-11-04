@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { revalidatePath } from 'next/cache'
 import { createLead, findLeadByEmail, updateLead, type Lead } from '@/lib/db'
 import { createMeeting, updateMeeting } from '@/lib/crm-db'
 import { consultationCancelUrl, consultationEmailHtml } from '@/lib/consultation-email'
@@ -8,6 +9,7 @@ import {
   getConsultationSettings,
   insertConsultationBooking,
   listConsultationBlackouts,
+  listConsultationBusyRanges,
   listConsultationHours,
   listScheduledBookings,
   updateConsultationBooking,
@@ -24,6 +26,7 @@ import {
   type ConsultationSlot,
 } from '@/lib/consultation-slots'
 import { createMeetEvent, deleteCalendarEvent, isGoogleCalendarConfigured } from '@/lib/google-calendar'
+import { marketingStatusForStage, stageAfterConsultation, stageFromLegacy } from '@/lib/marketing-pipeline'
 import { getAdminNotifyEmail, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
 
 export type PublicSlotDay = {
@@ -40,6 +43,9 @@ const DEFAULT_SETTINGS = {
   minLeadMinutes: 120,
 }
 
+const BUSY_LOOKBACK_MS = 24 * 60 * 60 * 1000
+const BUSY_HORIZON_MS = 120 * 24 * 60 * 60 * 1000
+
 export async function loadOpenSlots(now = new Date()): Promise<{
   settings: typeof DEFAULT_SETTINGS
   slots: ConsultationSlot[]
@@ -49,7 +55,7 @@ export async function loadOpenSlots(now = new Date()): Promise<{
   const [hours, blackouts, bookings] = await Promise.all([
     listConsultationHours(),
     listConsultationBlackouts(),
-    listScheduledBookings(),
+    listConsultationBusyRanges(new Date(now.getTime() - BUSY_LOOKBACK_MS), new Date(now.getTime() + BUSY_HORIZON_MS)),
   ])
   const slots = buildConsultationSlots({
     now,
@@ -59,6 +65,35 @@ export async function loadOpenSlots(now = new Date()): Promise<{
     busy: bookings.map((booking) => ({ startsAt: booking.starts_at, endsAt: booking.ends_at })),
   })
   return { settings, slots, calendarConnected: isGoogleCalendarConfigured() }
+}
+
+export type PublicSlotsPayload = {
+  calendarConnected: boolean
+  timezone: string
+  slotMinutes: number
+  days: PublicSlotDay[]
+}
+
+export async function loadPublicSlots(now = new Date()): Promise<PublicSlotsPayload> {
+  const open = await loadOpenSlots(now)
+  if (!open) {
+    return { calendarConnected: false, timezone: DEFAULT_SETTINGS.timezone, slotMinutes: DEFAULT_SETTINGS.slotMinutes, days: [] }
+  }
+  return {
+    calendarConnected: open.calendarConnected,
+    timezone: open.settings.timezone,
+    slotMinutes: open.settings.slotMinutes,
+    days: groupSlots(open.slots, open.settings.timezone),
+  }
+}
+
+export function refreshPublicConsultationCalendar() {
+  try {
+    revalidatePath('/book')
+    revalidatePath('/api/consultations/slots')
+  } catch (error) {
+    console.error('consultation calendar refresh failed:', error)
+  }
 }
 
 export function groupSlots(slots: ConsultationSlot[], timeZone: string): PublicSlotDay[] {
@@ -204,11 +239,19 @@ export async function bookConsultation(input: {
       source: 'inbound',
       lead_type: 'marketing_lead',
       marketing_lead_status: 'consultation_scheduled',
+      pipeline_stage: 'meeting_scheduled',
     })
   } else {
     const updates: Parameters<typeof updateLead>[1] = {}
-    if (existingLead?.marketing_lead_status !== 'converted') {
-      updates.marketing_lead_status = 'consultation_scheduled'
+    const currentStage = existingLead?.pipeline_stage || stageFromLegacy({
+      marketingStatus: existingLead?.marketing_lead_status,
+      legacyStatus: existingLead?.status,
+      source: existingLead?.source,
+    })
+    const nextStage = stageAfterConsultation(currentStage)
+    if (nextStage && existingLead?.marketing_lead_status !== 'converted') {
+      updates.pipeline_stage = nextStage
+      updates.marketing_lead_status = marketingStatusForStage(nextStage)
     }
     if (!(existingLead?.phone || '').trim() && input.phone.trim()) updates.phone = input.phone.trim()
     if (!(existingLead?.business || '').trim() && input.business.trim()) updates.business = input.business.trim()
@@ -260,6 +303,7 @@ export async function bookConsultation(input: {
     console.error('consultation confirmation email failed:', error)
   }
 
+  refreshPublicConsultationCalendar()
   return { ok: true, whenLabel, emailed }
 }
 
@@ -288,6 +332,7 @@ async function cancelBookingRecord(
   }
   const updated = await updateConsultationBooking(booking.id, { status: 'cancelled' })
   if (!updated) return { ok: false, error: 'Could not cancel the booking.' }
+  refreshPublicConsultationCalendar()
   if (booking.meeting_id) {
     await updateMeeting(booking.meeting_id, { status: 'cancelled' })
   }

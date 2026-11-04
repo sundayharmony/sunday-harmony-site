@@ -10,6 +10,7 @@ import { getStripe } from '@/lib/stripe'
 import { getClientIp } from '@/lib/rate-limit'
 import { getSupabase } from '@/lib/supabase'
 import {
+  buildCreditReferralPayoutSources,
   buildReferralPath,
   formatCommissionCents,
   generateReferralCode,
@@ -19,6 +20,7 @@ import {
   normalizeReferralCode,
   referralCommissionCents,
   referralHoldDays,
+  selectCreditReferralPayouts,
   shouldCreateCommission,
   type CommissionStatus,
 } from '@/lib/referrals'
@@ -39,6 +41,7 @@ import {
   getReferralsByReferredClientId,
   listAllCommissions,
   listAllPayouts,
+  listCreditApplicationDisplayNames,
   insertCommission,
   insertPayout,
   insertReferral,
@@ -620,6 +623,22 @@ export async function getAdminReferralOverview() {
     })
   }
 
+  const applicationIds = allReferrals
+    .map((referral) => referral.referred_application_id)
+    .filter((id): id is string => Boolean(id))
+  const applications = await listCreditApplicationDisplayNames(applicationIds)
+  const creditReferrals = selectCreditReferralPayouts(
+    buildCreditReferralPayoutSources({
+      profiles,
+      referrals: allReferrals,
+      commissions: allCommissions,
+      payouts: allPayouts,
+      clients: allClients.map((client) => ({ id: client.id, name: client.name })),
+      applications,
+      nowMs: Date.now(),
+    })
+  )
+
   return {
     overview: {
       referralClients: profiles.filter((p) => p.client_id && !p.partner_profile_id).length,
@@ -632,6 +651,7 @@ export async function getAdminReferralOverview() {
       pendingPayouts,
     },
     clients,
+    creditReferrals,
   }
 }
 
@@ -786,6 +806,69 @@ export async function syncConnectAccount(accountId: string): Promise<void> {
   const account = await getStripe().accounts.retrieve(accountId)
   const ready = Boolean(account.payouts_enabled && account.details_submitted)
   await updateReferralProfile(profile.id, { payout_ready: ready })
+}
+
+/** Record that the admin already paid one owed referral. Does not send a transfer. */
+export async function markReferralCommissionPaid(params: {
+  clientId: string
+  commissionId: string
+  actorEmail: string
+}): Promise<{ ok: true; paidAt: string; alreadyPaid?: boolean } | { error: string; status: number }> {
+  const profile = await getReferralProfileByClientId(params.clientId)
+  if (!profile?.client_id || profile.partner_profile_id) {
+    return { error: 'No referral profile for this client.', status: 404 }
+  }
+  const commission = await getCommissionById(params.commissionId)
+  if (!commission) return { error: 'Commission not found.', status: 404 }
+
+  const referrals = await listReferralsForProfile(profile.id)
+  const referral = referrals.find((row) => row.id === commission.referral_id)
+  if (!referral) return { error: 'That commission is not for this referrer.', status: 404 }
+
+  if (commission.status === 'paid') {
+    return { ok: true, paidAt: commission.paid_at || new Date().toISOString(), alreadyPaid: true }
+  }
+  if (commission.status === 'processing') {
+    return { error: 'A payout is already in progress for this referral.', status: 409 }
+  }
+  if (commission.status === 'cancelled' || commission.status === 'revoked') {
+    return { error: 'This commission cannot be paid.', status: 400 }
+  }
+
+  const holdPassed = Date.parse(commission.available_at) <= Date.now()
+  const ready = commission.status === 'available' || (commission.status === 'pending' && holdPassed)
+  if (!ready) return { error: 'This referral is not ready to pay yet.', status: 400 }
+  if (commission.amount_cents < 1) return { error: 'This referral has no recorded payout amount.', status: 400 }
+
+  const payout = await insertPayout({
+    client_id: profile.client_id,
+    referral_profile_id: profile.id,
+    amount_cents: commission.amount_cents,
+    payment_provider: 'manual',
+    status: 'processing',
+    initiated_by_email: params.actorEmail,
+    provider_transaction_id: null,
+  })
+  if (!payout) return { error: 'Could not record the payout.', status: 500 }
+
+  await updateCommission(commission.id, { status: 'processing', payout_id: payout.id })
+  await completePayoutSuccess(payout.id, `manual-${payout.id}`)
+  await insertReferralEvent({
+    referral_id: referral.id,
+    referral_profile_id: profile.id,
+    event_type: 'payout_recorded',
+    detail: `Manual payout ${formatCommissionCents(commission.amount_cents)} recorded by ${params.actorEmail}`,
+  })
+  await logActivity({
+    action: 'updated',
+    entity_type: 'client',
+    entity_id: profile.client_id,
+    actor_email: params.actorEmail,
+    details: `Recorded manual referral payout ${formatCommissionCents(commission.amount_cents)} for referral ${referral.id}`,
+  })
+
+  const saved = await getPayoutById(payout.id)
+  return { ok: true, paidAt: saved?.processed_at || new Date().toISOString() }
 }
 
 export async function initiateReferralPayout(params: {

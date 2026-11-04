@@ -9,6 +9,7 @@ import {
   logBillingActivity,
 } from '@/lib/billing-service'
 import { getClientById, updateClient } from '@/lib/db'
+import { viewerFromSession, viewerMayAccessCreditApplication } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
@@ -17,8 +18,14 @@ export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-async function clientIdForApplication(id: string): Promise<string | { error: string; status: number }> {
+async function clientIdForApplication(
+  id: string,
+  viewer: ReturnType<typeof viewerFromSession>
+): Promise<string | { error: string; status: number }> {
   const application = await getCreditFundingApplicationById(id)
+  if (!viewerMayAccessCreditApplication(application, viewer)) {
+    return { error: 'Application not found', status: 404 }
+  }
   if (!application) return { error: 'Application not found', status: 404 }
   let clientId = application.client_id?.trim()
   if (!clientId) {
@@ -45,7 +52,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   if (session instanceof NextResponse) return session
 
   const { id } = await context.params
-  const clientId = await clientIdForApplication(id)
+  const clientId = await clientIdForApplication(id, viewerFromSession(session))
   if (typeof clientId !== 'string') {
     return NextResponse.json({ error: clientId.error }, { status: clientId.status })
   }
@@ -71,7 +78,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (session instanceof NextResponse) return session
 
   const { id } = await context.params
-  const clientId = await clientIdForApplication(id)
+  const clientId = await clientIdForApplication(id, viewerFromSession(session))
   if (typeof clientId !== 'string') {
     return NextResponse.json({ error: clientId.error }, { status: clientId.status })
   }

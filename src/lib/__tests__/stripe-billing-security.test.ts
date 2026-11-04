@@ -17,6 +17,13 @@ describe('Area 10 Stripe billing security', () => {
     assert.match(auth, /session\.user\.role === 'admin'/)
     assert.match(auth, /!session\.user\.mfaVerified/)
     assert.match(auth, /MFA verification required/)
+    assert.match(auth, /session\.user\.role === 'sales_closer'/)
+    assert.match(auth, /salesCloserOwnsClient/)
+    const plan = source('src/app/api/admin/clients/plan/route.ts')
+    assert.match(plan, /requireMarketingBillingSession/)
+    assert.match(plan, /Sales can bill marketing packages only/)
+    assert.match(source('src/components/admin/TodayBoard.tsx'), /Bill active clients/)
+    assert.match(source('src/components/billing/BillingPanel.tsx'), /marketingOnly/)
   })
 
   it('rate limits client-callable billing routes with durable storage', () => {

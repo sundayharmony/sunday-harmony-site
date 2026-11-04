@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { Session } from 'next-auth'
+import { viewerMayAccessCreditApplication } from '@/lib/credit-expert-assignment'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { getDisputeSession, getDisputeSessionById } from '@/lib/dispute-letters/db'
 import type { DisputeSessionListItem } from '@/lib/dispute-letters/types'
 
@@ -24,7 +26,19 @@ export async function requireDisputeSessionAccess(
   if (role && STAFF_ROLES.has(role)) {
     const row = await getDisputeSessionById(sessionId)
     if (row?.application_uuid) {
-      return { ok: true, session: row }
+      if (role === 'credit_manager') {
+        const application = await getCreditFundingApplicationById(row.application_uuid)
+        if (
+          viewerMayAccessCreditApplication(application, {
+            role,
+            userId: adminSession.user?.id,
+          })
+        ) {
+          return { ok: true, session: row }
+        }
+      } else {
+        return { ok: true, session: row }
+      }
     }
   }
 

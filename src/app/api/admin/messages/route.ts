@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   if (!clientId) {
     return NextResponse.json([])
   }
-  if (!(await staffMayUseClient(session.user.role, clientId))) {
+  if (!(await staffMayUseClient(session.user.role, clientId, session.user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   if (!clientId || !text?.trim()) {
     return NextResponse.json({ error: 'clientId and text required' }, { status: 400 })
   }
-  if (!(await staffMayUseClient(session.user.role, clientId))) {
+  if (!(await staffMayUseClient(session.user.role, clientId, session.user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

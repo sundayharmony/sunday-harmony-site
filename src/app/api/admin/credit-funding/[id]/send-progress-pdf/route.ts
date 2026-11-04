@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createNotification, getUserByEmail } from '@/lib/db'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { sendCreditFundingStatusUpdateEmail } from '@/lib/credit-funding-applicant-onboarding'
 import {
@@ -66,6 +67,8 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const { id: applicationId } = await params
   const application = await getCreditFundingApplicationById(applicationId)
+  const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+  if (denied) return denied
   if (!application) {
     return NextResponse.json({ error: 'Application not found' }, { status: 404 })
   }

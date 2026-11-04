@@ -19,6 +19,8 @@ describe('admin auth role checks', () => {
     assert.equal(isCreditFundingStaffRole('admin'), true)
     assert.equal(isCreditFundingStaffRole('credit_manager'), true)
     assert.equal(isCreditFundingStaffRole('client'), false)
+    assert.equal(isCreditFundingStaffRole('lead_procurement'), false)
+    assert.equal(isCreditFundingStaffRole('sales_closer'), false)
   })
 })
 

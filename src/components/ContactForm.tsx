@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react'
 import { siteConfig, serviceOptions } from '@/lib/data'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
 
 interface FormData {
   firstName: string
@@ -45,6 +46,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
         throw new Error(data.error || 'Something went wrong')
       }
 
+      reportGoogleAdsLeadConversion()
       setSent(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send. Please email us directly.')

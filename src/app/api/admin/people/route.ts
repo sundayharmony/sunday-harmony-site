@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireStaffSession } from '@/lib/stripe-admin-auth'
 import { listPeople, type PersonScope } from '@/lib/people-db'
 
@@ -10,6 +11,6 @@ export async function GET(request: NextRequest) {
 
   const requested = new URL(request.url).searchParams.get('scope')
   const scope: PersonScope = session.user.role === 'credit_manager' || requested === 'credit' ? 'credit' : 'all'
-  const people = await listPeople(scope)
+  const people = await listPeople(scope, new Date(), viewerFromSession(session))
   return NextResponse.json({ people, scope })
 }

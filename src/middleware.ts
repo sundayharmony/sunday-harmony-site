@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { loginRedirectPath } from '@/lib/login-redirect'
-import { isStaffRole } from '@/lib/staff-roles'
+import { marketingRoleAllowedPath, isMarketingRole } from '@/lib/marketing-pipeline'
+import { roleRequiresMfa } from '@/lib/staff-roles'
 import { isStaffSessionExpired, sessionCookieNamesToClear } from '@/lib/staff-session'
 
 /**
@@ -20,7 +21,7 @@ const CLIENT_HOME_PATHS = new Set(['/', '/login', '/forgot-password', '/reset-pa
  */
 const MFA_INCOMPLETE_ALLOWED = new Set(['/login', '/forgot-password', '/reset-password'])
 
-/** Credit managers use Today, People, the credit workspace, and Settings. */
+/** Credit managers use the credit workspace, dispute letters, and Settings. */
 const CREDIT_MANAGER_ADMIN_PATHS = [
   '/admin/people',
   '/admin/credit-funding',
@@ -75,9 +76,9 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
   const path = req.nextUrl.pathname
   const role = token?.role as string | undefined
-  const staff = isStaffRole(role)
   const mfaVerified = Boolean(token?.mfaVerified)
   const mfaEnrollmentRequired = Boolean(token?.mfaEnrollmentRequired)
+  const mustUseMfa = roleRequiresMfa(role)
 
   // Staff JWTs last 8 hours. The raw cookie can still look signed-in after that,
   // which left people on a Forbidden screen instead of the login page.
@@ -98,7 +99,7 @@ export async function middleware(req: NextRequest) {
 
   // Staff must finish MFA / enrollment before any protected surface.
   // Do not trap them out of login or password-reset — that made emailed codes unusable.
-  if (token && staff && !mfaVerified && !mfaIncompletePathAllowed(path)) {
+  if (token && mustUseMfa && !mfaVerified && !mfaIncompletePathAllowed(path)) {
     return NextResponse.redirect(
       new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
     )
@@ -117,19 +118,33 @@ export async function middleware(req: NextRequest) {
   }
 
   if (role === 'credit_manager' && mfaVerified && path === '/login') {
+    return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+  }
+
+  if (isMarketingRole(role) && path === '/login') {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
 
   if (path.startsWith('/admin')) {
     if (!token) return redirectToLogin(req)
-    if (staff && !mfaVerified) {
+    if (mustUseMfa && !mfaVerified) {
       return NextResponse.redirect(
         new URL(mfaEnrollmentRequired ? '/login/mfa/setup' : '/login/mfa', req.url)
       )
     }
 
     if (role === 'credit_manager') {
+      if (path === '/admin') {
+        return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+      }
       if (!creditManagerAllowed(path)) {
+        return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+      }
+      return NextResponse.next()
+    }
+
+    if (isMarketingRole(role)) {
+      if (!marketingRoleAllowedPath(role, path)) {
         return NextResponse.redirect(new URL('/admin', req.url))
       }
       return NextResponse.next()

@@ -1,12 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { letterGenerateFailure, type LetterGenerateJob } from '@/lib/dispute-letters/generate-job'
+import { loadLetterConsumerIdentity } from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+/** Generate poll + post-complete ZIP pregeneration (after()). */
+export const maxDuration = 180
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -24,6 +26,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const body = await request.json().catch(() => ({}))
+    const identity = await loadLetterConsumerIdentity(id)
     const data = await disputeLettersJson<{
       status: string
       session_id: string
@@ -35,6 +38,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         plan_ids: body.plan_ids ?? null,
         consumer_name: body.consumer_name ?? null,
         consumer_addresses: body.consumer_addresses ?? null,
+        consumer_ssn: identity.ssn,
+        consumer_dob: identity.dob,
       }),
     })
     return NextResponse.json(data, { status: 202 })
@@ -62,6 +67,12 @@ export async function GET(_request: NextRequest, { params }: Params) {
       } catch (hookErr) {
         console.error('onLettersGenerated hook failed:', hookErr)
       }
+      // Eager ZIP build so Download ZIP is a storage fetch, not a live DOCX merge.
+      after(() => {
+        import('@/lib/dispute-letters/letter-package-zip')
+          .then(({ prepareLetterPackageZip }) => prepareLetterPackageZip(id))
+          .catch((err) => console.error('prepareLetterPackageZip after generate failed:', err))
+      })
     }
     const failure = letterGenerateFailure(data)
     if (failure && (data.status === 'failed' || data.status === 'error')) {

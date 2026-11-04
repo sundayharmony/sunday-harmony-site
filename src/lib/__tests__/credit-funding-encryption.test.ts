@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
 import {
   decryptField,
@@ -13,9 +14,11 @@ import {
   encryptFreeTextForDb,
 } from '../credit-funding-sensitive-fields'
 import {
+  applicationHasSensitiveField,
   formatApplicationForAdmin,
   formatApplicationListItemForAdmin,
   revealApplicationSensitiveField,
+  revealApplicationSensitiveFieldResult,
 } from '../credit-funding-admin'
 import type { CreditFundingApplication } from '../credit-funding-types'
 
@@ -157,6 +160,63 @@ describe('credit-funding encryption hardening', () => {
     assert.equal(revealApplicationSensitiveField(app, 'experian_pin'), '1234')
     assert.equal(revealApplicationSensitiveField(app, 'monthly_gross_income'), '9000')
     assert.equal(revealApplicationSensitiveField(app, 'business_ein'), '987654321')
+    assert.equal(applicationHasSensitiveField(app, 'ssn'), true)
+    assert.deepEqual(revealApplicationSensitiveFieldResult(app, 'ssn'), {
+      ok: true,
+      value: '123456789',
+    })
+    const empty = { ...app, ssn_encrypted: undefined }
+    assert.equal(applicationHasSensitiveField(empty, 'ssn'), false)
+    assert.equal(revealApplicationSensitiveFieldResult(empty, 'ssn').ok, false)
+  })
+
+  it('reveals legacy plaintext stored in encrypted columns and numeric income JSON', () => {
+    const app = sampleApplication()
+    app.ssn_encrypted = '123456789'
+    app.date_of_birth_encrypted = '1990-01-01'
+    app.provider_password_encrypted = 'LegacyPass1'
+    app.credit_profile = { monthlyGrossIncome: 9000 as unknown as string, annualIncome: 108000 as unknown as string }
+    app.business_profile = { legalName: 'Jane LLC', ein: '12-3456789' } as CreditFundingApplication['business_profile']
+    app.typed_signature = encryptField('Pending')
+
+    const admin = formatApplicationForAdmin(app) as Record<string, any>
+    assert.equal(admin.ssn, '••••••••')
+    assert.equal(admin.credit_profile.monthlyGrossIncome, '••••••••')
+    assert.equal(admin.business_profile.ein, '••••••••')
+    assert.equal(admin.typed_signature, '')
+
+    assert.deepEqual(revealApplicationSensitiveFieldResult(app, 'ssn'), { ok: true, value: '123456789' })
+    assert.deepEqual(revealApplicationSensitiveFieldResult(app, 'provider_password'), {
+      ok: true,
+      value: 'LegacyPass1',
+    })
+    assert.deepEqual(revealApplicationSensitiveFieldResult(app, 'monthly_gross_income'), {
+      ok: true,
+      value: '9000',
+    })
+    assert.deepEqual(revealApplicationSensitiveFieldResult(app, 'business_ein'), {
+      ok: true,
+      value: '12-3456789',
+    })
+    assert.equal(applicationHasSensitiveField(app, 'typed_signature'), false)
+    assert.equal(revealApplicationSensitiveFieldResult(app, 'typed_signature').ok, false)
+  })
+
+  it('returns a clear failure when ciphertext cannot be decrypted', () => {
+    const app = sampleApplication()
+    const otherKey = Buffer.alloc(32, 9).toString('base64')
+    const previous = process.env.CREDIT_FUNDING_ENCRYPTION_KEY
+    process.env.CREDIT_FUNDING_ENCRYPTION_KEY = otherKey
+    const foreignCipher = encryptField('123456789')
+    process.env.CREDIT_FUNDING_ENCRYPTION_KEY = previous
+    app.ssn_encrypted = foreignCipher
+
+    assert.equal(applicationHasSensitiveField(app, 'ssn'), true)
+    const result = revealApplicationSensitiveFieldResult(app, 'ssn')
+    assert.equal(result.ok, false)
+    if (!result.ok) {
+      assert.match(result.error, /Could not decrypt/)
+    }
   })
 
   it('formats admin list items without secret fields', () => {
@@ -165,5 +225,14 @@ describe('credit-funding encryption hardening', () => {
     assert.equal('ssn' in listItem, false)
     assert.equal('provider_password' in listItem, false)
     assert.equal('date_of_birth' in listItem, false)
+  })
+
+  it('admin detail UI only offers Reveal for masked values and shows field errors', () => {
+    const page = readFileSync('src/app/admin/credit-funding/page.tsx', 'utf8')
+    assert.match(page, /Not on file/)
+    assert.match(page, /revealFieldError/)
+    assert.match(page, /Reveal returned an empty value/)
+    assert.match(page, /isMasked \? \(/)
+    assert.match(page, /revealApplicationSensitiveFieldResult|reveal-sensitive/)
   })
 })

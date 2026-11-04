@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCreditManagers } from '@/lib/db'
+import { filterCreditApplicationsForViewer, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { getCreditFundingApplications } from '@/lib/credit-funding-db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
@@ -19,7 +20,13 @@ export async function POST(req: NextRequest) {
     const sendToClients = body.sendToClients !== false
     const sendToExperts = body.sendToExperts !== false
 
-    const applications = await getCreditFundingApplications({ status: 'all' })
+    // Resend of existing applications stays limited to clients this staff
+    // member can already open. New submissions notify every credit expert in
+    // runCreditFundingSubmissionSideEffects, including unassigned clients.
+    const applications = filterCreditApplicationsForViewer(
+      await getCreditFundingApplications({ status: 'all' }),
+      viewerFromSession(session)
+    )
     const submittedApps = applications.filter(
       (app) => app.status !== 'invitation_pending'
     )

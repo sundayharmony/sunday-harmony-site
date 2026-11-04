@@ -26,18 +26,20 @@ export const STRIPE_BILLABLE_TIERS = PACKAGE_TIERS.filter(
 export const TIER_LABELS: Record<PackageTier, string> = {
   free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
-  spark: 'Spark',
-  growth: 'Growth',
-  scale: 'Scale',
+  spark: 'Business Essentials',
+  growth: 'Marketing Partner',
+  scale: 'Custom Solutions',
 }
 
-/** Default list prices (USD/mo) when not yet synced from Stripe. Free is always $0. */
+/** Default list prices (USD) when not yet synced from Stripe. Free is always $0. */
 export const TIER_LIST_PRICES: Record<PackageTier, number> = {
   free: 0,
   social_essentials: 250,
-  spark: 600,
-  growth: 1400,
-  /** Fallback for existing Scale clients. New Scale work is priced after a consult. */
+  /** Business Essentials: one-time, from $599 */
+  spark: 599,
+  /** Marketing Partner: monthly, from $799 */
+  growth: 799,
+  /** Custom Solutions: quoted per project */
   scale: 3500,
 }
 

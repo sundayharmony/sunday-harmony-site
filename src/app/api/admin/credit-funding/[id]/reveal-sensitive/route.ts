@@ -3,10 +3,11 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
 import {
   isCreditFundingRevealField,
-  revealApplicationSensitiveField,
+  revealApplicationSensitiveFieldResult,
 } from '@/lib/credit-funding-admin'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -34,8 +35,15 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const application = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+    if (denied) return denied
     if (!application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
+
+    const revealed = revealApplicationSensitiveFieldResult(application, field)
+    if (!revealed.ok) {
+      return NextResponse.json({ error: revealed.error, field }, { status: 422 })
     }
 
     logActivity({
@@ -48,7 +56,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       field,
-      value: revealApplicationSensitiveField(application, field),
+      value: revealed.value,
     })
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding/[id]/reveal-sensitive POST', error)

@@ -25,6 +25,7 @@ import {
   type FundingScores,
 } from '@/lib/credit-funding-types'
 import { formatSsnFull } from '@/lib/ssn-utils'
+import { applicationIsWaiting } from '@/lib/people'
 import { parseDisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 interface ApplicationListItem {
@@ -36,6 +37,7 @@ interface ApplicationListItem {
   service_type?: string
   status: string
   assigned_specialist?: string
+  assigned_expert_name?: string
   draft_source?: string | null
   created_at: string
   updated_at: string
@@ -64,6 +66,7 @@ interface ApplicationDetail {
   experian_pin?: string
   cfpb_email?: string
   cfpb_password?: string
+  lead_id?: string | null
   credit_profile?: Record<string, unknown>
   primary_credit_goals_text?: string
   funding_amount?: string
@@ -83,6 +86,7 @@ interface ApplicationDetail {
   status: ApplicationStatus
   service_type?: string
   assigned_specialist?: string
+  assigned_expert_name?: string
   internal_notes?: string
   client_notes?: string
   next_steps?: string
@@ -135,6 +139,61 @@ type SensitiveRevealField =
 
 const DOC_LABELS_MAP: Record<string, string> = { ...DOCUMENT_LABELS }
 const MASKED_VALUE = '••••••••'
+
+function formatListDate(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function ClientCard({
+  app,
+  selected,
+  expertName,
+  onSelect,
+}: {
+  app: ApplicationListItem
+  selected: boolean
+  expertName: string
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full overflow-hidden rounded-2xl bg-white text-left shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] ${
+        selected ? 'ring-2 ring-accent' : ''
+      }`}
+    >
+      <div className="flex">
+        <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
+        <div className="min-w-0 flex-1 px-3.5 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-brand-text">{app.full_name}</p>
+              <p className="mt-0.5 truncate text-xs text-brand-muted">{app.email}</p>
+            </div>
+            <StatusBadge status={app.status} />
+          </div>
+          <p className="mt-2 text-xs text-brand-dim">
+            {expertName}
+            {app.updated_at ? ` · Updated ${formatListDate(app.updated_at)}` : ''}
+          </p>
+          {app.status === 'draft' && (
+            <p className="mt-1 text-[10px] text-brand-muted">Saved · incomplete</p>
+          )}
+          {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
+            <p className="mt-1 text-[10px] text-brand-muted">Client finishing draft</p>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
 
 function yesNo(value?: boolean | null) {
   if (value === true) return 'Yes'
@@ -191,6 +250,11 @@ function CreditFundingAdminContent() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showDraftEditor, setShowDraftEditor] = useState(false)
   const [draftEditorId, setDraftEditorId] = useState<string | null>(null)
+  const [draftEditorMode, setDraftEditorMode] = useState<'draft' | 'admin-intake'>('draft')
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [role, setRole] = useState('')
+  const [experts, setExperts] = useState<{ id: string; name: string; email: string }[]>([])
+  const [expertsLoaded, setExpertsLoaded] = useState(false)
   const [inviteForm, setInviteForm] = useState({
     full_name: '',
     email: '',
@@ -200,7 +264,11 @@ function CreditFundingAdminContent() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteNotice, setInviteNotice] = useState('')
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [downloadingIntake, setDownloadingIntake] = useState(false)
   const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
+  const [revealFieldError, setRevealFieldError] = useState<{ field: SensitiveRevealField; message: string } | null>(
+    null
+  )
   const [referral, setReferral] = useState<{
     referralId: string
     code: string | null
@@ -213,6 +281,7 @@ function CreditFundingAdminContent() {
     const listed = applications.find((a) => a.id === id)
     if (listed?.status === 'draft' || (listed?.status === 'invitation_pending' && listed.draft_source === 'staff_manual')) {
       setSelected(null)
+      setDraftEditorMode('draft')
       setDraftEditorId(id)
       setShowDraftEditor(true)
       if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
@@ -220,11 +289,61 @@ function CreditFundingAdminContent() {
       }
       return
     }
+    setShowDraftEditor(false)
+    setDraftEditorId(null)
+    setDraftEditorMode('draft')
     loadDetail(id, { resetTab: true })
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
       setListPanelOpen(false)
     }
   }
+
+  const openAdminIntakeEditor = (applicationId: string) => {
+    // Admins and assigned credit experts may correct submitted intake answers.
+    if (!(isAdmin || role === 'credit_manager')) return
+    setDraftEditorMode('admin-intake')
+    setDraftEditorId(applicationId)
+    setShowDraftEditor(true)
+    setInviteNotice('')
+    setError('')
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
+      setListPanelOpen(false)
+    }
+  }
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const sessionRes = await fetch('/api/auth/session')
+        if (!sessionRes.ok) return
+        const data = await sessionRes.json()
+        const nextRole = data?.user?.role || ''
+        setRole(nextRole)
+        setIsAdmin(data?.user?.role === 'admin')
+        if (data?.user?.role === 'admin') {
+          const expertsRes = await fetch('/api/admin/staff-users')
+          if (expertsRes.ok) {
+            const rows = await expertsRes.json()
+            if (Array.isArray(rows)) {
+              setExperts(
+                rows
+                  .map((row: { id?: string; name?: string; email?: string }) => ({
+                    id: String(row?.id || ''),
+                    name: String(row?.name || '').trim() || String(row?.email || ''),
+                    email: String(row?.email || ''),
+                  }))
+                  .filter((row) => row.id)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+              )
+            }
+          }
+          setExpertsLoaded(true)
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -318,9 +437,30 @@ function CreditFundingAdminContent() {
       })
       if (!r.ok) throw new Error('Update failed')
       const updated = await r.json()
-      setSelected((prev) => (prev ? { ...prev, ...updated } : prev))
+      const specialistChanged = Object.prototype.hasOwnProperty.call(body, 'assigned_specialist')
+      const assignedExpertName = specialistChanged
+        ? experts.find((expert) => expert.id === String(body.assigned_specialist || ''))?.name || ''
+        : undefined
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...updated,
+              ...(specialistChanged ? { assigned_expert_name: assignedExpertName } : {}),
+            }
+          : prev
+      )
       setApplications((prev) =>
-        prev.map((a) => (a.id === selected.id ? { ...a, ...updated, status: updated.status } : a))
+        prev.map((a) =>
+          a.id === selected.id
+            ? {
+                ...a,
+                ...updated,
+                status: updated.status,
+                ...(specialistChanged ? { assigned_expert_name: assignedExpertName } : {}),
+              }
+            : a
+        )
       )
       await loadDetail(selected.id)
     } catch {
@@ -360,6 +500,7 @@ function CreditFundingAdminContent() {
   const revealSensitiveField = async (field: SensitiveRevealField) => {
     if (!selected) return
     setRevealingField(field)
+    setRevealFieldError(null)
     setError('')
     try {
       const r = await fetch(
@@ -373,7 +514,9 @@ function CreditFundingAdminContent() {
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || 'Reveal failed')
 
-      const value = String(data.value || '')
+      const value = typeof data.value === 'string' ? data.value : ''
+      if (!value) throw new Error('Reveal returned an empty value')
+
       setSelected((prev) => {
         if (!prev) return prev
         if (field === 'monthly_gross_income') {
@@ -397,7 +540,9 @@ function CreditFundingAdminContent() {
         return { ...prev, [field]: value }
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reveal field')
+      const message = err instanceof Error ? err.message : 'Failed to reveal field'
+      setRevealFieldError({ field, message })
+      setError(message)
     } finally {
       setRevealingField(null)
     }
@@ -409,23 +554,31 @@ function CreditFundingAdminContent() {
     value?: string | null,
     formatter?: (value: string) => string
   ) => {
-    const hasValue = Boolean(value && value !== MASKED_VALUE)
+    const raw = value == null ? '' : String(value)
+    const isMasked = raw === MASKED_VALUE
+    const hasRevealedValue = Boolean(raw && !isMasked)
+    const fieldError = revealFieldError?.field === field ? revealFieldError.message : ''
     return (
       <div>
         <p className="text-xs font-semibold text-brand-dim uppercase mb-0.5">{label}</p>
-        {hasValue ? (
+        {hasRevealedValue ? (
           <p className="text-brand-text whitespace-pre-wrap break-words">
-            {formatter ? formatter(value as string) : value}
+            {formatter ? formatter(raw) : raw}
           </p>
+        ) : isMasked ? (
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => revealSensitiveField(field)}
+              disabled={revealingField === field}
+              className="text-xs font-semibold text-accent underline disabled:opacity-50"
+            >
+              {revealingField === field ? 'Revealing...' : 'Reveal sensitive value'}
+            </button>
+            {fieldError ? <p className="text-xs text-red-600">{fieldError}</p> : null}
+          </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => revealSensitiveField(field)}
-            disabled={revealingField === field}
-            className="text-xs font-semibold text-accent underline disabled:opacity-50"
-          >
-            {revealingField === field ? 'Revealing...' : 'Reveal sensitive value'}
-          </button>
+          <p className="text-sm text-brand-muted">Not on file</p>
         )}
       </div>
     )
@@ -546,7 +699,8 @@ function CreditFundingAdminContent() {
           a.full_name.toLowerCase().includes(q) ||
           a.application_id.toLowerCase().includes(q) ||
           a.email.toLowerCase().includes(q) ||
-          (a.assigned_specialist || '').toLowerCase().includes(q)
+          (a.assigned_specialist || '').toLowerCase().includes(q) ||
+          (a.assigned_expert_name || '').toLowerCase().includes(q)
       )
       : applications
     return [...rows].sort(compareCreditFundingApplicationsByStatus)
@@ -611,9 +765,56 @@ function CreditFundingAdminContent() {
     selected?.status === 'approved' ||
     selected?.status === 'completed'
 
+  const downloadIntakePdf = async () => {
+    if (!selected || downloadingIntake) return
+    setDownloadingIntake(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/credit-funding/${encodeURIComponent(selected.id)}/intake-pdf`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        if (res.status === 401 && data.code === 'SESSION_EXPIRED') return
+        throw new Error(data.error || 'Could not download the intake PDF')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = /filename="([^"]+)"/.exec(disposition)
+      link.href = url
+      link.download = match?.[1] || `Intake-${selected.application_id}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not download the intake PDF')
+    } finally {
+      setDownloadingIntake(false)
+    }
+  }
+
+  const renderIntakeDownloadButton = (compact = false) => (
+    <button
+      type="button"
+      onClick={() => void downloadIntakePdf()}
+      disabled={!selected || downloadingIntake}
+      className={
+        compact
+          ? 'text-xs font-semibold text-accent hover:underline disabled:opacity-50'
+          : 'shrink-0 px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50 disabled:opacity-50'
+      }
+    >
+      {downloadingIntake ? 'Preparing PDF…' : 'Download intake PDF'}
+    </button>
+  )
+
   const renderDocumentList = () => (
     <>
-      <h3 className="text-sm font-bold mb-2">Uploaded Documents</h3>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h3 className="text-sm font-bold">Uploaded Documents</h3>
+        {renderIntakeDownloadButton(true)}
+      </div>
       {documents.length === 0 ? (
         <p className="text-sm text-brand-dim">No documents.</p>
       ) : (
@@ -691,28 +892,64 @@ function CreditFundingAdminContent() {
     </div>
   )
 
-  const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
+  const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-xl text-sm'
+  const isCreditExpert = role === 'credit_manager'
+  const waiting = applications.filter((app) => applicationIsWaiting(app.status))
+  const emptyListCopy = loading
+    ? 'Loading…'
+    : !isAdmin && applications.length === 0
+      ? 'No clients are assigned to you yet. An admin assigns the clients you are responsible for.'
+      : applications.length === 0
+        ? 'No applications found.'
+        : 'No applications match this search.'
+  const expertNameFor = (app: ApplicationListItem) => app.assigned_expert_name?.trim() || '—'
+  const selectedExpertId = experts.some((expert) => expert.id === editFields.assigned_specialist)
+    ? editFields.assigned_specialist
+    : ''
+
+  const sendAssignment = () => {
+    const untouchedLegacy =
+      editFields.assigned_specialist !== '' && selectedExpertId === ''
+    if (isAdmin && expertsLoaded && !untouchedLegacy) {
+      void patchApplication({ assigned_specialist: selectedExpertId })
+    }
+  }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding</h1>
-          <p className="text-sm text-brand-muted mt-1">
-            Applications, credit analysis, and funding assessments
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-brand-text">
+            Credit &amp; Funding
+          </h1>
+          <p className="mt-1 max-w-xl text-sm text-brand-muted">
+            {isCreditExpert
+              ? 'You only see the clients assigned to you.'
+              : 'Applications, credit analysis, and funding assessments'}
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-brand-text">
+              {applications.length} {isCreditExpert ? 'assigned' : 'clients'}
+            </span>
+            {waiting.length > 0 && (
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-text shadow-[0_8px_20px_-16px_rgba(10,10,10,0.7)]">
+                {waiting.length} waiting on you
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <button
             type="button"
             onClick={() => {
               setDraftEditorId(null)
+              setDraftEditorMode('draft')
               setShowDraftEditor(true)
               setSelected(null)
               setInviteNotice('')
               setError('')
             }}
-            className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg hover:opacity-90"
+            className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 sm:w-auto"
           >
             New Draft Application
           </button>
@@ -723,15 +960,36 @@ function CreditFundingAdminContent() {
               setInviteNotice('')
               setError('')
             }}
-            className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg hover:bg-neutral-800"
+            className="w-full rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 sm:w-auto"
           >
             Send Application to Client
           </button>
-          <button onClick={exportCsv} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50">
+          <button onClick={exportCsv} className="w-full rounded-xl border border-brand-border bg-white px-4 py-2 text-sm font-semibold hover:bg-neutral-50 sm:w-auto">
             Export CSV
           </button>
         </div>
       </div>
+
+      {waiting.length > 0 && (
+        <section className="mb-6 rounded-2xl bg-accent-soft/70 p-4">
+          <h2 className="mb-3 text-sm font-semibold text-brand-text">Waiting on you</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {waiting.map((app) => (
+              <button
+                key={app.id}
+                type="button"
+                onClick={() => selectApplication(app.id)}
+                className="rounded-2xl bg-white px-3.5 py-3 text-left shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] hover:ring-2 hover:ring-accent"
+              >
+                <div className="text-sm font-semibold text-brand-text">{app.full_name}</div>
+                <div className="mt-0.5 text-xs text-brand-muted">
+                  {STATUS_LABELS[app.status as ApplicationStatus] || app.status.replace(/_/g, ' ')} · {app.email}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <CreditExpertsPanel />
 
@@ -739,9 +997,16 @@ function CreditFundingAdminContent() {
         <div className="mb-6">
           <StaffDraftEditor
             draftId={draftEditorId}
+            mode={draftEditorMode}
             onClose={() => {
+              const wasIntake = draftEditorMode === 'admin-intake'
+              const closedId = draftEditorId
               setShowDraftEditor(false)
               setDraftEditorId(null)
+              setDraftEditorMode('draft')
+              if (wasIntake && closedId) {
+                void loadDetail(closedId)
+              }
             }}
             onSaved={(id) => {
               setDraftEditorId(id)
@@ -752,6 +1017,10 @@ function CreditFundingAdminContent() {
                   if (statusFilter !== 'all') params.set('status', statusFilter)
                   const r = await fetch(`/api/admin/credit-funding?${params}`)
                   if (r.ok) setApplications(await r.json())
+                  if (draftEditorMode === 'admin-intake' && id) {
+                    await loadDetail(id)
+                    setInviteNotice('Intake corrections saved.')
+                  }
                 } finally {
                   setLoading(false)
                 }
@@ -760,6 +1029,7 @@ function CreditFundingAdminContent() {
             onFinalized={(id) => {
               setShowDraftEditor(false)
               setDraftEditorId(null)
+              setDraftEditorMode('draft')
               void (async () => {
                 try {
                   const params = new URLSearchParams()
@@ -850,9 +1120,9 @@ function CreditFundingAdminContent() {
 
       <div className={`grid grid-cols-1 gap-6 ${listPanelOpen ? 'lg:grid-cols-5' : 'lg:grid-cols-1'}`}>
         {listPanelOpen && (
-        <div className="lg:col-span-2 bg-white border border-brand-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-brand-border space-y-3">
-            <input className={inputClass} placeholder="Search name, email, ID, specialist…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="lg:col-span-2">
+          <div className="mb-3 space-y-3">
+            <input className={inputClass} placeholder="Search name, email, or ID" value={search} onChange={(e) => setSearch(e.target.value)} />
             <select className={inputClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All statuses</option>
               {APPLICATION_STATUSES.map((s) => (
@@ -861,71 +1131,71 @@ function CreditFundingAdminContent() {
             </select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs hidden sm:table">
-              <thead className="bg-neutral-50 border-b border-brand-border">
-                <tr>
-                  {['ID', 'Name', 'Status', 'Specialist', 'Updated'].map((h) => (
-                    <th key={h} className="text-left p-2 font-semibold text-brand-dim">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
+          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)]">
+            <div className="overflow-x-auto">
+              <table className="hidden w-full text-xs sm:table">
+                <thead className="border-b border-brand-border bg-neutral-50">
                   <tr>
-                    <td colSpan={5} className="p-6 text-sm text-brand-dim text-center">
-                      {loading ? 'Loading…' : 'No applications match this search.'}
-                    </td>
+                    {['ID', 'Name', 'Status', 'Credit expert', 'Updated'].map((heading) => (
+                      <th key={heading} className="p-2 text-left font-semibold text-brand-dim">{heading}</th>
+                    ))}
                   </tr>
-                ) : (
-                  filtered.map((app) => (
-                  <tr
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-sm text-brand-dim">
+                        {emptyListCopy}
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((app) => (
+                      <tr
+                        key={app.id}
+                        onClick={() => selectApplication(app.id)}
+                        className={`cursor-pointer border-b border-brand-border hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}
+                      >
+                        <td className="p-2 font-mono">{app.application_id}</td>
+                        <td className="p-2">{app.full_name}</td>
+                        <td className="p-2">
+                          <StatusBadge status={app.status} />
+                          {app.status === 'draft' && (
+                            <span className="mt-0.5 block text-[10px] text-brand-muted">Saved · incomplete</span>
+                          )}
+                          {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
+                            <span className="mt-0.5 block text-[10px] text-brand-muted">Client finishing draft</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-brand-dim">{expertNameFor(app)}</td>
+                        <td className="p-2 text-brand-dim">{formatListDate(app.updated_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="max-h-[640px] space-y-2 overflow-y-auto p-2 sm:hidden">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-brand-dim">
+                  {emptyListCopy}
+                </div>
+              ) : (
+                filtered.map((app) => (
+                  <ClientCard
                     key={app.id}
-                    onClick={() => selectApplication(app.id)}
-                    className={`border-b border-brand-border cursor-pointer hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}
-                  >
-                    <td className="p-2 font-mono">{app.application_id}</td>
-                    <td className="p-2">{app.full_name}</td>
-                    <td className="p-2">
-                      <StatusBadge status={app.status} />
-                      {app.status === 'draft' && (
-                        <span className="block text-[10px] text-brand-muted mt-0.5">Saved · incomplete</span>
-                      )}
-                      {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
-                        <span className="block text-[10px] text-brand-muted mt-0.5">Client finishing draft</span>
-                      )}
-                    </td>
-                    <td className="p-2 text-brand-dim">{app.assigned_specialist || '—'}</td>
-                    <td className="p-2 text-brand-dim">{new Date(app.updated_at).toLocaleDateString()}</td>
-                  </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="max-h-[400px] overflow-y-auto sm:hidden">
-            {loading ? (
-              <p className="p-6 text-sm text-brand-dim">Loading…</p>
-            ) : filtered.length === 0 ? (
-              <p className="p-6 text-sm text-brand-dim">No applications found.</p>
-            ) : (
-              filtered.map((app) => (
-                <button key={app.id} type="button" onClick={() => selectApplication(app.id)}
-                  className={`w-full text-left p-4 border-b border-brand-border hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}>
-                  <div className="flex justify-between gap-2">
-                    <p className="font-semibold text-sm">{app.full_name}</p>
-                    <StatusBadge status={app.status} />
-                  </div>
-                  <p className="text-xs text-brand-dim mt-1">{app.application_id}</p>
-                </button>
-              ))
-            )}
+                    app={app}
+                    selected={selected?.id === app.id}
+                    expertName={expertNameFor(app)}
+                    onSelect={() => selectApplication(app.id)}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
         )}
 
-        <div className={`${listPanelOpen ? 'lg:col-span-3' : 'lg:col-span-1'} bg-white border border-brand-border rounded-xl p-6`}>
+        <div className={`${listPanelOpen ? 'lg:col-span-3' : 'lg:col-span-1'} rounded-2xl bg-white p-4 shadow-[0_18px_40px_-28px_rgba(10,10,10,0.65)] sm:p-6`}>
           {!listPanelOpen && (
             <button
               type="button"
@@ -939,13 +1209,22 @@ function CreditFundingAdminContent() {
             </button>
           )}
           {!selected ? (
-            <p className="text-sm text-brand-dim">Select an application to view details.</p>
+            <div className="rounded-2xl bg-accent-soft/50 px-4 py-10 text-center">
+              <p className="text-sm font-semibold text-brand-text">
+                {isCreditExpert ? 'Choose a client' : 'Choose an application'}
+              </p>
+              <p className="mt-1 text-sm text-brand-dim">
+                {isCreditExpert
+                  ? 'Open a client assigned to you to review their file, analysis, and messages.'
+                  : 'Select a client to review their file and assign a credit expert.'}
+              </p>
+            </div>
           ) : detailLoading ? (
             <p className="text-sm text-brand-dim">Loading details…</p>
           ) : (
             <div>
-              <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                <div className="flex items-start gap-3 min-w-0">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
                   {listPanelOpen && (
                     <button
                       type="button"
@@ -961,6 +1240,11 @@ function CreditFundingAdminContent() {
                   )}
                   <div className="min-w-0">
                   <h2 className="text-xl font-bold text-brand-text">{selected.full_name}</h2>
+                  {selected.lead_id && (
+                    <Link href={`/admin/pipeline/${selected.lead_id}`} className="text-xs font-semibold text-accent hover:underline">
+                      Open marketing pipeline
+                    </Link>
+                  )}
                   <p className="text-sm text-brand-dim">{selected.application_id} · {selected.service_type?.replace(/_/g, ' ')}</p>
                   {referral && (
                     <p className="text-xs text-brand-muted mt-1">
@@ -977,14 +1261,52 @@ function CreditFundingAdminContent() {
                   )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={deleteApplication}
-                  className="shrink-0 px-3 py-1.5 text-xs font-semibold text-brand-red border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
-                >
-                  Delete application
-                </button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+                  <div className="w-full sm:w-64">
+                    <label htmlFor="credit-expert" className="mb-1 block text-xs font-semibold text-brand-dim">
+                      Credit expert
+                    </label>
+                    {isAdmin ? (
+                      <select
+                        id="credit-expert"
+                        className={inputClass}
+                        value={selectedExpertId}
+                        onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))}
+                      >
+                        <option value="">Unassigned</option>
+                        {experts.map((expert) => (
+                          <option key={expert.id} value={expert.id}>
+                            {expert.name || expert.email}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p id="credit-expert" className="w-full rounded-xl bg-accent-soft px-3 py-2 text-sm text-brand-text">
+                        {selected.assigned_expert_name?.trim() || 'Assigned to you'}
+                      </p>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={saving || !expertsLoaded}
+                      onClick={sendAssignment}
+                      className="w-full shrink-0 rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
+                    >
+                      Assign
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={deleteApplication}
+                      className="w-full shrink-0 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-brand-red hover:bg-red-50 disabled:opacity-50 sm:w-auto"
+                    >
+                      Delete application
+                    </button>
+                  )}
+                </div>
               </div>
 
               {selected.status === 'invitation_pending' ? (
@@ -1023,7 +1345,7 @@ function CreditFundingAdminContent() {
                 />
               )}
 
-              <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
+              <div className="mb-5 flex flex-wrap gap-2">
                 {(
                   [
                     { id: 'overview', label: 'Overview' },
@@ -1037,8 +1359,8 @@ function CreditFundingAdminContent() {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ${
-                      activeTab === tab.id ? 'border-accent text-brand-text' : 'border-transparent text-brand-dim'
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      activeTab === tab.id ? 'bg-brand-text text-white' : 'bg-accent-soft text-brand-text'
                     }`}
                   >
                     {tab.label}
@@ -1142,11 +1464,6 @@ function CreditFundingAdminContent() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                    <div>
-                      <label className="text-xs font-semibold text-brand-dim">Assigned Specialist</label>
-                      <input className={inputClass} value={editFields.assigned_specialist}
-                        onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))} />
-                    </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold text-brand-dim">Internal Notes (staff only)</label>
                       <textarea className={`${inputClass} min-h-[80px]`} value={editFields.internal_notes}
@@ -1176,15 +1493,16 @@ function CreditFundingAdminContent() {
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => patchApplication({
-                      assigned_specialist: editFields.assigned_specialist,
-                      internal_notes: editFields.internal_notes,
-                      client_notes: editFields.client_notes,
-                      next_steps: editFields.next_steps,
-                    })}
-                    className="mb-5 px-4 py-2 bg-brand-text text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                    onClick={() =>
+                      patchApplication({
+                        internal_notes: editFields.internal_notes,
+                        client_notes: editFields.client_notes,
+                        next_steps: editFields.next_steps,
+                      })
+                    }
+                    className="mb-5 w-full rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
                   >
-                    Save Notes &amp; Assignment
+                    Save notes
                   </button>
 
                   {!showDocRequestPanel && (
@@ -1217,6 +1535,23 @@ function CreditFundingAdminContent() {
 
               {activeTab === 'intake' && (
                 <div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <p className="text-sm text-brand-muted max-w-xl">
+                      Download this intake and the client&apos;s uploaded files as one PDF. Passwords and security answers stay on this screen.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(isAdmin || isCreditExpert) && selected.status !== 'draft' && (
+                        <button
+                          type="button"
+                          onClick={() => openAdminIntakeEditor(selected.id)}
+                          className="px-3 py-2 text-xs font-semibold border border-brand-border rounded-lg hover:bg-neutral-50"
+                        >
+                          Edit intake
+                        </button>
+                      )}
+                      {renderIntakeDownloadButton()}
+                    </div>
+                  </div>
                   <DetailSection title="Personal Information">
                     <DetailField label="Full Name" value={selected.full_name} />
                     {renderSensitiveField('Date of Birth', 'date_of_birth', selected.date_of_birth)}

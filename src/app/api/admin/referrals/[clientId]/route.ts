@@ -8,6 +8,7 @@ import {
   adminSetReferralEnabled,
   getAdminReferralClient,
   initiateReferralPayout,
+  markReferralCommissionPaid,
 } from '@/lib/referral-service'
 
 export const dynamic = 'force-dynamic'
@@ -50,6 +51,18 @@ export async function POST(
       const result = await adminRegenerateReferralCode(clientId, actorEmail)
       if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status })
       return NextResponse.json(result)
+    }
+    if (action === 'mark_paid') {
+      const result = await markReferralCommissionPaid({
+        clientId,
+        commissionId: typeof body.commissionId === 'string' ? body.commissionId : '',
+        actorEmail,
+      })
+      if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status })
+      return NextResponse.json({
+        ...result,
+        message: result.alreadyPaid ? 'Already recorded as paid.' : 'Marked paid.',
+      })
     }
     if (action === 'payout') {
       const result = await initiateReferralPayout({

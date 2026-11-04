@@ -12,6 +12,7 @@ from app.db import (
     save_letter,
     update_session_report,
 )
+from app.services.letter_consumer import apply_letter_consumer
 from app.services.letter_generator import generate_letter_async, save_letter_file
 from app.services.letter_job_result import empty_letters_error
 
@@ -28,21 +29,6 @@ def get_letter_job_state(session_id: str) -> dict[str, Any] | None:
 def letter_job_running(session_id: str) -> bool:
     task = _letter_jobs.get(session_id)
     return bool(task is not None and not task.done())
-
-
-def apply_letter_consumer(
-    report,
-    *,
-    consumer_name: str | None = None,
-    consumer_addresses: list[str] | None = None,
-):
-    if consumer_name is not None and consumer_name.strip():
-        report.consumer.name = consumer_name.strip()
-    if consumer_addresses is not None:
-        report.consumer.addresses = [
-            a.strip() for a in consumer_addresses if a and str(a).strip()
-        ]
-    return report
 
 
 def _blank_state(session_id: str) -> dict[str, Any]:
@@ -65,6 +51,8 @@ async def run_letter_job(
     *,
     consumer_name: str | None = None,
     consumer_addresses: list[str] | None = None,
+    consumer_ssn: str | None = None,
+    consumer_dob: str | None = None,
     on_event: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     """Generate current letters for a session. Does not upload .txt copies to storage."""
@@ -83,11 +71,16 @@ async def run_letter_job(
             raise RuntimeError("Session not found")
         _, _, report = row
 
-        if consumer_name is not None or consumer_addresses is not None:
+        if any(
+            value is not None
+            for value in (consumer_name, consumer_addresses, consumer_ssn, consumer_dob)
+        ):
             apply_letter_consumer(
                 report,
                 consumer_name=consumer_name,
                 consumer_addresses=consumer_addresses,
+                consumer_ssn=consumer_ssn,
+                consumer_dob=consumer_dob,
             )
             update_session_report(session_id, report)
 
@@ -181,6 +174,8 @@ def spawn_letter_job(
     *,
     consumer_name: str | None = None,
     consumer_addresses: list[str] | None = None,
+    consumer_ssn: str | None = None,
+    consumer_dob: str | None = None,
 ) -> None:
     existing = _letter_jobs.get(session_id)
     if existing and not existing.done():
@@ -195,6 +190,8 @@ def spawn_letter_job(
                 plan_ids,
                 consumer_name=consumer_name,
                 consumer_addresses=consumer_addresses,
+                consumer_ssn=consumer_ssn,
+                consumer_dob=consumer_dob,
             )
         except Exception:
             pass

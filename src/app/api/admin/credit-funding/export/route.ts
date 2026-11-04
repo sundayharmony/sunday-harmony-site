@@ -3,6 +3,12 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { decryptFieldOrLegacy, maskEmail, maskPhone } from '@/lib/field-encryption'
+import {
+  expertDisplayName,
+  filterCreditApplicationsForViewer,
+  listCreditExpertOptions,
+  viewerFromSession,
+} from '@/lib/credit-expert-assignment'
 import { getCreditFundingApplications } from '@/lib/credit-funding-db'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +27,12 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || 'all'
     const search = searchParams.get('search') || ''
 
-    const applications = await getCreditFundingApplications({ status, search })
+    const [applications, experts] = await Promise.all([
+      getCreditFundingApplications({ status, search }).then((rows) =>
+        filterCreditApplicationsForViewer(rows, viewerFromSession(session))
+      ),
+      listCreditExpertOptions(),
+    ])
 
     logActivity({
       action: 'exported',
@@ -36,7 +47,7 @@ export async function GET(req: NextRequest) {
       'Email',
       'Phone',
       'Service Type',
-      'Assigned Specialist',
+      'Credit expert',
       'Credit Goals',
       'Funding Goals',
       'Provider',
@@ -51,7 +62,7 @@ export async function GET(req: NextRequest) {
       maskEmail(a.email),
       maskPhone(decryptFieldOrLegacy(a.phone)),
       a.service_type || '',
-      a.assigned_specialist || '',
+      expertDisplayName(experts, a.assigned_specialist),
       (a.credit_goals || []).join('; '),
       a.funding_goals,
       a.selected_credit_provider,

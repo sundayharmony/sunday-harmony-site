@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
+import { getDisputeSessionById } from '@/lib/dispute-letters/db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import type {
   DisputeItemStatus,
@@ -29,11 +32,25 @@ export async function GET(request: NextRequest) {
   const applicationUuid = request.nextUrl.searchParams.get('applicationUuid')?.trim()
   const sessionId = request.nextUrl.searchParams.get('sessionId')?.trim()
   if (sessionId && !applicationUuid) {
+    if (session.user.role === 'credit_manager') {
+      const row = await getDisputeSessionById(sessionId)
+      if (row?.application_uuid) {
+        const application = await getCreditFundingApplicationById(row.application_uuid)
+        const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+        if (denied) return denied
+      }
+    }
     const snapshot = await loadLetterPackageForSession(sessionId)
     return NextResponse.json(snapshot)
   }
   if (!applicationUuid) {
     return NextResponse.json({ error: 'applicationUuid or sessionId is required' }, { status: 400 })
+  }
+
+  if (session.user.role === 'credit_manager') {
+    const application = await getCreditFundingApplicationById(applicationUuid)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+    if (denied) return denied
   }
 
   const snapshot = await loadDisputeLifecycleForApplication(applicationUuid)

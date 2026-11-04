@@ -1,9 +1,7 @@
 import {
-  decryptField,
   decryptFieldOrLegacy,
   encryptField,
   encryptFieldIfPresent,
-  maskSecret,
 } from '@/lib/field-encryption'
 import type { BusinessProfile, CreditFundingApplication, CreditProfile } from '@/lib/credit-funding-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
@@ -91,7 +89,7 @@ export function deserializeBusinessProfileForAdmin(bp: Record<string, unknown>):
   return {
     ...(rest as BusinessProfile),
     ein: (einEncrypted as string | undefined)
-      ? decryptField(einEncrypted as string)
+      ? decryptFieldOrLegacy(einEncrypted as string)
       : (_legacyEin as string | undefined),
     address: (addressEncrypted as string | undefined)
       ? decryptFieldOrLegacy(addressEncrypted as string)
@@ -248,25 +246,24 @@ export type InviteSecretSetFlags = {
   typedSignatureSet: boolean
 }
 
+function secretOnFile(ciphertext: string | undefined | null): boolean {
+  const decrypted = decryptFieldOrLegacy(ciphertext || '')
+  return Boolean(decrypted && decrypted !== 'Pending')
+}
+
 function applicationSecretSetFlags(app: CreditFundingApplication): InviteSecretSetFlags {
   return {
-    ssnSet: Boolean(app.ssn_encrypted && decryptField(app.ssn_encrypted || '')),
-    dateOfBirthSet: Boolean(app.date_of_birth_encrypted && decryptField(app.date_of_birth_encrypted || '')),
-    providerUsernameSet: Boolean(app.provider_username_encrypted && decryptField(app.provider_username_encrypted || '')),
-    providerPasswordSet: Boolean(app.provider_password_encrypted && decryptField(app.provider_password_encrypted || '')),
-    experianEmailSet: Boolean(app.experian_email_encrypted && decryptField(app.experian_email_encrypted || '')),
-    experianPasswordSet: Boolean(app.experian_password_encrypted && decryptField(app.experian_password_encrypted || '')),
-    experianSecurityAnswerSet: Boolean(
-      app.experian_security_answer_encrypted && decryptField(app.experian_security_answer_encrypted || '')
-    ),
-    experianPinSet: Boolean(app.experian_pin_encrypted && decryptField(app.experian_pin_encrypted || '')),
-    cfpbEmailSet: Boolean(app.cfpb_email_encrypted && decryptField(app.cfpb_email_encrypted || '')),
-    cfpbPasswordSet: Boolean(app.cfpb_password_encrypted && decryptField(app.cfpb_password_encrypted || '')),
-    typedSignatureSet: Boolean(
-      app.typed_signature &&
-        decryptFieldOrLegacy(app.typed_signature) &&
-        decryptFieldOrLegacy(app.typed_signature) !== 'Pending'
-    ),
+    ssnSet: secretOnFile(app.ssn_encrypted),
+    dateOfBirthSet: secretOnFile(app.date_of_birth_encrypted),
+    providerUsernameSet: secretOnFile(app.provider_username_encrypted),
+    providerPasswordSet: secretOnFile(app.provider_password_encrypted),
+    experianEmailSet: secretOnFile(app.experian_email_encrypted),
+    experianPasswordSet: secretOnFile(app.experian_password_encrypted),
+    experianSecurityAnswerSet: secretOnFile(app.experian_security_answer_encrypted),
+    experianPinSet: secretOnFile(app.experian_pin_encrypted),
+    cfpbEmailSet: secretOnFile(app.cfpb_email_encrypted),
+    cfpbPasswordSet: secretOnFile(app.cfpb_password_encrypted),
+    typedSignatureSet: secretOnFile(app.typed_signature),
   }
 }
 
@@ -435,16 +432,16 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     city: decryptFieldOrLegacy(app.city),
     state: decryptFieldOrLegacy(app.state),
     zip_code: decryptFieldOrLegacy(app.zip_code),
-    date_of_birth: decryptField(app.date_of_birth_encrypted || ''),
-    ssn: decryptField(app.ssn_encrypted || ''),
-    provider_username: decryptField(app.provider_username_encrypted || ''),
-    provider_password: decryptField(app.provider_password_encrypted || ''),
-    experian_email: decryptField(app.experian_email_encrypted || ''),
-    experian_password: decryptField(app.experian_password_encrypted || ''),
-    experian_security_answer: decryptField(app.experian_security_answer_encrypted || ''),
-    experian_pin: decryptField(app.experian_pin_encrypted || ''),
-    cfpb_email: decryptField(app.cfpb_email_encrypted || ''),
-    cfpb_password: decryptField(app.cfpb_password_encrypted || ''),
+    date_of_birth: decryptFieldOrLegacy(app.date_of_birth_encrypted || ''),
+    ssn: decryptFieldOrLegacy(app.ssn_encrypted || ''),
+    provider_username: decryptFieldOrLegacy(app.provider_username_encrypted || ''),
+    provider_password: decryptFieldOrLegacy(app.provider_password_encrypted || ''),
+    experian_email: decryptFieldOrLegacy(app.experian_email_encrypted || ''),
+    experian_password: decryptFieldOrLegacy(app.experian_password_encrypted || ''),
+    experian_security_answer: decryptFieldOrLegacy(app.experian_security_answer_encrypted || ''),
+    experian_pin: decryptFieldOrLegacy(app.experian_pin_encrypted || ''),
+    cfpb_email: decryptFieldOrLegacy(app.cfpb_email_encrypted || ''),
+    cfpb_password: decryptFieldOrLegacy(app.cfpb_password_encrypted || ''),
     internal_notes: decryptFreeTextForView(app.internal_notes),
     client_notes: decryptFreeTextForView(app.client_notes),
     next_steps: decryptFreeTextForView(app.next_steps),
@@ -504,30 +501,43 @@ export function decryptApplicationOperationalFields(app: CreditFundingApplicatio
   }
 }
 
+function maskIfPresent(ciphertext: string | undefined | null): string {
+  // Offer Reveal only when ciphertext exists. Empty / missing stays blank ("Not on file" in UI).
+  return ciphertext?.trim() ? REDACTED : ''
+}
+
+function maskIfReadableSecret(plaintext: string | undefined | null): string {
+  const value = (plaintext || '').trim()
+  if (!value || value === 'Pending') return ''
+  return REDACTED
+}
+
 export function redactApplicationSecretsForDefaultAdmin(app: CreditFundingApplication) {
   const operational = decryptApplicationOperationalFields(app)
   return {
     ...operational,
-    date_of_birth: app.date_of_birth_encrypted ? maskSecret(app.date_of_birth_encrypted) : '',
-    ssn: app.ssn_encrypted ? REDACTED : '',
-    provider_username: app.provider_username_encrypted ? REDACTED : '',
-    provider_password: app.provider_password_encrypted ? REDACTED : '',
-    experian_email: app.experian_email_encrypted ? REDACTED : '',
-    experian_password: app.experian_password_encrypted ? REDACTED : '',
-    experian_security_answer: app.experian_security_answer_encrypted ? REDACTED : '',
-    experian_pin: app.experian_pin_encrypted ? REDACTED : '',
-    cfpb_email: app.cfpb_email_encrypted ? REDACTED : '',
-    cfpb_password: app.cfpb_password_encrypted ? REDACTED : '',
-    typed_signature: app.typed_signature ? REDACTED : '',
+    // Presence is based on stored ciphertext so a key mismatch still shows Reveal (API returns a clear error).
+    date_of_birth: maskIfPresent(app.date_of_birth_encrypted),
+    ssn: maskIfPresent(app.ssn_encrypted),
+    provider_username: maskIfPresent(app.provider_username_encrypted),
+    provider_password: maskIfPresent(app.provider_password_encrypted),
+    experian_email: maskIfPresent(app.experian_email_encrypted),
+    experian_password: maskIfPresent(app.experian_password_encrypted),
+    experian_security_answer: maskIfPresent(app.experian_security_answer_encrypted),
+    experian_pin: maskIfPresent(app.experian_pin_encrypted),
+    cfpb_email: maskIfPresent(app.cfpb_email_encrypted),
+    cfpb_password: maskIfPresent(app.cfpb_password_encrypted),
+    // Invitation rows store encrypted "Pending" — do not offer Reveal for that placeholder.
+    typed_signature: maskIfReadableSecret(decryptFieldOrLegacy(app.typed_signature)),
     credit_profile: {
       ...(operational.credit_profile || {}),
-      monthlyGrossIncome: operational.credit_profile?.monthlyGrossIncome ? REDACTED : '',
-      annualIncome: operational.credit_profile?.annualIncome ? REDACTED : '',
+      monthlyGrossIncome: maskIfReadableSecret(operational.credit_profile?.monthlyGrossIncome),
+      annualIncome: maskIfReadableSecret(operational.credit_profile?.annualIncome),
     },
     business_profile: operational.business_profile
       ? {
           ...operational.business_profile,
-          ein: operational.business_profile.ein ? REDACTED : '',
+          ein: maskIfReadableSecret(operational.business_profile.ein),
         }
       : operational.business_profile,
   }

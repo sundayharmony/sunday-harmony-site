@@ -20,7 +20,7 @@ describe('billing packages', () => {
     assert.equal(isMarketingPackage('credit_repair'), false)
     assert.equal(billingPackageLabel('credit_repair'), 'Credit Repair')
     assert.equal(billingPackagePriceLabel('credit_repair'), 'one-time')
-    assert.equal(billingPackageLabel('spark'), 'Spark')
+    assert.equal(billingPackageLabel('spark'), 'Business Essentials')
   })
 
   it('uses billing_model as the source of truth after a package switch', () => {
@@ -55,7 +55,7 @@ describe('billing packages', () => {
       package_tier: 'growth',
       monthly_price: 1800,
     })
-    assert.equal(marketing.packageLabel, 'Growth')
+    assert.equal(marketing.packageLabel, 'Marketing Partner')
     assert.equal(marketing.investmentLabel, 'Monthly Investment')
     assert.equal(marketing.investmentValue, `$${(1800).toLocaleString()}`)
     assert.equal(marketing.isCreditRepair, false)

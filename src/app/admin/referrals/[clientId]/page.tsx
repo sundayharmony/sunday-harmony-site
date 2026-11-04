@@ -96,7 +96,7 @@ export default function AdminReferralClientPage() {
   return (
     <div>
       <Link href="/admin/referrals" className="text-xs font-semibold text-accent hover:underline">
-        ← Referral management
+        ← Referrals
       </Link>
       <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-3 mb-1">
         {data.client?.name || 'Referral client'}

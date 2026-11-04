@@ -42,7 +42,7 @@ export default function Hero() {
             </div>
 
             <p className="text-sm text-brand-dim">
-              No long-term contracts. Transparent reporting. A plan you can run.
+              One-time projects or monthly support. Marketing Partner cancels anytime. Transparent reporting.
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 sm:gap-7 mt-12 pt-8 border-t border-brand-border">

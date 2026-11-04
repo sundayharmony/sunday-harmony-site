@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { formatApplicationForAdmin } from '@/lib/credit-funding-admin'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
@@ -36,6 +37,8 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), existing)
+    if (denied) return denied
     if (!existing) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }

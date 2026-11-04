@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 
@@ -14,6 +16,10 @@ export async function GET(request: NextRequest) {
   if (!applicationUuid) {
     return NextResponse.json({ error: 'applicationUuid is required' }, { status: 400 })
   }
+
+  const application = await getCreditFundingApplicationById(applicationUuid)
+  const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+  if (denied) return denied
 
   const sessions = await listDisputeSessionsForApplication(applicationUuid)
   return NextResponse.json({ sessions })

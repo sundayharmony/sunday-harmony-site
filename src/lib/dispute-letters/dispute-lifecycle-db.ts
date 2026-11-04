@@ -3,6 +3,7 @@ import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import {
   appendStatusEvent,
   buildLetterPackageSnapshot,
+  buildPriorDisputeMarks,
   comparisonUpdatesForItems,
   computeDeadlineAt,
   expandTradelineSelections,
@@ -21,7 +22,9 @@ import {
   preferDuplicateAccountItem,
   hasUpdatedReportForNextRound,
   pickSessionForLifecycleRecovery,
+  type PriorDisputeMark,
   roundWorkflowView,
+  letterIdsSignature,
   shouldReuseLetterPackage,
   splitWorkflowQueues,
   type DisputeRoundLetter,
@@ -40,13 +43,14 @@ import {
   type LetterPackageMember,
   type LetterPackageRow,
   type LetterPackageSnapshot,
+  type LetterPackageZipStatus,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import {
   deleteDisputeSession,
   getDisputeSessionById,
   listDisputeSessionsForApplication,
 } from '@/lib/dispute-letters/db'
-import { removeDisputeSessionStorage } from '@/lib/dispute-letters-storage'
+import { removeDisputeReportObject, removeDisputeSessionStorage } from '@/lib/dispute-letters-storage'
 import {
   comparisonKeysFromSessions,
   DEFAULT_ROUND1_REPORT_DATE,
@@ -450,6 +454,37 @@ export async function loadLetterPackageForSession(sessionId: string): Promise<{
     snapshots[snapshots.length - 1] ||
     null
   return { round, package: active, letters }
+}
+
+/**
+ * Lifecycle items for the session's dispute case (application-linked preferred).
+ * Used to mark accounts already disputed in earlier rounds during generate/plan UX.
+ */
+export async function listLifecycleItemsForSession(sessionId: string): Promise<DisputeItemRow[]> {
+  const session = await getDisputeSessionById(sessionId)
+  if (session?.application_uuid) {
+    const caseRow = await findCaseByApplicationUuid(session.application_uuid)
+    if (caseRow) return uniqueItemsByAccountNumber(await listItemsForCase(caseRow.id))
+  }
+  const round = await findRoundForSession(sessionId)
+  if (!round) return []
+  return uniqueItemsByAccountNumber(await listItemsForCase(round.case_id))
+}
+
+export async function loadPriorDisputeMarksForSession(sessionId: string): Promise<{
+  marks: PriorDisputeMark[]
+  marksByTradelineId: Record<string, PriorDisputeMark>
+  itemCount: number
+}> {
+  const session = await getDisputeSessionById(sessionId)
+  const tradelines = (session?.report_json?.tradelines || []) as Tradeline[]
+  const items = await listLifecycleItemsForSession(sessionId)
+  const marksByTradelineId = buildPriorDisputeMarks(tradelines, items)
+  return {
+    marks: Object.values(marksByTradelineId),
+    marksByTradelineId,
+    itemCount: items.length,
+  }
 }
 
 async function collapseDuplicateAccountItems(caseId: string): Promise<void> {
@@ -995,23 +1030,39 @@ async function createLetterPackageVersion(params: {
       .eq('id', params.previous.id)
   }
 
-  const { data, error } = await db
+  const letterSig = letterIdsSignature(params.letters.map((letter) => letter.id))
+  const baseInsert = {
+    case_id: params.round.case_id,
+    round_id: params.round.id,
+    session_id: params.sessionId,
+    version,
+    is_active: true,
+    letter_count: params.letters.length,
+    downloaded_at: null,
+    download_count: 0,
+    sent_confirmed_at: params.members.length && params.members.every((m) => m.sentAt) ? now : null,
+    created_at: now,
+    updated_at: now,
+  }
+  const withZipReset = {
+    ...baseInsert,
+    zip_storage_path: null,
+    zip_built_at: null,
+    zip_status: 'pending' satisfies LetterPackageZipStatus,
+    zip_letter_ids: letterSig || null,
+    zip_error: null,
+    zip_byte_size: null,
+  }
+
+  let { data, error } = await db
     .from('dispute_letter_packages')
-    .insert({
-      case_id: params.round.case_id,
-      round_id: params.round.id,
-      session_id: params.sessionId,
-      version,
-      is_active: true,
-      letter_count: params.letters.length,
-      downloaded_at: null,
-      download_count: 0,
-      sent_confirmed_at: params.members.length && params.members.every((m) => m.sentAt) ? now : null,
-      created_at: now,
-      updated_at: now,
-    })
+    .insert(withZipReset)
     .select('*')
     .single()
+
+  if (error && (isMissingColumn(error, 'zip_status') || isMissingColumn(error, 'zip_storage_path'))) {
+    ;({ data, error } = await db.from('dispute_letter_packages').insert(baseInsert).select('*').single())
+  }
 
   if (error || !data) {
     if (error && !isMissingRelation(error)) console.error('createLetterPackageVersion error:', error)
@@ -1062,15 +1113,48 @@ export async function upsertLetterPackageOnGenerate(params: {
   if (existing && shouldReuseLetterPackage(existingIds, newIds)) {
     const now = new Date().toISOString()
     await replacePackageMembers({ packageId: existing.id, members })
-    await getSupabase()
+    const sig = letterIdsSignature(newIds)
+    const zipStillValid =
+      existing.zip_status === 'ready' &&
+      Boolean(existing.zip_storage_path) &&
+      (existing.zip_letter_ids || '') === sig
+    const updateFull = {
+      letter_count: letters.length,
+      session_id: params.sessionId,
+      updated_at: now,
+      zip_letter_ids: sig || null,
+      ...(zipStillValid
+        ? {}
+        : {
+            zip_storage_path: null,
+            zip_built_at: null,
+            zip_status: 'pending' as LetterPackageZipStatus,
+            zip_error: null,
+            zip_byte_size: null,
+          }),
+    }
+    const updated = await getSupabase()
       .from('dispute_letter_packages')
-      .update({
-        letter_count: letters.length,
-        session_id: params.sessionId,
-        updated_at: now,
-      })
+      .update(updateFull)
       .eq('id', existing.id)
-    return existing
+      .select('*')
+      .single()
+    if (updated.error && (isMissingColumn(updated.error, 'zip_status') || isMissingColumn(updated.error, 'zip_letter_ids'))) {
+      await getSupabase()
+        .from('dispute_letter_packages')
+        .update({
+          letter_count: letters.length,
+          session_id: params.sessionId,
+          updated_at: now,
+        })
+        .eq('id', existing.id)
+      return existing
+    }
+    return (updated.data as LetterPackageRow) || existing
+  }
+
+  if (existing?.zip_storage_path) {
+    await removeDisputeReportObject(existing.zip_storage_path).catch(() => undefined)
   }
 
   return createLetterPackageVersion({
@@ -1280,14 +1364,100 @@ async function stampLetterGeneratedHistory(round: DisputeRoundRow, items: Disput
 }
 
 /** After Python finishes generating letters: round → letters_ready, items stay selected until Sent. */
-export async function onLettersGenerated(sessionId: string): Promise<void> {
+export async function onLettersGenerated(sessionId: string): Promise<LetterPackageRow | null> {
   const round = await ensureLifecycleFromSession(sessionId)
-  if (!round) return
+  if (!round) return null
   await markRoundLettersReady(round.id, sessionId)
   const items = await listItemsForCase(round.case_id)
   await linkLettersToRoundItems(round.id, sessionId, items)
   await stampLetterGeneratedHistory(round, items)
-  await upsertLetterPackageOnGenerate({ round, sessionId, items })
+  const pkg = await upsertLetterPackageOnGenerate({ round, sessionId, items })
+  if (pkg?.id && pkg.zip_status !== 'ready') {
+    await markLetterPackageZipBuilding(sessionId).catch((err) => {
+      console.error('markLetterPackageZipBuilding after generate failed:', err)
+    })
+  }
+  return pkg
+}
+
+async function updatePackageZipFields(
+  packageId: string,
+  fields: Record<string, unknown>
+): Promise<LetterPackageRow | null> {
+  const { data, error } = await getSupabase()
+    .from('dispute_letter_packages')
+    .update(fields)
+    .eq('id', packageId)
+    .select('*')
+    .single()
+  if (error) {
+    if (!isMissingRelation(error) && !isMissingColumn(error, 'zip_status')) {
+      console.error('updatePackageZipFields error:', error)
+    }
+    return null
+  }
+  return (data as LetterPackageRow) || null
+}
+
+/**
+ * Claim the active package for ZIP pregeneration (status → building).
+ * Clears a stale storage path when letter ids changed.
+ */
+export async function markLetterPackageZipBuilding(
+  sessionId: string,
+  letterIds?: string[]
+): Promise<LetterPackageRow | null> {
+  const round = await ensureLifecycleFromSession(sessionId)
+  if (!round) return null
+  const items = await listItemsForCase(round.case_id)
+  let pkg = await activePackageForRound(round.id)
+  if (!pkg) {
+    pkg = await upsertLetterPackageOnGenerate({ round, sessionId, items })
+  }
+  if (!pkg) return null
+
+  const ids =
+    letterIds ||
+    (await collectPackageMembership({ roundId: round.id, sessionId, items })).letters.map((letter) => letter.id)
+  const sig = letterIdsSignature(ids)
+  const now = new Date().toISOString()
+  const updated = await updatePackageZipFields(pkg.id, {
+    zip_status: 'building' satisfies LetterPackageZipStatus,
+    zip_letter_ids: sig || null,
+    zip_error: null,
+    updated_at: now,
+  })
+  return updated || { ...pkg, zip_status: 'building', zip_letter_ids: sig || null, zip_error: null }
+}
+
+export async function markLetterPackageZipReady(params: {
+  packageId: string
+  storagePath: string
+  letterIds: string[]
+  byteSize: number
+}): Promise<LetterPackageRow | null> {
+  const now = new Date().toISOString()
+  return updatePackageZipFields(params.packageId, {
+    zip_status: 'ready' satisfies LetterPackageZipStatus,
+    zip_storage_path: params.storagePath,
+    zip_built_at: now,
+    zip_letter_ids: letterIdsSignature(params.letterIds) || null,
+    zip_error: null,
+    zip_byte_size: params.byteSize,
+    updated_at: now,
+  })
+}
+
+export async function markLetterPackageZipFailed(
+  packageId: string,
+  errorMessage: string
+): Promise<LetterPackageRow | null> {
+  const now = new Date().toISOString()
+  return updatePackageZipFields(packageId, {
+    zip_status: 'failed' satisfies LetterPackageZipStatus,
+    zip_error: (errorMessage || 'ZIP build failed').slice(0, 500),
+    updated_at: now,
+  })
 }
 
 async function maybeCompleteRoundIfFullySent(roundId: string): Promise<boolean> {

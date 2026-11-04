@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getClientById, logActivity } from '@/lib/db'
 import { getStripe } from '@/lib/stripe'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireMarketingBillingSession } from '@/lib/billing-access'
 import { applySubscriptionToClient } from '@/lib/stripe-subscription-sync'
 import { getBillingStatusSnapshot } from '@/lib/billing-service'
 
@@ -9,9 +9,6 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = await requireAdminSession()
-  if (session instanceof NextResponse) return session
-
   let body: { clientId?: string }
   try {
     body = await req.json()
@@ -21,6 +18,9 @@ export async function POST(req: NextRequest) {
 
   const clientId = body.clientId?.trim()
   if (!clientId) return NextResponse.json({ error: 'clientId is required' }, { status: 400 })
+
+  const session = await requireMarketingBillingSession(clientId)
+  if (session instanceof NextResponse) return session
 
   const client = await getClientById(clientId)
   if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 })

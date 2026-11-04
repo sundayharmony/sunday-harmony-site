@@ -1,3 +1,4 @@
+import { creditExpertNewClientEmailRecipients } from '@/lib/credit-expert-notification'
 import { logActivity, getUserByEmail, createNotification, getCreditManagers } from '@/lib/db'
 import { upsertLeadFromCreditIntake, ensureClientFromCreditApplication } from '@/lib/crm-db'
 import {
@@ -104,7 +105,10 @@ export async function runCreditFundingSubmissionSideEffects(params: {
     logLabel: 'credit-funding-admin-alert',
   })
 
-  const creditExperts = await getCreditManagers()
+  const creditExperts = creditExpertNewClientEmailRecipients(await getCreditManagers(), {
+    assigned_specialist: application.assigned_specialist,
+    service_type: application.service_type,
+  })
   for (const expert of creditExperts) {
     try {
       await sendCreditFundingExpertNotificationEmail({

@@ -70,8 +70,10 @@ describe('current letter wiring', () => {
       'src/app/api/admin/dispute-letters/[id]/letters/download-zip/route.ts',
       'utf8'
     )
+    const packageZip = readFileSync('src/lib/dispute-letters/letter-package-zip.ts', 'utf8')
     const listRoute = readFileSync('src/app/api/admin/dispute-letters/[id]/letters/route.ts', 'utf8')
-    assert.match(zipRoute, /currentLetters/)
+    assert.match(zipRoute, /getOrBuildLetterPackageZip/)
+    assert.match(packageZip, /currentLetters/)
     assert.match(listRoute, /currentLetters/)
   })
 })

@@ -14,7 +14,10 @@ export default async function LegacyContactRedirect({
   const { id } = await params
   const session = await getServerSession(authOptions)
   const scope = session?.user?.role === 'credit_manager' ? 'credit' : 'all'
-  const personId = await findCanonicalPersonId(id, scope)
+  const personId = await findCanonicalPersonId(id, scope, {
+    role: session?.user?.role,
+    userId: session?.user?.id,
+  })
   if (!personId) notFound()
   redirect(`/admin/people/${personId}`)
 }

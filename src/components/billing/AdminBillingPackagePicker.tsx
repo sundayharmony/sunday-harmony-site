@@ -4,6 +4,7 @@ import {
   BILLING_PACKAGE_KEYS,
   billingPackageLabel,
   billingPackagePriceLabel,
+  isMarketingPackage,
   type BillingPackageKey,
 } from '@/lib/billing-packages'
 
@@ -11,16 +12,19 @@ export default function AdminBillingPackagePicker({
   selected,
   onSelect,
   disabled = false,
+  marketingOnly = false,
 }: {
   selected: BillingPackageKey
   onSelect: (key: BillingPackageKey) => void
   disabled?: boolean
+  marketingOnly?: boolean
 }) {
+  const keys = marketingOnly ? BILLING_PACKAGE_KEYS.filter((key) => isMarketingPackage(key)) : BILLING_PACKAGE_KEYS
   return (
     <div>
       <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Package</div>
       <div className="flex flex-wrap gap-1.5">
-        {BILLING_PACKAGE_KEYS.map(key => (
+        {keys.map(key => (
           <button
             key={key}
             type="button"

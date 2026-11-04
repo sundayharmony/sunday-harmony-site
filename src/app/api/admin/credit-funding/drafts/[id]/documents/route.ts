@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   createUploadedDocument,
@@ -31,6 +32,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const app = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), app)
+    if (denied) return denied
     if (!app || app.status !== 'draft') {
       return NextResponse.json({ error: 'Documents can only be uploaded to open drafts' }, { status: 400 })
     }

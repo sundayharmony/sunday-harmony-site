@@ -2,22 +2,24 @@ import { NextRequest, NextResponse } from 'next/server'
 import { adminSetClientPlan, adminSetClientToCreditRepair, changeSubscriptionTier, logBillingActivity } from '@/lib/billing-service'
 import { isCreditRepairPackage, isMarketingPackage } from '@/lib/billing-packages'
 import { type PackageTier } from '@/lib/stripe-catalog'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireMarketingBillingSession } from '@/lib/billing-access'
 import { isServiceError, withStripeHandler } from '@/lib/stripe-api-handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = await requireAdminSession()
-  if (session instanceof NextResponse) return session
-
   const body = await req.json().catch(() => ({}))
   const clientId = typeof body.clientId === 'string' ? body.clientId.trim() : ''
   const tier = typeof body.tier === 'string' ? body.tier.trim() : ''
+  const session = await requireMarketingBillingSession(clientId)
+  if (session instanceof NextResponse) return session
 
   if (!clientId) {
     return NextResponse.json({ error: 'clientId is required' }, { status: 400 })
+  }
+  if (session.user.role !== 'admin' && isCreditRepairPackage(tier)) {
+    return NextResponse.json({ error: 'Sales can bill marketing packages only' }, { status: 403 })
   }
   if (isCreditRepairPackage(tier)) {
     const result = await withStripeHandler(() => adminSetClientToCreditRepair(clientId))

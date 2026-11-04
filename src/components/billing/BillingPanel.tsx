@@ -58,12 +58,21 @@ type BillingSnapshot = {
 export default function BillingPanel({
   client,
   adminView = false,
+  marketingOnly = false,
   onUpdated,
 }: {
   client: BillingPanelClient
   adminView?: boolean
+  marketingOnly?: boolean
   onUpdated?: () => void
 }) {
+  if (marketingOnly && usesCreditRepairBilling(client)) {
+    return (
+      <p className="text-sm text-brand-muted">
+        This file is credit repair billing. An admin handles that from Credit & Funding.
+      </p>
+    )
+  }
   if (usesCreditRepairBilling(client)) {
     return (
       <CreditRepairBillingPanel
@@ -73,16 +82,25 @@ export default function BillingPanel({
       />
     )
   }
-  return <MarketingBillingPanel client={client} adminView={adminView} onUpdated={onUpdated} />
+  return (
+    <MarketingBillingPanel
+      client={client}
+      adminView={adminView}
+      marketingOnly={marketingOnly}
+      onUpdated={onUpdated}
+    />
+  )
 }
 
 function MarketingBillingPanel({
   client,
   adminView = false,
+  marketingOnly = false,
   onUpdated,
 }: {
   client: BillingPanelClient
   adminView?: boolean
+  marketingOnly?: boolean
   onUpdated?: () => void
 }) {
   const [packageKey, setPackageKey] = useState<BillingPackageKey>(currentBillingPackage(client))
@@ -478,6 +496,7 @@ function MarketingBillingPanel({
               selected={packageKey}
               onSelect={setPackageKey}
               disabled={busy !== null}
+              marketingOnly={marketingOnly}
             />
           </div>
         ) : (
