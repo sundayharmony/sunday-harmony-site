@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
+import { assignedExpertIdForStaff, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   createStaffDraftApplication,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
       payload,
       staffEmail,
       clientId: clientIdRaw || undefined,
+      assignedSpecialist: await assignedExpertIdForStaff(viewerFromSession(session)),
     })
 
     if (!app) {

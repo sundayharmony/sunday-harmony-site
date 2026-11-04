@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   filterPeople,
+  filterPeopleForCreditExpert,
   findPersonById,
   groupPeople,
   groupPeopleByLane,
@@ -269,6 +270,39 @@ describe('people list organization', () => {
     const list = readFileSync('src/components/admin/PeopleList.tsx', 'utf8')
     assert.match(list, /label: 'Marketing'/)
     assert.match(list, /marketing: 'Marketing'/)
+  })
+})
+
+describe('credit expert assignment on people', () => {
+  it('hides unassigned credit people from an expert and keeps their assigned clients', () => {
+    const people = groupPeople({
+      leads: [],
+      clients: [],
+      applications: [
+        {
+          id: 'app-assigned',
+          email: 'assigned@client.test',
+          full_name: 'Assigned Client',
+          status: 'under_review',
+          assigned_specialist: 'expert-1',
+          created_at: '2026-05-01T00:00:00.000Z',
+        },
+        {
+          id: 'app-open',
+          email: 'open@client.test',
+          full_name: 'Unassigned Client',
+          status: 'submitted',
+          assigned_specialist: 'Jordan Lee',
+          created_at: '2026-05-02T00:00:00.000Z',
+        },
+      ],
+      bookings: [],
+    }, now)
+
+    const visible = filterPeopleForCreditExpert(people, 'expert-1')
+    assert.deepEqual(visible.map((person) => person.email), ['assigned@client.test'])
+    assert.deepEqual(filterPeopleForCreditExpert(people, ''), [])
+    assert.equal(people.find((person) => person.email === 'assigned@client.test')?.assignedExpertIds.includes('expert-1'), true)
   })
 })
 

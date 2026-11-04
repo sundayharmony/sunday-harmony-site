@@ -12,8 +12,12 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-async function forbidUnlessClientAllowed(role: string | undefined, clientId: string) {
-  if (await staffMayUseClient(role, clientId)) return null
+async function forbidUnlessClientAllowed(
+  role: string | undefined,
+  clientId: string,
+  expertUserId?: string | null
+) {
+  if (await staffMayUseClient(role, clientId, expertUserId)) return null
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 }
 
@@ -29,7 +33,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([], { status: 200 })
     }
 
-    const denied = await forbidUnlessClientAllowed(session.user.role, clientId)
+    const denied = await forbidUnlessClientAllowed(session.user.role, clientId, session.user.id)
     if (denied) return denied
 
     const tasks = await getTasksByClient(clientId)
@@ -52,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields: client_id, title' }, { status: 400 })
     }
 
-    const denied = await forbidUnlessClientAllowed(session.user.role, client_id)
+    const denied = await forbidUnlessClientAllowed(session.user.role, client_id, session.user.id)
     if (denied) return denied
 
     // Input length validation
@@ -141,7 +145,7 @@ export async function PUT(request: NextRequest) {
 
     const existing = await getTaskById(id)
     if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-    const denied = await forbidUnlessClientAllowed(session.user.role, existing.client_id)
+    const denied = await forbidUnlessClientAllowed(session.user.role, existing.client_id, session.user.id)
     if (denied) return denied
 
     const result = await updateTask(id, updates)
@@ -170,7 +174,7 @@ export async function DELETE(request: NextRequest) {
 
     const existing = await getTaskById(id)
     if (!existing) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-    const denied = await forbidUnlessClientAllowed(session.user.role, existing.client_id)
+    const denied = await forbidUnlessClientAllowed(session.user.role, existing.client_id, session.user.id)
     if (denied) return denied
 
     const success = await deleteTask(id)

@@ -10,6 +10,10 @@ import {
   type Lead,
 } from './db'
 import {
+  viewerMayAccessCreditApplication,
+  type CreditStaffViewer,
+} from './credit-expert-assignment'
+import {
   getCreditFundingApplicationByClientId,
   getCreditFundingApplicationByEmail,
   getCreditFundingApplications,
@@ -23,6 +27,7 @@ import { isCreditRepairBillingClient } from './credit-repair-billing'
 import { reconcileStaleRepairPayments } from './billing-service'
 import {
   filterPeople,
+  filterPeopleForCreditExpert,
   findPersonById,
   groupPeople,
   isMarketingClient,
@@ -145,6 +150,7 @@ function asApplication(app: CreditFundingApplication): PersonApplication {
     status: app.status,
     lead_id: app.lead_id,
     client_id: app.client_id,
+    assigned_specialist: app.assigned_specialist,
     created_at: app.created_at,
   }
 }
@@ -184,13 +190,29 @@ async function loadRecords(now = new Date()): Promise<Loaded> {
   return { leads, clients, applications, bookings, people }
 }
 
-export async function listPeople(scope: PersonScope = 'all', now = new Date()): Promise<PersonSummary[]> {
-  const loaded = await loadRecords(now)
-  return filterPeople(loaded.people, scope)
+function peopleVisibleToViewer(people: PersonSummary[], scope: PersonScope, viewer?: CreditStaffViewer): PersonSummary[] {
+  const scoped = filterPeople(people, scope)
+  if (viewer?.role === 'credit_manager') {
+    return filterPeopleForCreditExpert(scoped, viewer.userId || '')
+  }
+  return scoped
 }
 
-export async function findCanonicalPersonId(id: string, scope: PersonScope = 'all'): Promise<string | null> {
-  const people = await listPeople(scope)
+export async function listPeople(
+  scope: PersonScope = 'all',
+  now = new Date(),
+  viewer?: CreditStaffViewer
+): Promise<PersonSummary[]> {
+  const loaded = await loadRecords(now)
+  return peopleVisibleToViewer(loaded.people, scope, viewer)
+}
+
+export async function findCanonicalPersonId(
+  id: string,
+  scope: PersonScope = 'all',
+  viewer?: CreditStaffViewer
+): Promise<string | null> {
+  const people = await listPeople(scope, new Date(), viewer)
   return findPersonById(people, id)?.id ?? null
 }
 
@@ -265,11 +287,12 @@ async function linkPersonRecords(person: PersonSummary, loaded: Loaded): Promise
 export async function getPersonFile(
   id: string,
   role: 'admin' | 'credit_manager',
-  now = new Date()
+  now = new Date(),
+  viewer?: CreditStaffViewer
 ): Promise<PersonFile | null> {
   const loaded = await loadRecords(now)
   const scope: PersonScope = role === 'credit_manager' ? 'credit' : 'all'
-  const person = findPersonById(filterPeople(loaded.people, scope), id)
+  const person = findPersonById(peopleVisibleToViewer(loaded.people, scope, viewer || { role }), id)
   if (!person) return null
   if (role === 'credit_manager' && !person.hasCreditWork) return null
 
@@ -316,10 +339,15 @@ export async function getPersonFile(
 
 export async function loadTodayQueue(
   role: 'admin' | 'credit_manager',
-  now = new Date()
+  now = new Date(),
+  viewer?: CreditStaffViewer
 ): Promise<TodayQueue> {
   const loaded = await loadRecords(now)
-  const people = filterPeople(loaded.people, role === 'credit_manager' ? 'credit' : 'all')
+  const people = peopleVisibleToViewer(
+    loaded.people,
+    role === 'credit_manager' ? 'credit' : 'all',
+    viewer || { role }
+  )
   const applications = selectWaitingApplications(people, loaded.applications.map(asApplication))
   if (role === 'credit_manager') {
     return { role, consultations: [], applications, owes: [], referrals: [] }
@@ -357,9 +385,21 @@ export async function clientHasCreditWork(clientId: string): Promise<boolean> {
   return Boolean(byEmail)
 }
 
-export async function staffMayUseClient(role: string | undefined, clientId: string): Promise<boolean> {
+export async function staffMayUseClient(
+  role: string | undefined,
+  clientId: string,
+  expertUserId?: string | null
+): Promise<boolean> {
   if (role === 'admin') return true
-  if (role === 'credit_manager') return clientHasCreditWork(clientId)
+  if (role === 'credit_manager') {
+    if (!expertUserId) return false
+    const byClient = await getCreditFundingApplicationByClientId(clientId)
+    if (byClient) return viewerMayAccessCreditApplication(byClient, { role, userId: expertUserId })
+    const client = await getClientById(clientId)
+    if (!client?.email) return false
+    const byEmail = await getCreditFundingApplicationByEmail(client.email)
+    return viewerMayAccessCreditApplication(byEmail, { role, userId: expertUserId })
+  }
   if (role === 'lead_procurement' || role === 'sales_closer' || role === 'client_relations') {
     const client = await getClientById(clientId)
     return Boolean(client && isMarketingClient(client))

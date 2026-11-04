@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, getUserByEmail } from '@/lib/db'
+import {
+  assignedExpertIdForStaff,
+  creditApplicationAccessDenied,
+  viewerFromSession,
+} from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   createInvitedCreditFundingApplication,
@@ -89,6 +94,7 @@ export async function POST(req: NextRequest) {
       invitedBy: staffEmail,
       personalMessage: personal_message,
       inviteExpiresAt,
+      assignedSpecialist: await assignedExpertIdForStaff(viewerFromSession(session)),
     })
 
     if (!app) {
@@ -127,6 +133,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     const existing = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), existing)
+    if (denied) return denied
     if (!existing) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
@@ -160,6 +168,8 @@ export async function GET(req: NextRequest) {
     }
 
     const app = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), app)
+    if (denied) return denied
     if (!app || app.status !== 'invitation_pending') {
       return NextResponse.json({ error: 'Pending invitation not found' }, { status: 404 })
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import {
@@ -31,6 +32,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'applicationUuid is required' }, { status: 400 })
   }
 
+  const application = await getCreditFundingApplicationById(applicationUuid)
+  const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+  if (denied) return denied
+
   const snapshot = await loadDisputeLifecycleForApplication(applicationUuid)
   if (!snapshot.case) {
     return NextResponse.json({ escalations: [], case: null })
@@ -58,6 +63,10 @@ export async function POST(request: NextRequest) {
     if (!itemIds.length) {
       return NextResponse.json({ error: 'itemIds are required' }, { status: 400 })
     }
+
+    const applicationForAccess = await getCreditFundingApplicationById(applicationUuid)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), applicationForAccess)
+    if (denied) return denied
 
     const snapshot = await loadDisputeLifecycleForApplication(applicationUuid)
     if (!snapshot.case) {

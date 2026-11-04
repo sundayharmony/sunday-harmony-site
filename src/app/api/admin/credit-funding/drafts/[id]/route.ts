@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, getUserByEmail } from '@/lib/db'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   cancelInvitationBackToDraft,
@@ -70,6 +71,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     if (!isUuid(id)) return draftJson({ error: 'Invalid draft id' }, 400)
 
     const app = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), app)
+    if (denied) return denied
     if (!app || (app.status !== 'draft' && !(app.status === 'invitation_pending' && app.draft_source === 'staff_manual'))) {
       return draftJson({ error: 'Draft not found' }, 404)
     }
@@ -106,6 +109,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!isUuid(id)) return draftJson({ error: 'Invalid draft id' }, 400)
 
     const existing = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), existing)
+    if (denied) return denied
     if (!existing || existing.status !== 'draft') {
       return draftJson(
         { error: 'Only open drafts can be edited. Cancel the client finish link to resume editing.' },
@@ -165,6 +170,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const existing = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), existing)
+    if (denied) return denied
     if (!existing) {
       return draftJson({ error: 'Application not found' }, 404)
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireAdminSession } from '@/lib/stripe-admin-auth'
 import {
   getCreditFundingApplicationById,
@@ -60,6 +61,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     if (!isUuid(id)) return intakeJson({ error: 'Invalid application id' }, 400)
 
     const app = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), app)
+    if (denied) return denied
     if (!app || app.status === 'draft') {
       return intakeJson({ error: 'Application not found' }, 404)
     }
@@ -90,6 +93,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!isUuid(id)) return intakeJson({ error: 'Invalid application id' }, 400)
 
     const existing = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), existing)
+    if (denied) return denied
     if (!existing || existing.status === 'draft') {
       return intakeJson(
         { error: 'Only submitted applications can be corrected here. Use the draft editor for drafts.' },

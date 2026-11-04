@@ -36,6 +36,7 @@ export type PersonApplication = {
   status?: string | null
   lead_id?: string | null
   client_id?: string | null
+  assigned_specialist?: string | null
   created_at: string
 }
 
@@ -76,6 +77,7 @@ export type PersonSummary = {
   applicationStatus: string | null
   nextConsultationAt: string | null
   memberIds: string[]
+  assignedExpertIds: string[]
 }
 
 export type PersonScope = 'all' | 'credit'
@@ -304,6 +306,11 @@ export function groupPeople(input: PeopleInput, now = new Date()): PersonSummary
       applicationStatus: recentApplication?.status ?? null,
       nextConsultationAt: nextConsultation?.starts_at ?? null,
       memberIds: [...new Set(memberIds)],
+      assignedExpertIds: [...new Set(
+        bucket.applications
+          .map((row) => (row.assigned_specialist || '').trim())
+          .filter(Boolean)
+      )],
     })
   }
 
@@ -314,6 +321,13 @@ export function groupPeople(input: PeopleInput, now = new Date()): PersonSummary
 export function filterPeople(people: PersonSummary[], scope: PersonScope): PersonSummary[] {
   if (scope === 'credit') return people.filter((person) => person.hasCreditWork)
   return people
+}
+
+/** Credit experts only see people whose credit file is assigned to them. */
+export function filterPeopleForCreditExpert(people: PersonSummary[], expertUserId: string): PersonSummary[] {
+  const id = expertUserId.trim()
+  if (!id) return []
+  return people.filter((person) => (person.assignedExpertIds || []).includes(id))
 }
 
 export function findPersonById(people: PersonSummary[], id: string): PersonSummary | undefined {

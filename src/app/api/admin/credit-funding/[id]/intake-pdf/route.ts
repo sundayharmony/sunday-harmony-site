@@ -11,6 +11,7 @@ import { downloadCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { decryptApplicationSensitiveFields } from '@/lib/credit-funding-sensitive-fields'
 import { logActivity } from '@/lib/db'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
     const application = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+    if (denied) return denied
     if (!application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }

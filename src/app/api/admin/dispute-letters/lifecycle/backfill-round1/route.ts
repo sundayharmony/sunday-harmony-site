@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   backfillHistoricalRound1ForApplication,
@@ -25,6 +27,10 @@ export async function POST(request: NextRequest) {
     if (!applicationUuid) {
       return NextResponse.json({ error: 'applicationUuid or consumerName is required' }, { status: 400 })
     }
+
+    const application = await getCreditFundingApplicationById(applicationUuid)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+    if (denied) return denied
 
     const result = await backfillHistoricalRound1ForApplication({
       applicationUuid,

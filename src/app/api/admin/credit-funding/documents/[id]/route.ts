@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   deleteAdminUploadedDocument,
@@ -26,6 +27,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
     }
 
     const application = await getCreditFundingApplicationById(applicationId)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+    if (denied) return denied
     if (!application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
@@ -63,6 +66,8 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
     }
 
     const application = await getCreditFundingApplicationById(applicationId)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+    if (denied) return denied
     if (!application) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }

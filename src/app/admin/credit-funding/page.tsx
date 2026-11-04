@@ -37,6 +37,7 @@ interface ApplicationListItem {
   service_type?: string
   status: string
   assigned_specialist?: string
+  assigned_expert_name?: string
   draft_source?: string | null
   created_at: string
   updated_at: string
@@ -85,6 +86,7 @@ interface ApplicationDetail {
   status: ApplicationStatus
   service_type?: string
   assigned_specialist?: string
+  assigned_expert_name?: string
   internal_notes?: string
   client_notes?: string
   next_steps?: string
@@ -137,6 +139,61 @@ type SensitiveRevealField =
 
 const DOC_LABELS_MAP: Record<string, string> = { ...DOCUMENT_LABELS }
 const MASKED_VALUE = '••••••••'
+
+function formatListDate(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function ClientCard({
+  app,
+  selected,
+  expertName,
+  onSelect,
+}: {
+  app: ApplicationListItem
+  selected: boolean
+  expertName: string
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full overflow-hidden rounded-2xl bg-white text-left shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] ${
+        selected ? 'ring-2 ring-accent' : ''
+      }`}
+    >
+      <div className="flex">
+        <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
+        <div className="min-w-0 flex-1 px-3.5 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-brand-text">{app.full_name}</p>
+              <p className="mt-0.5 truncate text-xs text-brand-muted">{app.email}</p>
+            </div>
+            <StatusBadge status={app.status} />
+          </div>
+          <p className="mt-2 text-xs text-brand-dim">
+            {expertName}
+            {app.updated_at ? ` · Updated ${formatListDate(app.updated_at)}` : ''}
+          </p>
+          {app.status === 'draft' && (
+            <p className="mt-1 text-[10px] text-brand-muted">Saved · incomplete</p>
+          )}
+          {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
+            <p className="mt-1 text-[10px] text-brand-muted">Client finishing draft</p>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
 
 function yesNo(value?: boolean | null) {
   if (value === true) return 'Yes'
@@ -195,6 +252,8 @@ function CreditFundingAdminContent() {
   const [draftEditorId, setDraftEditorId] = useState<string | null>(null)
   const [draftEditorMode, setDraftEditorMode] = useState<'draft' | 'admin-intake'>('draft')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [role, setRole] = useState('')
+  const [experts, setExperts] = useState<{ id: string; name: string; email: string }[]>([])
   const [inviteForm, setInviteForm] = useState({
     full_name: '',
     email: '',
@@ -253,7 +312,13 @@ function CreditFundingAdminContent() {
         const sessionRes = await fetch('/api/auth/session')
         if (!sessionRes.ok) return
         const data = await sessionRes.json()
+        const nextRole = data?.user?.role || ''
+        setRole(nextRole)
         setIsAdmin(data?.user?.role === 'admin')
+        if (nextRole === 'admin') {
+          const expertsRes = await fetch('/api/admin/staff-users')
+          if (expertsRes.ok) setExperts(await expertsRes.json())
+        }
       } catch {
         /* ignore */
       }
@@ -580,7 +645,8 @@ function CreditFundingAdminContent() {
           a.full_name.toLowerCase().includes(q) ||
           a.application_id.toLowerCase().includes(q) ||
           a.email.toLowerCase().includes(q) ||
-          (a.assigned_specialist || '').toLowerCase().includes(q)
+          (a.assigned_specialist || '').toLowerCase().includes(q) ||
+          (a.assigned_expert_name || '').toLowerCase().includes(q)
       )
       : applications
     return [...rows].sort(compareCreditFundingApplicationsByStatus)
@@ -772,18 +838,43 @@ function CreditFundingAdminContent() {
     </div>
   )
 
-  const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
+  const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-xl text-sm'
+  const isCreditExpert = role === 'credit_manager'
+  const waiting = applications.filter((app) => applicationIsWaiting(app.status))
+  const emptyListCopy = loading
+    ? 'Loading…'
+    : applications.length === 0 && isCreditExpert
+      ? 'No clients are assigned to you yet. An admin assigns the clients you are responsible for.'
+      : applications.length === 0
+        ? 'No applications found.'
+        : 'No applications match this search.'
+  const expertNameFor = (app: ApplicationListItem) =>
+    app.assigned_expert_name?.trim() || (isCreditExpert ? 'Assigned to you' : 'Unassigned')
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding</h1>
-          <p className="text-sm text-brand-muted mt-1">
-            Applications, credit analysis, and funding assessments
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-brand-text">
+            {isCreditExpert ? 'Your clients' : 'Credit & Funding'}
+          </h1>
+          <p className="mt-1 max-w-xl text-sm text-brand-muted">
+            {isCreditExpert
+              ? 'These are the credit and funding clients assigned to you.'
+              : 'Assign each client to the credit expert responsible for them.'}
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-brand-text">
+              {applications.length} {isCreditExpert ? 'assigned' : 'clients'}
+            </span>
+            {waiting.length > 0 && (
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-text shadow-[0_8px_20px_-16px_rgba(10,10,10,0.7)]">
+                {waiting.length} waiting on you
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <button
             type="button"
             onClick={() => {
@@ -794,7 +885,7 @@ function CreditFundingAdminContent() {
               setInviteNotice('')
               setError('')
             }}
-            className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg hover:opacity-90"
+            className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 sm:w-auto"
           >
             New Draft Application
           </button>
@@ -805,29 +896,31 @@ function CreditFundingAdminContent() {
               setInviteNotice('')
               setError('')
             }}
-            className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg hover:bg-neutral-800"
+            className="w-full rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 sm:w-auto"
           >
             Send Application to Client
           </button>
-          <button onClick={exportCsv} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg hover:bg-neutral-50">
+          <button onClick={exportCsv} className="w-full rounded-xl border border-brand-border bg-white px-4 py-2 text-sm font-semibold hover:bg-neutral-50 sm:w-auto">
             Export CSV
           </button>
         </div>
       </div>
 
-      {applications.some((app) => applicationIsWaiting(app.status)) && (
-        <section className="mb-6 bg-white border border-brand-border rounded-xl p-4">
-          <h2 className="text-sm font-bold text-brand-text mb-2">Waiting on you</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {applications.filter((app) => applicationIsWaiting(app.status)).map((app) => (
+      {waiting.length > 0 && (
+        <section className="mb-6 rounded-2xl bg-accent-soft/70 p-4">
+          <h2 className="mb-3 text-sm font-semibold text-brand-text">Waiting on you</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {waiting.map((app) => (
               <button
                 key={app.id}
                 type="button"
                 onClick={() => selectApplication(app.id)}
-                className="text-left rounded-lg border border-brand-border px-3 py-2 hover:border-accent"
+                className="rounded-2xl bg-white px-3.5 py-3 text-left shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] hover:ring-2 hover:ring-accent"
               >
-                <div className="text-sm font-medium text-brand-text">{app.full_name}</div>
-                <div className="text-xs text-brand-muted">{app.status.replace(/_/g, ' ')} · {app.email}</div>
+                <div className="text-sm font-semibold text-brand-text">{app.full_name}</div>
+                <div className="mt-0.5 text-xs text-brand-muted">
+                  {STATUS_LABELS[app.status as ApplicationStatus] || app.status.replace(/_/g, ' ')} · {app.email}
+                </div>
               </button>
             ))}
           </div>
@@ -963,9 +1056,9 @@ function CreditFundingAdminContent() {
 
       <div className={`grid grid-cols-1 gap-6 ${listPanelOpen ? 'lg:grid-cols-5' : 'lg:grid-cols-1'}`}>
         {listPanelOpen && (
-        <div className="lg:col-span-2 bg-white border border-brand-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-brand-border space-y-3">
-            <input className={inputClass} placeholder="Search name, email, ID, specialist…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="lg:col-span-2">
+          <div className="mb-3 space-y-3">
+            <input className={inputClass} placeholder="Search name, email, or ID" value={search} onChange={(e) => setSearch(e.target.value)} />
             <select className={inputClass} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all">All statuses</option>
               {APPLICATION_STATUSES.map((s) => (
@@ -974,71 +1067,27 @@ function CreditFundingAdminContent() {
             </select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs hidden sm:table">
-              <thead className="bg-neutral-50 border-b border-brand-border">
-                <tr>
-                  {['ID', 'Name', 'Status', 'Specialist', 'Updated'].map((h) => (
-                    <th key={h} className="text-left p-2 font-semibold text-brand-dim">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-6 text-sm text-brand-dim text-center">
-                      {loading ? 'Loading…' : 'No applications match this search.'}
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((app) => (
-                  <tr
-                    key={app.id}
-                    onClick={() => selectApplication(app.id)}
-                    className={`border-b border-brand-border cursor-pointer hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}
-                  >
-                    <td className="p-2 font-mono">{app.application_id}</td>
-                    <td className="p-2">{app.full_name}</td>
-                    <td className="p-2">
-                      <StatusBadge status={app.status} />
-                      {app.status === 'draft' && (
-                        <span className="block text-[10px] text-brand-muted mt-0.5">Saved · incomplete</span>
-                      )}
-                      {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
-                        <span className="block text-[10px] text-brand-muted mt-0.5">Client finishing draft</span>
-                      )}
-                    </td>
-                    <td className="p-2 text-brand-dim">{app.assigned_specialist || '—'}</td>
-                    <td className="p-2 text-brand-dim">{new Date(app.updated_at).toLocaleDateString()}</td>
-                  </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="max-h-[400px] overflow-y-auto sm:hidden">
-            {loading ? (
-              <p className="p-6 text-sm text-brand-dim">Loading…</p>
-            ) : filtered.length === 0 ? (
-              <p className="p-6 text-sm text-brand-dim">No applications found.</p>
+          <div className="max-h-[640px] space-y-2 overflow-y-auto pr-0.5">
+            {filtered.length === 0 ? (
+              <div className="rounded-2xl bg-accent-soft/60 px-4 py-8 text-center text-sm text-brand-dim">
+                {emptyListCopy}
+              </div>
             ) : (
               filtered.map((app) => (
-                <button key={app.id} type="button" onClick={() => selectApplication(app.id)}
-                  className={`w-full text-left p-4 border-b border-brand-border hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}>
-                  <div className="flex justify-between gap-2">
-                    <p className="font-semibold text-sm">{app.full_name}</p>
-                    <StatusBadge status={app.status} />
-                  </div>
-                  <p className="text-xs text-brand-dim mt-1">{app.application_id}</p>
-                </button>
+                <ClientCard
+                  key={app.id}
+                  app={app}
+                  selected={selected?.id === app.id}
+                  expertName={expertNameFor(app)}
+                  onSelect={() => selectApplication(app.id)}
+                />
               ))
             )}
           </div>
         </div>
         )}
 
-        <div className={`${listPanelOpen ? 'lg:col-span-3' : 'lg:col-span-1'} bg-white border border-brand-border rounded-xl p-6`}>
+        <div className={`${listPanelOpen ? 'lg:col-span-3' : 'lg:col-span-1'} rounded-2xl bg-white p-4 shadow-[0_18px_40px_-28px_rgba(10,10,10,0.65)] sm:p-6`}>
           {!listPanelOpen && (
             <button
               type="button"
@@ -1052,7 +1101,16 @@ function CreditFundingAdminContent() {
             </button>
           )}
           {!selected ? (
-            <p className="text-sm text-brand-dim">Select an application to view details.</p>
+            <div className="rounded-2xl bg-accent-soft/50 px-4 py-10 text-center">
+              <p className="text-sm font-semibold text-brand-text">
+                {isCreditExpert ? 'Choose a client' : 'Choose an application'}
+              </p>
+              <p className="mt-1 text-sm text-brand-dim">
+                {isCreditExpert
+                  ? 'Open a client assigned to you to review their file, analysis, and messages.'
+                  : 'Select a client to review their file and assign a credit expert.'}
+              </p>
+            </div>
           ) : detailLoading ? (
             <p className="text-sm text-brand-dim">Loading details…</p>
           ) : (
@@ -1095,6 +1153,7 @@ function CreditFundingAdminContent() {
                   )}
                   </div>
                 </div>
+                {isAdmin && (
                 <button
                   type="button"
                   disabled={saving}
@@ -1103,6 +1162,7 @@ function CreditFundingAdminContent() {
                 >
                   Delete application
                 </button>
+                )}
               </div>
 
               {selected.status === 'invitation_pending' ? (
@@ -1141,7 +1201,7 @@ function CreditFundingAdminContent() {
                 />
               )}
 
-              <div className="flex gap-2 mb-5 border-b border-brand-border flex-wrap">
+              <div className="mb-5 flex flex-wrap gap-2">
                 {(
                   [
                     { id: 'overview', label: 'Overview' },
@@ -1155,8 +1215,8 @@ function CreditFundingAdminContent() {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors ${
-                      activeTab === tab.id ? 'border-accent text-brand-text' : 'border-transparent text-brand-dim'
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      activeTab === tab.id ? 'bg-brand-text text-white' : 'bg-accent-soft text-brand-text'
                     }`}
                   >
                     {tab.label}
@@ -1261,9 +1321,25 @@ function CreditFundingAdminContent() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                     <div>
-                      <label className="text-xs font-semibold text-brand-dim">Assigned Specialist</label>
-                      <input className={inputClass} value={editFields.assigned_specialist}
-                        onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))} />
+                      <label className="text-xs font-semibold text-brand-dim">Credit expert</label>
+                      {isAdmin ? (
+                        <select
+                          className={inputClass}
+                          value={experts.some((expert) => expert.id === editFields.assigned_specialist) ? editFields.assigned_specialist : ''}
+                          onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))}
+                        >
+                          <option value="">Unassigned</option>
+                          {experts.map((expert) => (
+                            <option key={expert.id} value={expert.id}>
+                              {expert.name || expert.email}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="rounded-xl bg-accent-soft px-3 py-2 text-sm text-brand-text">
+                          {selected.assigned_expert_name?.trim() || 'Assigned to you'}
+                        </p>
+                      )}
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold text-brand-dim">Internal Notes (staff only)</label>
@@ -1294,15 +1370,21 @@ function CreditFundingAdminContent() {
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => patchApplication({
-                      assigned_specialist: editFields.assigned_specialist,
-                      internal_notes: editFields.internal_notes,
-                      client_notes: editFields.client_notes,
-                      next_steps: editFields.next_steps,
-                    })}
-                    className="mb-5 px-4 py-2 bg-brand-text text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                    onClick={() => {
+                      const chosenId = editFields.assigned_specialist
+                      const chosenIsExpert = experts.some((expert) => expert.id === chosenId)
+                      const storedIsExpert = experts.some((expert) => expert.id === (selected.assigned_specialist || ''))
+                      const sendAssignment = chosenIsExpert || (storedIsExpert && chosenId === '')
+                      patchApplication({
+                        ...(isAdmin && sendAssignment ? { assigned_specialist: chosenId } : {}),
+                        internal_notes: editFields.internal_notes,
+                        client_notes: editFields.client_notes,
+                        next_steps: editFields.next_steps,
+                      })
+                    }}
+                    className="mb-5 w-full rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
                   >
-                    Save Notes &amp; Assignment
+                    {isAdmin ? 'Save notes and assignment' : 'Save notes'}
                   </button>
 
                   {!showDocRequestPanel && (

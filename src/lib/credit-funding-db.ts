@@ -186,6 +186,7 @@ export async function createStaffDraftApplication(params: {
   payload: IntakeFormPayload
   staffEmail: string
   clientId?: string
+  assignedSpecialist?: string | null
 }): Promise<CreditFundingApplication | null> {
   const blocking = await getBlockingIncompleteApplicationByEmail(params.payload.email)
   if (blocking) return null
@@ -204,6 +205,7 @@ export async function createStaffDraftApplication(params: {
     client_id: params.clientId || null,
     created_by_staff_email: params.staffEmail,
     draft_source: 'staff_manual',
+    assigned_specialist: params.assignedSpecialist?.trim() || null,
   }
 
   const { data, error } = await getSupabase()
@@ -441,6 +443,7 @@ export async function createInvitedCreditFundingApplication(params: {
   invitedBy: string
   personalMessage?: string
   inviteExpiresAt?: Date
+  assignedSpecialist?: string | null
 }): Promise<CreditFundingApplication | null> {
   const existingPending = await getPendingInvitationByEmail(params.email)
   if (existingPending) {
@@ -462,6 +465,7 @@ export async function createInvitedCreditFundingApplication(params: {
       inviteExpiresAt,
       personalMessage: params.personalMessage,
     }),
+    assigned_specialist: params.assignedSpecialist?.trim() || null,
   }
 
   const { data, error } = await getSupabase()

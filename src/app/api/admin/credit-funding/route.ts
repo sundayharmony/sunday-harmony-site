@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity, createNotification, getUserByEmail } from '@/lib/db'
+import {
+  creditApplicationAccessDenied,
+  expertDisplayName,
+  filterCreditApplicationsForViewer,
+  listCreditExpertOptions,
+  viewerFromSession,
+} from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   formatApplicationForAdmin,
@@ -52,6 +59,8 @@ export async function GET(req: NextRequest) {
 
     if (id) {
       const app = await getCreditFundingApplicationById(id)
+      const denied = creditApplicationAccessDenied(viewerFromSession(session), app)
+      if (denied) return denied
       if (!app) {
         return NextResponse.json({ error: 'Application not found' }, { status: 404 })
       }
@@ -86,8 +95,12 @@ export async function GET(req: NextRequest) {
         )
       }
 
+      const experts = await listCreditExpertOptions()
       return NextResponse.json({
-        application: formatApplicationForAdmin(app),
+        application: {
+          ...formatApplicationForAdmin(app),
+          assigned_expert_name: expertDisplayName(experts, app.assigned_specialist),
+        },
         documents: docsWithUrls,
         history,
         messages,
@@ -96,8 +109,15 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const applications = await getCreditFundingApplications({ status, search })
-    const rows = applications.map(formatApplicationListItemForAdmin)
+    const applications = filterCreditApplicationsForViewer(
+      await getCreditFundingApplications({ status, search }),
+      viewerFromSession(session)
+    )
+    const experts = await listCreditExpertOptions()
+    const rows = applications.map((application) => ({
+      ...formatApplicationListItemForAdmin(application),
+      assigned_expert_name: expertDisplayName(experts, application.assigned_specialist),
+    }))
     rows.sort(compareCreditFundingApplicationsByStatus)
     return NextResponse.json(rows)
   } catch (error) {
@@ -143,6 +163,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     const existing = await getCreditFundingApplicationById(id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), existing)
+    if (denied) return denied
     if (!existing) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
@@ -177,7 +199,19 @@ export async function PATCH(req: NextRequest) {
     }
 
     const fieldUpdates: Parameters<typeof updateCreditFundingApplication>[1] = {}
-    if (assigned_specialist !== undefined) fieldUpdates.assigned_specialist = assigned_specialist || null
+    if (assigned_specialist !== undefined) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Only an admin can assign a credit expert' }, { status: 403 })
+      }
+      const expertId = assigned_specialist.trim()
+      if (expertId) {
+        const experts = await listCreditExpertOptions()
+        if (!experts.some((expert) => expert.id === expertId)) {
+          return NextResponse.json({ error: 'Choose a credit expert' }, { status: 400 })
+        }
+      }
+      fieldUpdates.assigned_specialist = expertId || null
+    }
     if (internal_notes !== undefined) fieldUpdates.internal_notes = internal_notes
     if (client_notes !== undefined) fieldUpdates.client_notes = client_notes
     if (next_steps !== undefined) fieldUpdates.next_steps = next_steps
@@ -293,6 +327,8 @@ export async function POST(req: NextRequest) {
     }
 
     const app = await getCreditFundingApplicationById(application_id)
+    const denied = creditApplicationAccessDenied(viewerFromSession(session), app)
+    if (denied) return denied
     if (!app) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
@@ -344,6 +380,10 @@ export async function DELETE(req: NextRequest) {
     const id = new URL(req.url).searchParams.get('id')
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
+    }
+
+    if (session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Only an admin can delete a credit client' }, { status: 403 })
     }
 
     const existing = await getCreditFundingApplicationById(id)

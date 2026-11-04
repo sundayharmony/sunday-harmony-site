@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   createDisputeLetterSignedUploadUrl,
@@ -31,6 +33,12 @@ export async function POST(request: NextRequest) {
     }
     if (!Number.isFinite(fileSize) || fileSize <= 0) {
       return NextResponse.json({ error: 'fileSize is required' }, { status: 400 })
+    }
+
+    if (applicationUuid) {
+      const application = await getCreditFundingApplicationById(applicationUuid)
+      const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
+      if (denied) return denied
     }
 
     const sessionId = newDisputeSessionId()

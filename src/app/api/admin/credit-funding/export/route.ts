@@ -3,6 +3,7 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { decryptFieldOrLegacy, maskEmail, maskPhone } from '@/lib/field-encryption'
+import { filterCreditApplicationsForViewer, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { getCreditFundingApplications } from '@/lib/credit-funding-db'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,10 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status') || 'all'
     const search = searchParams.get('search') || ''
 
-    const applications = await getCreditFundingApplications({ status, search })
+    const applications = filterCreditApplicationsForViewer(
+      await getCreditFundingApplications({ status, search }),
+      viewerFromSession(session)
+    )
 
     logActivity({
       action: 'exported',
