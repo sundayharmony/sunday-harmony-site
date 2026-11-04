@@ -51,15 +51,38 @@
 }
 
 .letter-body .letter-closing {
-  margin-bottom: 10pt;
+  margin-bottom: 8pt;
+}
+
+.letter-body .letter-signoff-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16pt;
+  margin: 0 0 6pt;
+}
+
+.letter-body .letter-signatory-name {
+  margin: 0;
+  flex: 0 1 auto;
 }
 
 .letter-body .letter-signature {
   font-size: 28pt;
   font-weight: 400;
   line-height: 1.15;
-  margin: 0 0 6pt;
+  margin: 0;
   color: #141414;
+  text-align: right;
+  flex: 1 1 auto;
+}
+
+.letter-body .letter-signature-img {
+  display: block;
+  margin-left: auto;
+  height: 48px;
+  width: auto;
+  max-width: 100%;
 }
 
 .letter-body .letter-bullet {
