@@ -21,11 +21,12 @@ const CLIENT_HOME_PATHS = new Set(['/', '/login', '/forgot-password', '/reset-pa
  */
 const MFA_INCOMPLETE_ALLOWED = new Set(['/login', '/forgot-password', '/reset-password'])
 
-/** Credit managers use the credit workspace, dispute letters, and Settings. */
+/** Credit managers use the credit workspace, dispute letters, staff messages, and Settings. */
 const CREDIT_MANAGER_ADMIN_PATHS = [
   '/admin/people',
   '/admin/credit-funding',
   '/admin/dispute-letters',
+  '/admin/messages',
   '/admin/settings',
 ]
 

@@ -77,6 +77,9 @@ const MUST_DENY = [
   'dispute_sessions',
   'dispute_letters',
   'staff_messages',
+  'staff_direct_threads',
+  'staff_direct_messages',
+  'staff_direct_reads',
 ]
 
 const PRIVATE_BUCKETS = ['client-files', 'credit-funding-docs', 'dispute-letters']

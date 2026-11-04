@@ -204,16 +204,6 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/admin/messages',
-        destination: '/admin/people',
-        permanent: true,
-      },
-      {
-        source: '/admin/messages/:path*',
-        destination: '/admin/people',
-        permanent: true,
-      },
-      {
         source: '/api/case-studies',
         destination: '/',
         permanent: true,

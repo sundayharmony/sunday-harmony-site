@@ -101,6 +101,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin/sales-kit', icon: '\u{1F4BC}', label: 'Sales Kit' },
   { href: '/admin/content-kit', icon: '\u{1F4F1}', label: 'Content Kit' },
   { href: '/admin/partners', icon: '\u{1F465}', label: 'Partners' },
+  { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
@@ -391,13 +392,18 @@ export function canMoveStage(role: string | null | undefined, from: PipelineStag
 
 export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'credit_manager') {
-    return ADMIN_NAV.filter((item) => item.href === '/admin/credit-funding' || item.href === '/admin/settings')
+    return ADMIN_NAV.filter((item) =>
+      item.href === '/admin/credit-funding' ||
+      item.href === '/admin/messages' ||
+      item.href === '/admin/settings'
+    )
   }
   if (role === 'lead_procurement') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/sales-kit' ||
+      item.href === '/admin/messages' ||
       item.href === '/admin/settings'
     )
   }
@@ -406,6 +412,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
       item.href === '/admin'
       || item.href === '/admin/pipeline'
       || item.href === '/admin/sales-kit'
+      || item.href === '/admin/messages'
       || item.href === '/admin/settings'
     )
   }
@@ -415,6 +422,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
       item.href === '/admin/pipeline' ||
       item.href === '/admin/clients' ||
       item.href === '/admin/content-kit' ||
+      item.href === '/admin/messages' ||
       item.href === '/admin/settings'
     )
   }
@@ -431,7 +439,13 @@ export function homeForRole(role?: string | null): string {
 }
 
 export function marketingRoleAllowedPath(role: string, path: string): boolean {
-  if (path === '/admin' || path === '/admin/settings' || path.startsWith('/admin/settings/')) return true
+  if (
+    path === '/admin' ||
+    path === '/admin/settings' ||
+    path.startsWith('/admin/settings/') ||
+    path === '/admin/messages' ||
+    path.startsWith('/admin/messages/')
+  ) return true
   if (role === 'lead_procurement' || role === 'sales_closer') {
     return (
       path === '/admin/pipeline' ||
