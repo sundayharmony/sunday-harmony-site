@@ -196,13 +196,17 @@ export default function DisputeLettersResultStep({
     if (!sessionId || !letters.length) return
     if (pkg?.zipReady) return
     let cancelled = false
+    let kicked = false
     const tick = async () => {
-      try {
-        if (!pkg || pkg.zipStatus === 'pending' || pkg.zipStatus === 'failed') {
+      const status = pkg?.zipStatus
+      const needsKick = !pkg || status === 'pending' || status === 'failed'
+      if (needsKick && !kicked) {
+        kicked = true
+        try {
           await prepareDisputeLettersZip(sessionId, { wait: false })
+        } catch {
+          /* prepare is best-effort; download still waits on the status poll */
         }
-      } catch {
-        /* prepare is best-effort; download still rebuilds */
       }
       if (!cancelled) await refreshPackage()
     }

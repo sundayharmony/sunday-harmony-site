@@ -52,8 +52,11 @@ export async function GET(_request: NextRequest, { params }: Params) {
       },
     })
   } catch (err) {
-    console.error('zip download error:', err)
     const message = err instanceof Error ? err.message : 'ZIP download failed'
+    if (/still being prepared/i.test(message)) {
+      return NextResponse.json({ ok: true, status: 'building', error: message }, { status: 202 })
+    }
+    console.error('zip download error:', err)
     return NextResponse.json({ error: message }, { status: 502 })
   }
 }

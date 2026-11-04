@@ -417,6 +417,8 @@ export async function getOrBuildLetterPackageZip(sessionId: string): Promise<{
       await safeRecordDownload(sessionId)
       return { buffer: waited.buffer, filename: waited.filename, fromCache: true }
     }
+    // A second build would call the letter service again and make both run past the page timer.
+    throw new Error('ZIP is still being prepared')
   }
 
   let ownBuild = !inFlight

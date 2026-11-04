@@ -433,8 +433,15 @@ export function disputeLettersPrepareZipUrl(sessionId: string, wait = true) {
   return `/api/admin/dispute-letters/${sessionId}/letters/prepare-zip${q}`
 }
 
-/** Client timeout for ZIP builds (server maxDuration is 120s). */
-export const DISPUTE_LETTERS_ZIP_CLIENT_TIMEOUT_MS = 110_000
+/**
+ * How long the page keeps checking a ZIP that is still being built.
+ * Status checks are short. The old single download request died at 110s
+ * while the letter service was still waking up, which looked like a failure.
+ */
+export const DISPUTE_LETTERS_ZIP_READY_WAIT_MS = 180_000
+
+/** Timeout for streaming a ZIP that is already stored. */
+export const DISPUTE_LETTERS_ZIP_CLIENT_TIMEOUT_MS = 45_000
 
 export type LetterPackageZipClientStatus = {
   ok?: boolean
@@ -491,13 +498,29 @@ export async function waitForLetterPackageZip(
 
 /**
  * Fetch the letter package ZIP and trigger a browser download.
- * Prefers a prebuilt artifact; server rebuilds only if missing/stale.
+ * Waits for the background build with short status checks, then streams the stored file.
  */
 export async function downloadDisputeLettersZip(sessionId: string): Promise<void> {
+  await prepareDisputeLettersZip(sessionId, { wait: false }).catch(() => undefined)
+  const ready = await waitForLetterPackageZip(sessionId, DISPUTE_LETTERS_ZIP_READY_WAIT_MS)
+  if (ready.status === 'failed') {
+    throw new Error(ready.error || 'ZIP build failed. Wait a few seconds and try again.')
+  }
+  if (!ready.zipReady && ready.status !== 'ready') {
+    throw new Error(
+      'ZIP is still being prepared. The letter service may be waking up — wait a few seconds and try again.'
+    )
+  }
+
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), DISPUTE_LETTERS_ZIP_CLIENT_TIMEOUT_MS)
   try {
     const res = await fetch(disputeLettersZipUrl(sessionId), { signal: controller.signal })
+    if (res.status === 202) {
+      throw new Error(
+        'ZIP is still being prepared. The letter service may be waking up — wait a few seconds and try again.'
+      )
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       throw new Error(typeof body.error === 'string' ? body.error : 'ZIP download failed')
