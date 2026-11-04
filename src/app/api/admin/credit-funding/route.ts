@@ -147,7 +147,7 @@ export async function PATCH(req: NextRequest) {
     } = body as {
       id?: string
       status?: string
-      assigned_specialist?: string
+      assigned_specialist?: string | null
       internal_notes?: string
       client_notes?: string
       next_steps?: string
@@ -203,7 +203,7 @@ export async function PATCH(req: NextRequest) {
       if (session.user.role !== 'admin') {
         return NextResponse.json({ error: 'Only an admin can assign a credit expert' }, { status: 403 })
       }
-      const expertId = assigned_specialist.trim()
+      const expertId = typeof assigned_specialist === 'string' ? assigned_specialist.trim() : ''
       if (expertId) {
         const experts = await listCreditExpertOptions()
         if (!experts.some((expert) => expert.id === expertId)) {

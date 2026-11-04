@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
+import { expertDisplayName, listCreditExpertOptions } from '@/lib/credit-expert-assignment'
 import { requireApplicantCreditFundingAccess } from '@/lib/credit-funding-dashboard-auth'
 import {
   getDocumentsByApplicationUuid,
@@ -77,7 +78,7 @@ export async function GET() {
         email: application.email,
         status: application.status,
         service_type: application.service_type,
-        assigned_specialist: application.assigned_specialist,
+        assigned_specialist: expertDisplayName(await listCreditExpertOptions(), application.assigned_specialist),
         client_notes: application.client_notes,
         next_steps: application.next_steps,
         funding_scores: application.funding_scores,

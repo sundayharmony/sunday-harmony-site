@@ -254,6 +254,7 @@ function CreditFundingAdminContent() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [role, setRole] = useState('')
   const [experts, setExperts] = useState<{ id: string; name: string; email: string }[]>([])
+  const [expertsLoaded, setExpertsLoaded] = useState(false)
   const [inviteForm, setInviteForm] = useState({
     full_name: '',
     email: '',
@@ -315,9 +316,24 @@ function CreditFundingAdminContent() {
         const nextRole = data?.user?.role || ''
         setRole(nextRole)
         setIsAdmin(data?.user?.role === 'admin')
-        if (nextRole === 'admin') {
+        if (data?.user?.role === 'admin') {
           const expertsRes = await fetch('/api/admin/staff-users')
-          if (expertsRes.ok) setExperts(await expertsRes.json())
+          if (expertsRes.ok) {
+            const rows = await expertsRes.json()
+            if (Array.isArray(rows)) {
+              setExperts(
+                rows
+                  .map((row: { id?: string; name?: string; email?: string }) => ({
+                    id: String(row?.id || ''),
+                    name: String(row?.name || '').trim() || String(row?.email || ''),
+                    email: String(row?.email || ''),
+                  }))
+                  .filter((row) => row.id)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+              )
+            }
+          }
+          setExpertsLoaded(true)
         }
       } catch {
         /* ignore */
@@ -843,25 +859,27 @@ function CreditFundingAdminContent() {
   const waiting = applications.filter((app) => applicationIsWaiting(app.status))
   const emptyListCopy = loading
     ? 'Loading…'
-    : applications.length === 0 && isCreditExpert
+    : !isAdmin && applications.length === 0
       ? 'No clients are assigned to you yet. An admin assigns the clients you are responsible for.'
       : applications.length === 0
         ? 'No applications found.'
         : 'No applications match this search.'
-  const expertNameFor = (app: ApplicationListItem) =>
-    app.assigned_expert_name?.trim() || (isCreditExpert ? 'Assigned to you' : 'Unassigned')
+  const expertNameFor = (app: ApplicationListItem) => app.assigned_expert_name?.trim() || '—'
+  const selectedExpertId = experts.some((expert) => expert.id === editFields.assigned_specialist)
+    ? editFields.assigned_specialist
+    : ''
 
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-serif text-2xl font-semibold tracking-tight text-brand-text">
-            {isCreditExpert ? 'Your clients' : 'Credit & Funding'}
+            Credit &amp; Funding
           </h1>
           <p className="mt-1 max-w-xl text-sm text-brand-muted">
             {isCreditExpert
-              ? 'These are the credit and funding clients assigned to you.'
-              : 'Assign each client to the credit expert responsible for them.'}
+              ? 'You only see the clients assigned to you.'
+              : 'Applications, credit analysis, and funding assessments'}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-brand-text">
@@ -1067,22 +1085,66 @@ function CreditFundingAdminContent() {
             </select>
           </div>
 
-          <div className="max-h-[640px] space-y-2 overflow-y-auto pr-0.5">
-            {filtered.length === 0 ? (
-              <div className="rounded-2xl bg-accent-soft/60 px-4 py-8 text-center text-sm text-brand-dim">
-                {emptyListCopy}
-              </div>
-            ) : (
-              filtered.map((app) => (
-                <ClientCard
-                  key={app.id}
-                  app={app}
-                  selected={selected?.id === app.id}
-                  expertName={expertNameFor(app)}
-                  onSelect={() => selectApplication(app.id)}
-                />
-              ))
-            )}
+          <div className="overflow-hidden rounded-2xl bg-white shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)]">
+            <div className="overflow-x-auto">
+              <table className="hidden w-full text-xs sm:table">
+                <thead className="border-b border-brand-border bg-neutral-50">
+                  <tr>
+                    {['ID', 'Name', 'Status', 'Credit expert', 'Updated'].map((heading) => (
+                      <th key={heading} className="p-2 text-left font-semibold text-brand-dim">{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-sm text-brand-dim">
+                        {emptyListCopy}
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((app) => (
+                      <tr
+                        key={app.id}
+                        onClick={() => selectApplication(app.id)}
+                        className={`cursor-pointer border-b border-brand-border hover:bg-neutral-50 ${selected?.id === app.id ? 'bg-accent-soft/40' : ''}`}
+                      >
+                        <td className="p-2 font-mono">{app.application_id}</td>
+                        <td className="p-2">{app.full_name}</td>
+                        <td className="p-2">
+                          <StatusBadge status={app.status} />
+                          {app.status === 'draft' && (
+                            <span className="mt-0.5 block text-[10px] text-brand-muted">Saved · incomplete</span>
+                          )}
+                          {app.status === 'invitation_pending' && app.draft_source === 'staff_manual' && (
+                            <span className="mt-0.5 block text-[10px] text-brand-muted">Client finishing draft</span>
+                          )}
+                        </td>
+                        <td className="p-2 text-brand-dim">{expertNameFor(app)}</td>
+                        <td className="p-2 text-brand-dim">{formatListDate(app.updated_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="max-h-[640px] space-y-2 overflow-y-auto p-2 sm:hidden">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-brand-dim">
+                  {emptyListCopy}
+                </div>
+              ) : (
+                filtered.map((app) => (
+                  <ClientCard
+                    key={app.id}
+                    app={app}
+                    selected={selected?.id === app.id}
+                    expertName={expertNameFor(app)}
+                    onSelect={() => selectApplication(app.id)}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </div>
         )}
@@ -1320,12 +1382,13 @@ function CreditFundingAdminContent() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                    <div>
-                      <label className="text-xs font-semibold text-brand-dim">Credit expert</label>
+                    <div className="sm:col-span-2">
+                      <label htmlFor="credit-expert" className="text-xs font-semibold text-brand-dim">Credit expert</label>
                       {isAdmin ? (
                         <select
+                          id="credit-expert"
                           className={inputClass}
-                          value={experts.some((expert) => expert.id === editFields.assigned_specialist) ? editFields.assigned_specialist : ''}
+                          value={selectedExpertId}
                           onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))}
                         >
                           <option value="">Unassigned</option>
@@ -1336,8 +1399,8 @@ function CreditFundingAdminContent() {
                           ))}
                         </select>
                       ) : (
-                        <p className="rounded-xl bg-accent-soft px-3 py-2 text-sm text-brand-text">
-                          {selected.assigned_expert_name?.trim() || 'Assigned to you'}
+                        <p id="credit-expert" className="rounded-xl bg-accent-soft px-3 py-2 text-sm text-brand-text">
+                          {selected.assigned_expert_name?.trim() || 'Unassigned'}
                         </p>
                       )}
                     </div>
@@ -1371,12 +1434,12 @@ function CreditFundingAdminContent() {
                     type="button"
                     disabled={saving}
                     onClick={() => {
-                      const chosenId = editFields.assigned_specialist
-                      const chosenIsExpert = experts.some((expert) => expert.id === chosenId)
-                      const storedIsExpert = experts.some((expert) => expert.id === (selected.assigned_specialist || ''))
-                      const sendAssignment = chosenIsExpert || (storedIsExpert && chosenId === '')
+                      const untouchedLegacy =
+                        editFields.assigned_specialist !== '' && selectedExpertId === ''
                       patchApplication({
-                        ...(isAdmin && sendAssignment ? { assigned_specialist: chosenId } : {}),
+                        ...(isAdmin && expertsLoaded && !untouchedLegacy
+                          ? { assigned_specialist: selectedExpertId }
+                          : {}),
                         internal_notes: editFields.internal_notes,
                         client_notes: editFields.client_notes,
                         next_steps: editFields.next_steps,

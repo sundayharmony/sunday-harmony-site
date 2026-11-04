@@ -39,12 +39,16 @@ describe('credit expert assignment', () => {
     assert.equal(filterCreditApplicationsForViewer(apps, { role: 'admin' }).length, 3)
   })
 
-  it('returns 404 for a client that is not assigned to the expert', () => {
+  it('returns 404 Application not found for a client the expert does not own', async () => {
     const denied = creditApplicationAccessDenied(
       { role: 'credit_manager', userId: 'expert-1' },
       apps[2]
     )
-    assert.equal(denied?.status, 404)
+    assert.ok(denied)
+    assert.equal(denied.status, 404)
+    assert.equal((await denied.json()).error, 'Application not found')
+    const missing = creditApplicationAccessDenied({ role: 'credit_manager', userId: 'expert-1' }, null)
+    assert.equal(missing?.status, 404)
     assert.equal(
       creditApplicationAccessDenied({ role: 'admin', userId: 'admin-1' }, apps[2]),
       null
@@ -64,8 +68,12 @@ describe('credit expert assignment', () => {
     assert.match(page, /<select/)
     assert.match(page, /No clients are assigned to you yet/)
     assert.match(page, /function ClientCard/)
+    assert.match(page, /sm:table/)
+    assert.match(page, /sm:hidden/)
+    assert.match(page, /<option value="">Unassigned<\/option>/)
+    assert.match(page, /assigned_expert_name/)
     assert.doesNotMatch(page, /Assigned Specialist/)
-    assert.doesNotMatch(page, /hidden sm:table/)
+    assert.match(page, /isAdmin && expertsLoaded/)
     assert.match(page, /sm:w-auto/)
   })
 })

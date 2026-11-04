@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
     const sendToClients = body.sendToClients !== false
     const sendToExperts = body.sendToExperts !== false
 
+    // Resend of existing applications stays limited to clients this staff
+    // member can already open. New submissions notify every credit expert in
+    // runCreditFundingSubmissionSideEffects, including unassigned clients.
     const applications = filterCreditApplicationsForViewer(
       await getCreditFundingApplications({ status: 'all' }),
       viewerFromSession(session)
