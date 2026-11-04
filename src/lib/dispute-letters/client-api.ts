@@ -410,12 +410,70 @@ export function disputeLettersZipUrl(sessionId: string) {
   return `/api/admin/dispute-letters/${sessionId}/letters/download-zip`
 }
 
+export function disputeLettersPrepareZipUrl(sessionId: string, wait = true) {
+  const q = wait ? '' : '?wait=0'
+  return `/api/admin/dispute-letters/${sessionId}/letters/prepare-zip${q}`
+}
+
 /** Client timeout for ZIP builds (server maxDuration is 120s). */
 export const DISPUTE_LETTERS_ZIP_CLIENT_TIMEOUT_MS = 110_000
 
+export type LetterPackageZipClientStatus = {
+  ok?: boolean
+  status?: string
+  zipReady?: boolean
+  packageId?: string | null
+  letterCount?: number
+  error?: string
+  deferred?: boolean
+  fromCache?: boolean
+}
+
+/** Kick off or await ZIP pregeneration for a session. */
+export async function prepareDisputeLettersZip(
+  sessionId: string,
+  options?: { wait?: boolean }
+): Promise<LetterPackageZipClientStatus> {
+  const wait = options?.wait !== false
+  const res = await fetch(disputeLettersPrepareZipUrl(sessionId, wait), { method: 'POST' })
+  const body = (await res.json().catch(() => ({}))) as LetterPackageZipClientStatus
+  if (!res.ok && res.status !== 202) {
+    throw new Error(typeof body.error === 'string' ? body.error : 'ZIP prepare failed')
+  }
+  return body
+}
+
+export async function fetchLetterPackageZipStatus(sessionId: string): Promise<LetterPackageZipClientStatus> {
+  const res = await fetch(disputeLettersPrepareZipUrl(sessionId), { cache: 'no-store' })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<LetterPackageZipClientStatus>
+}
+
+/** Poll until the prebuilt ZIP is ready, failed, or the deadline elapses. */
+export async function waitForLetterPackageZip(
+  sessionId: string,
+  timeoutMs = 90_000,
+  onStatus?: (status: string) => void
+): Promise<LetterPackageZipClientStatus> {
+  const deadline = Date.now() + timeoutMs
+  let last: LetterPackageZipClientStatus = { status: 'pending', zipReady: false }
+  while (Date.now() < deadline) {
+    try {
+      last = await fetchLetterPackageZipStatus(sessionId)
+      onStatus?.(last.status || (last.zipReady ? 'ready' : 'pending'))
+      if (last.zipReady || last.status === 'ready') return last
+      if (last.status === 'failed') return last
+    } catch {
+      /* keep polling — package row may lag generate */
+    }
+    await sleep(1500)
+  }
+  return last
+}
+
 /**
  * Fetch the letter package ZIP and trigger a browser download.
- * Uses an AbortController so hung upstream builds surface a clear error instead of hanging forever.
+ * Prefers a prebuilt artifact; server rebuilds only if missing/stale.
  */
 export async function downloadDisputeLettersZip(sessionId: string): Promise<void> {
   const controller = new AbortController()
