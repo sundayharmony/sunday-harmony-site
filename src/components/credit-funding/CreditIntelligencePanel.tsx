@@ -83,15 +83,20 @@ export default function CreditIntelligencePanel({
   const [letterStep, setLetterStep] = useState<DisputeLetterStep>(initialLetterStep)
   const { viewSessionReport, busySessionId, viewError, setViewError } = useViewDisputeSessionReport()
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preferId?: string) => {
     setLoading(true)
     setError('')
     try {
       const data = await fetchDisputeSessionsForApplication(applicationId)
       const list = data.sessions || []
       setSessions(list)
+      const preferredReady = (id?: string) => {
+        const match = id ? list.find((s) => s.id === id) : undefined
+        return match?.status === 'ready' ? match : undefined
+      }
       const preferred =
-        (initialSessionId && list.find((s) => s.id === initialSessionId)) ||
+        preferredReady(preferId) ||
+        preferredReady(initialSessionId || undefined) ||
         list.find((s) => s.status === 'ready') ||
         list[0]
       if (preferred) {
@@ -216,6 +221,13 @@ export default function CreditIntelligencePanel({
     [sessions, activeId]
   )
 
+  const activeSession = sessions.find((s) => s.id === activeId) || null
+  const assessmentSummary = activeSession?.report_json?.analysis_summary || ''
+  const assessmentMissedAccounts =
+    activeSession?.status === 'ready' &&
+    (activeSession.report_json?.tradelines?.length || 0) === 0 &&
+    /agent analysis failed|fallback parser|agent unavailable/i.test(assessmentSummary)
+
   const readyChronological = useMemo(() => {
     return sessions
       .filter((s) => s.status === 'ready' && snapshotFromSession(s))
@@ -280,11 +292,13 @@ export default function CreditIntelligencePanel({
       }
 
       setActiveId(sessionId)
-      await load()
+      await load(sessionId)
       setStatus('')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload/analysis failed')
+      const message = e instanceof Error ? e.message : 'Upload/analysis failed'
       setStatus('')
+      await load().catch(() => undefined)
+      setError(message)
     } finally {
       setBusy(false)
     }
@@ -492,7 +506,14 @@ export default function CreditIntelligencePanel({
           />
         </label>
 
-        {busy && status && <div className="mt-3"><ProgressPanel status={status} /></div>}
+        {busy && status && (
+          <div className="mt-3 space-y-2">
+            <ProgressPanel status={status} />
+            <p className="text-sm text-brand-dim">
+              Scores below stay on the last completed report until this upload finishes assessment.
+            </p>
+          </div>
+        )}
         {error && <p className="mt-3 text-sm text-brand-red">{error}</p>}
         {viewError && <p className="mt-3 text-sm text-brand-red">{viewError}</p>}
         {success && <p className="mt-3 text-sm text-emerald-700">{success}</p>}
@@ -737,6 +758,13 @@ export default function CreditIntelligencePanel({
         />
       ) : (
         <>
+          {assessmentMissedAccounts && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              This report was only partly read. The bureau score was saved, but the accounts were not
+              assessed, so dispute letters cannot be built from it. Upload the file again.
+            </div>
+          )}
+
           <BureauScoresPanel
             scores={bureauScoreState.scores}
             origins={bureauScoreState.origins}

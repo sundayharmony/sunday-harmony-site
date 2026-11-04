@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from app.config import PROJECT_ROOT
+from app.services.sdk_client_lifecycle import aclose_sdk_client
 from cursor_sdk import AgentOptions, LocalAgentOptions
 from cursor_sdk.asyncio import AsyncAgent, AsyncClient
 
@@ -60,7 +61,11 @@ class BridgeManager:
             client = self._client
             self._client = None
         if client is not None:
-            await client.close()
+            try:
+                await aclose_sdk_client(client)
+            except Exception:
+                # A failed shutdown must not hide the analysis error that triggered it.
+                pass
 
     async def _get_client(self) -> AsyncClient:
         if self._client is None:
@@ -82,8 +87,11 @@ class BridgeManager:
                 _agent_options(model=model),
                 client=client,
             )
-        except Exception:
-            client = await self._reconnect()
+        except Exception as first_error:
+            try:
+                client = await self._reconnect()
+            except Exception as reconnect_error:
+                raise first_error from reconnect_error
             return await AsyncAgent.prompt(
                 prompt,
                 _agent_options(model=model),

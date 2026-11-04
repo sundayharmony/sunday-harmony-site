@@ -55,11 +55,10 @@ export async function analyzeReport(
   const deadline = Date.now() + 8 * 60 * 1000
   let attempt = 0
   const progressMessages = [
-    'Reading credit report…',
-    'Extracting text (OCR if needed)…',
-    'Running Credit Intelligence analysis…',
-    'Still analyzing — large image PDFs take a few minutes…',
-    'Almost done…',
+    'Reading the new credit report…',
+    'Extracting accounts and scores…',
+    'Assessing this upload…',
+    'Still assessing this upload. Scanned PDFs can take a few minutes…',
   ]
 
   while (Date.now() < deadline) {
