@@ -98,6 +98,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin/clients', icon: '\u{1F91D}', label: 'Clients' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
   { href: '/admin/referrals', icon: '\u{1F381}', label: 'Referrals' },
+  { href: '/admin/todos', icon: '\u2705', label: 'Todos' },
   { href: '/admin/sales-kit', icon: '\u{1F4BC}', label: 'Sales Kit' },
   { href: '/admin/content-kit', icon: '\u{1F4F1}', label: 'Content Kit' },
   { href: '/admin/partners', icon: '\u{1F465}', label: 'Partners' },
@@ -394,6 +395,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'credit_manager') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin/credit-funding' ||
+      item.href === '/admin/todos' ||
       item.href === '/admin/messages' ||
       item.href === '/admin/settings'
     )
@@ -402,6 +404,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
       item.href === '/admin/pipeline' ||
+      item.href === '/admin/todos' ||
       item.href === '/admin/sales-kit' ||
       item.href === '/admin/messages' ||
       item.href === '/admin/settings'
@@ -411,6 +414,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin'
       || item.href === '/admin/pipeline'
+      || item.href === '/admin/todos'
       || item.href === '/admin/sales-kit'
       || item.href === '/admin/messages'
       || item.href === '/admin/settings'
@@ -421,6 +425,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
       item.href === '/admin' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/clients' ||
+      item.href === '/admin/todos' ||
       item.href === '/admin/content-kit' ||
       item.href === '/admin/messages' ||
       item.href === '/admin/settings'
@@ -444,7 +449,9 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
     path === '/admin/settings' ||
     path.startsWith('/admin/settings/') ||
     path === '/admin/messages' ||
-    path.startsWith('/admin/messages/')
+    path.startsWith('/admin/messages/') ||
+    path === '/admin/todos' ||
+    path.startsWith('/admin/todos/')
   ) return true
   if (role === 'lead_procurement' || role === 'sales_closer') {
     return (
