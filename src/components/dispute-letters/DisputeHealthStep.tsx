@@ -38,6 +38,7 @@ export default function DisputeHealthStep({
   const [priorMarks, setPriorMarks] = useState<Record<string, PriorDisputeMark>>({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [slowHint, setSlowHint] = useState(false)
 
   useEffect(() => {
     if (!persistRef) return
@@ -55,8 +56,12 @@ export default function DisputeHealthStep({
     setData(null)
     setPriorMarks({})
     setError('')
+    setSlowHint(false)
+    const slowTimer = window.setTimeout(() => setSlowHint(true), 4000)
+    let cancelled = false
     Promise.all([fetchDisputeHealth(sessionId), fetchPriorDisputeMarks(sessionId)])
       .then(([health, prior]) => {
+        if (cancelled) return
         setData(health)
         const marks = prior.marksByTradelineId || {}
         setPriorMarks(marks)
@@ -69,7 +74,21 @@ export default function DisputeHealthStep({
         const next = anySelected ? mapped : applyRecommendedSelection(mapped)
         setTradelines(unselectPreferSkippedPriorDisputes(next, marks))
       })
-      .catch(() => setError('Failed to load credit health summary'))
+      .catch((err) => {
+        if (cancelled) return
+        setError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Failed to load credit health summary'
+        )
+      })
+      .finally(() => {
+        window.clearTimeout(slowTimer)
+      })
+    return () => {
+      cancelled = true
+      window.clearTimeout(slowTimer)
+    }
   }, [sessionId])
 
   function toggleSelect(id: string, checked: boolean) {
@@ -90,11 +109,31 @@ export default function DisputeHealthStep({
   }
 
   if (error && !data) {
-    return <p className="text-sm text-red-600">{error}</p>
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-red-600">{error}</p>
+        <button
+          type="button"
+          className="rounded-lg border border-brand-border px-3 py-1.5 text-sm font-medium text-brand-text hover:bg-neutral-50"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   if (!data) {
-    return <p className="text-brand-dim">Loading health summary…</p>
+    return (
+      <div className="space-y-1">
+        <p className="text-brand-dim">Loading health summary…</p>
+        {slowHint ? (
+          <p className="text-sm text-brand-dim">
+            Still working — first open after idle can take a minute while the letter service wakes up.
+          </p>
+        ) : null}
+      </div>
+    )
   }
 
   const { credit_health: h, consumer_name, report_date, credit_intelligence: intel } = data

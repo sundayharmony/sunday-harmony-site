@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from app.models import ConsumerInfo, CreditHealthSummary, ParsedReport, Tradeline
+from app.models import BureauScores, ConsumerInfo, CreditHealthSummary, ParsedReport, Tradeline
 from app.services.credit_health import (
     apply_high_priority_selection,
     is_recommended_dispute,
 )
-from app.services.report_refresh import refresh_report_health
+from app.services.report_refresh import (
+    needs_score_recovery,
+    recover_scores_from_storage,
+    refresh_report_health,
+)
 
 
 def _tl(**kwargs) -> Tradeline:
@@ -19,6 +23,40 @@ def _tl(**kwargs) -> Tradeline:
     )
     base.update(kwargs)
     return Tradeline(**base)
+
+
+def test_needs_score_recovery_skips_credit_hero_with_all_scores():
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="A"),
+        credit_health=CreditHealthSummary(scores=BureauScores(tuc=493, exp=501, eqf=488)),
+    )
+    assert needs_score_recovery(report, "Jamal George Credit Hero.pdf") is False
+
+
+def test_needs_score_recovery_credit_hero_when_any_bureau_missing():
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="A"),
+        credit_health=CreditHealthSummary(scores=BureauScores(tuc=493, exp=501, eqf=None)),
+    )
+    assert needs_score_recovery(report, "Jamal George Credit Hero.pdf") is True
+
+
+def test_recover_returns_early_when_credit_hero_scores_complete():
+    """Must not reach storage download — storage_path is intentionally invalid."""
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="A"),
+        credit_health=CreditHealthSummary(scores=BureauScores(tuc=493, exp=501, eqf=488)),
+    )
+    recover_scores_from_storage(
+        report,
+        {
+            "file_name": "Jamal George Credit Hero.pdf",
+            "storage_path": "sessions/abc/Jamal George Credit Hero.pdf",
+        },
+    )
+    assert report.credit_health.scores.tuc == 493
+    assert report.credit_health.scores.exp == 501
+    assert report.credit_health.scores.eqf == 488
 
 
 def test_recommended_includes_medium_and_clean_profile():

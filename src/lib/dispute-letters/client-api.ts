@@ -159,10 +159,29 @@ export async function backfillHistoricalRound1(params: {
   return res.json()
 }
 
+/** Client timeout for health summary (Render cold start + score merge). */
+export const DISPUTE_HEALTH_CLIENT_TIMEOUT_MS = 90_000
+
 export async function fetchDisputeHealth(sessionId: string) {
-  const res = await fetch(`/api/admin/dispute-letters/${sessionId}/health`)
-  if (!res.ok) throw new Error(await parseError(res))
-  return res.json() as Promise<ReportHealth>
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DISPUTE_HEALTH_CLIENT_TIMEOUT_MS)
+  try {
+    const res = await fetch(`/api/admin/dispute-letters/${encodeURIComponent(sessionId)}/health`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json() as Promise<ReportHealth>
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(
+        'Health summary timed out. Refresh once — the first open after idle can take longer while the analysis service wakes up.'
+      )
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Accounts already disputed in earlier rounds (soft marks for generate/plan UX). */

@@ -1001,6 +1001,39 @@ export async function getCreditFundingMessages(applicationUuid: string): Promise
   }))
 }
 
+/** Recent applicant replies across applications the viewer can access (dashboard toasts). */
+export async function getRecentApplicantMessages(options: {
+  applicationUuids: string[]
+  sinceIso?: string
+  limit?: number
+}): Promise<CreditFundingMessage[]> {
+  const uuids = [...new Set(options.applicationUuids.filter(Boolean))]
+  if (uuids.length === 0) return []
+  const limit = Math.min(Math.max(options.limit ?? 25, 1), 50)
+
+  let query = getSupabase()
+    .from('credit_funding_messages')
+    .select('id, application_uuid, from_role, from_name, from_email, text, created_at')
+    .eq('from_role', 'applicant')
+    .in('application_uuid', uuids)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (options.sinceIso) {
+    query = query.gt('created_at', options.sinceIso)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    console.error('getRecentApplicantMessages error:', error)
+    return []
+  }
+  return ((data || []) as CreditFundingMessage[]).map((message) => ({
+    ...message,
+    text: decryptFreeTextForView(message.text),
+  }))
+}
+
 export async function createCreditFundingMessage(msg: {
   application_uuid: string
   from_role: 'admin' | 'applicant'

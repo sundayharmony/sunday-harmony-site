@@ -27,6 +27,12 @@ import {
 import { formatSsnFull } from '@/lib/ssn-utils'
 import { applicationIsWaiting } from '@/lib/people'
 import { parseDisputeLetterStep } from '@/lib/dispute-letters/workflow'
+import {
+  countUnreadApplicantMessages,
+  formatUnreadBadgeCount,
+  getCfMessageLastReadAt,
+  markCfMessagesRead,
+} from '@/lib/credit-funding-message-alerts'
 
 interface ApplicationListItem {
   id: string
@@ -235,6 +241,7 @@ function CreditFundingAdminContent() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'funding' | 'messages'>('overview')
+  const [messagesLastReadAt, setMessagesLastReadAt] = useState<string | null>(null)
   const [newMsg, setNewMsg] = useState('')
   const [editFields, setEditFields] = useState({
     assigned_specialist: '',
@@ -383,6 +390,45 @@ function CreditFundingAdminContent() {
     }
   }, [searchParams])
 
+  useEffect(() => {
+    if (!selected?.id) {
+      setMessagesLastReadAt(null)
+      return
+    }
+    setMessagesLastReadAt(getCfMessageLastReadAt(selected.id))
+  }, [selected?.id])
+
+  const unreadMessageCount = useMemo(
+    () => countUnreadApplicantMessages(messages, messagesLastReadAt),
+    [messages, messagesLastReadAt]
+  )
+  const unreadMessageLabel = formatUnreadBadgeCount(unreadMessageCount)
+
+  useEffect(() => {
+    if (activeTab !== 'messages' || !selected?.id) return
+    const iso = markCfMessagesRead(selected.id, messages)
+    setMessagesLastReadAt(iso)
+  }, [activeTab, selected?.id, messages])
+
+  useEffect(() => {
+    if (!selected?.id) return
+    const applicationId = selected.id
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void (async () => {
+        try {
+          const r = await fetch(`/api/admin/credit-funding?id=${encodeURIComponent(applicationId)}`)
+          if (!r.ok) return
+          const data = await r.json()
+          if (Array.isArray(data.messages)) setMessages(data.messages)
+        } catch {
+          /* ignore poll errors */
+        }
+      })()
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [selected?.id])
+
   const loadDetail = async (id: string, options?: { resetTab?: boolean }) => {
     setDetailLoading(true)
     try {
@@ -407,8 +453,16 @@ function CreditFundingAdminContent() {
       if (options?.resetTab) {
         const tabParam = searchParams.get('tab')
         const lettersParam = parseDisputeLetterStep(searchParams.get('letters'))
-        if (tabParam === 'intelligence' || lettersParam) {
+        if (tabParam === 'messages') {
+          setActiveTab('messages')
+        } else if (tabParam === 'intelligence' || lettersParam) {
           setActiveTab('intelligence')
+        } else if (tabParam === 'intake') {
+          setActiveTab('intake')
+        } else if (tabParam === 'funding') {
+          setActiveTab('funding')
+        } else if (tabParam === 'overview') {
+          setActiveTab('overview')
         } else if (
           app.status === 'under_review' ||
           app.status === 'credit_analysis_complete' ||
@@ -1362,13 +1416,25 @@ function CreditFundingAdminContent() {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`rounded-full px-5 py-3 sm:px-6 sm:py-3.5 text-base sm:text-lg font-semibold transition-colors ${
+                    className={`inline-flex items-center gap-2 rounded-full px-5 py-3 sm:px-6 sm:py-3.5 text-base sm:text-lg font-semibold transition-colors ${
                       activeTab === tab.id
                         ? 'bg-brand-text text-white shadow-sm'
                         : 'bg-accent-soft text-brand-text hover:bg-accent-soft/80'
                     }`}
                   >
                     {tab.label}
+                    {tab.id === 'messages' && unreadMessageCount > 0 ? (
+                      <span
+                        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold leading-none ${
+                          activeTab === 'messages'
+                            ? 'bg-white text-red-600'
+                            : 'bg-red-500 text-white'
+                        }`}
+                        aria-label={`${unreadMessageCount} unread message${unreadMessageCount === 1 ? '' : 's'}`}
+                      >
+                        {unreadMessageLabel}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>

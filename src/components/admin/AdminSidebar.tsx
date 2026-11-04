@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
+import { useAdminLiveMessageAlerts } from '@/components/admin/AdminLiveMessageAlerts'
+import NotificationBell from '@/components/ui/NotificationBell'
 import { homeForRole, navForRole } from '@/lib/marketing-pipeline'
 
 interface AdminSidebarProps {
@@ -28,24 +30,28 @@ export default function AdminSidebar({
   const navItems = sessionLoading ? [] : navForRole(role || 'admin')
   const dashboardLabel = isCreditManager ? 'Credit Manager' : 'Admin Dashboard'
   const logoHref = role ? homeForRole(role) : '/admin'
+  const { staffUnreadCount, staffUnreadLabel } = useAdminLiveMessageAlerts()
 
   const desktopHidden = hydrated && collapsed
 
   return (
     <>
-      <button
-        onClick={() => setMobileOpen(!mobileOpen)}
-        className="md:hidden fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-[60] p-2 rounded-lg bg-gray-50 border border-brand-border text-brand-text"
-        aria-label="Toggle menu"
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          {mobileOpen ? (
-            <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          ) : (
-            <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          )}
-        </svg>
-      </button>
+      <div className="md:hidden fixed top-[max(1rem,env(safe-area-inset-top))] left-4 z-[60] flex items-center gap-2">
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="p-2 rounded-lg bg-gray-50 border border-brand-border text-brand-text"
+          aria-label="Toggle menu"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            {mobileOpen ? (
+              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            ) : (
+              <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            )}
+          </svg>
+        </button>
+        <NotificationBell align="start" apiPath="/api/admin/notifications" />
+      </div>
 
       {desktopHidden && onToggleSidebar && (
         <button
@@ -82,19 +88,24 @@ export default function AdminSidebar({
               {dashboardLabel}
             </div>
           </div>
-          {onToggleSidebar && (
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              className="hidden md:flex shrink-0 p-1.5 rounded-md text-brand-dim hover:text-brand-text hover:bg-neutral-100 transition-colors"
-              aria-label="Hide admin navigation"
-              title="Hide navigation"
-            >
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <path d="M7 5L3 10L7 15M13 5L17 10L13 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            <div className="hidden md:block">
+              <NotificationBell align="end" apiPath="/api/admin/notifications" />
+            </div>
+            {onToggleSidebar && (
+              <button
+                type="button"
+                onClick={onToggleSidebar}
+                className="hidden md:flex shrink-0 p-1.5 rounded-md text-brand-dim hover:text-brand-text hover:bg-neutral-100 transition-colors"
+                aria-label="Hide admin navigation"
+                title="Hide navigation"
+              >
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden>
+                  <path d="M7 5L3 10L7 15M13 5L17 10L13 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         <nav className="flex-1 min-h-0 py-4 px-3 overflow-y-auto">
@@ -115,7 +126,15 @@ export default function AdminSidebar({
                 }`}
               >
                 <span className="text-base">{item.icon}</span>
-                {item.label}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.href === '/admin/messages' && staffUnreadCount > 0 ? (
+                  <span
+                    className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold leading-none text-white"
+                    aria-label={`${staffUnreadCount} unread message${staffUnreadCount === 1 ? '' : 's'}`}
+                  >
+                    {staffUnreadLabel}
+                  </span>
+                ) : null}
               </Link>
             )
           })}

@@ -30,9 +30,14 @@ const VIEWPORT_MARGIN = 8
 interface NotificationBellProps {
   /** Preferred horizontal alignment when space allows */
   align?: 'start' | 'end'
+  /** API base for listing / marking notifications (client or staff). */
+  apiPath?: string
 }
 
-export default function NotificationBell({ align = 'end' }: NotificationBellProps) {
+export default function NotificationBell({
+  align = 'end',
+  apiPath = '/api/dashboard/notifications',
+}: NotificationBellProps) {
   const router = useRouter()
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -90,7 +95,8 @@ export default function NotificationBell({ align = 'end' }: NotificationBellProp
     fetchNotifications()
     const interval = setInterval(fetchNotifications, 30000)
     return () => clearInterval(interval)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- poll while apiPath is stable
+  }, [apiPath])
 
   useEffect(() => {
     if (!open) return
@@ -120,7 +126,7 @@ export default function NotificationBell({ align = 'end' }: NotificationBellProp
 
   async function fetchNotifications() {
     try {
-      const res = await fetch('/api/dashboard/notifications')
+      const res = await fetch(apiPath)
       if (res.ok) {
         const data = await res.json()
         setNotifications(Array.isArray(data) ? data : [])
@@ -137,7 +143,7 @@ export default function NotificationBell({ align = 'end' }: NotificationBellProp
   }
 
   async function markRead(id: string) {
-    await fetch('/api/dashboard/notifications', {
+    await fetch(apiPath, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
@@ -147,7 +153,7 @@ export default function NotificationBell({ align = 'end' }: NotificationBellProp
   }
 
   async function markAllRead() {
-    await fetch('/api/dashboard/notifications', {
+    await fetch(apiPath, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),

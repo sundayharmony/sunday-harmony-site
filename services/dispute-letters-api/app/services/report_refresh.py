@@ -6,14 +6,14 @@ import re
 from datetime import date
 from pathlib import Path
 
-from app.models import ParsedReport
+from app.models import BureauScores, ParsedReport
 from app.services.bureau_coverage import apply_bureau_coverage
 from app.services.bureau_scores import fill_missing_scores, scores_from_text, scores_missing
-
-_CREDIT_HERO_FILE = re.compile(r"credit[\s_-]*hero|tri[\s_-]*merge|3[\s_-]*bureau", re.I)
 from app.services.credit_health import build_health_summary
 from app.services.credit_intelligence import build_account_dispute_insights
 from app.services.money_parse import parse_date
+
+_CREDIT_HERO_FILE = re.compile(r"credit[\s_-]*hero|tri[\s_-]*merge|3[\s_-]*bureau", re.I)
 
 
 def refresh_report_health(report: ParsedReport, file_name: str = "") -> ParsedReport:
@@ -28,16 +28,34 @@ def refresh_report_health(report: ParsedReport, file_name: str = "") -> ParsedRe
     return report
 
 
+def _tri_merge_scores_incomplete(scores: BureauScores | None) -> bool:
+    """Credit Hero / tri-merge files should carry all three bureau scores."""
+    return scores is None or scores.tuc is None or scores.exp is None or scores.eqf is None
+
+
+def needs_score_recovery(report: ParsedReport, file_name: str) -> bool:
+    """True when opening health should re-read the stored upload for bureau scores.
+
+    Credit Hero / tri-merge PDFs only re-download when any bureau score is still
+    missing. Re-parsing every health open (download + pdfplumber/OCR) was freezing
+    the Dispute Letters Health step on large reports.
+    """
+    scores = report.credit_health.scores if report.credit_health else None
+    if _CREDIT_HERO_FILE.search(file_name or ""):
+        return _tri_merge_scores_incomplete(scores)
+    return scores_missing(scores)
+
+
 def recover_scores_from_storage(report: ParsedReport, row: dict | None) -> ParsedReport:
     """Re-read bureau scores from the stored upload when report_json is missing them."""
     if not row:
         return report
     file_name = str(row.get("file_name") or "")
-    force_tri_merge_reparse = bool(_CREDIT_HERO_FILE.search(file_name))
-    if not scores_missing(report.credit_health.scores) and not force_tri_merge_reparse:
-        return report
     storage_path = str(row.get("storage_path") or "")
-    file_name = file_name or str(row.get("file_name") or storage_path)
+    file_name = file_name or str(Path(storage_path).name)
+    force_tri_merge_reparse = bool(_CREDIT_HERO_FILE.search(file_name))
+    if not needs_score_recovery(report, file_name):
+        return report
     suffix = Path(file_name).suffix.lower() or Path(storage_path).suffix.lower()
     if suffix not in {".html", ".htm", ".txt", ".pdf"}:
         return report

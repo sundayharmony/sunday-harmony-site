@@ -355,11 +355,18 @@ def get_report_health(session_id: str, _: None = Depends(verify_internal_secret)
     if not row or not row.get("report_json"):
         raise HTTPException(404, "Session not found")
     report = ParsedReport.model_validate(row["report_json"])
+    scores_before = report.credit_health.scores.model_dump() if report.credit_health else None
+    had_intelligence = report.credit_intelligence is not None
     refresh_report_health(report, row.get("file_name") or "")
     recover_scores_from_storage(report, row)
     if report.credit_intelligence is None:
         report.credit_intelligence = build_credit_intelligence(report)
-    update_session_report(session_id, report)
+    scores_after = report.credit_health.scores.model_dump() if report.credit_health else None
+    # Skip rewriting the large report_json blob when nothing material changed.
+    # Unconditional persists made every Health open wait on Supabase even for
+    # cached Credit Hero sessions that already had complete scores.
+    if (not had_intelligence) or scores_before != scores_after:
+        update_session_report(session_id, report)
     return ReportHealthResponse(
         session_id=session_id,
         credit_health=report.credit_health,
