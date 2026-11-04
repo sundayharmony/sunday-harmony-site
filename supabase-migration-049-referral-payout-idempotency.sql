@@ -1,6 +1,6 @@
 -- Idempotency for admin "Send payout" on credit-repair referrals.
 -- Run this in the Supabase SQL editor after supabase-migration-038-credit-repair-referrals.sql.
--- It is not applied by the Next.js app.
+-- It is not applied by the Next.js app. Numbered 049 because 048 is the letter ZIP migration.
 
 ALTER TABLE referral_payouts
   ADD COLUMN IF NOT EXISTS idempotency_key TEXT;

@@ -594,7 +594,7 @@ describe('manual referral payout send', () => {
     const service = readFileSync('src/lib/referral-service.ts', 'utf8')
     const page = readFileSync('src/app/admin/referrals/page.tsx', 'utf8')
     const form = readFileSync('src/components/admin/ReferrerPayoutForm.tsx', 'utf8')
-    const migration = readFileSync('supabase-migration-048-referral-payout-idempotency.sql', 'utf8')
+    const migration = readFileSync('supabase-migration-049-referral-payout-idempotency.sql', 'utf8')
     const send = service.slice(
       service.indexOf('export async function sendManualReferralPayout'),
       service.indexOf('export async function initiateReferralPayout')
