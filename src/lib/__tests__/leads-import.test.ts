@@ -1,0 +1,300 @@
+import assert from 'node:assert/strict'
+import { afterEach, describe, it } from 'node:test'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { NextRequest } from 'next/server'
+import { POST } from '../../app/api/internal/leads-import/route'
+import { setSupabaseForTests } from '../supabase'
+
+type Row = Record<string, unknown>
+
+const SECRET = 'leads-import-test-secret'
+
+const sampleLeads = [
+  {
+    business: 'SwingStop Hammonton',
+    contactName: 'Christopher Andrews & Matthew Ruga',
+    email: 'info@swingstopvineland.com',
+    phone: '877-734-9145',
+    industry: 'Indoor golf simulator',
+    website: 'https://swingstopvineland.com/',
+    location: 'Hammonton, NJ',
+    category: 'startup',
+    opportunity: 'No Hammonton landing page or title mention',
+    recommendedService: 'Business Launch $1,799',
+    estimatedValue: 1799,
+    scoreFactors: {
+      weakness: 2,
+      operating: 2,
+      need: 2,
+      decision_maker: 2,
+      ability: 2,
+    },
+    source: 'outbound',
+    stage: 'researching',
+    followUpAt: '2026-11-06T09:00:00-05:00',
+    notes: 'Opener: Chris and Matt, your Hammonton bays opened in August, but the website only talks about Vineland.',
+  },
+  {
+    business: 'Jacobs Plumbing & Heating / Septic (Sal Jacobs)',
+    contactName: 'Sal Jacobs',
+    email: 'sal@saljacobs.com',
+    phone: '(609) 561-7581',
+    industry: 'Plumbing, heating & septic',
+    website: 'http://www.saljacobs.com/',
+    location: 'Hammonton, NJ',
+    category: 'established',
+    opportunity: 'Title/H1 say septic only, so plumbing and heating searches miss them',
+    recommendedService: 'Marketing Partner $799/mo',
+    estimatedValue: 9588,
+    scoreFactors: {
+      weakness: 2,
+      operating: 2,
+      need: 2,
+      decision_maker: 2,
+      ability: 2,
+    },
+    source: 'outbound',
+    stage: 'researching',
+    followUpAt: '2026-11-06T09:00:00-05:00',
+    notes: 'Opener: Sal, Google only sees septic on your site.',
+  },
+  {
+    business: 'Nick & Son Heating & AC',
+    contactName: 'Anthony Argiropoulos',
+    phone: '(609) 567-5250',
+    industry: 'HVAC / refrigeration',
+    website: 'http://nickandsonnj.com/',
+    location: 'Hammonton, NJ',
+    category: 'established',
+    opportunity: 'Only 4 reviews in 36 years',
+    recommendedService: 'Marketing Partner $799/mo',
+    estimatedValue: 9588,
+    scoreFactors: {
+      weakness: 2,
+      operating: 2,
+      need: 2,
+      decision_maker: 2,
+      ability: 2,
+    },
+    source: 'outbound',
+    stage: 'researching',
+    followUpAt: '2026-11-06T09:00:00-05:00',
+    notes: 'Opener: Anthony, 36 years in Hammonton and only 4 Google reviews.',
+  },
+] as const
+
+const originalSecret = process.env.LEADS_IMPORT_SECRET
+
+afterEach(() => {
+  setSupabaseForTests(null)
+  if (originalSecret === undefined) delete process.env.LEADS_IMPORT_SECRET
+  else process.env.LEADS_IMPORT_SECRET = originalSecret
+})
+
+class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: string } | null }> {
+  private inserted: Row[] | null = null
+
+  constructor(private table: Row[]) {}
+
+  select() {
+    return this
+  }
+
+  insert(payload: Row | Row[]) {
+    const items = Array.isArray(payload) ? payload : [payload]
+    this.inserted = items.map((item) => {
+      const row = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...item }
+      this.table.push(row)
+      return row
+    })
+    return this
+  }
+
+  then<TResult1 = { data: unknown; error: { message: string } | null }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: { message: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    const data = this.inserted ?? this.table
+    return Promise.resolve({ data, error: null }).then(onfulfilled, onrejected)
+  }
+}
+
+function memorySupabase(seed: Row[] = []) {
+  const tables = new Map<string, Row[]>([['leads', [...seed]]])
+  return {
+    from(name: string) {
+      if (!tables.has(name)) tables.set(name, [])
+      return new MemoryQuery(tables.get(name)!)
+    },
+    rows(name: string) {
+      return tables.get(name) || []
+    },
+  }
+}
+
+function importRequest(body: unknown, secret = SECRET) {
+  const headers = new Headers({ 'content-type': 'application/json' })
+  if (secret) headers.set('authorization', `Bearer ${secret}`)
+  return new NextRequest('https://example.test/api/internal/leads-import', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  })
+}
+
+async function readJson(response: Response) {
+  return response.json() as Promise<Record<string, unknown>>
+}
+
+describe('POST /api/internal/leads-import', () => {
+  it('returns 401 when the import secret is missing', async () => {
+    delete process.env.LEADS_IMPORT_SECRET
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({ leads: sampleLeads }))
+    assert.equal(response.status, 401)
+    assert.deepEqual(await readJson(response), { error: 'Unauthorized' })
+    assert.equal(db.rows('leads').length, 0)
+  })
+
+  it('returns 401 when the bearer token is wrong and does not touch the database', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    setSupabaseForTests({
+      from() {
+        throw new Error('database should not be queried')
+      },
+    } as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({ leads: sampleLeads }, 'wrong-secret'))
+    assert.equal(response.status, 401)
+    assert.deepEqual(await readJson(response), { error: 'Unauthorized' })
+  })
+
+  it('inserts a new lead and skips one that already exists', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        business: 'SwingStop Hammonton',
+        email: 'info@swingstopvineland.com',
+        lead_type: 'marketing_lead',
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({ leads: [sampleLeads[0], sampleLeads[2]] }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.equal(body.dryRun, false)
+    assert.equal(body.received, 2)
+    assert.equal(body.inserted, 1)
+    assert.deepEqual(body.skipped, [{ business: 'SwingStop Hammonton', reason: 'Already in the CRM' }])
+    assert.equal(body.wouldInsert, undefined)
+
+    const inserted = db.rows('leads').filter((row) => row.business === 'Nick & Son Heating & AC')
+    assert.equal(inserted.length, 1)
+    assert.equal(inserted[0].email, null)
+    assert.equal(inserted[0].first_name, 'Anthony')
+    assert.equal(inserted[0].last_name, 'Argiropoulos')
+    assert.equal(inserted[0].location_text, 'Hammonton, NJ')
+    assert.equal(inserted[0].prospect_category, 'established')
+    assert.equal(inserted[0].lead_type, 'marketing_lead')
+    assert.equal(inserted[0].assigned_role, 'lead_procurement')
+    assert.equal(inserted[0].pipeline_stage, 'researching')
+    assert.equal(inserted[0].marketing_lead_status, 'new_lead')
+    assert.equal(inserted[0].status, 'new')
+    assert.equal(inserted[0].prospect_score, 10)
+    assert.equal(inserted[0].recommended_service, inserted[0].service)
+  })
+
+  it('skips in-batch duplicates after inserting the first copy', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [sampleLeads[0], { ...sampleLeads[0], notes: 'Repeated row' }],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.inserted, 1)
+    assert.deepEqual(body.skipped, [{ business: 'SwingStop Hammonton', reason: 'Duplicate in this batch' }])
+    assert.equal(db.rows('leads').filter((row) => row.business === 'SwingStop Hammonton').length, 1)
+  })
+
+  it('skips invalid category or stage rows and still imports valid ones', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      leads: [
+        { ...sampleLeads[0], category: 'enterprise' },
+        { ...sampleLeads[1], stage: 'awaiting_reply' },
+        sampleLeads[2],
+      ],
+    }))
+    const body = await readJson(response)
+    assert.equal(body.received, 3)
+    assert.equal(body.inserted, 1)
+    assert.deepEqual(body.skipped, [
+      {
+        business: 'SwingStop Hammonton',
+        reason: 'Prospect category must be established, small, or startup',
+      },
+      { business: 'Jacobs Plumbing & Heating / Septic (Sal Jacobs)', reason: 'Invalid pipeline stage' },
+    ])
+    assert.equal(db.rows('leads').length, 1)
+    assert.equal(db.rows('leads')[0].business, 'Nick & Son Heating & AC')
+  })
+
+  it('validates and dedupes on dryRun without inserting', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase([
+      {
+        business: 'SwingStop, Hammonton',
+        email: 'other@example.com',
+        lead_type: 'marketing_lead',
+      },
+    ])
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const response = await POST(importRequest({
+      dryRun: true,
+      leads: [sampleLeads[0], sampleLeads[1], sampleLeads[1]],
+    }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.ok, true)
+    assert.equal(body.dryRun, true)
+    assert.equal(body.received, 3)
+    assert.equal(body.inserted, 0)
+    assert.equal(body.wouldInsert, 1)
+    assert.deepEqual(body.skipped, [
+      { business: 'SwingStop Hammonton', reason: 'Already in the CRM' },
+      { business: 'Jacobs Plumbing & Heating / Septic (Sal Jacobs)', reason: 'Duplicate in this batch' },
+    ])
+    assert.equal(db.rows('leads').length, 1)
+    assert.equal(db.rows('activity_log').length, 0)
+  })
+
+  it('defaults source to outbound and stage to researching', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+
+    const { source: _source, stage: _stage, ...withoutDefaults } = sampleLeads[1]
+    const response = await POST(importRequest({ leads: [withoutDefaults] }))
+    const body = await readJson(response)
+    assert.equal(body.inserted, 1)
+    assert.deepEqual(body.skipped, [])
+    const row = db.rows('leads')[0]
+    assert.equal(row.source, 'outbound')
+    assert.equal(row.pipeline_stage, 'researching')
+    assert.equal(row.marketing_lead_status, 'new_lead')
+    assert.equal(row.status, 'new')
+    assert.equal(row.first_name, 'Sal')
+    assert.equal(row.last_name, 'Jacobs')
+    assert.equal(row.estimated_value, 9588)
+  })
+})
