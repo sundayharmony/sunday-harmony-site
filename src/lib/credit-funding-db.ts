@@ -712,6 +712,7 @@ export async function syncStaffSharedDocumentsFromStorage(applicationUuid: strin
 export async function getCreditFundingApplications(filters?: {
   status?: string
   search?: string
+  limit?: number
 }): Promise<CreditFundingApplication[]> {
   let query = getSupabase()
     .from('credit_funding_applications')
@@ -720,6 +721,9 @@ export async function getCreditFundingApplications(filters?: {
 
   if (filters?.status && filters.status !== 'all') {
     query = query.eq('status', filters.status)
+  }
+  if (filters?.limit != null && filters.limit > 0) {
+    query = query.limit(filters.limit)
   }
 
   const { data, error } = await query

@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   applySessionVersionToToken,
+  JWT_DB_CHECK_INTERVAL_MS,
   nextSessionVersion,
   sessionVersionOf,
+  shouldRefreshUserFromDb,
 } from '../session-version'
 
 function source(path: string): string {
@@ -45,6 +47,45 @@ describe('sessionVersion helpers', () => {
     const token = { sub: 'user-1', sessionVersion: 2 }
     assert.deepEqual(applySessionVersionToToken(token, 2, false), { invalidated: false })
     assert.equal(token.sessionVersion, 2)
+  })
+})
+
+describe('JWT DB refresh throttle', () => {
+  it('always refreshes on fresh login', () => {
+    assert.equal(shouldRefreshUserFromDb({ lastDbCheckAt: Date.now() }, true), true)
+  })
+
+  it('refreshes when lastDbCheckAt is missing', () => {
+    assert.equal(shouldRefreshUserFromDb({}, false), true)
+  })
+
+  it('skips DB when the throttle window has not elapsed', () => {
+    const now = 1_700_000_000_000
+    assert.equal(
+      shouldRefreshUserFromDb({ lastDbCheckAt: now - 60_000 }, false, now),
+      false
+    )
+  })
+
+  it('refreshes when the throttle window has elapsed', () => {
+    const now = 1_700_000_000_000
+    assert.equal(
+      shouldRefreshUserFromDb(
+        { lastDbCheckAt: now - JWT_DB_CHECK_INTERVAL_MS },
+        false,
+        now
+      ),
+      true
+    )
+  })
+
+  it('wires throttle into auth jwt callback and dials back admin session polling', () => {
+    const auth = source('src/lib/auth.ts')
+    const shell = source('src/components/admin/AdminShell.tsx')
+    assert.match(auth, /shouldRefreshUserFromDb/)
+    assert.match(auth, /lastDbCheckAt/)
+    assert.match(shell, /refetchInterval=\{0\}/)
+    assert.match(shell, /refetchOnWindowFocus=\{false\}/)
   })
 })
 

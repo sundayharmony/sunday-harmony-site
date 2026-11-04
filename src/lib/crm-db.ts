@@ -225,7 +225,13 @@ async function findApplicationForEmail(email?: string, clientId?: string): Promi
   return match || null
 }
 
-export async function getCrmContacts(filters?: {
+type CrmSources = {
+  leads: Lead[]
+  clients: Client[]
+  applications: CreditFundingApplication[]
+}
+
+type CrmContactFilters = {
   lead_type?: string
   application_status?: string
   assigned_team_member?: string
@@ -235,13 +241,22 @@ export async function getCrmContacts(filters?: {
   business_owner?: boolean
   credit_repair?: boolean
   search?: string
-}): Promise<CrmContactRow[]> {
+}
+
+async function loadCrmSources(): Promise<CrmSources> {
   const [leads, clients, applications] = await Promise.all([
     getLeads(),
     getClients(),
     getCreditFundingApplications({ status: 'all' }),
   ])
+  return { leads, clients, applications }
+}
 
+function buildCrmContactsFromSources(
+  sources: CrmSources,
+  filters?: CrmContactFilters
+): CrmContactRow[] {
+  const { leads, clients, applications } = sources
   const appByEmail = new Map(applications.map((a) => [a.email.toLowerCase(), a]))
   const appByClientId = new Map(
     applications.filter((a) => a.client_id).map((a) => [a.client_id as string, a])
@@ -307,13 +322,8 @@ export async function getCrmContacts(filters?: {
   return filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 }
 
-export async function getCrmDashboardStats(): Promise<CrmDashboardStats> {
-  const [leads, clients, applications] = await Promise.all([
-    getLeads(),
-    getClients(),
-    getCreditFundingApplications({ status: 'all' }),
-  ])
-
+function buildCrmDashboardStatsFromSources(sources: CrmSources): CrmDashboardStats {
+  const { leads, clients, applications } = sources
   const leadTypes = (item: { lead_type?: LeadType }) => item.lead_type || 'marketing_lead'
 
   return {
@@ -336,6 +346,28 @@ export async function getCrmDashboardStats(): Promise<CrmDashboardStats> {
     completed_clients: [...clients, ...leads].filter(
       (x) => leadTypes(x as { lead_type?: LeadType }) === 'completed_client'
     ).length,
+  }
+}
+
+export async function getCrmContacts(filters?: CrmContactFilters): Promise<CrmContactRow[]> {
+  const sources = await loadCrmSources()
+  return buildCrmContactsFromSources(sources, filters)
+}
+
+export async function getCrmDashboardStats(): Promise<CrmDashboardStats> {
+  const sources = await loadCrmSources()
+  return buildCrmDashboardStatsFromSources(sources)
+}
+
+/** One DB scan for the CRM board (contacts + stats). */
+export async function getCrmContactsWithStats(filters?: CrmContactFilters): Promise<{
+  contacts: CrmContactRow[]
+  stats: CrmDashboardStats
+}> {
+  const sources = await loadCrmSources()
+  return {
+    contacts: buildCrmContactsFromSources(sources, filters),
+    stats: buildCrmDashboardStatsFromSources(sources),
   }
 }
 

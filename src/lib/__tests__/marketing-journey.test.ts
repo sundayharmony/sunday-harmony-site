@@ -33,6 +33,12 @@ class MemoryQuery implements PromiseLike<{ data: unknown; error: { message: stri
     return this
   }
 
+  in(column: string, values: unknown[]) {
+    const allowed = new Set(values)
+    this.filters.push((row) => allowed.has(row[column]))
+    return this
+  }
+
   ilike(column: string, pattern: string) {
     const needle = pattern.replace(/\\%/g, '%').replace(/\\_/g, '_').replace(/\\\\/g, '\\').toLowerCase()
     this.filters.push((row) => String(row[column] ?? '').toLowerCase() === needle)

@@ -136,12 +136,18 @@ export async function replaceConsultationBlackouts(dates: string[]): Promise<boo
   return true
 }
 
-export async function listScheduledBookings(): Promise<ConsultationBookingRow[]> {
-  const { data, error } = await getSupabase()
+export async function listScheduledBookings(options?: {
+  limit?: number
+}): Promise<ConsultationBookingRow[]> {
+  let query = getSupabase()
     .from('consultation_bookings')
     .select('*')
     .eq('status', 'scheduled')
     .order('starts_at')
+  if (options?.limit != null && options.limit > 0) {
+    query = query.limit(options.limit)
+  }
+  const { data, error } = await query
   if (error) {
     if (error.code !== '42P01') console.error('listScheduledBookings error:', error)
     return []
