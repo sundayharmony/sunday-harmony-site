@@ -133,6 +133,7 @@ class CreditIntelligenceReport(BaseModel):
 class ConsumerInfo(BaseModel):
     name: str = ""
     dob: str = ""
+    ssn: str = ""
     ssn_last4: str = ""
     addresses: list[str] = Field(default_factory=list)
 
@@ -247,6 +248,8 @@ class GenerateLettersRequest(BaseModel):
     plan_ids: list[str] | None = None
     consumer_name: str | None = None
     consumer_addresses: list[str] | None = None
+    consumer_ssn: str | None = None
+    consumer_dob: str | None = None
 
 
 class GeneratedLetter(BaseModel):

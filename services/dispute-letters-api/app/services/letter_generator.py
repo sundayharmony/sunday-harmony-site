@@ -22,8 +22,8 @@ def _current_and_prior_addresses(consumer: ConsumerInfo) -> tuple[str, list[str]
 
 
 def _format_ssn_for_letter(consumer: ConsumerInfo) -> str:
-    """Format SSN for mailed dispute letters. Prefer masked last-4 when that is all we have."""
-    raw = (consumer.ssn_last4 or "").strip()
+    """Format SSN for mailed dispute letters. Prefer full 9-digit SSN when available."""
+    raw = (consumer.ssn or consumer.ssn_last4 or "").strip()
     if not raw:
         return "Not Provided"
     digits = re.sub(r"\D", "", raw)
@@ -141,7 +141,7 @@ Recipient:
 Consumer:
 Name: {consumer.name}
 DOB: {consumer.dob}
-SSN last 4: {consumer.ssn_last4}
+SSN: {_format_ssn_for_letter(consumer)}
 Addresses (first is current; any others are prior addresses on file):
 {consumer_addrs}
 
@@ -163,7 +163,7 @@ FORMAT: match a polished mailed business letter (like a finished Experian disput
 4) Immediately after the address (still in the opening identity block, before the recipient), include BOTH labeled lines:
    Date of Birth: ...
    Social Security Number: ...
-   Use the DOB and SSN values provided above. If SSN last 4 only is provided, format as XXX-XX-1234. Never invent a DOB or SSN.
+   Use the DOB and SSN values provided above. Prefer the full Social Security Number (XXX-XX-XXXX). Only if a full SSN is unavailable and last-4 alone was provided, format as XXX-XX-1234. Never invent a DOB or SSN.
 5) Blank line, then recipient name, then recipient address lines.
 6) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
    Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}

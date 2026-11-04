@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { letterGenerateFailure, type LetterGenerateJob } from '@/lib/dispute-letters/generate-job'
+import { loadLetterConsumerIdentity } from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const body = await request.json().catch(() => ({}))
+    const identity = await loadLetterConsumerIdentity(id)
     const data = await disputeLettersJson<{
       status: string
       session_id: string
@@ -35,6 +37,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         plan_ids: body.plan_ids ?? null,
         consumer_name: body.consumer_name ?? null,
         consumer_addresses: body.consumer_addresses ?? null,
+        consumer_ssn: identity.ssn,
+        consumer_dob: identity.dob,
       }),
     })
     return NextResponse.json(data, { status: 202 })

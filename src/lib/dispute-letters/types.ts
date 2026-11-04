@@ -135,6 +135,8 @@ export interface FundingContextPayload {
 export interface ConsumerInfo {
   name: string
   dob: string
+  /** Full 9-digit SSN when loaded from the linked application for letter generation. */
+  ssn?: string
   ssn_last4: string
   addresses: string[]
 }
