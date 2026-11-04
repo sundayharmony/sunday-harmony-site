@@ -3,7 +3,7 @@ import {
   decryptApplicationOperationalFields,
   redactApplicationSecretsForDefaultAdmin,
 } from '@/lib/credit-funding-sensitive-fields'
-import { isEncryptedField } from '@/lib/field-encryption'
+import { decryptFieldOrLegacy, isEncryptedField } from '@/lib/field-encryption'
 import type { CreditFundingApplication } from '@/lib/credit-funding-types'
 
 /** Default admin detail payload: operational fields are readable, secrets require explicit reveal. */
@@ -75,21 +75,31 @@ export function isCreditFundingRevealField(
   )
 }
 
+function nonEmptyText(value: unknown): boolean {
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  return Boolean(trimmed) && trimmed !== 'Pending'
+}
+
 function creditProfileFieldPresent(
   profile: CreditFundingApplication['credit_profile'] | undefined,
   key: 'monthlyGrossIncome' | 'annualIncome'
 ): boolean {
-  const raw = profile?.[key]
-  return Boolean(typeof raw === 'string' && raw.trim())
+  return nonEmptyText(profile?.[key])
 }
 
 function businessEinPresent(app: CreditFundingApplication): boolean {
   const bp = app.business_profile as Record<string, unknown> | null | undefined
   if (!bp) return false
-  const encrypted = bp.einEncrypted
-  if (typeof encrypted === 'string' && encrypted.trim()) return true
-  const legacy = bp.ein
-  return Boolean(typeof legacy === 'string' && legacy.trim())
+  if (nonEmptyText(bp.einEncrypted)) return true
+  return nonEmptyText(bp.ein)
+}
+
+function typedSignatureOnFile(app: CreditFundingApplication): boolean {
+  if (!app.typed_signature?.trim()) return false
+  const value = decryptFieldOrLegacy(app.typed_signature)
+  return Boolean(value && value !== 'Pending')
 }
 
 /** True when the application row has ciphertext (or legacy plaintext) for this secret. */
@@ -119,7 +129,7 @@ export function applicationHasSensitiveField(
     case 'cfpb_password':
       return Boolean(app.cfpb_password_encrypted?.trim())
     case 'typed_signature':
-      return Boolean(app.typed_signature?.trim())
+      return typedSignatureOnFile(app)
     case 'monthly_gross_income':
       return creditProfileFieldPresent(app.credit_profile, 'monthlyGrossIncome')
     case 'annual_income':
@@ -184,14 +194,18 @@ export function revealApplicationSensitiveFieldResult(
   const value = revealApplicationSensitiveField(app, field)
   if (!value) {
     // Ciphertext exists but could not be read — usually a key mismatch or corrupt blob.
+    // Fall back to legacy plaintext income numbers that JSONB may store without encryption.
     const rawIncome =
       field === 'monthly_gross_income'
         ? app.credit_profile?.monthlyGrossIncome
         : field === 'annual_income'
           ? app.credit_profile?.annualIncome
           : null
-    if (rawIncome && !isEncryptedField(rawIncome) && rawIncome !== '••••••••') {
-      return { ok: true, value: rawIncome }
+    if (rawIncome != null && !isEncryptedField(rawIncome)) {
+      const asText = String(rawIncome).trim()
+      if (asText && asText !== '••••••••') {
+        return { ok: true, value: asText }
+      }
     }
     return {
       ok: false,

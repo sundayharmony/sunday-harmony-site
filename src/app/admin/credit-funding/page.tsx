@@ -266,6 +266,9 @@ function CreditFundingAdminContent() {
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
   const [downloadingIntake, setDownloadingIntake] = useState(false)
   const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
+  const [revealFieldError, setRevealFieldError] = useState<{ field: SensitiveRevealField; message: string } | null>(
+    null
+  )
   const [referral, setReferral] = useState<{
     referralId: string
     code: string | null
@@ -476,6 +479,7 @@ function CreditFundingAdminContent() {
   const revealSensitiveField = async (field: SensitiveRevealField) => {
     if (!selected) return
     setRevealingField(field)
+    setRevealFieldError(null)
     setError('')
     try {
       const r = await fetch(
@@ -515,7 +519,9 @@ function CreditFundingAdminContent() {
         return { ...prev, [field]: value }
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reveal field')
+      const message = err instanceof Error ? err.message : 'Failed to reveal field'
+      setRevealFieldError({ field, message })
+      setError(message)
     } finally {
       setRevealingField(null)
     }
@@ -530,6 +536,7 @@ function CreditFundingAdminContent() {
     const raw = value == null ? '' : String(value)
     const isMasked = raw === MASKED_VALUE
     const hasRevealedValue = Boolean(raw && !isMasked)
+    const fieldError = revealFieldError?.field === field ? revealFieldError.message : ''
     return (
       <div>
         <p className="text-xs font-semibold text-brand-dim uppercase mb-0.5">{label}</p>
@@ -538,14 +545,17 @@ function CreditFundingAdminContent() {
             {formatter ? formatter(raw) : raw}
           </p>
         ) : isMasked ? (
-          <button
-            type="button"
-            onClick={() => revealSensitiveField(field)}
-            disabled={revealingField === field}
-            className="text-xs font-semibold text-accent underline disabled:opacity-50"
-          >
-            {revealingField === field ? 'Revealing...' : 'Reveal sensitive value'}
-          </button>
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => revealSensitiveField(field)}
+              disabled={revealingField === field}
+              className="text-xs font-semibold text-accent underline disabled:opacity-50"
+            >
+              {revealingField === field ? 'Revealing...' : 'Reveal sensitive value'}
+            </button>
+            {fieldError ? <p className="text-xs text-red-600">{fieldError}</p> : null}
+          </div>
         ) : (
           <p className="text-sm text-brand-muted">Not on file</p>
         )}

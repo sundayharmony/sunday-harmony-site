@@ -33,14 +33,23 @@ export function encryptField(plaintext: string): string {
   return `${ENCRYPTION_PREFIX}${Buffer.concat([iv, tag, encrypted]).toString('base64')}`
 }
 
+/** Normalize JSON/DB values that may arrive as numbers (e.g. income in JSONB). */
+function asCiphertextString(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return ''
+}
+
 /** Decrypt sensitive text. Returns empty string on failure. */
-export function decryptField(ciphertext: string): string {
-  if (!ciphertext) return ''
+export function decryptField(ciphertext: unknown): string {
+  const input = asCiphertextString(ciphertext)
+  if (!input) return ''
   try {
     const key = getEncryptionKey()
-    const encoded = ciphertext.startsWith(ENCRYPTION_PREFIX)
-      ? ciphertext.slice(ENCRYPTION_PREFIX.length)
-      : ciphertext
+    const encoded = input.startsWith(ENCRYPTION_PREFIX)
+      ? input.slice(ENCRYPTION_PREFIX.length)
+      : input
     const data = Buffer.from(encoded, 'base64')
     if (data.length < IV_LENGTH + TAG_LENGTH + 1) return ''
     const iv = data.subarray(0, IV_LENGTH)
@@ -55,6 +64,7 @@ export function decryptField(ciphertext: string): string {
 }
 
 function looksLikeEncryptedBlob(value: string): boolean {
+  if (!value) return false
   if (value.startsWith(ENCRYPTION_PREFIX)) return true
   if (value.length < 28) return false
   try {
@@ -65,16 +75,17 @@ function looksLikeEncryptedBlob(value: string): boolean {
   }
 }
 
-export function isEncryptedField(value: string): boolean {
-  return looksLikeEncryptedBlob(value)
+export function isEncryptedField(value: unknown): boolean {
+  return looksLikeEncryptedBlob(asCiphertextString(value))
 }
 
 /** Decrypt values encrypted at rest; return legacy plaintext rows unchanged. */
-export function decryptFieldOrLegacy(value: string): string {
-  if (!value) return ''
-  const decrypted = decryptField(value)
+export function decryptFieldOrLegacy(value: unknown): string {
+  const input = asCiphertextString(value)
+  if (!input) return ''
+  const decrypted = decryptField(input)
   if (decrypted) return decrypted
-  return looksLikeEncryptedBlob(value) ? '' : value
+  return looksLikeEncryptedBlob(input) ? '' : input
 }
 
 export function encryptFieldIfPresent(value: string | undefined | null): string | undefined {
