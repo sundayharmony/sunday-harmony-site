@@ -105,18 +105,64 @@ def _in_vantage_disclaimer(text: str, index: int) -> bool:
     return False
 
 
+# Member PDF: the gauge number sits above "based on Experian/Equifax/TransUnion data".
+_BASED_ON_BUREAU = re.compile(
+    r"(\d{3})[^\d]{0,40}?(?:very\s+poor|poor|fair|good|excellent)\b"
+    r"[\s\S]{0,120}?based\s+on\s+(experian|equifax|trans\s*union)",
+    re.I,
+)
+# Tri-merge PDF: TransUnion, Equifax, Experian scores on one line after the model version.
+_CREDIT_HERO_GAUGE_ROW = re.compile(
+    r"all\s+bureaus[\s\S]{0,220}?vantagescore[^\d]{0,24}\d\.\d\s+(\d{3})\s+(\d{3})\s+(\d{3})",
+    re.I,
+)
+_SCORE_SCALE = re.compile(r"300\D{0,20}500\D{0,20}600\D{0,20}660\D{0,20}850")
+
+
+def _in_score_scale(text: str, index: int) -> bool:
+    for match in _SCORE_SCALE.finditer(text):
+        if match.start() <= index <= match.end():
+            return True
+    return False
+
+
+def _assign_hero_triplet(scores: BureauScores, tuc: int | None, eqf: int | None, exp: int | None) -> bool:
+    if tuc is not None:
+        scores.tuc = tuc
+    if eqf is not None:
+        scores.eqf = eqf
+    if exp is not None:
+        scores.exp = exp
+    return not scores_missing(scores)
+
+
 def _scores_from_credit_hero_all_bureaus(text: str, scores: BureauScores) -> bool:
+    gauges = _CREDIT_HERO_GAUGE_ROW.search(text)
+    if gauges:
+        tuc, eqf, exp = (parse_score_value(gauges.group(i)) for i in (1, 2, 3))
+        if not _in_score_scale(text, gauges.start(1)):
+            return _assign_hero_triplet(scores, tuc, eqf, exp)
     match = _CREDIT_HERO_ALL_BUREAUS.search(text)
     if not match:
         return False
+    # Older export: each gauge is score then rating, in TransUnion, Experian, Equifax order.
     tuc, exp, eqf = (parse_score_value(match.group(i)) for i in (1, 2, 3))
-    if tuc is not None:
-        scores.tuc = tuc
-    if exp is not None:
-        scores.exp = exp
-    if eqf is not None:
-        scores.eqf = eqf
-    return not scores_missing(scores)
+    return _assign_hero_triplet(scores, tuc, eqf, exp)
+
+
+def _scores_from_based_on_bureau(text: str, scores: BureauScores) -> bool:
+    match = _BASED_ON_BUREAU.search(text)
+    if not match:
+        return False
+    parsed = parse_score_value(match.group(1))
+    if parsed is None or _in_score_scale(text, match.start(1)):
+        return False
+    bureau = re.sub(r"\s+", "", match.group(2).lower())
+    attr = {"experian": "exp", "equifax": "eqf", "transunion": "tuc"}.get(bureau)
+    if not attr:
+        return False
+    setattr(scores, attr, parsed)
+    return True
 
 
 def _first_score_from_patterns(text: str, patterns: tuple[re.Pattern[str], ...] = _SCORE_VALUE_PATTERNS) -> int | None:
@@ -135,6 +181,8 @@ def scores_from_text(text: str) -> BureauScores:
     if not text:
         return scores
     if _scores_from_credit_hero_all_bureaus(text, scores):
+        return scores
+    if _scores_from_based_on_bureau(text, scores):
         return scores
     for attr, pattern in _BUREAU_PATTERNS:
         for match in pattern.finditer(text):
@@ -159,6 +207,8 @@ def scores_from_text(text: str) -> BureauScores:
                     )
                     abs_end = abs_start + len(token.group(1))
                     if not _token_is_plausible_score(text, abs_start, abs_end):
+                        continue
+                    if _in_score_scale(text, abs_start):
                         continue
                     parsed = parse_score_value(token.group(1))
                     if parsed is not None:

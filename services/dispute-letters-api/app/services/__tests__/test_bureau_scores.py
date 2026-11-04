@@ -189,6 +189,35 @@ def test_credit_hero_all_bureaus_row():
     assert scores.eqf == 491
 
 
+def test_credit_hero_gauge_row_is_transunion_equifax_experian():
+    text = """
+    TransUnion Equifax Experian All bureaus
+    GOOD GOOD FAIR
+    VantageScore 3.0 694 680 657
+    300 500 600 660 850
+    """
+    scores = scores_from_text(text)
+    assert scores.tuc == 694
+    assert scores.eqf == 680
+    assert scores.exp == 657
+
+
+def test_credit_hero_member_score_stays_on_the_named_bureau():
+    text = """
+    TransUnion Equifax Experian All bureaus
+    Your credit rating
+    657
+    Your credit rating
+    FAIR
+    VantageScore 3.0 based on Experian data as of
+    300 850
+    """
+    scores = scores_from_text(text)
+    assert scores.exp == 657
+    assert scores.tuc is None
+    assert scores.eqf is None
+
+
 def test_scores_from_text_ignores_vantage_disclaimer_phone_and_unit():
     text = (
         "SELF/FIRST CENTURY BAN 901 E 6TH ST UNIT 400 AUSTIN, TX 78702 (770) 297-8060 "

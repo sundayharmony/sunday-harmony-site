@@ -184,12 +184,201 @@ def parse_bureau_accounts(
     if not cleaned.strip():
         return [], ConsumerInfo(), ""
     bureau = detect_primary_bureau(cleaned, file_name)
-    tradelines = _parse_experian_blocks(cleaned, bureau)
+    tradelines = _parse_credit_hero(cleaned, bureau)
+    if not tradelines:
+        tradelines = _parse_experian_blocks(cleaned, bureau)
     if not tradelines:
         tradelines = _parse_labeled_accounts(cleaned, bureau)
     consumer = _consumer_from_text(cleaned) if tradelines else ConsumerInfo()
     report_date = _report_date(cleaned) if tradelines else ""
     return tradelines, consumer, report_date
+
+
+_HERO_TYPE = (
+    "Credit Card",
+    "Auto Loan",
+    "Automobile",
+    "Mortgage",
+    "Installment",
+    "Student Loan",
+    "Charge Account",
+    "Collection",
+    "Revolving",
+    "Secured",
+    "Unsecured",
+)
+_HERO_CREDITOR_CUT = re.compile(
+    r"\s+(?:Voluntary|PO BOX|N/A|No data|Account ID|VS\b)\b",
+    re.I,
+)
+
+
+def _parse_credit_hero(text: str, bureau: BureauCode | None) -> list[Tradeline]:
+    """Credit Hero member PDFs: one bureau per file, or a 3-column tri-merge."""
+    lowered = text.lower()
+    has_account_number = "account number" in lowered or "number number number" in lowered
+    if not has_account_number or "account status" not in lowered:
+        return []
+    if not re.search(r"credit\s+limit|open\s+date|vantagescore", lowered):
+        return []
+    if re.search(r"account\s+status\s+\S+\s+account\s+status", lowered):
+        return _parse_credit_hero_tri_merge(text)
+    if "overview account details" not in lowered and "accounts listed on your" not in lowered:
+        return []
+    tradelines: list[Tradeline] = []
+    parts = re.split(r"(?i)overview\s+account\s+details", text)
+    for part in parts[1:]:
+        tradeline = _tradeline_from_fields(_hero_member_fields(part), bureau)
+        if tradeline is not None:
+            tradelines.append(tradeline)
+    return tradelines
+
+
+def _hero_member_fields(part: str) -> dict[str, str]:
+    account_type = _hero_type(part)
+    remarks = _hero_remarks(part)
+    status = _first(r"Account Status\s+([A-Za-z]+)", part)
+    payment_status = _first(
+        r"Current Payment Status\s+([A-Za-z][A-Za-z ]{1,40}?)(?=\s+Amount Past Due|\s+Reported:|\s+Overview|$)",
+        part,
+    )
+    if re.search(r"collection|charge\s*off", remarks, re.I):
+        status = _join_remarks(status, "Collection")
+    return {
+        "creditor": _hero_creditor(part),
+        "account_number": _first(r"Account Number\s+([A-Z0-9*#xX-]{4,})", part),
+        "status": _compose_status(status, payment_status),
+        "balance": _first(r"Balance:\s*(\$[\d,]+(?:\.\d{2})?)", part),
+        "credit_limit": _first(r"Credit limit:\s*(\$[\d,]+(?:\.\d{2})?)", part),
+        "date_opened": _first(
+            r"Open Date\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})",
+            part,
+        ),
+        "account_type": account_type,
+        "high_credit": _first(r"High Credit\s+(\$[\d,]+(?:\.\d{2})?)", part),
+        "highest_balance": _first(r"High Balance\s+(\$[\d,]+(?:\.\d{2})?)", part),
+        "monthly_payment": _first(r"Monthly Payment Amount\s+(\$[\d,]+(?:\.\d{2})?)", part),
+        "past_due": _first(r"Amount Past Due\s+(\$[\d,]+(?:\.\d{2})?)", part),
+        "remarks": remarks,
+    }
+
+
+def _parse_credit_hero_tri_merge(text: str) -> list[Tradeline]:
+    """One tradeline per account. Columns follow TransUnion, Equifax, Experian."""
+    if re.search(r"(?i)account details", text):
+        chunks = [
+            part
+            for part in re.split(r"(?i)account details(?:\s+account details){0,2}", text)
+            if re.search(r"(?i)account status|account\s+account\s+account", part)
+        ]
+    else:
+        chunks = re.split(
+            r"(?i)(?=account\s+number\s+\S+\s+account\s+number\s+\S+\s+account\s+number)",
+            text,
+        )
+    tradelines: list[Tradeline] = []
+    seen: set[tuple[str, str, str]] = set()
+    for chunk in chunks:
+        accounts = _hero_column_numbers(chunk)
+        creditor = _hero_creditor(chunk)
+        if not _valid_creditor(creditor):
+            continue
+        balances = re.findall(r"(?i)balance:\s*(\$[\d,]+(?:\.\d{2})?)", chunk)
+        limits = re.findall(r"(?i)credit\s+limit:\s*(\$[\d,]+(?:\.\d{2})?)", chunk)
+        opened = _first(r"Open Date\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})", chunk)
+        account_type = _hero_type(chunk)
+        status = _first(r"Account Status\s+([A-Za-z]+)", chunk)
+        if status.lower() == "charge":
+            status = "Charge Off"
+        remarks = _hero_remarks(chunk)
+        if re.search(r"collection|charge\s*off", remarks, re.I):
+            status = _join_remarks(status, "Collection")
+        filled = [value for value in accounts if value]
+        if len(filled) == 1:
+            accounts = [filled[0], filled[0], filled[0]]
+        elif len(filled) == 2:
+            accounts = [filled[0], filled[1], filled[1]]
+        key = (creditor.upper(), _date(opened), accounts[0])
+        if key in seen:
+            continue
+        if sum(1 for value in (accounts[0], status, balances[0] if balances else "", opened, account_type) if value) < 2:
+            continue
+        seen.add(key)
+        tradelines.append(
+            Tradeline(
+                id=str(uuid.uuid4()),
+                creditor=creditor,
+                account_tu=accounts[0],
+                account_eqf=accounts[1],
+                account_exp=accounts[2],
+                account_type=account_type,
+                status=status,
+                balance=balances[0] if balances else "",
+                credit_limit=limits[0] if limits else "",
+                date_opened=_date(opened),
+                remarks=remarks,
+                bureaus=["TUC", "EQF", "EXP"],
+                is_collection=bool(re.search(r"collection|charge\s*off", f"{status} {remarks}", re.I)),
+            )
+        )
+    return tradelines
+
+
+def _hero_column_numbers(part: str) -> list[str]:
+    """Credit Hero prints TransUnion, then Equifax, then Experian."""
+    inline = re.search(
+        r"(?i)account\s+number\s+(\S+)\s+account\s+number\s+(\S+)\s+account\s+number\s+(\S+)",
+        part,
+    )
+    stacked = re.search(
+        r"(?i)account\s+account\s+account\s+(\S+)\s+(\S+)\s+(\S+)\s+number\s+number\s+number",
+        part,
+    )
+    match = inline or stacked
+    if match:
+        return [_account_number(match.group(i)) for i in (1, 2, 3)]
+    one = re.search(r"(?i)account\s+number\s+([A-Z0-9*#xX-]{4,})", part)
+    if one:
+        number = _account_number(one.group(1))
+        return [number, "", ""] if number else ["", "", ""]
+    return ["", "", ""]
+
+
+def _hero_type(part: str) -> str:
+    match = re.search(r"(?i)\bType\s+(" + "|".join(_HERO_TYPE) + r")\b", part)
+    return match.group(1).strip() if match else ""
+
+
+def _hero_remarks(part: str) -> str:
+    match = re.search(
+        r"(?i)Remarks\s+((?:This Is An Account In Good Standing|Closed Or Paid|Collection|Charge(?:\s|-)?off)[^A-Z\n]{0,60})",
+        part,
+    )
+    if not match:
+        return ""
+    return re.sub(r"\s+", " ", match.group(1)).strip()
+
+
+def _hero_creditor(part: str) -> str:
+    matches = list(re.finditer(r"(?i)charge\s+off\s+([A-Z][A-Z0-9&/.' -]{2,60})", part))
+    for match in reversed(matches):
+        raw = _HERO_CREDITOR_CUT.split(match.group(1), maxsplit=1)[0]
+        raw = re.sub(r"\s+", " ", raw).strip(" -")
+        if not _valid_creditor(raw):
+            continue
+        if re.fullmatch(
+            r"(?:bankruptcy|foreclosure|repossession|collection|voluntary surrender|no data available)",
+            raw,
+            re.I,
+        ):
+            continue
+        return raw
+    return ""
+
+
+def _first(pattern: str, text: str) -> str:
+    match = re.search(pattern, text, re.I)
+    return match.group(1).strip() if match else ""
 
 
 def detect_primary_bureau(text: str, file_name: str = "") -> BureauCode | None:

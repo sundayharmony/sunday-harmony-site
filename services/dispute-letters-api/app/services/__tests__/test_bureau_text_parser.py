@@ -247,3 +247,93 @@ def test_extract_from_text_stays_local_when_api_key_is_set(monkeypatch):
     assert len(report.tradelines) == 3
     assert report.source == "fallback_parser"
     assert report.tradelines[0].account_exp
+
+
+CREDIT_HERO_MEMBER = """
+We gathered all of the accounts listed on your Experian report for you.
+Overview Account details
+You’re currently using 22% of your account's limit.
+Account Number 426412XXXX
+Account Status Open
+Balance: $640.00 Credit limit: $3,000.00
+Open Date Aug 14, 2019
+Type Credit Card
+Responsibility Individual
+Remarks This Is An Account In Good Standing
+High Balance $2,100.00
+Repossession or Collection or Creditor information
+foreclosure charge off HARBOR BANK NA
+Voluntary PO BOX 100
+Account ID:abc
+Monthly Payment Amount $35.00
+Current Payment Status As Agreed
+Amount Past Due $0.00
+Overview Account details
+Account Number 998877XXXX
+Account Status Closed
+Balance: $0.00 Credit limit: $500.00
+Open Date Jan 2, 2016
+Type Collection
+Remarks Collection account
+foreclosure charge off PINE COLLECTIONS
+Monthly Payment Amount $0.00
+Current Payment Status Collection
+Amount Past Due $120.00
+"""
+
+CREDIT_HERO_TRI = """
+Account Number 1111XXXX Account Number 2222XXXX Account Number 3333XXXX
+Account Status Open Account Status Open Account Status Open
+Open Date Mar 3, 2018 Open Date Mar 3, 2018 Open Date Mar 3, 2018
+Type Credit Card Type Credit Card Type Credit Card
+Balance: $100.00 Credit limit: $1,000.00 Balance: $90.00 Credit limit: $1,000.00 Balance: $80.00 Credit limit: $1,000.00
+foreclosure charge off HARBOR BANK NA
+Account ID:abc
+"""
+
+
+def test_credit_hero_member_pdf_extracts_each_bureau_account():
+    tradelines, _, _ = parse_bureau_accounts(CREDIT_HERO_MEMBER, file_name="sample-experian.pdf")
+    by_name = {tl.creditor: tl for tl in tradelines}
+    assert set(by_name) == {"HARBOR BANK NA", "PINE COLLECTIONS"}
+    card = by_name["HARBOR BANK NA"]
+    assert card.bureaus == ["EXP"]
+    assert card.account_exp == "426412XXXX"
+    assert card.balance == "$640.00"
+    assert card.credit_limit == "$3,000.00"
+    assert card.date_opened == "Aug 14, 2019"
+    assert card.account_type == "Credit Card"
+    assert card.status.startswith("Open")
+    assert by_name["PINE COLLECTIONS"].is_collection is True
+
+
+def test_credit_hero_tri_merge_keeps_one_row_per_account():
+    tradelines, _, _ = parse_bureau_accounts(CREDIT_HERO_TRI, file_name="credit-hero-score.pdf")
+    assert len(tradelines) == 1
+    row = tradelines[0]
+    assert row.creditor == "HARBOR BANK NA"
+    assert row.account_tu == "1111XXXX"
+    assert row.account_eqf == "2222XXXX"
+    assert row.account_exp == "3333XXXX"
+    assert row.bureaus == ["TUC", "EQF", "EXP"]
+    assert row.balance == "$100.00"
+
+
+def test_credit_hero_stacked_columns_still_extract():
+    text = """
+    Account details Account details Account details
+    Account Account Account
+    1111XXXX 2222XXXX 3333XXXX
+    Number Number Number
+    Account Status Open Account Status Open Account Status Open
+    Open Date Mar 3, 2018 Open Date Mar 3, 2018 Open Date Mar 3, 2018
+    Type Credit Card Type Credit Card Type Credit Card
+    Balance: $100.00
+    foreclosure charge off HARBOR BANK NA
+    Account ID:abc
+    """
+    tradelines, _, _ = parse_bureau_accounts(text, file_name="credit-hero-score.pdf")
+    assert len(tradelines) == 1
+    assert tradelines[0].account_tu == "1111XXXX"
+    assert tradelines[0].account_eqf == "2222XXXX"
+    assert tradelines[0].account_exp == "3333XXXX"
