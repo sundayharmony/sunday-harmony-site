@@ -3,6 +3,7 @@ import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import {
   appendStatusEvent,
   buildLetterPackageSnapshot,
+  buildPriorDisputeMarks,
   comparisonUpdatesForItems,
   computeDeadlineAt,
   expandTradelineSelections,
@@ -21,6 +22,7 @@ import {
   preferDuplicateAccountItem,
   hasUpdatedReportForNextRound,
   pickSessionForLifecycleRecovery,
+  type PriorDisputeMark,
   roundWorkflowView,
   shouldReuseLetterPackage,
   splitWorkflowQueues,
@@ -450,6 +452,37 @@ export async function loadLetterPackageForSession(sessionId: string): Promise<{
     snapshots[snapshots.length - 1] ||
     null
   return { round, package: active, letters }
+}
+
+/**
+ * Lifecycle items for the session's dispute case (application-linked preferred).
+ * Used to mark accounts already disputed in earlier rounds during generate/plan UX.
+ */
+export async function listLifecycleItemsForSession(sessionId: string): Promise<DisputeItemRow[]> {
+  const session = await getDisputeSessionById(sessionId)
+  if (session?.application_uuid) {
+    const caseRow = await findCaseByApplicationUuid(session.application_uuid)
+    if (caseRow) return uniqueItemsByAccountNumber(await listItemsForCase(caseRow.id))
+  }
+  const round = await findRoundForSession(sessionId)
+  if (!round) return []
+  return uniqueItemsByAccountNumber(await listItemsForCase(round.case_id))
+}
+
+export async function loadPriorDisputeMarksForSession(sessionId: string): Promise<{
+  marks: PriorDisputeMark[]
+  marksByTradelineId: Record<string, PriorDisputeMark>
+  itemCount: number
+}> {
+  const session = await getDisputeSessionById(sessionId)
+  const tradelines = (session?.report_json?.tradelines || []) as Tradeline[]
+  const items = await listLifecycleItemsForSession(sessionId)
+  const marksByTradelineId = buildPriorDisputeMarks(tradelines, items)
+  return {
+    marks: Object.values(marksByTradelineId),
+    marksByTradelineId,
+    itemCount: items.length,
+  }
 }
 
 async function collapseDuplicateAccountItems(caseId: string): Promise<void> {

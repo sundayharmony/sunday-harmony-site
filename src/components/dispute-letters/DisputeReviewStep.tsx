@@ -8,6 +8,7 @@ import { TRADELINE_CARD_GRID, TradelineCard } from '@/components/dispute-letters
 import {
   buildDisputePlan,
   fetchDisputeReport,
+  fetchPriorDisputeMarks,
   patchDisputeTradelines,
 } from '@/lib/dispute-letters/client-api'
 import {
@@ -27,11 +28,13 @@ import {
   countSelectionsPerBureau,
   expandTradelineSelections,
   letterChunkCount,
+  unselectPreferSkippedPriorDisputes,
+  type PriorDisputeMark,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 
-type FilterMode = 'all' | 'negative' | 'collections' | 'high' | BureauCode
+type FilterMode = 'all' | 'negative' | 'collections' | 'high' | 'prior' | BureauCode
 
 export default function DisputeReviewStep({
   sessionId,
@@ -46,6 +49,7 @@ export default function DisputeReviewStep({
 }) {
   const [reportMeta, setReportMeta] = useState<{ source: string; consumer: string } | null>(null)
   const [tradelines, setTradelines] = useState<Tradeline[]>([])
+  const [priorMarks, setPriorMarks] = useState<Record<string, PriorDisputeMark>>({})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<FilterMode>('all')
@@ -64,13 +68,16 @@ export default function DisputeReviewStep({
   useEffect(() => {
     if (!sessionId) return
     setReportMeta(null)
+    setPriorMarks({})
     setError('')
-    fetchDisputeReport(sessionId)
-      .then((data) => {
+    Promise.all([fetchDisputeReport(sessionId), fetchPriorDisputeMarks(sessionId)])
+      .then(([data, prior]) => {
         setReportMeta({
           source: data.report.source,
           consumer: data.report.consumer?.name || 'Consumer',
         })
+        const marks = prior.marksByTradelineId || {}
+        setPriorMarks(marks)
         const tls = data.report.tradelines.map((t) => ({
           ...t,
           dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
@@ -81,7 +88,7 @@ export default function DisputeReviewStep({
           repair_priority: t.repair_priority || 'none',
         }))
         if (!tls.some((t) => t.selected)) {
-          setTradelines(applyRecommendedSelection(tls))
+          setTradelines(unselectPreferSkippedPriorDisputes(applyRecommendedSelection(tls), marks))
         } else {
           setTradelines(tls)
         }
@@ -94,6 +101,7 @@ export default function DisputeReviewStep({
       if (filter === 'negative') return isNegativeTradeline(t)
       if (filter === 'collections') return t.is_collection
       if (filter === 'high') return t.repair_priority === 'high'
+      if (filter === 'prior') return Boolean(priorMarks[t.id])
       if (filter === 'TUC' || filter === 'EXP' || filter === 'EQF') {
         return (t.bureaus || []).includes(filter)
       }
@@ -103,7 +111,13 @@ export default function DisputeReviewStep({
       (a, b) =>
         PRIORITY_ORDER[a.repair_priority || 'none'] - PRIORITY_ORDER[b.repair_priority || 'none']
     )
-  }, [tradelines, filter])
+  }, [tradelines, filter, priorMarks])
+
+  const priorSelectedCount = useMemo(
+    () => tradelines.filter((t) => t.selected && priorMarks[t.id]?.preferSkip).length,
+    [tradelines, priorMarks]
+  )
+  const priorMarkCount = Object.keys(priorMarks).length
 
   const bureauCounts = useMemo(
     () => countSelectionsPerBureau(expandTradelineSelections(tradelines)),
@@ -217,6 +231,7 @@ export default function DisputeReviewStep({
               key={t.id}
               tradeline={t}
               selected={t.selected}
+              priorDispute={priorMarks[t.id] || null}
               onSelect={(checked) =>
                 update(t.id, {
                   selected: checked,
@@ -262,6 +277,7 @@ export default function DisputeReviewStep({
           <option value="high">High priority</option>
           <option value="negative">Negative</option>
           <option value="collections">Collections</option>
+          <option value="prior">Previously disputed</option>
           <option value="TUC">TransUnion</option>
           <option value="EXP">Experian</option>
           <option value="EQF">Equifax</option>
@@ -288,6 +304,16 @@ export default function DisputeReviewStep({
           Clear
         </button>
       </div>
+
+      {priorMarkCount > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          {priorMarkCount} account{priorMarkCount === 1 ? '' : 's'} already disputed in an earlier
+          round — marked in amber. They stay selectable if you still need them
+          {priorSelectedCount > 0
+            ? ` (${priorSelectedCount} re-selected).`
+            : '.'}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState title="No matches" message="Try a different filter." />

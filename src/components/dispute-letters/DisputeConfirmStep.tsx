@@ -8,11 +8,13 @@ import type { LetterPlan, Tradeline } from '@/lib/dispute-letters/types'
 import {
   buildDisputePlan,
   fetchDisputeReport,
+  fetchPriorDisputeMarks,
   generateDisputeLetters,
   patchDisputeConsumer,
 } from '@/lib/dispute-letters/client-api'
 import { skippedAddressPlans, type SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { planSelectionsFromTradelines } from '@/lib/dispute-letters/dispute-reasons'
+import type { PriorDisputeMark } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 
@@ -29,6 +31,7 @@ export default function DisputeConfirmStep({
 }) {
   const [plans, setPlans] = useState<LetterPlan[]>([])
   const [selectedCount, setSelectedCount] = useState(0)
+  const [priorMarks, setPriorMarks] = useState<Record<string, PriorDisputeMark>>({})
   const [overrides, setOverrides] = useState<Record<string, string>>({})
   const [consumerName, setConsumerName] = useState('')
   const [consumerAddresses, setConsumerAddresses] = useState('')
@@ -39,10 +42,12 @@ export default function DisputeConfirmStep({
   useEffect(() => {
     if (!sessionId) return
     setPlans([])
-    fetchDisputeReport(sessionId)
-      .then(async (data) => {
+    setPriorMarks({})
+    Promise.all([fetchDisputeReport(sessionId), fetchPriorDisputeMarks(sessionId)])
+      .then(async ([data, prior]) => {
         const selected = data.report.tradelines.filter((t: Tradeline) => t.selected)
         setSelectedCount(selected.length)
+        setPriorMarks(prior.marksByTradelineId || {})
         setConsumerName(data.report.consumer?.name || '')
         setConsumerAddresses((data.report.consumer?.addresses || []).join('\n'))
         const plan = await buildDisputePlan(sessionId, planSelectionsFromTradelines(data.report.tradelines), {})
@@ -52,6 +57,11 @@ export default function DisputeConfirmStep({
   }, [sessionId])
 
   const skippedNeeded = skippedAddressPlans(plans)
+  const priorInPlanCount = plans.reduce(
+    (count, plan) =>
+      count + plan.items.filter((it) => Boolean(priorMarks[it.tradeline_id])).length,
+    0
+  )
 
   async function generate() {
     setLoading(true)
@@ -107,6 +117,12 @@ export default function DisputeConfirmStep({
           <strong>{plans.length}</strong> letter(s) ({bureauPlans} bureau
           {bureauPlans === 1 ? '' : 's'} + furnishers).
         </p>
+        {priorInPlanCount > 0 && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {priorInPlanCount} selected item{priorInPlanCount === 1 ? '' : 's'} were already
+            disputed in an earlier round. Re-dispute only if needed.
+          </p>
+        )}
       </div>
 
       <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm space-y-3">
@@ -157,12 +173,28 @@ export default function DisputeConfirmStep({
             {p.statute} · {p.items.length} item(s)
           </p>
           <ul className="mt-3 space-y-2 text-sm">
-            {p.items.map((it) => (
-              <li key={`${p.id}-${it.tradeline_id}`} className="rounded-lg bg-neutral-50 p-3">
-                <strong>{it.creditor}</strong> — {it.account_number}
-                <p className="mt-1 text-brand-dim">{it.dispute_reason}</p>
-              </li>
-            ))}
+            {p.items.map((it) => {
+              const prior = priorMarks[it.tradeline_id]
+              return (
+                <li
+                  key={`${p.id}-${it.tradeline_id}`}
+                  className={`rounded-lg p-3 ${
+                    prior ? 'border border-amber-200 bg-amber-50' : 'bg-neutral-50'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>{it.creditor}</strong>
+                    <span className="text-brand-dim">— {it.account_number}</span>
+                    {prior && (
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950">
+                        {prior.label}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-brand-dim">{it.dispute_reason}</p>
+                </li>
+              )
+            })}
           </ul>
           {p.missing_address && (
             <label className="mt-3 block text-sm">
