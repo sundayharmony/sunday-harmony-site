@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import ReferrerPayoutForm from '@/components/admin/ReferrerPayoutForm'
 import { formatCommissionCents, publicCommissionLabel } from '@/lib/referrals'
 
 type DetailPayload = {
@@ -13,6 +14,7 @@ type DetailPayload = {
     status: string
     payoutReady: boolean
     hasConnectAccount: boolean
+    payoutSetup?: string | null
   }
   summary: {
     clicks: number
@@ -150,6 +152,22 @@ export default function AdminReferralClientPage() {
         <div className="bg-white border border-brand-border rounded-xl p-4">Paid: {formatCommissionCents(data.summary.paidCents)}</div>
         <div className="bg-white border border-brand-border rounded-xl p-4">Pending: {formatCommissionCents(data.summary.pendingCents)}</div>
         <div className="bg-white border border-brand-border rounded-xl p-4">Available: {formatCommissionCents(data.summary.availableCents)}</div>
+      </div>
+
+      <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">
+        <h2 className="text-sm font-bold mb-1">Send payout</h2>
+        <ReferrerPayoutForm
+          clientId={clientId}
+          setupMessage={
+            data.profile.payoutReady
+              ? null
+              : data.profile.payoutSetup ||
+                (data.profile.hasConnectAccount
+                  ? 'Payouts are not enabled for this client. They still need to finish Stripe Connect setup (identity and bank account) from Referrals in their client dashboard.'
+                  : 'This client has no Stripe payout destination. Ask them to sign in, open Referrals, and choose Set up payouts.')
+          }
+          onComplete={load}
+        />
       </div>
 
       <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">

@@ -55,6 +55,7 @@ export type ReferralPayoutRow = {
   failed_at: string | null
   failure_reason: string | null
   initiated_by_email: string | null
+  idempotency_key?: string | null
   created_at: string
   updated_at: string
 }
@@ -413,6 +414,7 @@ export async function insertPayout(row: {
   status: PayoutStatus
   initiated_by_email?: string | null
   provider_transaction_id?: string | null
+  idempotency_key?: string | null
 }): Promise<ReferralPayoutRow | null> {
   const { data, error } = await getSupabase()
     .from('referral_payouts')
@@ -423,10 +425,26 @@ export async function insertPayout(row: {
     .select()
     .single()
   if (error) {
+    if (error.code === '23505' && row.idempotency_key) {
+      return getPayoutByIdempotencyKey(row.idempotency_key)
+    }
     console.error('insertPayout:', error)
     return null
   }
   return data as ReferralPayoutRow
+}
+
+export async function getPayoutByIdempotencyKey(key: string): Promise<ReferralPayoutRow | null> {
+  const { data, error } = await getSupabase()
+    .from('referral_payouts')
+    .select('*')
+    .eq('idempotency_key', key)
+    .maybeSingle()
+  if (error) {
+    console.error('getPayoutByIdempotencyKey:', error)
+    return null
+  }
+  return (data as ReferralPayoutRow) || null
 }
 
 export async function updatePayout(

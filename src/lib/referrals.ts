@@ -403,3 +403,352 @@ export function buildCreditReferralPayoutSources(
 
   return sources
 }
+
+/** Admin-entered referral payouts. Matches the commission ceiling so a typo cannot send a huge transfer. */
+export const MAX_MANUAL_PAYOUT_CENTS = 1_000_000
+
+export function parseManualPayoutAmount(
+  raw: unknown
+): { ok: true; amountCents: number } | { ok: false; error: string } {
+  const missing = 'Enter the payout amount. This screen does not choose an amount for you.'
+  if (raw == null) return { ok: false, error: missing }
+
+  let dollars: number
+  if (typeof raw === 'number') {
+    dollars = raw
+  } else if (typeof raw === 'string') {
+    const trimmed = raw.trim().replace(/^\$/, '').replace(/,/g, '')
+    if (!trimmed) return { ok: false, error: missing }
+    if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
+      return { ok: false, error: 'Enter a dollar amount with up to two decimal places.' }
+    }
+    dollars = Number(trimmed)
+  } else {
+    return { ok: false, error: missing }
+  }
+
+  if (!Number.isFinite(dollars) || dollars <= 0) {
+    return { ok: false, error: 'Enter a payout amount greater than zero.' }
+  }
+  const cents = Math.round(dollars * 100)
+  if (Math.abs(dollars * 100 - cents) > 0.001) {
+    return { ok: false, error: 'Enter a dollar amount with up to two decimal places.' }
+  }
+  if (cents < 1) return { ok: false, error: 'Enter a payout amount greater than zero.' }
+  if (cents > MAX_MANUAL_PAYOUT_CENTS) {
+    return { ok: false, error: 'Enter an amount of $10,000 or less.' }
+  }
+  return { ok: true, amountCents: cents }
+}
+
+export function parsePayoutIdempotencyKey(
+  raw: unknown
+): { ok: true; key: string } | { ok: false; error: string } {
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return { ok: false, error: 'Missing payout idempotency key.' }
+  }
+  const key = raw.trim()
+  if (!/^[A-Za-z0-9_-]{8,200}$/.test(key)) {
+    return { ok: false, error: 'Invalid payout idempotency key.' }
+  }
+  return { ok: true, key }
+}
+
+export type PayoutDestinationCheck = {
+  connectAccountId: string | null
+  payoutReady: boolean
+  payoutsEnabled?: boolean
+  detailsSubmitted?: boolean
+  transfersActive?: boolean
+  hasExternalAccount?: boolean
+  /** Site or Stripe error that blocks the send before a transfer is created. */
+  configurationError?: string | null
+}
+
+/** Specific Stripe Connect setup the admin still needs. Null when a transfer can be attempted. */
+export function payoutDestinationSetup(dest: PayoutDestinationCheck): string | null {
+  if (dest.configurationError) return dest.configurationError
+  if (!dest.connectAccountId) {
+    return 'This client has no Stripe payout destination. Ask them to sign in, open Referrals, and choose Set up payouts. Stripe Connect collects their bank account. This site does not collect card or bank numbers. No payout was recorded.'
+  }
+  if (dest.transfersActive === false) {
+    return 'Stripe Connect is started, but transfers are not active on this client’s account. Ask them to open Referrals and choose Continue payout setup until Stripe enables transfers. No payout was recorded.'
+  }
+  if (dest.payoutsEnabled === false && dest.hasExternalAccount === false) {
+    return 'This client’s Stripe account has no bank account. Ask them to open Referrals and finish payout setup so Stripe has a bank to pay. No payout was recorded.'
+  }
+  if (dest.payoutsEnabled === false || (dest.payoutsEnabled === undefined && !dest.payoutReady)) {
+    return 'Payouts are not enabled for this client. They still need to finish Stripe Connect setup (identity and bank account) from Referrals in their client dashboard. No payout was recorded.'
+  }
+  if (dest.detailsSubmitted === false) {
+    return 'This client has not submitted the Stripe payout details. Ask them to open Referrals and finish payout setup. No payout was recorded.'
+  }
+  return null
+}
+
+export function payoutStatusAfterTransfer(
+  result: { ok: true; stripeId: string } | { ok: false; reason: string }
+):
+  | { status: 'paid'; paid: true; providerTransactionId: string }
+  | { status: 'failed'; paid: false; failureReason: string } {
+  if (!result.ok) {
+    const reason = result.reason.trim() || 'Stripe did not create a transfer.'
+    return { status: 'failed', paid: false, failureReason: reason }
+  }
+  const stripeId = result.stripeId.trim()
+  if (!/^tr_[A-Za-z0-9]+$/.test(stripeId)) {
+    return {
+      status: 'failed',
+      paid: false,
+      failureReason: 'Stripe did not return a transfer id, so the referrer was not marked paid.',
+    }
+  }
+  return { status: 'paid', paid: true, providerTransactionId: stripeId }
+}
+
+export function transferFailureMessage(reason: string): { message: string; setupRequired: boolean } {
+  const lower = reason.toLowerCase()
+  if (lower.includes('insufficient') && lower.includes('balance')) {
+    return {
+      setupRequired: false,
+      message:
+        'Stripe could not send the payout because the Sunday Harmony balance does not cover this amount. Add funds in the Stripe Dashboard, then send again. The referrer was not marked paid.',
+    }
+  }
+  if (
+    lower.includes('destination') ||
+    lower.includes('external account') ||
+    lower.includes('capabilities') ||
+    lower.includes('payouts')
+  ) {
+    return {
+      setupRequired: true,
+      message: `${reason} Ask the client to finish payout setup from Referrals in their dashboard. The referrer was not marked paid.`,
+    }
+  }
+  return {
+    setupRequired: false,
+    message: `${reason} The referrer was not marked paid.`,
+  }
+}
+
+export type ManualPayoutLedgerRow = {
+  id: string
+  clientId: string
+  amountCents: number
+  status: PayoutStatus
+  providerTransactionId: string | null
+}
+
+export type ManualPayoutSendResult =
+  | {
+      ok: true
+      payoutId: string
+      amountCents: number
+      paid: true
+      status: 'paid'
+      stripeId: string
+      alreadySent: boolean
+      idempotencyConsumed: boolean
+    }
+  | {
+      ok: false
+      error: string
+      statusCode: number
+      paid: false
+      setupRequired: boolean
+      payoutId: string | null
+      idempotencyConsumed: boolean
+    }
+
+export async function executeManualReferralPayout(deps: {
+  clientId: string
+  amountRaw: unknown
+  idempotencyKeyRaw: unknown
+  loadExisting: (key: string) => Promise<ManualPayoutLedgerRow | null>
+  loadDestination: () => Promise<PayoutDestinationCheck>
+  insertProcessing: (input: { amountCents: number; idempotencyKey: string }) => Promise<ManualPayoutLedgerRow | null>
+  createTransfer: (input: {
+    payoutId: string
+    amountCents: number
+    destination: string
+    idempotencyKey: string
+  }) => Promise<{ ok: true; stripeId: string } | { ok: false; reason: string }>
+  recordOutcome: (
+    payoutId: string,
+    outcome: { status: 'paid'; stripeId: string } | { status: 'failed'; reason: string }
+  ) => Promise<void>
+}): Promise<ManualPayoutSendResult> {
+  const amount = parseManualPayoutAmount(deps.amountRaw)
+  if (!amount.ok) {
+    return {
+      ok: false,
+      error: amount.error,
+      statusCode: 400,
+      paid: false,
+      setupRequired: false,
+      payoutId: null,
+      idempotencyConsumed: false,
+    }
+  }
+  const key = parsePayoutIdempotencyKey(deps.idempotencyKeyRaw)
+  if (!key.ok) {
+    return {
+      ok: false,
+      error: key.error,
+      statusCode: 400,
+      paid: false,
+      setupRequired: false,
+      payoutId: null,
+      idempotencyConsumed: false,
+    }
+  }
+
+  const mismatch = (row: ManualPayoutLedgerRow): ManualPayoutSendResult | null => {
+    if (row.clientId !== deps.clientId || row.amountCents !== amount.amountCents) {
+      return {
+        ok: false,
+        error: 'This send was already used for a different payout. Change the amount to send again.',
+        statusCode: 409,
+        paid: false,
+        setupRequired: false,
+        payoutId: row.id,
+        idempotencyConsumed: true,
+      }
+    }
+    return null
+  }
+
+  const alreadyPaid = (row: ManualPayoutLedgerRow, stripeId: string): ManualPayoutSendResult => ({
+    ok: true,
+    payoutId: row.id,
+    amountCents: row.amountCents,
+    paid: true,
+    status: 'paid',
+    stripeId,
+    alreadySent: true,
+    idempotencyConsumed: true,
+  })
+
+  let existing = await deps.loadExisting(key.key)
+  if (existing) {
+    const conflict = mismatch(existing)
+    if (conflict) return conflict
+    if (existing.status === 'paid' && existing.providerTransactionId) {
+      return alreadyPaid(existing, existing.providerTransactionId)
+    }
+    if (existing.providerTransactionId) {
+      await deps.recordOutcome(existing.id, { status: 'paid', stripeId: existing.providerTransactionId })
+      return alreadyPaid(existing, existing.providerTransactionId)
+    }
+    if (existing.status === 'failed') {
+      return {
+        ok: false,
+        error: 'This payout attempt already failed and was not marked paid. Edit the amount and send again to try a new payout.',
+        statusCode: 409,
+        paid: false,
+        setupRequired: false,
+        payoutId: existing.id,
+        idempotencyConsumed: true,
+      }
+    }
+  }
+
+  const destination = await deps.loadDestination()
+  const setup = payoutDestinationSetup(destination)
+  if (setup) {
+    if (existing && (existing.status === 'processing' || existing.status === 'requested')) {
+      await deps.recordOutcome(existing.id, { status: 'failed', reason: setup })
+    }
+    return {
+      ok: false,
+      error: setup,
+      statusCode: 400,
+      paid: false,
+      setupRequired: true,
+      payoutId: existing?.id || null,
+      idempotencyConsumed: Boolean(existing),
+    }
+  }
+
+  if (!destination.connectAccountId) {
+    return {
+      ok: false,
+      error: 'This client has no Stripe payout destination. No payout was recorded.',
+      statusCode: 400,
+      paid: false,
+      setupRequired: true,
+      payoutId: null,
+      idempotencyConsumed: false,
+    }
+  }
+
+  let row = existing
+  if (!row) {
+    row = await deps.insertProcessing({ amountCents: amount.amountCents, idempotencyKey: key.key })
+    if (!row) {
+      return {
+        ok: false,
+        error: 'Could not record the payout attempt, so Stripe was not charged.',
+        statusCode: 500,
+        paid: false,
+        setupRequired: false,
+        payoutId: null,
+        idempotencyConsumed: false,
+      }
+    }
+    const conflict = mismatch(row)
+    if (conflict) return conflict
+    if (row.status === 'paid' && row.providerTransactionId) {
+      return alreadyPaid(row, row.providerTransactionId)
+    }
+    if (row.providerTransactionId) {
+      await deps.recordOutcome(row.id, { status: 'paid', stripeId: row.providerTransactionId })
+      return alreadyPaid(row, row.providerTransactionId)
+    }
+    if (row.status === 'failed') {
+      return {
+        ok: false,
+        error: 'This payout attempt already failed and was not marked paid.',
+        statusCode: 409,
+        paid: false,
+        setupRequired: false,
+        payoutId: row.id,
+        idempotencyConsumed: true,
+      }
+    }
+  }
+
+  const transfer = await deps.createTransfer({
+    payoutId: row.id,
+    amountCents: amount.amountCents,
+    destination: destination.connectAccountId,
+    idempotencyKey: key.key,
+  })
+  const outcome = payoutStatusAfterTransfer(transfer)
+  if (outcome.status === 'paid') {
+    await deps.recordOutcome(row.id, { status: 'paid', stripeId: outcome.providerTransactionId })
+    return {
+      ok: true,
+      payoutId: row.id,
+      amountCents: amount.amountCents,
+      paid: true,
+      status: 'paid',
+      stripeId: outcome.providerTransactionId,
+      alreadySent: false,
+      idempotencyConsumed: true,
+    }
+  }
+
+  await deps.recordOutcome(row.id, { status: 'failed', reason: outcome.failureReason })
+  const failure = transferFailureMessage(outcome.failureReason)
+  return {
+    ok: false,
+    error: failure.message,
+    statusCode: 502,
+    paid: false,
+    setupRequired: failure.setupRequired,
+    payoutId: row.id,
+    idempotencyConsumed: true,
+  }
+}

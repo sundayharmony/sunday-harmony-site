@@ -20,9 +20,13 @@ import {
   normalizeReferralCode,
   referralCommissionCents,
   referralHoldDays,
+  executeManualReferralPayout,
+  payoutDestinationSetup,
   selectCreditReferralPayouts,
   shouldCreateCommission,
   type CommissionStatus,
+  type ManualPayoutLedgerRow,
+  type PayoutDestinationCheck,
 } from '@/lib/referrals'
 import { readReferralAttributionFromRequest, setReferralAttributionCookie } from '@/lib/referral-attribution'
 import {
@@ -32,6 +36,7 @@ import {
   getActiveCommissionForReferredClient,
   getCommissionByPaymentId,
   getPayoutById,
+  getPayoutByIdempotencyKey,
   getPayoutByProviderId,
   getReferralByApplicationId,
   getCommissionById,
@@ -509,6 +514,10 @@ async function dashboardRowsForProfile(profile: ReferralProfileRow, privacy: boo
       status: profile.status,
       payoutReady: profile.payout_ready,
       hasConnectAccount: Boolean(profile.stripe_connect_account_id),
+      payoutSetup: payoutDestinationSetup({
+        connectAccountId: profile.stripe_connect_account_id,
+        payoutReady: profile.payout_ready,
+      }),
     },
     summary: {
       clicks,
@@ -613,6 +622,11 @@ export async function getAdminReferralOverview() {
       link: publicReferralUrl(profile.referral_code),
       status: profile.status,
       payoutReady: profile.payout_ready,
+      hasConnectAccount: Boolean(profile.stripe_connect_account_id),
+      payoutSetup: payoutDestinationSetup({
+        connectAccountId: profile.stripe_connect_account_id,
+        payoutReady: profile.payout_ready,
+      }),
       clicks: profileClicks,
       submitted: referrals.length,
       paidApplicants: profilePaidApplicants,
@@ -869,6 +883,186 @@ export async function markReferralCommissionPaid(params: {
 
   const saved = await getPayoutById(payout.id)
   return { ok: true, paidAt: saved?.processed_at || new Date().toISOString() }
+}
+
+function ledgerRow(row: {
+  id: string
+  client_id: string
+  amount_cents: number
+  status: ManualPayoutLedgerRow['status']
+  provider_transaction_id: string | null
+}): ManualPayoutLedgerRow {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    amountCents: row.amount_cents,
+    status: row.status,
+    providerTransactionId: row.provider_transaction_id,
+  }
+}
+
+function stripeErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
+    return (err as { message: string }).message
+  }
+  if (err instanceof Error && err.message) return err.message
+  return 'Stripe transfer failed'
+}
+
+async function loadLivePayoutDestination(profile: ReferralProfileRow): Promise<PayoutDestinationCheck> {
+  if (!profile.stripe_connect_account_id) {
+    return { connectAccountId: null, payoutReady: false }
+  }
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) {
+    return {
+      connectAccountId: profile.stripe_connect_account_id,
+      payoutReady: false,
+      configurationError:
+        'Stripe is not configured on this site (missing STRIPE_SECRET_KEY). No payout was sent and the referrer was not marked paid.',
+    }
+  }
+  const account = await getStripe().accounts.retrieve(profile.stripe_connect_account_id)
+  const transfers = account.capabilities?.transfers
+  const externalCount = account.external_accounts?.data?.length
+  const payoutsEnabled = Boolean(account.payouts_enabled)
+  const detailsSubmitted = Boolean(account.details_submitted)
+  await updateReferralProfile(profile.id, { payout_ready: payoutsEnabled && detailsSubmitted })
+  return {
+    connectAccountId: profile.stripe_connect_account_id,
+    payoutReady: payoutsEnabled && detailsSubmitted,
+    payoutsEnabled,
+    detailsSubmitted,
+    transfersActive: transfers ? transfers === 'active' : undefined,
+    hasExternalAccount: externalCount == null ? undefined : externalCount > 0,
+  }
+}
+
+/** Admin sends one payout. The amount is entered on the referrals screen. Stripe must create the transfer before the referrer is marked paid. */
+export async function sendManualReferralPayout(params: {
+  clientId: string
+  actorEmail: string
+  amount: unknown
+  idempotencyKey: unknown
+}): Promise<
+  | {
+      ok: true
+      payoutId: string
+      amountCents: number
+      paid: true
+      status: 'paid'
+      stripeId: string
+      alreadySent: boolean
+      idempotencyConsumed: boolean
+    }
+  | { error: string; status: number; paid: false; setupRequired: boolean; idempotencyConsumed: boolean }
+> {
+  const profile = await getReferralProfileByClientId(params.clientId)
+  if (!profile?.client_id || profile.partner_profile_id) {
+    return {
+      error: 'No referral profile for this client.',
+      status: 404,
+      paid: false,
+      setupRequired: false,
+      idempotencyConsumed: false,
+    }
+  }
+
+  const result = await executeManualReferralPayout({
+    clientId: profile.client_id,
+    amountRaw: params.amount,
+    idempotencyKeyRaw: params.idempotencyKey,
+    loadExisting: async (key) => {
+      const existing = await getPayoutByIdempotencyKey(key)
+      return existing ? ledgerRow(existing) : null
+    },
+    loadDestination: async () => {
+      try {
+        return await loadLivePayoutDestination(profile)
+      } catch (err) {
+        return {
+          connectAccountId: profile.stripe_connect_account_id,
+          payoutReady: false,
+          configurationError: `${stripeErrorMessage(err)} No payout was recorded and the referrer was not marked paid.`,
+        }
+      }
+    },
+    insertProcessing: async (input) => {
+      const payout = await insertPayout({
+        client_id: profile.client_id as string,
+        referral_profile_id: profile.id,
+        amount_cents: input.amountCents,
+        payment_provider: 'stripe',
+        status: 'processing',
+        initiated_by_email: params.actorEmail,
+        provider_transaction_id: null,
+        idempotency_key: input.idempotencyKey,
+      })
+      return payout ? ledgerRow(payout) : null
+    },
+    createTransfer: async (input) => {
+      try {
+        const transfer = await getStripe().transfers.create(
+          {
+            amount: input.amountCents,
+            currency: 'usd',
+            destination: input.destination,
+            description: 'Sunday Harmony referral payout',
+            metadata: {
+              referral_payout_id: input.payoutId,
+              client_id: profile.client_id as string,
+            },
+          },
+          { idempotencyKey: input.idempotencyKey }
+        )
+        return { ok: true, stripeId: transfer.id || '' }
+      } catch (err) {
+        return { ok: false, reason: stripeErrorMessage(err) }
+      }
+    },
+    recordOutcome: async (payoutId, outcome) => {
+      if (outcome.status === 'paid') {
+        await completePayoutSuccess(payoutId, outcome.stripeId)
+        return
+      }
+      await failPayout(payoutId, outcome.reason)
+    },
+  })
+
+  if (!result.ok) {
+    return {
+      error: result.error,
+      status: result.statusCode,
+      paid: false,
+      setupRequired: result.setupRequired,
+      idempotencyConsumed: result.idempotencyConsumed,
+    }
+  }
+
+  if (!result.alreadySent) {
+    await insertReferralEvent({
+      referral_profile_id: profile.id,
+      event_type: 'payout_sent',
+      detail: `Stripe transfer ${result.stripeId} for ${params.actorEmail}`,
+    })
+    await logActivity({
+      action: 'updated',
+      entity_type: 'client',
+      entity_id: profile.client_id,
+      actor_email: params.actorEmail,
+      details: `Sent referral payout ${result.stripeId}`,
+    })
+  }
+
+  return {
+    ok: true,
+    payoutId: result.payoutId,
+    amountCents: result.amountCents,
+    paid: true,
+    status: 'paid',
+    stripeId: result.stripeId,
+    alreadySent: result.alreadySent,
+    idempotencyConsumed: result.idempotencyConsumed,
+  }
 }
 
 export async function initiateReferralPayout(params: {

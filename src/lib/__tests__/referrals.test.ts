@@ -13,6 +13,10 @@ import {
   normalizeReferralCode,
   buildCreditReferralPayoutSources,
   creditReferralStatusLabel,
+  executeManualReferralPayout,
+  parseManualPayoutAmount,
+  payoutDestinationSetup,
+  payoutStatusAfterTransfer,
   publicCommissionLabel,
   referralAttributionDays,
   referralCommissionCents,
@@ -344,7 +348,7 @@ describe('credit referral payout list', () => {
     const nav = readFileSync('src/lib/marketing-pipeline.ts', 'utf8')
     const markPaid = service.slice(
       service.indexOf('export async function markReferralCommissionPaid'),
-      service.indexOf('export async function initiateReferralPayout')
+      service.indexOf('function ledgerRow')
     )
     assert.match(route, /requireAdminSession/)
     assert.match(route, /action === 'mark_paid'/)
@@ -424,5 +428,190 @@ describe('referral system wiring', () => {
     const creditPage = readFileSync('src/app/credit/page.tsx', 'utf8')
     assert.doesNotMatch(creditPage, /CreditReadiness/)
     assert.match(creditPage, /CreditFundingForm/)
+  })
+})
+
+describe('manual referral payout send', () => {
+  const readyDestination = async () => ({
+    connectAccountId: 'acct_ready',
+    payoutReady: true,
+    payoutsEnabled: true,
+    detailsSubmitted: true,
+    transfersActive: true,
+    hasExternalAccount: true,
+  })
+
+  it('rejects a missing, zero, or imprecise amount and does not invent one', () => {
+    assert.equal(parseManualPayoutAmount('').ok, false)
+    assert.equal(parseManualPayoutAmount('   ').ok, false)
+    assert.equal(parseManualPayoutAmount(null).ok, false)
+    assert.equal(parseManualPayoutAmount(0).ok, false)
+    assert.equal(parseManualPayoutAmount('-10').ok, false)
+    assert.equal(parseManualPayoutAmount('50.555').ok, false)
+    assert.equal(parseManualPayoutAmount('10000.01').ok, false)
+    const fifty = parseManualPayoutAmount('50')
+    const cents = parseManualPayoutAmount('$1,250.25')
+    assert.equal(fifty.ok && fifty.amountCents, 5000)
+    assert.equal(cents.ok && cents.amountCents, 125025)
+    const missing = parseManualPayoutAmount(undefined)
+    assert.equal(missing.ok, false)
+    if (!missing.ok) assert.match(missing.error, /does not choose an amount/i)
+  })
+
+  it('names the missing payout setup and does not record a paid payout', async () => {
+    let inserted = false
+    let transferred = false
+    let recorded: string | null = null
+    const result = await executeManualReferralPayout({
+      clientId: 'client-1',
+      amountRaw: '50.00',
+      idempotencyKeyRaw: 'send-no-destination',
+      loadExisting: async () => null,
+      loadDestination: async () => ({ connectAccountId: null, payoutReady: false }),
+      insertProcessing: async () => {
+        inserted = true
+        return null
+      },
+      createTransfer: async () => {
+        transferred = true
+        return { ok: true, stripeId: 'tr_should_not_run' }
+      },
+      recordOutcome: async (_id, outcome) => {
+        recorded = outcome.status
+      },
+    })
+    assert.equal(result.ok, false)
+    if (result.ok) return
+    assert.equal(result.paid, false)
+    assert.equal(result.setupRequired, true)
+    assert.match(result.error, /Set up payouts/)
+    assert.match(result.error, /No payout was recorded/)
+    assert.equal(inserted, false)
+    assert.equal(transferred, false)
+    assert.equal(recorded, null)
+    assert.match(
+      payoutDestinationSetup({
+        connectAccountId: 'acct_1',
+        payoutReady: false,
+        payoutsEnabled: false,
+        hasExternalAccount: false,
+      }) || '',
+      /no bank account/i
+    )
+  })
+
+  it('does not mark the referrer paid when Stripe does not create a transfer', async () => {
+    const saved: { status?: string; stripeId?: string; reason?: string } = {}
+    const result = await executeManualReferralPayout({
+      clientId: 'client-1',
+      amountRaw: '25',
+      idempotencyKeyRaw: 'send-fails-once',
+      loadExisting: async () => null,
+      loadDestination: readyDestination,
+      insertProcessing: async () => ({
+        id: 'payout-1',
+        clientId: 'client-1',
+        amountCents: 2500,
+        status: 'processing',
+        providerTransactionId: null,
+      }),
+      createTransfer: async () => ({ ok: false, reason: 'Insufficient funds in Stripe balance.' }),
+      recordOutcome: async (_id, outcome) => {
+        if (outcome.status === 'paid') saved.stripeId = outcome.stripeId
+        saved.status = outcome.status
+        if (outcome.status === 'failed') saved.reason = outcome.reason
+      },
+    })
+    assert.equal(result.ok, false)
+    if (result.ok) return
+    assert.equal(result.paid, false)
+    assert.equal(saved.status, 'failed')
+    assert.equal(saved.stripeId, undefined)
+    assert.match(result.error, /not marked paid/i)
+    const missingId = payoutStatusAfterTransfer({ ok: true, stripeId: '' })
+    assert.equal(missingId.paid, false)
+    assert.equal(missingId.status, 'failed')
+  })
+
+  it('sends once for a double click and records the Stripe transfer id only after success', async () => {
+    const ledger = new Map<string, {
+      id: string
+      clientId: string
+      amountCents: number
+      status: 'processing' | 'paid' | 'failed'
+      providerTransactionId: string | null
+    }>()
+    let transfers = 0
+    const deps = {
+      clientId: 'client-1',
+      amountRaw: '50.00',
+      idempotencyKeyRaw: 'same-click-key',
+      loadExisting: async (key: string) => ledger.get(key) || null,
+      loadDestination: readyDestination,
+      insertProcessing: async (input: { amountCents: number; idempotencyKey: string }) => {
+        const current = ledger.get(input.idempotencyKey)
+        if (current) return current
+        const row = {
+          id: 'payout-1',
+          clientId: 'client-1',
+          amountCents: input.amountCents,
+          status: 'processing' as const,
+          providerTransactionId: null,
+        }
+        ledger.set(input.idempotencyKey, row)
+        return row
+      },
+      createTransfer: async () => {
+        transfers += 1
+        return { ok: true as const, stripeId: 'tr_referral123' }
+      },
+      recordOutcome: async (
+        payoutId: string,
+        outcome: { status: 'paid'; stripeId: string } | { status: 'failed'; reason: string }
+      ) => {
+        const row = [...ledger.values()].find((item) => item.id === payoutId)
+        if (!row) return
+        if (outcome.status === 'paid') {
+          row.status = 'paid'
+          row.providerTransactionId = outcome.stripeId
+        } else {
+          row.status = 'failed'
+        }
+      },
+    }
+    const first = await executeManualReferralPayout(deps)
+    const second = await executeManualReferralPayout(deps)
+    assert.equal(first.ok && first.paid && first.stripeId, 'tr_referral123')
+    assert.equal(first.ok && first.alreadySent, false)
+    assert.equal(second.ok && second.alreadySent, true)
+    assert.equal(second.ok && second.stripeId, 'tr_referral123')
+    assert.equal(transfers, 1)
+    assert.equal(ledger.get('same-click-key')?.status, 'paid')
+  })
+
+  it('keeps send payout admin-only and idempotent on the referrals screen', () => {
+    const route = readFileSync('src/app/api/admin/referrals/[clientId]/route.ts', 'utf8')
+    const service = readFileSync('src/lib/referral-service.ts', 'utf8')
+    const page = readFileSync('src/app/admin/referrals/page.tsx', 'utf8')
+    const form = readFileSync('src/components/admin/ReferrerPayoutForm.tsx', 'utf8')
+    const migration = readFileSync('supabase-migration-048-referral-payout-idempotency.sql', 'utf8')
+    const send = service.slice(
+      service.indexOf('export async function sendManualReferralPayout'),
+      service.indexOf('export async function initiateReferralPayout')
+    )
+    assert.match(route, /requireAdminSession/)
+    assert.match(route, /action === 'send_payout'/)
+    assert.match(send, /idempotencyKey: input\.idempotencyKey/)
+    assert.match(send, /transfers\.create/)
+    assert.match(send, /status: 'processing'/)
+    assert.match(send, /executeManualReferralPayout/)
+    assert.doesNotMatch(send, /payment_method_types/)
+    assert.match(page, /Send payout/)
+    assert.match(page, /Mark paid/)
+    assert.match(form, /Amount \(USD\)/)
+    assert.match(form, /Send payout/)
+    assert.doesNotMatch(form, /card number/i)
+    assert.match(migration, /idempotency_key/)
+    assert.match(migration, /idx_referral_payouts_idempotency_key/)
   })
 })

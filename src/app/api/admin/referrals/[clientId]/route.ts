@@ -9,7 +9,9 @@ import {
   getAdminReferralClient,
   initiateReferralPayout,
   markReferralCommissionPaid,
+  sendManualReferralPayout,
 } from '@/lib/referral-service'
+import { formatCommissionCents } from '@/lib/referrals'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -62,6 +64,32 @@ export async function POST(
       return NextResponse.json({
         ...result,
         message: result.alreadyPaid ? 'Already recorded as paid.' : 'Marked paid.',
+      })
+    }
+    if (action === 'send_payout') {
+      const result = await sendManualReferralPayout({
+        clientId,
+        actorEmail,
+        amount: body.amount,
+        idempotencyKey: body.idempotencyKey,
+      })
+      if ('error' in result) {
+        return NextResponse.json(
+          {
+            error: result.error,
+            paid: false,
+            setupRequired: result.setupRequired,
+            idempotencyConsumed: result.idempotencyConsumed,
+          },
+          { status: result.status }
+        )
+      }
+      const amountLabel = formatCommissionCents(result.amountCents)
+      return NextResponse.json({
+        ...result,
+        message: result.alreadySent
+          ? `This ${amountLabel} payout was already sent. Stripe was not charged again.`
+          : `Sent ${amountLabel} through Stripe.`,
       })
     }
     if (action === 'payout') {

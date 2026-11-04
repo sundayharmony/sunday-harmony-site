@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import ReferrerPayoutForm from '@/components/admin/ReferrerPayoutForm'
 import StatCard from '@/components/ui/StatCard'
 import { creditReferralStatusLabel, formatCommissionCents } from '@/lib/referrals'
 
@@ -12,6 +13,9 @@ type OverviewClient = {
   code: string
   status: string
   availableCents: number
+  payoutReady?: boolean
+  hasConnectAccount?: boolean
+  payoutSetup?: string | null
 }
 
 type CreditReferralRow = {
@@ -28,6 +32,16 @@ type CreditReferralRow = {
   commissionId: string | null
 }
 
+type PayoutHistoryRow = {
+  id: string
+  date: string
+  amountCents: number
+  status: string
+  paymentReference: string | null
+  failureReason: string | null
+  clientId: string
+}
+
 type OverviewPayload = {
   overview: {
     referralClients: number
@@ -41,6 +55,15 @@ type OverviewPayload = {
   }
   clients: OverviewClient[]
   creditReferrals?: CreditReferralRow[]
+  payouts?: PayoutHistoryRow[]
+}
+
+type ReferrerCard = {
+  clientId: string
+  name: string
+  email: string
+  code: string | null
+  payoutSetup: string | null
 }
 
 function formatPaidOn(iso: string): string {
@@ -55,6 +78,30 @@ function formatPaidOn(iso: string): string {
     minute: '2-digit',
   })
   return `Paid ${formatted} ET`
+}
+
+function referrerCards(data: OverviewPayload): ReferrerCard[] {
+  const clients = new Map(data.clients.map((client) => [client.clientId, client]))
+  const seen = new Set<string>()
+  const cards: ReferrerCard[] = []
+  for (const row of data.creditReferrals || []) {
+    if (!row.referrerClientId || seen.has(row.referrerClientId)) continue
+    seen.add(row.referrerClientId)
+    const client = clients.get(row.referrerClientId)
+    cards.push({
+      clientId: row.referrerClientId,
+      name: client?.name || row.referrerName,
+      email: client?.email || '',
+      code: client?.code || row.code,
+      payoutSetup: client?.payoutSetup || null,
+    })
+  }
+  cards.sort((a, b) => a.name.localeCompare(b.name) || a.clientId.localeCompare(b.clientId))
+  return cards
+}
+
+function latestPayout(payouts: PayoutHistoryRow[] | undefined, clientId: string): PayoutHistoryRow | null {
+  return (payouts || []).find((payout) => payout.clientId === clientId) || null
 }
 
 function payoutLine(row: CreditReferralRow): string {
@@ -85,6 +132,7 @@ export default function AdminReferralsPage() {
   }, [load])
 
   const rows = data?.creditReferrals || []
+  const referrers = useMemo(() => (data ? referrerCards(data) : []), [data])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return rows
@@ -125,7 +173,7 @@ export default function AdminReferralsPage() {
       <div className="mb-6">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Referrals</h1>
         <p className="text-sm text-brand-muted max-w-2xl">
-          Clients who referred someone to credit repair. Mark paid after you pay the referrer. This records the payout and the date. It does not send money.
+          Clients who referred someone to credit repair. Enter an amount and choose Send payout to pay that referrer through Stripe. Mark paid only records a payment you already made yourself. It does not send money.
         </p>
       </div>
 
@@ -138,6 +186,42 @@ export default function AdminReferralsPage() {
         <StatCard label="Outstanding" value={formatCommissionCents(data?.overview.outstandingCents || 0)} />
         <StatCard label="Commissions paid" value={formatCommissionCents(data?.overview.paidCents || 0)} />
       </div>
+
+      {referrers.length > 0 ? (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-bold text-brand-text">Send payout</h2>
+          <ul className="space-y-3">
+            {referrers.map((referrer) => {
+              const latest = latestPayout(data?.payouts, referrer.clientId)
+              return (
+                <li key={referrer.clientId} className="rounded-xl border border-brand-border bg-white p-4 sm:p-5">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-brand-text break-words">{referrer.name}</p>
+                    <p className="mt-0.5 text-sm text-brand-muted break-words">
+                      {referrer.email || 'No email'}
+                      {referrer.code ? ` · ${referrer.code}` : ''}
+                    </p>
+                    {latest ? (
+                      <p className="mt-2 text-sm text-brand-text break-words">
+                        Last payout: {latest.status === 'paid' ? 'Paid' : latest.status} {formatCommissionCents(latest.amountCents)}
+                        {latest.paymentReference ? ` · ${latest.paymentReference}` : ''}
+                        {latest.status !== 'paid' && latest.failureReason ? ` · ${latest.failureReason}` : ''}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-brand-dim">No Stripe payout sent yet.</p>
+                    )}
+                  </div>
+                  <ReferrerPayoutForm
+                    clientId={referrer.clientId}
+                    setupMessage={referrer.payoutSetup}
+                    onComplete={load}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {rows.length === 0 ? (
         <div className="bg-white border border-brand-border rounded-xl p-8 text-center">
