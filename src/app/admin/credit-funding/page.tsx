@@ -437,9 +437,30 @@ function CreditFundingAdminContent() {
       })
       if (!r.ok) throw new Error('Update failed')
       const updated = await r.json()
-      setSelected((prev) => (prev ? { ...prev, ...updated } : prev))
+      const specialistChanged = Object.prototype.hasOwnProperty.call(body, 'assigned_specialist')
+      const assignedExpertName = specialistChanged
+        ? experts.find((expert) => expert.id === String(body.assigned_specialist || ''))?.name || ''
+        : undefined
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...updated,
+              ...(specialistChanged ? { assigned_expert_name: assignedExpertName } : {}),
+            }
+          : prev
+      )
       setApplications((prev) =>
-        prev.map((a) => (a.id === selected.id ? { ...a, ...updated, status: updated.status } : a))
+        prev.map((a) =>
+          a.id === selected.id
+            ? {
+                ...a,
+                ...updated,
+                status: updated.status,
+                ...(specialistChanged ? { assigned_expert_name: assignedExpertName } : {}),
+              }
+            : a
+        )
       )
       await loadDetail(selected.id)
     } catch {
@@ -886,6 +907,14 @@ function CreditFundingAdminContent() {
     ? editFields.assigned_specialist
     : ''
 
+  const sendAssignment = () => {
+    const untouchedLegacy =
+      editFields.assigned_specialist !== '' && selectedExpertId === ''
+    if (isAdmin && expertsLoaded && !untouchedLegacy) {
+      void patchApplication({ assigned_specialist: selectedExpertId })
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -1194,8 +1223,8 @@ function CreditFundingAdminContent() {
             <p className="text-sm text-brand-dim">Loading details…</p>
           ) : (
             <div>
-              <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                <div className="flex items-start gap-3 min-w-0">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
                   {listPanelOpen && (
                     <button
                       type="button"
@@ -1232,16 +1261,52 @@ function CreditFundingAdminContent() {
                   )}
                   </div>
                 </div>
-                {isAdmin && (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={deleteApplication}
-                  className="shrink-0 px-3 py-1.5 text-xs font-semibold text-brand-red border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
-                >
-                  Delete application
-                </button>
-                )}
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+                  <div className="w-full sm:w-64">
+                    <label htmlFor="credit-expert" className="mb-1 block text-xs font-semibold text-brand-dim">
+                      Credit expert
+                    </label>
+                    {isAdmin ? (
+                      <select
+                        id="credit-expert"
+                        className={inputClass}
+                        value={selectedExpertId}
+                        onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))}
+                      >
+                        <option value="">Unassigned</option>
+                        {experts.map((expert) => (
+                          <option key={expert.id} value={expert.id}>
+                            {expert.name || expert.email}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p id="credit-expert" className="w-full rounded-xl bg-accent-soft px-3 py-2 text-sm text-brand-text">
+                        {selected.assigned_expert_name?.trim() || 'Assigned to you'}
+                      </p>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={saving || !expertsLoaded}
+                      onClick={sendAssignment}
+                      className="w-full shrink-0 rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
+                    >
+                      Assign
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={deleteApplication}
+                      className="w-full shrink-0 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-brand-red hover:bg-red-50 disabled:opacity-50 sm:w-auto"
+                    >
+                      Delete application
+                    </button>
+                  )}
+                </div>
               </div>
 
               {selected.status === 'invitation_pending' ? (
@@ -1400,28 +1465,6 @@ function CreditFundingAdminContent() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                     <div className="sm:col-span-2">
-                      <label htmlFor="credit-expert" className="text-xs font-semibold text-brand-dim">Credit expert</label>
-                      {isAdmin ? (
-                        <select
-                          id="credit-expert"
-                          className={inputClass}
-                          value={selectedExpertId}
-                          onChange={(e) => setEditFields((f) => ({ ...f, assigned_specialist: e.target.value }))}
-                        >
-                          <option value="">Unassigned</option>
-                          {experts.map((expert) => (
-                            <option key={expert.id} value={expert.id}>
-                              {expert.name || expert.email}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <p id="credit-expert" className="rounded-xl bg-accent-soft px-3 py-2 text-sm text-brand-text">
-                          {selected.assigned_expert_name?.trim() || 'Unassigned'}
-                        </p>
-                      )}
-                    </div>
-                    <div className="sm:col-span-2">
                       <label className="text-xs font-semibold text-brand-dim">Internal Notes (staff only)</label>
                       <textarea className={`${inputClass} min-h-[80px]`} value={editFields.internal_notes}
                         onChange={(e) => setEditFields((f) => ({ ...f, internal_notes: e.target.value }))} />
@@ -1450,21 +1493,16 @@ function CreditFundingAdminContent() {
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => {
-                      const untouchedLegacy =
-                        editFields.assigned_specialist !== '' && selectedExpertId === ''
+                    onClick={() =>
                       patchApplication({
-                        ...(isAdmin && expertsLoaded && !untouchedLegacy
-                          ? { assigned_specialist: selectedExpertId }
-                          : {}),
                         internal_notes: editFields.internal_notes,
                         client_notes: editFields.client_notes,
                         next_steps: editFields.next_steps,
                       })
-                    }}
+                    }
                     className="mb-5 w-full rounded-xl bg-brand-text px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto"
                   >
-                    {isAdmin ? 'Save notes and assignment' : 'Save notes'}
+                    Save notes
                   </button>
 
                   {!showDocRequestPanel && (
