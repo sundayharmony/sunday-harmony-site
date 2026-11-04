@@ -253,7 +253,10 @@ def _compact_blocks(blocks: list[dict]) -> list[dict]:
 
 
 def _mark_signature_block(blocks: list[dict]) -> list[dict]:
-    """Mark the first name line after Respectfully/Sincerely as a cursive signature."""
+    """Mark the first name after Respectfully/Sincerely as the sign-off row.
+
+    That row keeps the typed name on the left and a cursive signature on the right.
+    """
     awaiting = False
     for block in blocks:
         if block.get("kind") != "line":
@@ -273,6 +276,25 @@ def _mark_signature_block(blocks: list[dict]) -> list[dict]:
         block["variant"] = "signature"
         awaiting = False
     return blocks
+
+
+def _signature_image_html(name: str) -> str | None:
+    png = None
+    try:
+        from app.services.letter_signature import render_signature_png
+
+        png = render_signature_png(name)
+    except Exception:
+        png = None
+    if not png:
+        return None
+    import base64
+
+    b64 = base64.b64encode(png).decode("ascii")
+    return (
+        f'<img class="letter-signature-img" alt="{html.escape(name)}" '
+        f'src="data:image/png;base64,{b64}" />'
+    )
 
 
 def letter_layout(text: str) -> dict:
@@ -366,24 +388,16 @@ def letter_to_html(text: str) -> str:
         elif variant == "closing":
             classes.append("letter-closing")
         elif variant == "signature":
-            classes.append("letter-signature")
-            png = None
-            try:
-                from app.services.letter_signature import render_signature_png
-
-                png = render_signature_png(block["text"])
-            except Exception:
-                png = None
-            if png:
-                import base64
-
-                b64 = base64.b64encode(png).decode("ascii")
-                parts.append(
-                    f'<p class="{" ".join(classes)}">'
-                    f'<img class="letter-signature-img" alt="{html.escape(block["text"])}" '
-                    f'src="data:image/png;base64,{b64}" /></p>'
-                )
-                continue
+            # Typed name on the left, cursive signature on the right side of the page.
+            sig_img = _signature_image_html(block["text"])
+            sig_inner = sig_img or f'<span class="letter-signature-fallback">{inner}</span>'
+            parts.append(
+                '<div class="letter-signoff-row">'
+                f'<p class="letter-line letter-signatory-name">{inner}</p>'
+                f'<div class="letter-signature">{sig_inner}</div>'
+                "</div>"
+            )
+            continue
         elif variant == "field":
             classes.append("letter-field")
         elif variant == "tight":
@@ -407,6 +421,71 @@ def _add_runs(para, line: str, *, bold_all: bool = False) -> None:
                 run.bold = True
 
 
+def _add_signature_row(document, name: str):
+    """Typed name on the left, cursive signature image on the right side of the page."""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Inches, Pt
+
+    table = document.add_table(rows=1, cols=2)
+    table.autofit = False
+    tbl = table._tbl
+    tbl_pr = tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = OxmlElement(f"w:{edge}")
+        el.set(qn("w:val"), "nil")
+        borders.append(el)
+    tbl_pr.append(borders)
+
+    left, right = table.rows[0].cells
+    left.width = Inches(3.0)
+    right.width = Inches(3.5)
+    _set_cell_borders_nil(left)
+    _set_cell_borders_nil(right)
+
+    for cell, width_dxa in ((left, 4320), (right, 5040)):
+        tc_pr = cell._tc.get_or_add_tcPr()
+        tc_w = OxmlElement("w:tcW")
+        tc_w.set(qn("w:w"), str(width_dxa))
+        tc_w.set(qn("w:type"), "dxa")
+        tc_pr.append(tc_w)
+
+    lp = left.paragraphs[0]
+    lp.paragraph_format.space_before = Pt(0)
+    lp.paragraph_format.space_after = Pt(4)
+    lp.paragraph_format.line_spacing = 1.0
+    lp.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    lp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    name_run = lp.add_run(name)
+    _set_run_font(name_run, size_pt=12)
+
+    rp = right.paragraphs[0]
+    rp.paragraph_format.space_before = Pt(0)
+    rp.paragraph_format.space_after = Pt(4)
+    rp.paragraph_format.line_spacing = 1.0
+    rp.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    rp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+
+    png = None
+    try:
+        from app.services.letter_signature import render_signature_png
+
+        png = render_signature_png(name)
+    except Exception:
+        png = None
+    if png:
+        run = rp.add_run()
+        stream = BytesIO(png)
+        run.add_picture(stream, width=Inches(min(3.2, max(1.6, 0.2 * max(len(name), 8)))))
+    else:
+        run = rp.add_run(name)
+        run.italic = True
+        _set_run_font(run, size_pt=18)
+    return table
+
+
 def _add_rich_paragraph(
     document,
     line: str,
@@ -417,7 +496,6 @@ def _add_rich_paragraph(
     field_line: bool = False,
     tight: bool = False,
     closing: bool = False,
-    signature: bool = False,
 ):
     from docx.enum.text import WD_LINE_SPACING
     from docx.shared import Inches, Pt
@@ -430,9 +508,7 @@ def _add_rich_paragraph(
     if heading:
         fmt.space_after = Pt(4)
     elif closing:
-        fmt.space_after = Pt(10)
-    elif signature:
-        fmt.space_after = Pt(4)
+        fmt.space_after = Pt(8)
     elif name_line or field_line or tight:
         fmt.space_after = Pt(0)
     else:
@@ -440,26 +516,6 @@ def _add_rich_paragraph(
 
     if indent_level:
         fmt.left_indent = Inches(0.35 * indent_level)
-
-    if signature:
-        png = None
-        try:
-            from app.services.letter_signature import render_signature_png
-
-            png = render_signature_png(line)
-        except Exception:
-            png = None
-        if png:
-            run = para.add_run()
-            stream = BytesIO(png)
-            # Keep signature readable but not oversized on the page.
-            run.add_picture(stream, width=Inches(min(3.6, max(1.8, 0.22 * max(len(line), 8)))))
-            return para
-        # Fallback: italic Times if image rendering is unavailable.
-        run = para.add_run(line)
-        run.italic = True
-        _set_run_font(run, size_pt=18)
-        return para
 
     _add_runs(para, line, bold_all=heading or name_line)
     return para
@@ -792,6 +848,9 @@ def letter_to_docx(text: str, enclosure_files: list[tuple[str, bytes]] | None = 
             _add_bullet_paragraph(document, block["text"])
             continue
         variant = block.get("variant") or "body"
+        if variant == "signature":
+            _add_signature_row(document, block["text"])
+            continue
         _add_rich_paragraph(
             document,
             block["text"],
@@ -801,7 +860,6 @@ def letter_to_docx(text: str, enclosure_files: list[tuple[str, bytes]] | None = 
             field_line=variant == "field",
             tight=variant == "tight",
             closing=variant == "closing",
-            signature=variant == "signature",
         )
 
     if files:

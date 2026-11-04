@@ -43,10 +43,7 @@ function lineClassName(block: Extract<LetterPreviewBlock, { kind: 'line' }>) {
   if (block.variant === 'heading') classes.push('letter-heading')
   else if (block.variant === 'name') classes.push('letter-name')
   else if (block.variant === 'closing') classes.push('letter-closing')
-  else if (block.variant === 'signature') {
-    classes.push('letter-signature')
-    classes.push(signatureFont.className)
-  } else if (block.variant === 'field') classes.push('letter-field')
+  else if (block.variant === 'field') classes.push('letter-field')
   else if (block.variant === 'tight') classes.push('letter-tight')
   return classes.join(' ')
 }
@@ -73,6 +70,16 @@ function LetterPreview({ layout, fallbackText }: { layout?: LetterPreviewLayout;
               <p key={i} className="letter-line letter-bullet">
                 ● {renderInlineMarkup(block.text)}
               </p>
+            )
+          }
+          if (block.variant === 'signature') {
+            return (
+              <div key={i} className="letter-signoff-row">
+                <p className="letter-line letter-signatory-name">{renderInlineMarkup(block.text)}</p>
+                <p className={`letter-line letter-signature ${signatureFont.className}`}>
+                  {renderInlineMarkup(block.text)}
+                </p>
+              </div>
             )
           }
           return (

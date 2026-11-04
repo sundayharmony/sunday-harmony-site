@@ -148,5 +148,10 @@ def test_docx_embeds_cursive_signature_image():
     assert len(document.inline_shapes) >= 1
     texts = [p.text for p in document.paragraphs]
     assert "Respectfully," in texts
-    # Signature is an image run; the typed name should not appear as body text.
-    assert "Jane Consumer" not in texts
+    # Typed name stays on the left; cursive image sits in the right cell.
+    assert any(table.rows[0].cells[0].text == "Jane Consumer" for table in document.tables)
+    html = letter_to_html(sample)
+    assert "letter-signoff-row" in html
+    assert "letter-signatory-name" in html
+    assert "letter-signature" in html
+    assert "Jane Consumer" in html

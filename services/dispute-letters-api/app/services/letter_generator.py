@@ -200,8 +200,8 @@ Basis of Dispute:
     Lead with deletion: for each disputed tradeline, especially closed, paid, collection, or otherwise obsolete negatives, delete the account if it cannot be verified as accurate and complete. Only alternatively correct inaccurate fields (status, balance, past-due, payment history, delinquency ratings). Ask that written results be mailed to the address above.
 
 13) Closing paragraph thanking them and expecting FCRA compliance.
-14) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS). That printed name is rendered as a cursive signature in the final .docx / preview — keep it as plain text only (do not draw ASCII art).
-15) After the signature name, section heading: Enclosures
+14) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS). Keep that printed name as plain text only. The formatter places a cursive signature of the same name on the right side of the page next to it — do not draw ASCII art.
+15) After the sign-off name, section heading: Enclosures
     Then always include both bullets (the mailing packet attaches these copies):
     ● Copy of government-issued photo identification
     ● Proof of current residential address
