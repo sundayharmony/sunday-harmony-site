@@ -6,7 +6,7 @@ import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@
 import {
   confirmLetterPackageSent,
   disputeLetterDownloadUrl,
-  disputeLettersZipUrl,
+  downloadDisputeLettersZip,
   fetchDisputeLetters,
   fetchLetterGenerateStatus,
   fetchLetterPackageForSession,
@@ -119,23 +119,7 @@ export default function DisputeLettersResultStep({
     setBusy('zip')
     setError('')
     try {
-      const res = await fetch(disputeLettersZipUrl(sessionId))
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(typeof body.error === 'string' ? body.error : 'ZIP download failed')
-      }
-      const blob = await res.blob()
-      const header = res.headers.get('content-disposition') || ''
-      const matched = /filename="([^"]+)"/i.exec(header)
-      const filename = matched?.[1] || 'Dispute Letters.zip'
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      await downloadDisputeLettersZip(sessionId)
       await refreshPackage()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ZIP download failed')
@@ -231,7 +215,11 @@ export default function DisputeLettersResultStep({
               onClick={() => void downloadZip()}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {busy === 'zip' ? 'Downloading…' : downloaded ? 'Download again' : 'Download all (ZIP)'}
+              {busy === 'zip'
+                ? 'Building ZIP…'
+                : downloaded
+                  ? 'Download again'
+                  : 'Download all (ZIP)'}
             </button>
           )}
           {letters.length > 0 && !allSent && (

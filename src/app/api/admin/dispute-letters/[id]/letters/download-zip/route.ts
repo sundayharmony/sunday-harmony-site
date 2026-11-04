@@ -11,14 +11,15 @@ import {
 } from '@/lib/dispute-letters-storage'
 import {
   buildLetterZipFiles,
-  fetchLetterDocxWithEnclosures,
+  fetchLetterDocxFilesForZip,
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
 import { zipFiles } from '@/lib/dispute-letters/letter-zip'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+/** Parallel letter builds still need headroom for cold starts + enclosure merge. */
+export const maxDuration = 120
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -44,16 +45,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 
     const row = access.session
     const attachments = await loadLetterIdentityAttachments(row.application_uuid)
-
-    const letterFiles: { title: string; data: Uint8Array }[] = []
-    for (const letter of letters) {
-      const data = await fetchLetterDocxWithEnclosures(id, letter.id, attachments)
-      letterFiles.push({
-        title: letter.title || letter.id,
-        data,
-      })
-    }
-
+    const letterFiles = await fetchLetterDocxFilesForZip(id, letters, attachments)
     const files = buildLetterZipFiles(letterFiles)
 
     let round = (await getRoundNumberForSession(id)) || 0

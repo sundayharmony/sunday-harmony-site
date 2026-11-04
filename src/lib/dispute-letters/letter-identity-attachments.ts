@@ -1,6 +1,7 @@
 import { getDocumentsByApplicationUuid } from '@/lib/credit-funding-db'
 import { downloadCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { disputeLettersFetch, disputeLettersFetchForm } from '@/lib/dispute-letters/api-client'
+import { mapWithConcurrency, withRetries } from '@/lib/dispute-letters/async-pool'
 import { isDocxBytes, uniqueDocxFilename, uniqueZipFilename } from '@/lib/dispute-letters/letter-zip'
 
 export type LetterIdentityDoc = {
@@ -25,6 +26,9 @@ export type LetterPacketAttachment = {
 
 const PHOTO_ID_STEM = 'Government Photo ID'
 const ADDRESS_STEM = 'Proof of Address'
+
+/** Concurrent letter DOCX builds against the Python API (ZIP package). */
+export const LETTER_DOCX_FETCH_CONCURRENCY = 4
 
 function isUsableIdentityDoc(doc: LetterIdentityDoc): boolean {
   return doc.scan_status !== 'rejected' && Boolean(doc.storage_path)
@@ -104,48 +108,52 @@ export async function loadLetterIdentityAttachments(
   try {
     const docs = await getDocumentsByApplicationUuid(applicationUuid)
     const named = namedLetterIdentityAttachments(docs)
-    const files: LetterPacketAttachment[] = []
-
-    for (const { doc, zipName, mimeType } of named) {
-      const downloaded = await downloadCreditFundingDocument(doc.storage_path)
-      if (!downloaded.ok) {
-        console.error('Letter identity attachment skipped:', doc.id, downloaded.error)
-        continue
+    const downloaded = await mapWithConcurrency(named, 4, async ({ doc, zipName, mimeType }) => {
+      const result = await downloadCreditFundingDocument(doc.storage_path)
+      if (!result.ok) {
+        console.error('Letter identity attachment skipped:', doc.id, result.error)
+        return null as LetterPacketAttachment | null
       }
-      files.push({ zipName, data: downloaded.data, mimeType })
-    }
-
-    return files
+      const file: LetterPacketAttachment = { zipName, data: result.data, mimeType }
+      return file
+    })
+    return downloaded.filter((row): row is LetterPacketAttachment => row !== null)
   } catch (err) {
     console.error('Letter identity attachments failed:', err)
     return []
   }
 }
 
-export async function fetchLetterDocxWithEnclosures(
+async function fetchEnclosedLetterDocx(
   sessionId: string,
   letterId: string,
   attachments: LetterPacketAttachment[]
 ): Promise<Uint8Array> {
-  if (attachments.length) {
-    const form = new FormData()
-    for (const attachment of attachments) {
-      const blob = new Blob([Buffer.from(attachment.data)], {
-        type: attachment.mimeType || 'application/octet-stream',
-      })
-      form.append('enclosures', blob, attachment.zipName)
-    }
-    const posted = await disputeLettersFetchForm(
-      `/internal/letters/${sessionId}/${letterId}/download?format=docx`,
-      form
-    )
-    if (posted.ok) {
-      const data = new Uint8Array(await posted.arrayBuffer())
-      if (isDocxBytes(data)) return data
-    }
+  const form = new FormData()
+  for (const attachment of attachments) {
+    const blob = new Blob([Buffer.from(attachment.data)], {
+      type: attachment.mimeType || 'application/octet-stream',
+    })
+    form.append('enclosures', blob, attachment.zipName)
   }
+  const posted = await disputeLettersFetchForm(
+    `/internal/letters/${sessionId}/${letterId}/download?format=docx`,
+    form
+  )
+  if (!posted.ok) {
+    throw new Error(`Enclosure merge failed (HTTP ${posted.status})`)
+  }
+  const data = new Uint8Array(await posted.arrayBuffer())
+  if (!isDocxBytes(data)) {
+    throw new Error('Enclosure merge returned a non-DOCX payload')
+  }
+  return data
+}
 
-  const res = await disputeLettersFetch(`/internal/letters/${sessionId}/${letterId}/download?format=docx`)
+async function fetchPlainLetterDocx(sessionId: string, letterId: string): Promise<Uint8Array> {
+  const res = await disputeLettersFetch(
+    `/internal/letters/${sessionId}/${letterId}/download?format=docx`
+  )
   if (!res.ok) {
     const text = await res.text()
     throw new Error(text || 'DOCX download failed')
@@ -155,4 +163,53 @@ export async function fetchLetterDocxWithEnclosures(
     throw new Error('Letter download was not a Word document. Redeploy the dispute-letters API.')
   }
   return data
+}
+
+/**
+ * Download letter DOCX, optionally merging identity enclosures via the Python API.
+ * Retries transient upstream failures; falls back to plain DOCX if enclosure merge fails.
+ */
+export async function fetchLetterDocxWithEnclosures(
+  sessionId: string,
+  letterId: string,
+  attachments: LetterPacketAttachment[]
+): Promise<Uint8Array> {
+  if (attachments.length) {
+    try {
+      return await withRetries(
+        () => fetchEnclosedLetterDocx(sessionId, letterId, attachments),
+        3,
+        400
+      )
+    } catch (error) {
+      console.warn(
+        '[letter-identity] enclosure merge failed after retries; falling back to plain DOCX',
+        letterId,
+        error instanceof Error ? error.message : error
+      )
+    }
+  }
+
+  return withRetries(() => fetchPlainLetterDocx(sessionId, letterId), 3, 400)
+}
+
+/** Build DOCX letter files for a ZIP in parallel (bounded concurrency). */
+export async function fetchLetterDocxFilesForZip(
+  sessionId: string,
+  letters: { id: string; title?: string }[],
+  attachments: LetterPacketAttachment[]
+): Promise<{ title: string; data: Uint8Array }[]> {
+  return mapWithConcurrency(letters, LETTER_DOCX_FETCH_CONCURRENCY, async (letter) => {
+    try {
+      const data = await fetchLetterDocxWithEnclosures(sessionId, letter.id, attachments)
+      return {
+        title: letter.title || letter.id,
+        data,
+      }
+    } catch (error) {
+      const label = letter.title || letter.id
+      const detail = error instanceof Error ? error.message : 'download failed'
+      throw new Error(`Letter "${label}" failed to download: ${detail}`)
+    }
+  })
 }

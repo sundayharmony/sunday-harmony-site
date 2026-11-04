@@ -377,3 +377,46 @@ export function disputeLetterDownloadUrl(sessionId: string, letterId: string, fo
 export function disputeLettersZipUrl(sessionId: string) {
   return `/api/admin/dispute-letters/${sessionId}/letters/download-zip`
 }
+
+/** Client timeout for ZIP builds (server maxDuration is 120s). */
+export const DISPUTE_LETTERS_ZIP_CLIENT_TIMEOUT_MS = 110_000
+
+/**
+ * Fetch the letter package ZIP and trigger a browser download.
+ * Uses an AbortController so hung upstream builds surface a clear error instead of hanging forever.
+ */
+export async function downloadDisputeLettersZip(sessionId: string): Promise<void> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DISPUTE_LETTERS_ZIP_CLIENT_TIMEOUT_MS)
+  try {
+    const res = await fetch(disputeLettersZipUrl(sessionId), { signal: controller.signal })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(typeof body.error === 'string' ? body.error : 'ZIP download failed')
+    }
+    const blob = await res.blob()
+    if (!blob.size) {
+      throw new Error('ZIP download was empty. Try again in a moment.')
+    }
+    const header = res.headers.get('content-disposition') || ''
+    const matched = /filename="([^"]+)"/i.exec(header)
+    const filename = matched?.[1] || 'Dispute Letters.zip'
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(
+        'ZIP download timed out. The letter service may be slow — wait a few seconds and try again.'
+      )
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+}
