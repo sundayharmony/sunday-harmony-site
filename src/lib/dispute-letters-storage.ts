@@ -211,7 +211,45 @@ export async function removeDisputeReportObject(storagePath: string): Promise<vo
   if (error) console.error('Dispute report remove error:', error)
 }
 
-/** Remove report + letter objects under sessions/{sessionId}/. Best-effort. */
+/** Object path for a prebuilt letter-package ZIP in the dispute-letters bucket. */
+export function buildLetterPackageZipObjectPath(sessionId: string, packageId: string, version = 1): string {
+  const safePackage = sanitizeDisputeFileName(packageId)
+  const n = Number.isFinite(version) && version > 0 ? Math.floor(version) : 1
+  return `sessions/${sessionId}/packages/${safePackage}-v${n}.zip`
+}
+
+export function isValidLetterPackageZipStoragePath(storagePath: string, sessionId: string): boolean {
+  return (
+    /^[0-9a-f-]{36}$/i.test(sessionId) &&
+    hasSafeStoragePathSegments(storagePath) &&
+    storagePath.startsWith(`sessions/${sessionId}/packages/`) &&
+    storagePath.toLowerCase().endsWith('.zip') &&
+    storagePath.split('/').length === 4
+  )
+}
+
+export async function uploadLetterPackageZipBytes(params: {
+  storagePath: string
+  bytes: Buffer | Uint8Array
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!params.storagePath || !hasSafeStoragePathSegments(params.storagePath)) {
+    return { ok: false, error: 'Invalid ZIP storage path' }
+  }
+  const body = Buffer.isBuffer(params.bytes) ? params.bytes : Buffer.from(params.bytes)
+  if (!body.length) return { ok: false, error: 'Empty ZIP payload' }
+
+  const { error } = await getSupabase().storage.from(DISPUTE_LETTERS_BUCKET).upload(params.storagePath, body, {
+    contentType: 'application/zip',
+    upsert: true,
+  })
+  if (error) {
+    console.error('Letter package ZIP upload error:', error)
+    return { ok: false, error: error.message || 'ZIP upload failed' }
+  }
+  return { ok: true }
+}
+
+/** Remove report + letter + package ZIP objects under sessions/{sessionId}/. Best-effort. */
 export async function removeDisputeSessionStorage(sessionId: string, storagePath?: string | null): Promise<void> {
   if (!sessionId || !/^[0-9a-f-]{36}$/i.test(sessionId)) return
 
@@ -219,7 +257,11 @@ export async function removeDisputeSessionStorage(sessionId: string, storagePath
   const paths = new Set<string>()
   if (storagePath) paths.add(storagePath)
 
-  for (const folder of [`sessions/${sessionId}/report`, `sessions/${sessionId}/letters`]) {
+  for (const folder of [
+    `sessions/${sessionId}/report`,
+    `sessions/${sessionId}/letters`,
+    `sessions/${sessionId}/packages`,
+  ]) {
     const { data, error } = await client.list(folder, { limit: 100 })
     if (error) {
       console.error('Dispute session storage list error:', folder, error)
