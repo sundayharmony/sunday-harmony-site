@@ -5,11 +5,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
-<<<<<<< HEAD
-import NotificationBell from '@/components/ui/NotificationBell'
-=======
 import { useAdminLiveMessageAlerts } from '@/components/admin/AdminLiveMessageAlerts'
->>>>>>> cursor/messages-unread-badge-toast-30a6
+import NotificationBell from '@/components/ui/NotificationBell'
 import { homeForRole, navForRole } from '@/lib/marketing-pipeline'
 
 interface AdminSidebarProps {
