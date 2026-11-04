@@ -7,19 +7,20 @@ function source(path: string): string {
 }
 
 describe('Admin intake edit on submitted applications', () => {
-  it('exposes admin-only intake GET/PATCH and keeps staff draft path separate', () => {
+  it('lets admins and credit experts edit submitted intake via staff session', () => {
     const intakeRoute = source('src/app/api/admin/credit-funding/[id]/intake/route.ts')
     const draftIdRoute = source('src/app/api/admin/credit-funding/drafts/[id]/route.ts')
     const db = source('src/lib/credit-funding-db.ts')
     const editor = source('src/components/credit-funding/StaffDraftEditor.tsx')
     const adminPage = source('src/app/admin/credit-funding/page.tsx')
 
-    assert.match(intakeRoute, /requireAdminSession/)
-    assert.doesNotMatch(intakeRoute, /requireCreditFundingStaffSession/)
+    assert.match(intakeRoute, /requireCreditFundingStaffSession/)
+    assert.doesNotMatch(intakeRoute, /requireAdminSession/)
+    assert.match(intakeRoute, /creditApplicationAccessDenied/)
     assert.match(intakeRoute, /updateSubmittedApplicationIntake/)
     assert.match(intakeRoute, /formatDraftForStaffEditor/)
     assert.match(intakeRoute, /mergeIntakePayloadWithExistingSecrets/)
-    assert.match(intakeRoute, /Admin corrected intake fields/)
+    assert.match(intakeRoute, /Staff corrected intake fields/)
     assert.match(intakeRoute, /rateLimitDurable\(`cf-admin-intake-save/)
     assert.match(intakeRoute, /isUuid/)
     assert.doesNotMatch(intakeRoute, /decryptApplicationSensitiveFields/)
@@ -31,9 +32,11 @@ describe('Admin intake edit on submitted applications', () => {
     assert.match(editor, /admin-intake/)
     assert.match(editor, /Save Intake Corrections/)
     assert.match(editor, /\/api\/admin\/credit-funding\/\$\{currentId\}\/intake/)
+    assert.match(editor, /Correct submitted intake answers/)
 
     assert.match(adminPage, /Edit intake/)
     assert.match(adminPage, /openAdminIntakeEditor/)
+    assert.match(adminPage, /\(isAdmin \|\| isCreditExpert\) && selected\.status !== 'draft'/)
     assert.match(adminPage, /mode=\{draftEditorMode\}/)
     assert.match(adminPage, /setIsAdmin\(data\?\.user\?\.role === 'admin'\)/)
   })

@@ -13,9 +13,11 @@ import {
   encryptFreeTextForDb,
 } from '../credit-funding-sensitive-fields'
 import {
+  applicationHasSensitiveField,
   formatApplicationForAdmin,
   formatApplicationListItemForAdmin,
   revealApplicationSensitiveField,
+  revealApplicationSensitiveFieldResult,
 } from '../credit-funding-admin'
 import type { CreditFundingApplication } from '../credit-funding-types'
 
@@ -157,6 +159,14 @@ describe('credit-funding encryption hardening', () => {
     assert.equal(revealApplicationSensitiveField(app, 'experian_pin'), '1234')
     assert.equal(revealApplicationSensitiveField(app, 'monthly_gross_income'), '9000')
     assert.equal(revealApplicationSensitiveField(app, 'business_ein'), '987654321')
+    assert.equal(applicationHasSensitiveField(app, 'ssn'), true)
+    assert.deepEqual(revealApplicationSensitiveFieldResult(app, 'ssn'), {
+      ok: true,
+      value: '123456789',
+    })
+    const empty = { ...app, ssn_encrypted: undefined }
+    assert.equal(applicationHasSensitiveField(empty, 'ssn'), false)
+    assert.equal(revealApplicationSensitiveFieldResult(empty, 'ssn').ok, false)
   })
 
   it('formats admin list items without secret fields', () => {

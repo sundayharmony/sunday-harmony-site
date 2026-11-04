@@ -446,7 +446,7 @@ export default function StaffDraftEditor({
           </h2>
           <p className="text-sm text-brand-muted mt-1">
             {isAdminIntake
-              ? 'Admin-only corrections to submitted intake answers. Sensitive values already on file stay unless you replace them.'
+              ? 'Correct submitted intake answers. Sensitive values already on file stay unless you replace them.'
               : 'Save incomplete applications and return later. Finalize when ready, or email the client to finish.'}
           </p>
           {applicationId && (

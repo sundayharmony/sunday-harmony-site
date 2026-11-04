@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
 import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
-import { requireAdminSession } from '@/lib/stripe-admin-auth'
+import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   getCreditFundingApplicationById,
   updateSubmittedApplicationIntake,
@@ -51,10 +51,10 @@ function intakeJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: NO_STORE })
 }
 
-/** Admin-only: load intake editor payload for a submitted (non-draft) application. */
+/** Staff (admin or assigned credit expert): load intake editor for a submitted application. */
 export async function GET(req: NextRequest, { params }: Params) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const { id } = await params
@@ -79,10 +79,10 @@ export async function GET(req: NextRequest, { params }: Params) {
   }
 }
 
-/** Admin-only: correct intake fields on a submitted application. */
+/** Staff (admin or assigned credit expert): correct intake fields on a submitted application. */
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const session = await requireAdminSession()
+    const session = await requireCreditFundingStaffSession()
     if (session instanceof NextResponse) return session
 
     const staffEmail = session.user.email || 'admin'
@@ -124,7 +124,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       entity_type: 'credit_funding_application',
       entity_id: updated.id,
       actor_email: staffEmail,
-      details: `Admin corrected intake fields for ${updated.application_id} (status ${updated.status})`,
+      details: `Staff corrected intake fields for ${updated.application_id} (status ${updated.status})`,
     })
 
     return intakeJson({

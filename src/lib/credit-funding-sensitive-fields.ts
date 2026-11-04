@@ -91,7 +91,7 @@ export function deserializeBusinessProfileForAdmin(bp: Record<string, unknown>):
   return {
     ...(rest as BusinessProfile),
     ein: (einEncrypted as string | undefined)
-      ? decryptField(einEncrypted as string)
+      ? decryptFieldOrLegacy(einEncrypted as string)
       : (_legacyEin as string | undefined),
     address: (addressEncrypted as string | undefined)
       ? decryptFieldOrLegacy(addressEncrypted as string)
@@ -435,16 +435,16 @@ export function decryptApplicationSensitiveFields(app: CreditFundingApplication)
     city: decryptFieldOrLegacy(app.city),
     state: decryptFieldOrLegacy(app.state),
     zip_code: decryptFieldOrLegacy(app.zip_code),
-    date_of_birth: decryptField(app.date_of_birth_encrypted || ''),
-    ssn: decryptField(app.ssn_encrypted || ''),
-    provider_username: decryptField(app.provider_username_encrypted || ''),
-    provider_password: decryptField(app.provider_password_encrypted || ''),
-    experian_email: decryptField(app.experian_email_encrypted || ''),
-    experian_password: decryptField(app.experian_password_encrypted || ''),
-    experian_security_answer: decryptField(app.experian_security_answer_encrypted || ''),
-    experian_pin: decryptField(app.experian_pin_encrypted || ''),
-    cfpb_email: decryptField(app.cfpb_email_encrypted || ''),
-    cfpb_password: decryptField(app.cfpb_password_encrypted || ''),
+    date_of_birth: decryptFieldOrLegacy(app.date_of_birth_encrypted || ''),
+    ssn: decryptFieldOrLegacy(app.ssn_encrypted || ''),
+    provider_username: decryptFieldOrLegacy(app.provider_username_encrypted || ''),
+    provider_password: decryptFieldOrLegacy(app.provider_password_encrypted || ''),
+    experian_email: decryptFieldOrLegacy(app.experian_email_encrypted || ''),
+    experian_password: decryptFieldOrLegacy(app.experian_password_encrypted || ''),
+    experian_security_answer: decryptFieldOrLegacy(app.experian_security_answer_encrypted || ''),
+    experian_pin: decryptFieldOrLegacy(app.experian_pin_encrypted || ''),
+    cfpb_email: decryptFieldOrLegacy(app.cfpb_email_encrypted || ''),
+    cfpb_password: decryptFieldOrLegacy(app.cfpb_password_encrypted || ''),
     internal_notes: decryptFreeTextForView(app.internal_notes),
     client_notes: decryptFreeTextForView(app.client_notes),
     next_steps: decryptFreeTextForView(app.next_steps),

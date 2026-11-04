@@ -296,7 +296,8 @@ function CreditFundingAdminContent() {
   }
 
   const openAdminIntakeEditor = (applicationId: string) => {
-    if (!isAdmin) return
+    // Admins and assigned credit experts may correct submitted intake answers.
+    if (!(isAdmin || role === 'credit_manager')) return
     setDraftEditorMode('admin-intake')
     setDraftEditorId(applicationId)
     setShowDraftEditor(true)
@@ -488,7 +489,9 @@ function CreditFundingAdminContent() {
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || 'Reveal failed')
 
-      const value = String(data.value || '')
+      const value = typeof data.value === 'string' ? data.value : ''
+      if (!value) throw new Error('Reveal returned an empty value')
+
       setSelected((prev) => {
         if (!prev) return prev
         if (field === 'monthly_gross_income') {
@@ -524,15 +527,17 @@ function CreditFundingAdminContent() {
     value?: string | null,
     formatter?: (value: string) => string
   ) => {
-    const hasValue = Boolean(value && value !== MASKED_VALUE)
+    const raw = value == null ? '' : String(value)
+    const isMasked = raw === MASKED_VALUE
+    const hasRevealedValue = Boolean(raw && !isMasked)
     return (
       <div>
         <p className="text-xs font-semibold text-brand-dim uppercase mb-0.5">{label}</p>
-        {hasValue ? (
+        {hasRevealedValue ? (
           <p className="text-brand-text whitespace-pre-wrap break-words">
-            {formatter ? formatter(value as string) : value}
+            {formatter ? formatter(raw) : raw}
           </p>
-        ) : (
+        ) : isMasked ? (
           <button
             type="button"
             onClick={() => revealSensitiveField(field)}
@@ -541,6 +546,8 @@ function CreditFundingAdminContent() {
           >
             {revealingField === field ? 'Revealing...' : 'Reveal sensitive value'}
           </button>
+        ) : (
+          <p className="text-sm text-brand-muted">Not on file</p>
         )}
       </div>
     )
@@ -1485,7 +1492,7 @@ function CreditFundingAdminContent() {
                       Download this intake and the client&apos;s uploaded files as one PDF. Passwords and security answers stay on this screen.
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      {isAdmin && selected.status !== 'draft' && (
+                      {(isAdmin || isCreditExpert) && selected.status !== 'draft' && (
                         <button
                           type="button"
                           onClick={() => openAdminIntakeEditor(selected.id)}

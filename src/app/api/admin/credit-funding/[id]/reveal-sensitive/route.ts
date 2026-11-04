@@ -3,7 +3,7 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { logActivity } from '@/lib/db'
 import {
   isCreditFundingRevealField,
-  revealApplicationSensitiveField,
+  revealApplicationSensitiveFieldResult,
 } from '@/lib/credit-funding-admin'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
@@ -41,6 +41,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Application not found' }, { status: 404 })
     }
 
+    const revealed = revealApplicationSensitiveFieldResult(application, field)
+    if (!revealed.ok) {
+      return NextResponse.json({ error: revealed.error, field }, { status: 422 })
+    }
+
     logActivity({
       action: 'sensitive_field_revealed',
       entity_type: 'credit_funding_application',
@@ -51,7 +56,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       field,
-      value: revealApplicationSensitiveField(application, field),
+      value: revealed.value,
     })
   } catch (error) {
     logApiRouteError(req, 'admin/credit-funding/[id]/reveal-sensitive POST', error)
