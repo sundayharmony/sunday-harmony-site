@@ -10,9 +10,10 @@ import {
   fetchDisputeLetters,
   fetchLetterGenerateStatus,
   fetchLetterPackageForSession,
+  prepareDisputeLettersZip,
 } from '@/lib/dispute-letters/client-api'
 import type { LetterPackageSnapshot } from '@/lib/dispute-letters/dispute-lifecycle'
-import { letterPackageDisplayCode } from '@/lib/dispute-letters/dispute-lifecycle'
+import { letterPackageDisplayCode, zipReadyLabel } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
@@ -173,6 +174,31 @@ export default function DisputeLettersResultStep({
     }
   }, [sessionId, refreshPackage])
 
+  // Keep polling while the prebuilt ZIP is still preparing after Generate Letters.
+  useEffect(() => {
+    if (!sessionId || !letters.length) return
+    if (pkg?.zipReady) return
+    let cancelled = false
+    const tick = async () => {
+      try {
+        if (!pkg || pkg.zipStatus === 'pending' || pkg.zipStatus === 'failed') {
+          await prepareDisputeLettersZip(sessionId, { wait: false })
+        }
+      } catch {
+        /* prepare is best-effort; download still rebuilds */
+      }
+      if (!cancelled) await refreshPackage()
+    }
+    void tick()
+    const timer = window.setInterval(() => {
+      void tick()
+    }, 2500)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [sessionId, letters.length, pkg?.zipReady, pkg?.zipStatus, refreshPackage])
+
   if (!sessionId) return null
 
   const generatedCount = pkg?.generatedCount || letters.length
@@ -199,7 +225,14 @@ export default function DisputeLettersResultStep({
             <li>
               <span className="font-semibold">{generatedCount} dispute letter{generatedCount === 1 ? '' : 's'} generated</span>
             </li>
-            <li>{downloaded ? 'ZIP Downloaded ✓' : 'ZIP not downloaded yet'}</li>
+            <li>
+              {downloaded
+                ? 'ZIP Downloaded ✓'
+                : pkg
+                  ? zipReadyLabel(pkg.zipStatus, pkg.zipReady)
+                  : 'Preparing ZIP…'}
+              {!downloaded && pkg?.zipReady ? ' · ready to download' : ''}
+            </li>
             <li>
               {allSent
                 ? 'All letters confirmed Sent'
@@ -216,10 +249,14 @@ export default function DisputeLettersResultStep({
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               {busy === 'zip'
-                ? 'Building ZIP…'
-                : downloaded
-                  ? 'Download again'
-                  : 'Download all (ZIP)'}
+                ? pkg?.zipReady
+                  ? 'Downloading…'
+                  : 'Building ZIP…'
+                : !pkg?.zipReady && letters.length
+                  ? 'Preparing ZIP…'
+                  : downloaded
+                    ? 'Download again'
+                    : 'Download all (ZIP)'}
             </button>
           )}
           {letters.length > 0 && !allSent && (

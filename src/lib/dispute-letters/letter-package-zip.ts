@@ -275,11 +275,4 @@ export async function getOrBuildLetterPackageZip(
   return { buffer: built.buffer, filename: built.filename, fromCache: false }
 }
 
-export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
-  if (zipReady || status === 'ready') return 'ZIP ready'
-  if (status === 'building') return 'Preparing ZIP…'
-  if (status === 'failed') return 'ZIP needs rebuild'
-  return 'Preparing ZIP…'
-}
-
-export { letterPackageZipStatus, isLetterPackageZipReady }
+export { letterPackageZipStatus, isLetterPackageZipReady, zipReadyLabel } from '@/lib/dispute-letters/dispute-lifecycle'

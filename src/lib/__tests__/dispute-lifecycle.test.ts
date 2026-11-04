@@ -6,6 +6,9 @@ import {
   ROUND_1_MAX_ITEMS_PER_BUREAU,
   buildCfpbComplaintDraft,
   buildLetterPackageSnapshot,
+  isLetterPackageZipReady,
+  letterPackageZipStatus,
+  zipReadyLabel,
   chunkItems,
   comparisonUpdatesForItems,
   computeDeadlineAt,
@@ -741,6 +744,8 @@ describe('dispute lifecycle rounds', () => {
     assert.match(db, /export async function recoverLifecycleForApplication/)
     assert.match(db, /export async function upsertLetterPackageOnGenerate/)
     assert.match(db, /export async function recordLetterPackageDownload/)
+    assert.match(db, /export async function markLetterPackageZipBuilding/)
+    assert.match(db, /export async function markLetterPackageZipReady/)
     assert.match(db, /export async function confirmLetterPackageSent/)
     assert.match(db, /export async function repairUnsentDisputedItems/)
     const statusFn = db.slice(
@@ -754,6 +759,7 @@ describe('dispute lifecycle rounds', () => {
     )
     assert.match(generateHook, /ensureLifecycleFromSession/)
     assert.match(generateHook, /upsertLetterPackageOnGenerate/)
+    assert.match(generateHook, /markLetterPackageZipBuilding/)
     assert.equal(generateHook.includes("stage: 'sent'"), false)
     const downloadFn = db.slice(
       db.indexOf('export async function recordLetterPackageDownload'),
@@ -888,6 +894,18 @@ describe('letter package workflow', () => {
     assert.equal(snapshot.allSent, false)
     assert.equal(snapshot.workflow.label, 'Ready to Send')
     assert.equal(snapshot.pendingCount, 2)
+    assert.equal(snapshot.zipReady, false)
+    assert.equal(snapshot.zipStatus, 'pending')
+    assert.equal(zipReadyLabel('building', false), 'Preparing ZIP…')
+    assert.equal(zipReadyLabel('ready', true), 'ZIP ready')
+    const readyPkg = {
+      ...pkg,
+      zip_status: 'ready' as const,
+      zip_storage_path: `sessions/session/packages/${pkg.id}-v1.zip`,
+      zip_letter_ids: 'ltr-1,ltr-2',
+    }
+    assert.equal(isLetterPackageZipReady(readyPkg), true)
+    assert.equal(letterPackageZipStatus(readyPkg), 'ready')
   })
 })
 

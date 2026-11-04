@@ -318,6 +318,16 @@ export async function generateDisputeLetters(
     if (failure) throw new Error(failure)
 
     if (last.status === 'complete') {
+      onProgress?.({ ...last, status: 'complete', title: 'Preparing download package…' })
+      // Ensure ZIP is building/ready before experts land on Download ZIP.
+      await prepareDisputeLettersZip(sessionId, { wait: false }).catch(() => undefined)
+      await waitForLetterPackageZip(sessionId, 45_000, (status) => {
+        onProgress?.({
+          ...last,
+          status: 'complete',
+          title: status === 'ready' ? 'Download package ready' : 'Preparing download package…',
+        })
+      }).catch(() => undefined)
       return last
     }
   }

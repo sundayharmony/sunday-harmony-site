@@ -410,6 +410,13 @@ export function isLetterPackageZipReady(pkg: LetterPackageRow | null | undefined
   return Boolean(pkg?.zip_storage_path) && letterPackageZipStatus(pkg) === 'ready'
 }
 
+export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
+  if (zipReady || status === 'ready') return 'ZIP ready'
+  if (status === 'building') return 'Preparing ZIP…'
+  if (status === 'failed') return 'ZIP needs rebuild'
+  return 'Preparing ZIP…'
+}
+
 export function buildLetterPackageSnapshot(params: {
   package: LetterPackageRow
   members: LetterPackageMember[]
