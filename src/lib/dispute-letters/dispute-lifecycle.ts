@@ -153,6 +153,9 @@ export interface DisputeRoundLetter {
   package_id?: string | null
 }
 
+/** Lifecycle of the prebuilt Download ZIP artifact. */
+export type LetterPackageZipStatus = 'pending' | 'building' | 'ready' | 'failed'
+
 export interface LetterPackageRow {
   id: string
   case_id: string
@@ -166,6 +169,14 @@ export interface LetterPackageRow {
   sent_confirmed_at: string | null
   created_at: string
   updated_at: string
+  /** Supabase Storage path for the prebuilt ZIP (migration 048). */
+  zip_storage_path?: string | null
+  zip_built_at?: string | null
+  zip_status?: LetterPackageZipStatus | null
+  /** Sorted letter-id signature used to detect stale ZIPs after regenerate. */
+  zip_letter_ids?: string | null
+  zip_error?: string | null
+  zip_byte_size?: number | null
 }
 
 export interface LetterPackageMember {
@@ -198,6 +209,9 @@ export interface LetterPackageSnapshot {
   pendingCount: number
   downloaded: boolean
   allSent: boolean
+  /** True when a matching prebuilt ZIP is stored and ready for fast download. */
+  zipReady: boolean
+  zipStatus: LetterPackageZipStatus
   workflow: RoundWorkflowView
 }
 
@@ -383,6 +397,26 @@ export function roundWorkflowView(params: {
   }
 }
 
+export function letterPackageZipStatus(pkg: LetterPackageRow | null | undefined): LetterPackageZipStatus {
+  const status = pkg?.zip_status
+  if (status === 'building' || status === 'ready' || status === 'failed' || status === 'pending') {
+    return status
+  }
+  return pkg?.zip_storage_path ? 'ready' : 'pending'
+}
+
+/** Ready only when status is ready and a storage path exists. */
+export function isLetterPackageZipReady(pkg: LetterPackageRow | null | undefined): boolean {
+  return Boolean(pkg?.zip_storage_path) && letterPackageZipStatus(pkg) === 'ready'
+}
+
+export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
+  if (zipReady || status === 'ready') return 'ZIP ready'
+  if (status === 'building') return 'Preparing ZIP…'
+  if (status === 'failed') return 'ZIP needs rebuild'
+  return 'Preparing ZIP…'
+}
+
 export function buildLetterPackageSnapshot(params: {
   package: LetterPackageRow
   members: LetterPackageMember[]
@@ -392,6 +426,8 @@ export function buildLetterPackageSnapshot(params: {
   const generatedCount = params.package.letter_count || new Set(params.members.map((m) => m.letter_id).filter(Boolean)).size
   const selectedCount = params.selectedCount ?? params.members.length
   const downloaded = Boolean(params.package.downloaded_at) || params.package.download_count > 0
+  const zipStatus = letterPackageZipStatus(params.package)
+  const zipReady = isLetterPackageZipReady(params.package)
   const workflow = roundWorkflowView({
     selectedCount,
     generatedCount,
@@ -406,6 +442,8 @@ export function buildLetterPackageSnapshot(params: {
     pendingCount: Math.max(0, selectedCount - sentCount),
     downloaded,
     allSent: selectedCount > 0 && sentCount >= selectedCount,
+    zipReady,
+    zipStatus,
     workflow,
   }
 }

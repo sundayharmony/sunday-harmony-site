@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { letterGenerateFailure, type LetterGenerateJob } from '@/lib/dispute-letters/generate-job'
@@ -7,7 +7,8 @@ import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+/** Generate poll + post-complete ZIP pregeneration (after()). */
+export const maxDuration = 180
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -66,6 +67,12 @@ export async function GET(_request: NextRequest, { params }: Params) {
       } catch (hookErr) {
         console.error('onLettersGenerated hook failed:', hookErr)
       }
+      // Eager ZIP build so Download ZIP is a storage fetch, not a live DOCX merge.
+      after(() => {
+        import('@/lib/dispute-letters/letter-package-zip')
+          .then(({ prepareLetterPackageZip }) => prepareLetterPackageZip(id))
+          .catch((err) => console.error('prepareLetterPackageZip after generate failed:', err))
+      })
     }
     const failure = letterGenerateFailure(data)
     if (failure && (data.status === 'failed' || data.status === 'error')) {

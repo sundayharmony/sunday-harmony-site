@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { disputeLetterRoundIndex, disputeLettersZipDownloadName, validateDisputeReportFile } from '../dispute-letters-storage'
+import { buildLetterPackageZipObjectPath, disputeLetterRoundIndex, disputeLettersZipDownloadName, isValidLetterPackageZipStoragePath, validateDisputeReportFile } from '../dispute-letters-storage'
 
 describe('validateDisputeReportFile', () => {
   it('accepts PDF under size limit', () => {
@@ -58,6 +58,24 @@ describe('disputeLettersZipDownloadName', () => {
         'new'
       ),
       2
+    )
+  })
+})
+
+describe('letter package ZIP storage paths', () => {
+  it('builds a packages/ object path under the session', () => {
+    const sessionId = '11111111-2222-3333-4444-555555555555'
+    const packageId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const path = buildLetterPackageZipObjectPath(sessionId, packageId, 2)
+    assert.equal(path, `sessions/${sessionId}/packages/${packageId}-v2.zip`)
+    assert.equal(isValidLetterPackageZipStoragePath(path, sessionId), true)
+  })
+
+  it('rejects paths outside the session packages folder', () => {
+    const sessionId = '11111111-2222-3333-4444-555555555555'
+    assert.equal(
+      isValidLetterPackageZipStoragePath(`sessions/${sessionId}/letters/x.zip`, sessionId),
+      false
     )
   })
 })
