@@ -11,11 +11,15 @@ import {
   maskApplicantName,
   nextCommissionStatusAfterHold,
   normalizeReferralCode,
+  buildCreditReferralPayoutSources,
+  creditReferralStatusLabel,
   publicCommissionLabel,
   referralAttributionDays,
   referralCommissionCents,
   safeReferralLandingPath,
+  selectCreditReferralPayouts,
   shouldCreateCommission,
+  type CreditReferralPayoutSource,
 } from '../referrals'
 import { signReferralAttribution, verifyReferralAttribution } from '../referral-attribution'
 
@@ -167,6 +171,194 @@ describe('signed referral attribution', () => {
     })
     assert.equal(verifyReferralAttribution(expired), null)
     assert.equal(verifyReferralAttribution('not-a-token'), null)
+  })
+})
+
+function payoutSource(overrides: Partial<CreditReferralPayoutSource> = {}): CreditReferralPayoutSource {
+  return {
+    referralId: 'ref-1',
+    referrerClientId: 'client-1',
+    referrerName: 'Ada Lovelace',
+    code: 'ADA23456',
+    referredName: 'Grace Hopper',
+    referralStatus: 'submitted',
+    commissionId: null,
+    commissionStatus: null,
+    commissionAmountCents: null,
+    commissionPaidAt: null,
+    commissionReady: false,
+    payoutStatus: null,
+    payoutProcessedAt: null,
+    payoutAmountCents: null,
+    ...overrides,
+  }
+}
+
+describe('credit referral payout list', () => {
+  const now = Date.parse('2026-11-04T15:00:00.000Z')
+
+  it('lists each referred credit client and uses a recorded payout status', () => {
+    const rows = selectCreditReferralPayouts([
+      payoutSource(),
+      payoutSource({
+        referralId: 'ref-paid',
+        referrerName: 'Grace Hopper',
+        referredName: 'Katherine Johnson',
+        referralStatus: 'submitted',
+        commissionId: 'com-paid',
+        commissionStatus: 'paid',
+        commissionAmountCents: 5000,
+        commissionPaidAt: '2026-11-01T16:30:00.000Z',
+        payoutStatus: 'paid',
+        payoutProcessedAt: '2026-11-01T16:30:00.000Z',
+        payoutAmountCents: 5000,
+      }),
+      payoutSource({
+        referralId: 'ref-owed',
+        referrerName: 'Ada Lovelace',
+        referredName: 'Alan Turing',
+        commissionId: 'com-owed',
+        commissionStatus: 'available',
+        commissionAmountCents: 5000,
+        commissionReady: true,
+      }),
+      payoutSource({
+        referralId: 'partner-ref',
+        referrerClientId: 'partner-client',
+        partnerProfile: true,
+        commissionId: 'com-partner',
+        commissionStatus: 'available',
+        commissionAmountCents: 5000,
+      }),
+    ])
+
+    assert.deepEqual(rows.map((row) => row.referralId), ['ref-owed', 'ref-1', 'ref-paid'])
+    assert.equal(rows[0].status, 'owed')
+    assert.equal(rows[0].paid, false)
+    assert.equal(rows[0].canMarkPaid, true)
+    assert.equal(rows[0].amountCents, 5000)
+    assert.equal(rows[0].code, 'ADA23456')
+    assert.equal(rows[1].status, 'submitted')
+    assert.equal(rows[1].amountCents, null)
+    assert.equal(rows[1].canMarkPaid, false)
+    assert.equal(rows[2].paid, true)
+    assert.equal(rows[2].paidAt, '2026-11-01T16:30:00.000Z')
+    assert.equal(creditReferralStatusLabel('owed'), 'Owed')
+    assert.equal(creditReferralStatusLabel('applicant_paid'), 'Applicant paid')
+  })
+
+  it('does not treat an applicant payment as the referrer being paid', () => {
+    const [row] = selectCreditReferralPayouts([
+      payoutSource({ referralStatus: 'paid' }),
+    ])
+    assert.equal(row.status, 'applicant_paid')
+    assert.equal(row.paid, false)
+    assert.equal(row.amountCents, null)
+    assert.equal(row.canMarkPaid, false)
+  })
+
+  it('keeps a pending hold unpaid until it is ready, and blocks in-progress payouts', () => {
+    const rows = selectCreditReferralPayouts([
+      payoutSource({
+        referralId: 'held',
+        referrerName: 'Held',
+        commissionId: 'com-held',
+        commissionStatus: 'pending',
+        commissionAmountCents: 5000,
+        commissionReady: false,
+      }),
+      payoutSource({
+        referralId: 'processing',
+        referrerName: 'Processing',
+        commissionId: 'com-processing',
+        commissionStatus: 'processing',
+        commissionAmountCents: 5000,
+        payoutStatus: 'processing',
+      }),
+    ])
+    const held = rows.find((row) => row.referralId === 'held')
+    const processing = rows.find((row) => row.referralId === 'processing')
+    assert.ok(held)
+    assert.ok(processing)
+    assert.equal(held.status, 'pending')
+    assert.equal(held.canMarkPaid, false)
+    assert.equal(processing.status, 'processing')
+    assert.equal(processing.canMarkPaid, false)
+    assert.equal(processing.paid, false)
+  })
+
+  it('builds rows from stored referrals and prefers the referred client name', () => {
+    const sources = buildCreditReferralPayoutSources({
+      profiles: [
+        { id: 'profile-1', client_id: 'referrer-1', referral_code: 'CODE2345' },
+        { id: 'profile-partner', client_id: null, partner_profile_id: 'partner-1', referral_code: 'PART2345' },
+      ],
+      referrals: [
+        {
+          id: 'ref-1',
+          referral_profile_id: 'profile-1',
+          referred_application_id: 'app-1',
+          referred_client_id: 'referred-1',
+          referral_status: 'accepted',
+        },
+        {
+          id: 'ref-partner',
+          referral_profile_id: 'profile-partner',
+          referred_application_id: 'app-2',
+          referred_client_id: null,
+          referral_status: 'submitted',
+        },
+      ],
+      commissions: [
+        {
+          id: 'com-1',
+          referral_id: 'ref-1',
+          amount_cents: 5000,
+          status: 'pending',
+          paid_at: null,
+          payout_id: null,
+          available_at: '2026-11-04T14:00:00.000Z',
+        },
+      ],
+      payouts: [],
+      clients: [
+        { id: 'referrer-1', name: 'Ada Lovelace' },
+        { id: 'referred-1', name: 'Grace Hopper' },
+      ],
+      applications: [{ id: 'app-1', full_name: 'Application Name' }],
+      nowMs: now,
+    })
+    const [row] = selectCreditReferralPayouts(sources)
+    assert.equal(sources.length, 1)
+    assert.equal(row.referrerName, 'Ada Lovelace')
+    assert.equal(row.code, 'CODE2345')
+    assert.equal(row.referredName, 'Grace Hopper')
+    assert.equal(row.status, 'owed')
+    assert.equal(row.canMarkPaid, true)
+  })
+
+  it('records mark-paid through the manual payout ledger and keeps it admin-only', () => {
+    const route = readFileSync('src/app/api/admin/referrals/[clientId]/route.ts', 'utf8')
+    const service = readFileSync('src/lib/referral-service.ts', 'utf8')
+    const page = readFileSync('src/app/admin/referrals/page.tsx', 'utf8')
+    const nav = readFileSync('src/lib/marketing-pipeline.ts', 'utf8')
+    const markPaid = service.slice(
+      service.indexOf('export async function markReferralCommissionPaid'),
+      service.indexOf('export async function initiateReferralPayout')
+    )
+    assert.match(route, /requireAdminSession/)
+    assert.match(route, /action === 'mark_paid'/)
+    assert.match(route, /markReferralCommissionPaid/)
+    assert.match(markPaid, /payment_provider: 'manual'/)
+    assert.doesNotMatch(markPaid, /getStripe\(/)
+    assert.doesNotMatch(markPaid, /transfers\.create/)
+    assert.match(page, /Mark paid/)
+    assert.match(page, /No one has referred a credit client yet/)
+    assert.doesNotMatch(page, /<table/)
+    assert.match(nav, /href: '\/admin\/referrals'/)
+    assert.match(nav, /label: 'Referrals'/)
+    const redirects = readFileSync('next.config.js', 'utf8')
+    assert.doesNotMatch(redirects, /source: '\/admin\/referrals'/)
   })
 })
 

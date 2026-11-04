@@ -574,6 +574,23 @@ export async function listAllCommissions(): Promise<ReferralCommissionRow[]> {
   return (data || []) as ReferralCommissionRow[]
 }
 
+/** Names for the admin payout list. Avoids loading encrypted application fields. */
+export async function listCreditApplicationDisplayNames(
+  ids: string[]
+): Promise<{ id: string; full_name: string | null }[]> {
+  const unique = [...new Set(ids.filter(Boolean))]
+  if (unique.length === 0) return []
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .select('id, full_name')
+    .in('id', unique)
+  if (error) {
+    console.error('listCreditApplicationDisplayNames:', error)
+    return []
+  }
+  return (data || []) as { id: string; full_name: string | null }[]
+}
+
 /** Count clicks grouped by profile_id in one query. */
 export async function countClicksByProfile(): Promise<Map<string, number>> {
   const { data, error } = await getSupabase()

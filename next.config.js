@@ -194,11 +194,6 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/admin/referrals',
-        destination: '/admin/people',
-        permanent: true,
-      },
-      {
         source: '/admin/tasks',
         destination: '/admin/people',
         permanent: true,

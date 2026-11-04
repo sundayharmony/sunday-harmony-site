@@ -142,7 +142,7 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Sales Kit', 'Content Kit', 'Partners', 'Settings']
+      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Sales Kit', 'Content Kit', 'Partners', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
@@ -169,6 +169,13 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/credit-funding',
       '/admin/settings',
     ])
+    assert.equal(navForRole('admin').some((item) => item.href === '/admin/referrals' && item.label === 'Referrals'), true)
+    assert.equal(navForRole('credit_manager').some((item) => item.href === '/admin/referrals'), false)
+    assert.equal(navForRole('lead_procurement').some((item) => item.href === '/admin/referrals'), false)
+    assert.equal(navForRole('sales_closer').some((item) => item.href === '/admin/referrals'), false)
+    assert.equal(navForRole('client_relations').some((item) => item.href === '/admin/referrals'), false)
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/referrals'), false)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/referrals'), false)
     assert.equal(homeForRole('credit_manager'), '/admin/credit-funding')
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/pipeline/abc'), true)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/credit-funding'), false)
