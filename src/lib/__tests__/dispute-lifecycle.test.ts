@@ -755,11 +755,12 @@ describe('dispute lifecycle rounds', () => {
     assert.equal(statusFn.includes('payload.sent_at'), false)
     const generateHook = db.slice(
       db.indexOf('export async function onLettersGenerated'),
-      db.indexOf('async function maybeCompleteRoundIfFullySent')
+      db.indexOf('export async function touchLetterPackageZipBuild')
     )
     assert.match(generateHook, /ensureLifecycleFromSession/)
     assert.match(generateHook, /upsertLetterPackageOnGenerate/)
-    assert.match(generateHook, /markLetterPackageZipBuilding/)
+    assert.doesNotMatch(generateHook, /markLetterPackageZipBuilding\(/)
+    assert.match(db, /export async function touchLetterPackageZipBuild/)
     assert.equal(generateHook.includes("stage: 'sent'"), false)
     const downloadFn = db.slice(
       db.indexOf('export async function recordLetterPackageDownload'),

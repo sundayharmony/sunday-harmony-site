@@ -5,6 +5,10 @@ import {
   fetchLetterDocxWithEnclosures,
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
+import {
+  readStoredLetterDocxForSession,
+  storeGeneratedLetterDocx,
+} from '@/lib/dispute-letters/letter-docx-store'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
@@ -25,8 +29,12 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   try {
     if (format === 'docx') {
-      const attachments = await loadLetterIdentityAttachments(access.session.application_uuid)
-      const data = await fetchLetterDocxWithEnclosures(id, letterId, attachments)
+      let data = await readStoredLetterDocxForSession(id, letterId)
+      if (!data) {
+        const attachments = await loadLetterIdentityAttachments(access.session.application_uuid)
+        data = await fetchLetterDocxWithEnclosures(id, letterId, attachments)
+        await storeGeneratedLetterDocx({ sessionId: id, letterId, data })
+      }
       return new Response(new Uint8Array(data), {
         status: 200,
         headers: {

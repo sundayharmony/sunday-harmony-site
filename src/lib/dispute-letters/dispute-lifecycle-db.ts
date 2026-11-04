@@ -1372,12 +1372,21 @@ export async function onLettersGenerated(sessionId: string): Promise<LetterPacka
   await linkLettersToRoundItems(round.id, sessionId, items)
   await stampLetterGeneratedHistory(round, items)
   const pkg = await upsertLetterPackageOnGenerate({ round, sessionId, items })
-  if (pkg?.id && pkg.zip_status !== 'ready') {
-    await markLetterPackageZipBuilding(sessionId).catch((err) => {
-      console.error('markLetterPackageZipBuilding after generate failed:', err)
-    })
-  }
+  // Do not mark the ZIP building here. prepareLetterPackageZip claims that status
+  // itself; a pre-claim looks like a live build, so the saver returns early and
+  // every Download ZIP rebuilds the letters.
   return pkg
+}
+
+/** Keep a live ZIP build from looking idle so another request does not start a second one. */
+export async function touchLetterPackageZipBuild(packageId: string): Promise<void> {
+  if (!packageId) return
+  const { error } = await getSupabase()
+    .from('dispute_letter_packages')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', packageId)
+    .eq('zip_status', 'building')
+  if (error) console.error('touchLetterPackageZipBuild error:', error)
 }
 
 async function updatePackageZipFields(
