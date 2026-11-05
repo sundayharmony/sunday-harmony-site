@@ -330,3 +330,64 @@ describe('Lumen & Co. Floral continuity', () => {
     assert.equal(done.metrics.find((metric) => metric.label === 'Onboarding still open')?.value, '0')
   })
 })
+
+describe('sales closer direct close', () => {
+  after(() => {
+    setSupabaseForTests(null)
+  })
+
+  it('lets sales contact a Ready to contact lead and close it without a proposal', async () => {
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+    const procurement = { role: 'lead_procurement', email: 'procurement@sundayharmony.com', name: 'Riley Cole' }
+    const sales = { role: 'sales_closer', email: 'sales@sundayharmony.com', name: 'Jordan Hale' }
+    const followUp = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+
+    const created = await saveMarketingProspect(null, {
+      business: 'Harbor Bread Co.',
+      source: 'outbound',
+      followUpAt: followUp,
+      stage: 'ready_to_contact',
+      contactName: 'Noah Park',
+      email: 'noah@harborbread.example',
+      phone: '804-555-0199',
+      opportunity: 'No online ordering.',
+      notes: 'Sample bakery, not a real customer.',
+      scoreFactors: { weakness: 2, operating: 2, need: 2, decision_maker: 2, ability: 1 },
+      category: 'small',
+    }, procurement)
+
+    const id = created.prospect.id
+    assert.equal((await listMarketingProspects('sales_closer')).some((row) => row.id === id), true)
+    assert.equal((await listMarketingProspects('lead_procurement')).some((row) => row.id === id), true)
+
+    const contacted = await saveMarketingProspect(id, { stage: 'contacted' }, sales)
+    assert.ok(contacted.prospect.handedToSalesAt)
+    assert.ok(contacted.prospect.lastContactedAt)
+    assert.equal((await listMarketingProspects('lead_procurement')).some((row) => row.id === id), false)
+
+    await saveMarketingProspect(id, {
+      stage: 'won',
+      servicesPurchased: 'Spark',
+      scope: 'Monthly social posts',
+      deliverables: 'Eight posts',
+      deadline: 'Dec 20, 2026',
+      promises: 'One revision round',
+      expectations: 'Noah reviews the calendar each Monday.',
+      paymentStatus: 'Invoice sent and paid',
+      agreementSigned: true,
+      proposalDocUrl: '',
+    }, sales)
+
+    const billed = await openProspectForBilling(id, sales)
+    const billedClient = db.rows('clients').find((row) => row.id === billed.client.id)
+    assert.ok(billedClient)
+    billedClient.last_payment_at = '2026-11-05T18:00:00.000Z'
+    billedClient.billing_status = 'paid'
+
+    const closed = await handOffProspect(id, 'client_relations', sales)
+    assert.equal(closed.stage, 'won')
+    assert.ok(closed.handedToRelationsAt)
+    assert.equal(closed.proposalDocUrl, null)
+  })
+})

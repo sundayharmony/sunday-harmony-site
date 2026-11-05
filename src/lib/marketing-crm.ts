@@ -347,6 +347,18 @@ export async function saveMarketingProspect(
         : input.closeMethod ? 'nonstandard' : null,
     updated_at: new Date().toISOString(),
   }
+  if (
+    existing &&
+    actor.role === 'sales_closer' &&
+    !existing.handedToSalesAt &&
+    existing.stage === 'ready_to_contact' &&
+    stage !== 'ready_to_contact'
+  ) {
+    const now = new Date().toISOString()
+    payload.handed_to_sales_at = now
+    payload.assigned_role = 'sales_closer'
+    payload.last_contacted_at = existing.lastContactedAt || now
+  }
   if (payload.lead_type === undefined) delete payload.lead_type
 
   const table = getSupabase().from('leads')
@@ -578,6 +590,8 @@ export async function handOffProspect(
       paymentStatus: prospect.paymentStatus,
       proposalUrl: prospect.proposalDocUrl,
       stripePaid,
+      lastContactedAt: prospect.lastContactedAt,
+      handedToSalesAt: prospect.handedToSalesAt,
     })
     if (!prospect.email.trim()) gaps.push('Email')
     if (gaps.length) throw new Error(`Still needed: ${gaps.join(', ')}`)
@@ -652,6 +666,10 @@ export async function sendProspectEmail(
   })
   const stage = stageAfterOutboundEmail(prospect.stage)
   const now = new Date().toISOString()
+  const claim =
+    actor.role === 'sales_closer' && !prospect.handedToSalesAt
+      ? { handed_to_sales_at: now, assigned_role: 'sales_closer' }
+      : {}
   const { error } = await getSupabase()
     .from('leads')
     .update({
@@ -661,6 +679,7 @@ export async function sendProspectEmail(
       marketing_lead_status: marketingStatusForStage(stage),
       status: legacyLeadStatusForStage(stage),
       updated_at: now,
+      ...claim,
     })
     .eq('id', id)
   if (error) throw new Error('Email sent, but the CRM could not store the thread')
@@ -1008,7 +1027,9 @@ export async function loadMarketingToday(role?: string | null) {
     }))
   const handoffs = prospects
     .filter((prospect) => {
-      if (role === 'sales_closer') return Boolean(prospect.handedToSalesAt) && (prospect.stage === 'ready_to_contact' || prospect.stage === 'contacted')
+      if (role === 'sales_closer') {
+        return prospect.stage === 'ready_to_contact' || (Boolean(prospect.handedToSalesAt) && prospect.stage === 'contacted')
+      }
       if (role === 'client_relations') return prospect.stage === 'won' && !onboardingComplete(prospect.onboarding)
       if (role === 'lead_procurement') return prospect.stage === 'researching' || prospect.stage === 'ready_to_contact'
       return (

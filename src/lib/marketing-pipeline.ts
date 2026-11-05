@@ -271,9 +271,7 @@ export function stageAfterProspectReply(current: PipelineStage): PipelineStage |
   return null
 }
 
-const SALES_INTAKE = new Set<PipelineStage>(['ready_to_contact', 'contacted'])
-
-/** Procurement stops seeing a lead after the sales handoff. Sales sees intake rows only after that handoff. */
+/** Procurement stops seeing a lead after the sales handoff. Sales can open every Ready to contact lead. */
 export function roleCanSeeProspect(
   role: string | null | undefined,
   prospect: { stage: PipelineStage; handedToSalesAt?: string | null; handedToRelationsAt?: string | null }
@@ -284,7 +282,8 @@ export function roleCanSeeProspect(
   }
   if (role === 'sales_closer') {
     if (!SALES_STAGES.has(prospect.stage)) return false
-    if (SALES_INTAKE.has(prospect.stage)) return Boolean(prospect.handedToSalesAt)
+    if (prospect.stage === 'ready_to_contact') return true
+    if (prospect.stage === 'contacted') return Boolean(prospect.handedToSalesAt)
     return true
   }
   if (role === 'client_relations') {
@@ -330,8 +329,8 @@ export function boardLanes(role?: string | null): BoardLane[] {
     return [
       {
         id: 'handed-to-sales',
-        title: 'Handed to sales',
-        detail: 'Qualified leads procurement has passed to you.',
+        title: 'Ready to contact',
+        detail: 'Qualified leads you can contact. After you contact one, it stays with you.',
         stages: ['ready_to_contact', 'contacted'],
       },
       {
@@ -533,7 +532,31 @@ export function canSeeCloseSection(role: string | null | undefined, stripePaid: 
   return roleMayRunSalesActions(role) && stripePaid
 }
 
-export function salesHandoffGaps(input: SalesChecklistInput): string[] {
+export type DirectCloseInput = {
+  lastContactedAt?: string | null
+  handedToSalesAt?: string | null
+  agreementSigned?: boolean
+  stripePaid?: boolean
+}
+
+/** Sales reached this business, so a later close can stand on the agreement and the paid invoice. */
+export function salesContactedThisProspect(input: {
+  lastContactedAt?: string | null
+  handedToSalesAt?: string | null
+}): boolean {
+  return Boolean((input.lastContactedAt || '').trim() && (input.handedToSalesAt || '').trim())
+}
+
+/** Contacted by sales, agreement signed, and Stripe shows the invoice paid. */
+export function directCloseSkipsMeetingAndProposal(input: DirectCloseInput): boolean {
+  return (
+    salesContactedThisProspect(input) &&
+    Boolean(input.agreementSigned) &&
+    Boolean(input.stripePaid)
+  )
+}
+
+export function salesHandoffGaps(input: SalesChecklistInput & DirectCloseInput): string[] {
   const gaps: string[] = []
   if (!(input.servicesPurchased || '').trim()) gaps.push('Services purchased')
   if (!(input.scope || '').trim()) gaps.push('Scope')
@@ -543,7 +566,7 @@ export function salesHandoffGaps(input: SalesChecklistInput): string[] {
   if (!(input.expectations || '').trim()) gaps.push('Client expectations')
   if (!input.agreementSigned) gaps.push('Agreement marked signed')
   if (!input.stripePaid) gaps.push('Stripe payment')
-  if (!(input.proposalUrl || '').trim()) gaps.push('Proposal Doc')
+  if (!(input.proposalUrl || '').trim() && !directCloseSkipsMeetingAndProposal(input)) gaps.push('Proposal Doc')
   return gaps
 }
 

@@ -8,6 +8,7 @@ import {
   canHandOffToSales,
   canSeeCloseSection,
   closerMayBillProspect,
+  directCloseSkipsMeetingAndProposal,
   canMoveStage,
   roleCanEditStage,
   roleCanSeeProspect,
@@ -150,10 +151,52 @@ describe('marketing role handoffs and navigation', () => {
     )
   })
 
+  it('skips the meeting and proposal when sales contacted the lead and Stripe shows the invoice paid', () => {
+    const contacted = {
+      lastContactedAt: '2026-11-04T15:00:00.000Z',
+      handedToSalesAt: '2026-11-04T15:00:00.000Z',
+      agreementSigned: true,
+      stripePaid: true,
+    }
+    assert.equal(directCloseSkipsMeetingAndProposal(contacted), true)
+    assert.equal(directCloseSkipsMeetingAndProposal({ ...contacted, agreementSigned: false }), false)
+    assert.equal(directCloseSkipsMeetingAndProposal({ ...contacted, handedToSalesAt: null }), false)
+    assert.equal(directCloseSkipsMeetingAndProposal({ ...contacted, stripePaid: false }), false)
+    const gaps = salesHandoffGaps({
+      servicesPurchased: 'Website',
+      scope: 'Five pages',
+      deliverables: 'Site and logo',
+      deadline: 'Dec 1',
+      promises: 'Two revision rounds',
+      expectations: 'Weekly update',
+      proposalUrl: '',
+      ...contacted,
+    })
+    assert.deepEqual(gaps, [])
+    const stillNeedsProposal = salesHandoffGaps({
+      servicesPurchased: 'Website',
+      scope: 'Five pages',
+      deliverables: 'Site and logo',
+      deadline: 'Dec 1',
+      promises: 'Two revision rounds',
+      expectations: 'Weekly update',
+      agreementSigned: true,
+      stripePaid: true,
+      proposalUrl: '',
+      lastContactedAt: contacted.lastContactedAt,
+      handedToSalesAt: null,
+    })
+    assert.deepEqual(stillNeedsProposal, ['Proposal Doc'])
+  })
+
   it('moves a lead out of procurement after the sales handoff and into client relations only after the won handoff', () => {
     const researching = { stage: 'researching' as const, handedToSalesAt: null, handedToRelationsAt: null }
     assert.equal(roleCanSeeProspect('lead_procurement', researching), true)
     assert.equal(roleCanSeeProspect('sales_closer', researching), false)
+    const ready = { stage: 'ready_to_contact' as const, handedToSalesAt: null, handedToRelationsAt: null }
+    assert.equal(roleCanSeeProspect('sales_closer', ready), true)
+    assert.equal(roleCanSeeProspect('lead_procurement', ready), true)
+    assert.equal(roleCanSeeProspect('sales_closer', { stage: 'contacted' as const, handedToSalesAt: null, handedToRelationsAt: null }), false)
     const handed = { stage: 'contacted' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: null }
     assert.equal(roleCanSeeProspect('lead_procurement', handed), false)
     assert.equal(roleCanSeeProspect('sales_closer', handed), true)
@@ -273,7 +316,7 @@ describe('marketing role handoffs and navigation', () => {
     const salesStages = sales.flatMap((lane) => lane.stages)
     assert.equal(sales.length, 3)
     assert.equal(salesStages.includes('researching'), false)
-    assert.equal(sales.some((lane) => lane.title === 'Handed to sales'), true)
+    assert.equal(sales.some((lane) => lane.title === 'Ready to contact'), true)
 
     const relations = boardLanes('client_relations')
     assert.equal(relations.length, 1)

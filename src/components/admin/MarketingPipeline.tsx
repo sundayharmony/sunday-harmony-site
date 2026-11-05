@@ -250,7 +250,7 @@ export default function MarketingPipeline() {
 
   const canAdd = loaded && role !== 'client_relations'
   const subtitle = role === 'sales_closer'
-    ? 'Join a scheduled meeting from its card or from Today, bill Active clients, then hand the client to client relations.'
+    ? 'Contact Ready to contact leads, send the agreement, and bill Active clients. A meeting and a proposal are optional once the invoice is sent and paid.'
     : 'Each role works only the stages they own.'
   const dashboardMeetings: JoinableMeeting[] = (role === 'sales_closer' || role === 'admin')
     ? prospects

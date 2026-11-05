@@ -19,6 +19,7 @@ import {
   canHandOffToSales,
   canMoveStage,
   canSeeCloseSection,
+  directCloseSkipsMeetingAndProposal,
   isLeadSource,
   isProspectCategory,
   roleMayRunSalesActions,
@@ -52,6 +53,7 @@ type Prospect = {
   driveFolderUrl: string | null
   proposalDocUrl: string | null
   agreementSignedAt: string | null
+  handedToSalesAt: string | null
   paymentStatus: string
   servicesPurchased: string
   scope: string
@@ -231,7 +233,13 @@ export default function ProspectFile({ id }: { id: string }) {
   const selectedScript = scripts.find((script) => script.id === scriptId)
   const isSales = roleMayRunSalesActions(role)
   const isProcurement = role === 'lead_procurement'
-  const showOutreach = role === 'admin' || isProcurement
+  const showOutreach = role === 'admin' || isProcurement || isSales
+  const directClose = directCloseSkipsMeetingAndProposal({
+    lastContactedAt: prospect.lastContactedAt,
+    handedToSalesAt: prospect.handedToSalesAt,
+    agreementSigned: Boolean(prospect.agreementSignedAt),
+    stripePaid,
+  })
   const showClose = canSeeCloseSection(role, stripePaid)
   const showScore = role === 'admin' || isProcurement
 
@@ -555,7 +563,7 @@ export default function ProspectFile({ id }: { id: string }) {
           <div>
             <h2 className="text-sm font-bold text-brand-text">Sales actions</h2>
             <p className="text-xs text-brand-muted mt-1">
-              Schedule the meeting, join it from this page, send the agreement, then bill when the deal is Active.
+              Contact a Ready to contact lead, send the agreement, then bill when the deal is Active. A meeting and a proposal are optional once the agreement is signed and the invoice is sent and paid.
             </p>
           </div>
 
@@ -572,6 +580,7 @@ export default function ProspectFile({ id }: { id: string }) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3">
               <h3 className="text-sm font-semibold text-brand-text">Schedule meeting</h3>
+              <p className="text-xs text-brand-muted">Optional when this lead is already contacted, the agreement is signed, and the invoice is sent and paid.</p>
               <label className="text-sm block">
                 Date & time
                 <input
@@ -692,7 +701,9 @@ export default function ProspectFile({ id }: { id: string }) {
           <p className="text-xs text-brand-muted">
             {isProcurement
               ? 'First contact scripts and reply checks before handing the lead to sales.'
-              : 'Follow up from the sales mailbox and check for replies.'}
+              : isSales
+                ? 'Contact a Ready to contact lead from the sales mailbox. Sending it keeps that lead on your list.'
+                : 'Follow up from the sales mailbox and check for replies.'}
           </p>
           <label className="text-sm block">
             Script
@@ -774,7 +785,9 @@ export default function ProspectFile({ id }: { id: string }) {
           <div>
             <h2 className="text-sm font-bold text-brand-text">Close</h2>
             <p className="text-xs text-brand-muted mt-1">
-              Stripe confirmed payment. Fill this in for the handoff to client relations.
+              {directClose
+                ? 'Stripe confirmed the invoice is paid and the agreement is signed. This close does not need a meeting or a proposal.'
+                : 'Stripe confirmed payment. Fill this in for the handoff to client relations. A proposal is not required when you contacted this lead and the agreement is signed.'}
             </p>
           </div>
           {editing ? (
@@ -820,7 +833,7 @@ export default function ProspectFile({ id }: { id: string }) {
               <Fact label="Deadline">{prospect.deadline}</Fact>
               <Fact label="Promises">{prospect.promises}</Fact>
               <Fact label="Expectations">{prospect.expectations}</Fact>
-              <Fact label="Close method" wide>{prospect.closeMethod ? 'Closed without proposal' : ''}</Fact>
+              <Fact label="Close method" wide>{directClose ? 'Closed without a meeting or proposal' : prospect.closeMethod ? 'Closed without proposal' : ''}</Fact>
               <Fact label="Proposal / agreement" wide>
                 {prospect.proposalDocUrl ? (
                   <a href={prospect.proposalDocUrl} className="text-accent hover:underline" target="_blank" rel="noreferrer">Open proposal / agreement</a>
@@ -830,6 +843,7 @@ export default function ProspectFile({ id }: { id: string }) {
             </dl>
           )}
           <div className="flex flex-wrap gap-2">
+            {!directClose && (
             <button
               type="button"
               disabled={saving || !workspaceConnected}
@@ -843,6 +857,7 @@ export default function ProspectFile({ id }: { id: string }) {
             >
               Create proposal Doc
             </button>
+            )}
             {canHandOffToRelations(role, prospect.stage) && (
               <button type="button" disabled={saving} onClick={() => void post(`/api/admin/pipeline/${id}/handoff`, { target: 'client_relations' })} className="px-4 py-2 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60">
                 Hand to client relations
