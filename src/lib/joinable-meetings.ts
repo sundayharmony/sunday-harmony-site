@@ -94,6 +94,18 @@ export function safeMeetHref(link: string): string | null {
   }
 }
 
+/** Staff Calendar only shows timed Google Meet bookings, not CRM follow-up reminders. */
+export function isGoogleMeetHref(link: string): boolean {
+  const href = safeMeetHref(link)
+  if (!href) return false
+  try {
+    const host = new URL(href).hostname.toLowerCase()
+    return host === 'meet.google.com' || host.endsWith('.meet.google.com')
+  } catch {
+    return false
+  }
+}
+
 function overlapsRange(start: number, end: number, rangeStartMs?: number, rangeEndMs?: number): boolean {
   if (rangeStartMs == null || rangeEndMs == null) return true
   if (Number.isNaN(start) || Number.isNaN(end)) return false

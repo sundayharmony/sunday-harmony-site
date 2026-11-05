@@ -79,6 +79,7 @@ async function signInAndMockCalendar(page: Page) {
               dateKey: from,
               href: '/admin/pipeline/lead-1',
               prospectId: 'lead-1',
+              meetLink: 'https://meet.google.com/lumen-live',
             },
             {
               id: 'todo:1',

@@ -1,4 +1,4 @@
-import { meetingEndMs, safeMeetHref } from '@/lib/joinable-meetings'
+import { isGoogleMeetHref, meetingEndMs, safeMeetHref } from '@/lib/joinable-meetings'
 import { roleMayOpenProspectFile } from '@/lib/marketing-pipeline'
 
 export const STAFF_CALENDAR_TZ = 'America/New_York'
@@ -265,6 +265,7 @@ export function meetingToCalendarEvent(
   role?: string | null
 ): StaffCalendarEvent | null {
   if (!row.startsAt) return null
+  if (!isGoogleMeetHref(row.meetLink || '')) return null
   const end = eventEndIso(row)
   const meetLink = safeMeetHref(row.meetLink || '') || ''
   const calendarLink = safeMeetHref(row.calendarLink || '') || ''
@@ -289,6 +290,7 @@ export function googleToCalendarEvent(
   role?: string | null
 ): StaffCalendarEvent | null {
   if (!row.start) return null
+  if (!isGoogleMeetHref(row.meetLink || '')) return null
   const meetLink = safeMeetHref(row.meetLink || '') || ''
   const calendarLink = safeMeetHref(row.htmlLink || '') || ''
   return {

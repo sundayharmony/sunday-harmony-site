@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
-import { assembleJoinableMeetings, meetingStillJoinable, safeMeetHref } from '../joinable-meetings'
+import { assembleJoinableMeetings, isGoogleMeetHref, meetingStillJoinable, safeMeetHref } from '../joinable-meetings'
 import { prospectMeetingCardState } from '../prospect-sales-cards'
 
 describe('joinable meetings', () => {
@@ -13,6 +13,9 @@ describe('joinable meetings', () => {
     assert.equal(meetingStillJoinable({ startsAt: '2026-11-02T14:00:00.000Z', endsAt: '2026-11-02T14:50:00.000Z' }, now), true)
     assert.equal(safeMeetHref('https://meet.google.com/abc-defg-hij'), 'https://meet.google.com/abc-defg-hij')
     assert.equal(safeMeetHref('http://meet.google.com/abc'), null)
+    assert.equal(isGoogleMeetHref('https://meet.google.com/abc-defg-hij'), true)
+    assert.equal(isGoogleMeetHref('https://calendar.google.com/event?eid=abc'), false)
+    assert.equal(isGoogleMeetHref(''), false)
   })
 
   it('hides outreach from sales closers and offers a join link', () => {

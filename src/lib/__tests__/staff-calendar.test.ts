@@ -98,6 +98,53 @@ describe('staff calendar merge', () => {
     assert.equal(events[0]?.calendarLink, 'https://calendar.google.com/event?eid=evt-1')
   })
 
+  it('only shows Google Meet bookings, not CRM follow-ups or personal events', () => {
+    const range = parseCalendarRange('2026-11-01', '2026-11-07')
+    assert.equal(range.ok, true)
+    if (!range.ok) return
+    const events = mergeStaffCalendarEvents({
+      range: range.range,
+      meetings: [
+        {
+          id: 'follow',
+          prospectId: 'lead-wildwood',
+          business: 'Wildwood Sips & Sandwiches',
+          title: 'Follow up',
+          startsAt: '2026-11-05T14:00:00.000Z',
+        },
+        {
+          id: 'meet',
+          prospectId: 'lead-1',
+          business: 'Lumen & Co. Floral',
+          title: 'Meeting: Lumen',
+          startsAt: '2026-11-05T16:00:00.000Z',
+          meetLink: 'https://meet.google.com/lumen-join',
+        },
+      ],
+      googleEvents: [
+        {
+          id: 'movie',
+          summary: 'Area 51 - Annihilation',
+          start: '2026-11-04T23:30:00.000Z',
+          htmlLink: 'https://calendar.google.com/event?eid=movie',
+        },
+        {
+          id: 'real',
+          summary: 'Consult',
+          start: '2026-11-06T16:00:00.000Z',
+          meetLink: 'https://meet.google.com/consult-live',
+        },
+      ],
+      todos: [{ id: 'open', title: 'Call Maya', due_date: '2026-11-05', status: 'open' }],
+    })
+    const ids = events.map((event) => event.id)
+    assert.equal(ids.includes('meeting:follow'), false)
+    assert.equal(ids.includes('google:movie'), false)
+    assert.equal(ids.includes('meeting:meet'), true)
+    assert.equal(ids.includes('google:real'), true)
+    assert.equal(ids.includes('todo:open'), true)
+  })
+
   it('keeps pipeline links off the calendar for client relations', () => {
     const range = parseCalendarRange('2026-11-01', '2026-11-07')
     assert.equal(range.ok, true)
@@ -146,5 +193,6 @@ describe('staff calendar access', () => {
     const todayApi = readFileSync('src/lib/marketing-crm.ts', 'utf8')
     assert.doesNotMatch(today, /Today's Calendar/)
     assert.doesNotMatch(todayApi, /today calendar error/)
+    assert.match(readFileSync('src/lib/staff-calendar.ts', 'utf8'), /isGoogleMeetHref/)
   })
 })
