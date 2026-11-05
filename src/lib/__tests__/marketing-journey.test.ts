@@ -231,6 +231,14 @@ describe('Lumen & Co. Floral continuity', () => {
     assert.equal(billed.client.monthly_price, 250)
     assert.equal(billed.prospect.clientId, billed.client.id)
     await assert.rejects(() => openProspectForBilling(id, procurement), /Forbidden/)
+    await assert.rejects(
+      () => handOffProspect(id, 'client_relations', sales),
+      /Stripe payment/
+    )
+    const billedClient = db.rows('clients').find((row) => row.id === billed.client.id)
+    assert.ok(billedClient)
+    billedClient.last_payment_at = '2026-11-05T18:00:00.000Z'
+    billedClient.billing_status = 'paid'
     const won = await handOffProspect(id, 'client_relations', sales)
     assert.equal(won.clientId, billed.client.id)
     assert.equal(won.stage, 'won')

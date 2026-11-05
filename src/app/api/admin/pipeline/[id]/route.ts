@@ -8,6 +8,7 @@ import {
   roleMayUsePipeline,
   saveMarketingProspect,
   scriptsForProspect,
+  stripePaidForProspect,
 } from '@/lib/marketing-crm'
 import { marketingActor, marketingError } from '@/lib/marketing-http'
 import { requireMarketingSession } from '@/lib/stripe-admin-auth'
@@ -39,6 +40,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     scripts: scriptsForProspect(prospect, marketingActor(session)),
     meetings,
     workspaceConnected: isGoogleWorkspaceConfigured(),
+    stripePaid: await stripePaidForProspect(prospect),
   })
 }
 

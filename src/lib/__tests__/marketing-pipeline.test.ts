@@ -5,6 +5,7 @@ import {
   boardLanes,
   canHandOffToRelations,
   canHandOffToSales,
+  canSeeCloseSection,
   closerMayBillProspect,
   canMoveStage,
   roleCanEditStage,
@@ -21,6 +22,7 @@ import {
   procurementMetrics,
   salesHandoffGaps,
   salesMetrics,
+  stripeHasConfirmedPayment,
   scoreBand,
   scoreTotal,
   stageAfterConsultation,
@@ -113,8 +115,34 @@ describe('marketing role handoffs and navigation', () => {
       agreementSigned: false,
       paymentStatus: 'unpaid',
       proposalUrl: 'https://docs.google.com/document/d/abc',
+      stripePaid: true,
     })
     assert.deepEqual(gaps, ['Agreement marked signed'])
+  })
+
+  it('treats Stripe last_payment_at or paid status as confirmed payment', () => {
+    assert.equal(stripeHasConfirmedPayment(null), false)
+    assert.equal(stripeHasConfirmedPayment({ billing_status: 'not_started' }), false)
+    assert.equal(stripeHasConfirmedPayment({ billing_status: 'trial' }), false)
+    assert.equal(stripeHasConfirmedPayment({ billing_status: 'paid' }), true)
+    assert.equal(stripeHasConfirmedPayment({ last_payment_at: '2026-11-05T18:00:00.000Z' }), true)
+    assert.equal(canSeeCloseSection('sales_closer', false), false)
+    assert.equal(canSeeCloseSection('sales_closer', true), true)
+    assert.equal(canSeeCloseSection('lead_procurement', true), false)
+    assert.deepEqual(
+      salesHandoffGaps({
+        servicesPurchased: 'Website',
+        scope: 'Five pages',
+        deliverables: 'Site and logo',
+        deadline: 'Dec 1',
+        promises: 'Two revision rounds',
+        expectations: 'Weekly update',
+        agreementSigned: true,
+        proposalUrl: 'https://docs.google.com/document/d/abc',
+        stripePaid: false,
+      }),
+      ['Stripe payment']
+    )
   })
 
   it('moves a lead out of procurement after the sales handoff and into client relations only after the won handoff', () => {

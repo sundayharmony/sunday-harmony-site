@@ -54,6 +54,7 @@ import {
   roleMayRunSalesActions,
   salesHandoffGaps,
   salesMetrics,
+  stripeHasConfirmedPayment,
   scoreTotal,
   stageAfterConsultation,
   stageFromLegacy,
@@ -500,6 +501,12 @@ export async function salesCloserOwnsClient(clientId: string): Promise<boolean> 
   return data.some((row) => closerMayBillProspect('sales_closer', mapProspect(row as LeadRow), true))
 }
 
+export async function stripePaidForProspect(prospect: { clientId: string | null }): Promise<boolean> {
+  if (!prospect.clientId) return false
+  const client = await getClientById(prospect.clientId)
+  return stripeHasConfirmedPayment(client)
+}
+
 export async function readProspectBilling(
   id: string,
   actor: MarketingActor
@@ -559,6 +566,7 @@ export async function handOffProspect(
     if (!canHandOffToRelations(actor.role, prospect.stage)) {
       throw new Error('Move the prospect to Active before handing it to client relations')
     }
+    const stripePaid = await stripePaidForProspect(prospect)
     const gaps = salesHandoffGaps({
       servicesPurchased: prospect.servicesPurchased,
       scope: prospect.scope,
@@ -569,6 +577,7 @@ export async function handOffProspect(
       agreementSigned: Boolean(prospect.agreementSignedAt),
       paymentStatus: prospect.paymentStatus,
       proposalUrl: prospect.proposalDocUrl,
+      stripePaid,
     })
     if (!prospect.email.trim()) gaps.push('Email')
     if (gaps.length) throw new Error(`Still needed: ${gaps.join(', ')}`)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import BillingPanel, { type BillingPanelClient } from '@/components/billing/BillingPanel'
 
 export default function CloserBilling({
@@ -8,16 +8,20 @@ export default function CloserBilling({
   business,
   servicesPurchased,
   paymentStatus,
+  onBillingChange,
 }: {
   prospectId: string
   business: string
   servicesPurchased?: string
   paymentStatus?: string
+  onBillingChange?: (client: BillingPanelClient | null) => void
 }) {
   const [client, setClient] = useState<BillingPanelClient | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [opening, setOpening] = useState(false)
+  const onBillingChangeRef = useRef(onBillingChange)
+  onBillingChangeRef.current = onBillingChange
 
   const load = useCallback(async (method: 'GET' | 'POST') => {
     if (method === 'POST') setOpening(true)
@@ -29,7 +33,9 @@ export default function CloserBilling({
         setError(typeof data.error === 'string' ? data.error : 'Could not open billing')
         return
       }
-      setClient(data.client || null)
+      const next = data.client || null
+      setClient(next)
+      onBillingChangeRef.current?.(next)
     } catch {
       setError('Could not open billing')
     } finally {

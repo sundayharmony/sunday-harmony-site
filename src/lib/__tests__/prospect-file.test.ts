@@ -13,6 +13,12 @@ describe('prospect file view mode', () => {
     assert.match(source, /<dl className="grid grid-cols-1 sm:grid-cols-2/)
   })
 
+  it('hides Close until Stripe has confirmed payment', () => {
+    assert.match(source, /canSeeCloseSection\(role, stripePaid\)/)
+    assert.match(source, /Stripe confirmed payment/)
+    assert.match(source, /setStripePaid\(Boolean\(data.stripePaid\)\)/)
+  })
+
   it('keeps pipeline stage editable outside the editor', () => {
     assert.match(source, /function changeStage\(/)
     const stageStart = source.indexOf('<span className="font-medium">Pipeline stage</span>')

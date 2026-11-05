@@ -81,7 +81,7 @@ async function signInAndMockApis(page: Page) {
         return
       }
       await route.fulfill({
-        json: { prospect, scripts: [], meetings: [], workspaceConnected: false },
+        json: { prospect, scripts: [], meetings: [], workspaceConnected: false, stripePaid: false },
       })
       return
     }
@@ -116,6 +116,7 @@ test.describe('prospect file view mode', () => {
     await expect(page.getByText('Business Essentials $599')).toBeVisible()
     await expect(page.getByLabel(/Business name/i)).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Save prospect' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Close' })).toHaveCount(0)
 
     await page.screenshot({
       path: '/opt/cursor/artifacts/prospect-file-view-desktop.png',
@@ -160,6 +161,41 @@ test.describe('prospect file view mode', () => {
     await page.screenshot({
       path: '/opt/cursor/artifacts/prospect-file-edit-mobile.png',
       fullPage: true,
+    })
+  })
+
+  test('shows Close after Stripe confirms payment', async ({ page }) => {
+    await signInAndMockApis(page)
+    await page.route(`**/api/admin/pipeline/${PROSPECT_ID}`, async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.continue()
+        return
+      }
+      await route.fulfill({
+        json: {
+          prospect: { ...prospect, stage: 'won' },
+          scripts: [],
+          meetings: [],
+          workspaceConnected: false,
+          stripePaid: true,
+        },
+      })
+    })
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto(`/admin/pipeline/${PROSPECT_ID}`)
+
+    await expect(page.getByRole('heading', { name: 'Close' })).toBeVisible()
+    await expect(page.getByText('Stripe confirmed payment')).toBeVisible()
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/prospect-file-close-after-stripe.png',
+      fullPage: true,
+    })
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(page.getByRole('heading', { name: 'Close' })).toBeVisible()
+    await page.getByRole('heading', { name: 'Close' }).scrollIntoViewIfNeeded()
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/prospect-file-close-after-stripe-mobile.png',
     })
   })
 })

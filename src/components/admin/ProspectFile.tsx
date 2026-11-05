@@ -18,9 +18,11 @@ import {
   canHandOffToRelations,
   canHandOffToSales,
   canMoveStage,
+  canSeeCloseSection,
   isLeadSource,
   isProspectCategory,
   roleMayRunSalesActions,
+  stripeHasConfirmedPayment,
   scoreBandLabel,
   scoreTotal,
   type PipelineStage,
@@ -155,6 +157,7 @@ export default function ProspectFile({ id }: { id: string }) {
   const [meetings, setMeetings] = useState<JoinableMeeting[]>([])
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Prospect | null>(null)
+  const [stripePaid, setStripePaid] = useState(false)
 
   function applyProspect(next: Prospect, nextScripts?: Script[]) {
     setProspect(next)
@@ -200,8 +203,26 @@ export default function ProspectFile({ id }: { id: string }) {
       applyProspect(data.prospect, data.scripts)
       setMeetings(Array.isArray(data.meetings) ? data.meetings : [])
       setWorkspaceConnected(Boolean(data.workspaceConnected))
+      setStripePaid(Boolean(data.stripePaid))
     })()
   }, [id])
+
+  const stage = prospect?.stage
+  const closerRole = roleMayRunSalesActions(role)
+  useEffect(() => {
+    if (!closerRole || stage !== 'won' || stripePaid) return
+    let cancelled = false
+    async function refreshPaid() {
+      const res = await fetch(`/api/admin/pipeline/${id}/billing`)
+      const data = await res.json().catch(() => ({}))
+      if (!cancelled && res.ok && stripeHasConfirmedPayment(data.client)) setStripePaid(true)
+    }
+    const timer = window.setInterval(() => { void refreshPaid() }, 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [closerRole, id, stage, stripePaid])
 
   if (error && !prospect) return <p className="text-sm text-brand-red">{error}</p>
   if (!prospect) return <p className="text-sm text-brand-muted">Loading prospect…</p>
@@ -211,7 +232,7 @@ export default function ProspectFile({ id }: { id: string }) {
   const isSales = roleMayRunSalesActions(role)
   const isProcurement = role === 'lead_procurement'
   const showOutreach = role === 'admin' || isProcurement
-  const showClose = role === 'admin' || isSales
+  const showClose = canSeeCloseSection(role, stripePaid)
   const showScore = role === 'admin' || isProcurement
 
   function patch(partial: Partial<Prospect>) {
@@ -736,12 +757,24 @@ export default function ProspectFile({ id }: { id: string }) {
         </section>
       )}
 
+      {isSales && prospect.stage === 'won' && (
+        <CloserBilling
+          prospectId={prospect.id}
+          business={prospect.business}
+          servicesPurchased={prospect.servicesPurchased}
+          paymentStatus={prospect.paymentStatus}
+          onBillingChange={(client) => {
+            if (stripeHasConfirmedPayment(client)) setStripePaid(true)
+          }}
+        />
+      )}
+
       {showClose && (
         <section className="bg-white border border-brand-border rounded-xl p-4 sm:p-5 space-y-4">
           <div>
             <h2 className="text-sm font-bold text-brand-text">Close</h2>
             <p className="text-xs text-brand-muted mt-1">
-              Deal details for billing and the handoff to client relations.
+              Stripe confirmed payment. Fill this in for the handoff to client relations.
             </p>
           </div>
           {editing ? (
@@ -825,15 +858,6 @@ export default function ProspectFile({ id }: { id: string }) {
             )}
           </div>
         </section>
-      )}
-
-      {isSales && prospect.stage === 'won' && (
-        <CloserBilling
-          prospectId={prospect.id}
-          business={prospect.business}
-          servicesPurchased={prospect.servicesPurchased}
-          paymentStatus={prospect.paymentStatus}
-        />
       )}
     </div>
   )

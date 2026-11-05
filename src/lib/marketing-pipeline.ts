@@ -511,6 +511,21 @@ export type SalesChecklistInput = {
   agreementSigned?: boolean
   paymentStatus?: string | null
   proposalUrl?: string | null
+  stripePaid?: boolean
+}
+
+export function stripeHasConfirmedPayment(client?: {
+  last_payment_at?: string | null
+  billing_status?: string | null
+} | null): boolean {
+  if (!client) return false
+  const paidAt = client.last_payment_at?.trim()
+  if (paidAt && !Number.isNaN(new Date(paidAt).getTime())) return true
+  return client.billing_status === 'paid'
+}
+
+export function canSeeCloseSection(role: string | null | undefined, stripePaid: boolean): boolean {
+  return roleMayRunSalesActions(role) && stripePaid
 }
 
 export function salesHandoffGaps(input: SalesChecklistInput): string[] {
@@ -522,7 +537,7 @@ export function salesHandoffGaps(input: SalesChecklistInput): string[] {
   if (!(input.promises || '').trim()) gaps.push('Promises made')
   if (!(input.expectations || '').trim()) gaps.push('Client expectations')
   if (!input.agreementSigned) gaps.push('Agreement marked signed')
-  if (!(input.paymentStatus || '').trim()) gaps.push('Payment status')
+  if (!input.stripePaid) gaps.push('Stripe payment')
   if (!(input.proposalUrl || '').trim()) gaps.push('Proposal Doc')
   return gaps
 }
