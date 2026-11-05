@@ -19,6 +19,19 @@ describe('prospect file view mode', () => {
     assert.match(source, /setStripePaid\(Boolean\(data.stripePaid\)\)/)
   })
 
+  it('hides empty schedule and send forms after work is already done', () => {
+    assert.match(source, /meetingCardState === 'upcoming'/)
+    assert.match(source, /meetingCardState === 'none'/)
+    assert.match(source, /agreementStatus === 'signed'/)
+    assert.match(source, /Agreement sent, awaiting signature/)
+    assert.match(source, /Reschedule/)
+    assert.doesNotMatch(source, /had a meeting/)
+    const salesStart = source.indexOf('Sales actions')
+    const salesBlock = source.slice(salesStart, source.indexOf('{showOutreach &&', salesStart))
+    assert.match(salesBlock, /flex flex-col/)
+    assert.match(salesBlock, /w-full min-w-0/)
+  })
+
   it('keeps pipeline stage editable outside the editor', () => {
     assert.match(source, /function changeStage\(/)
     const stageStart = source.indexOf('<span className="font-medium">Pipeline stage</span>')

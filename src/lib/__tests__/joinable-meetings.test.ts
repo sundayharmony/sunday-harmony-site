@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { assembleJoinableMeetings, meetingStillJoinable, safeMeetHref } from '../joinable-meetings'
+import { prospectMeetingCardState } from '../prospect-sales-cards'
 
 describe('joinable meetings', () => {
   it('keeps a meeting joinable until 15 minutes after it ends', () => {
@@ -70,5 +71,41 @@ describe('joinable meetings', () => {
     assert.equal(rows.find((row) => row.prospectId === 'lead-1')?.meetLink, 'https://meet.google.com/lumen-live')
     assert.equal(rows.some((row) => row.meetLink === 'https://meet.google.com/other-live'), true)
     assert.equal(rows.some((row) => row.id === 'evt-follow'), false)
+  })
+
+  it('keeps stored meeting history after the join cutoff without making it joinable', () => {
+    const now = Date.parse('2026-11-05T18:00:00.000Z')
+    const startsAt = '2026-11-05T16:00:00.000Z'
+    const input = {
+      now,
+      prospects: [{
+        id: 'lead-1',
+        business: 'Lumen & Co. Floral',
+        stage: 'proposal_sent',
+        followUpAt: startsAt,
+        followUpEventId: 'evt-past',
+      }],
+      meetings: [{
+        id: 'm-past',
+        lead_id: 'lead-1',
+        status: 'scheduled',
+        scheduled_at: startsAt,
+        duration_minutes: 30,
+        google_meet_link: 'https://meet.google.com/lumen-past',
+        title: 'Meeting: Lumen & Co. Floral',
+      }],
+    }
+    const joinable = assembleJoinableMeetings(input)
+    const history = assembleJoinableMeetings({ ...input, includeEnded: true })
+    assert.equal(joinable.length, 0)
+    assert.equal(history.length, 1)
+    assert.equal(history[0]?.startsAt, startsAt)
+    assert.equal(meetingStillJoinable({ startsAt, durationMinutes: 30 }, now), false)
+    assert.equal(prospectMeetingCardState({
+      now,
+      storedMeetings: input.meetings,
+      followUpAt: startsAt,
+      stage: 'proposal_sent',
+    }).state, 'past')
   })
 })

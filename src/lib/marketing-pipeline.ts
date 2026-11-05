@@ -94,6 +94,7 @@ export type AdminNavItem = { href: string; label: string; icon: string }
 
 export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
+  { href: '/admin/calendar', icon: '\u{1F5D3}', label: 'Calendar' },
   { href: '/admin/pipeline', icon: '\u{1F4C8}', label: 'Pipeline' },
   { href: '/admin/clients', icon: '\u{1F91D}', label: 'Clients' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
@@ -394,6 +395,7 @@ export function canMoveStage(role: string | null | undefined, from: PipelineStag
 export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'credit_manager') {
     return ADMIN_NAV.filter((item) =>
+      item.href === '/admin/calendar' ||
       item.href === '/admin/credit-funding' ||
       item.href === '/admin/todos' ||
       item.href === '/admin/messages' ||
@@ -403,6 +405,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'lead_procurement') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
+      item.href === '/admin/calendar' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/todos' ||
       item.href === '/admin/sales-kit' ||
@@ -414,6 +417,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'sales_closer') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin'
+      || item.href === '/admin/calendar'
       || item.href === '/admin/pipeline'
       || item.href === '/admin/todos'
       || item.href === '/admin/sales-kit'
@@ -425,6 +429,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'client_relations') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
+      item.href === '/admin/calendar' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/clients' ||
       item.href === '/admin/todos' ||
@@ -453,7 +458,9 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
     path === '/admin/messages' ||
     path.startsWith('/admin/messages/') ||
     path === '/admin/todos' ||
-    path.startsWith('/admin/todos/')
+    path.startsWith('/admin/todos/') ||
+    path === '/admin/calendar' ||
+    path.startsWith('/admin/calendar/')
   ) return true
   if (role === 'lead_procurement' || role === 'sales_closer') {
     return (
@@ -480,6 +487,11 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
 /** Sales closers and admins can schedule meetings and send agreements from a prospect file. */
 export function roleMayRunSalesActions(role?: string | null): boolean {
   return role === 'admin' || role === 'sales_closer'
+}
+
+/** Pipeline files are for admin and sales roles; client relations stays on the board list. */
+export function roleMayOpenProspectFile(role?: string | null): boolean {
+  return role === 'admin' || role === 'lead_procurement' || role === 'sales_closer'
 }
 
 export type ProcurementChecklistInput = {

@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
   staffTodoPriorityLabel,
@@ -53,15 +54,17 @@ const emptyForm = {
   assignee_id: '',
 }
 
-export default function AdminTodosPage() {
+function AdminTodosBoard() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const focusTodoId = searchParams.get('todo')
   const isAdmin = session?.user?.role === 'admin'
   const [todos, setTodos] = useState<StaffTodoView[]>([])
   const [assignees, setAssignees] = useState<AssigneeOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [statusFilter, setStatusFilter] = useState('open')
+  const [statusFilter, setStatusFilter] = useState(focusTodoId ? 'all' : 'open')
   const [assigneeFilter, setAssigneeFilter] = useState(isAdmin ? 'all' : 'me')
   const [form, setForm] = useState(emptyForm)
   const [showForm, setShowForm] = useState(false)
@@ -69,6 +72,16 @@ export default function AdminTodosPage() {
   useEffect(() => {
     if (!isAdmin && assigneeFilter === 'all') setAssigneeFilter('me')
   }, [isAdmin, assigneeFilter])
+
+  useEffect(() => {
+    if (focusTodoId && statusFilter !== 'all') setStatusFilter('all')
+  }, [focusTodoId, statusFilter])
+
+  useEffect(() => {
+    if (!focusTodoId || loading) return
+    const node = document.getElementById(`staff-todo-${focusTodoId}`)
+    node?.scrollIntoView({ block: 'center' })
+  }, [focusTodoId, loading, todos])
 
   async function loadTodos() {
     setLoading(true)
@@ -322,7 +335,10 @@ export default function AdminTodosPage() {
         {todos.map((todo) => (
           <div
             key={todo.id}
-            className="rounded-2xl border border-brand-border bg-white p-4 sm:p-5"
+            id={`staff-todo-${todo.id}`}
+            className={`rounded-2xl border bg-white p-4 sm:p-5 ${
+              todo.id === focusTodoId ? 'border-accent ring-2 ring-accent/30' : 'border-brand-border'
+            }`}
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
@@ -405,5 +421,13 @@ export default function AdminTodosPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+export default function AdminTodosPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-brand-muted">Loading todos…</p>}>
+      <AdminTodosBoard />
+    </Suspense>
   )
 }

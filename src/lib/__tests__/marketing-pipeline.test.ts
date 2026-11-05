@@ -15,6 +15,7 @@ import {
   followUpError,
   homeForRole,
   marketingRoleAllowedPath,
+  roleMayOpenProspectFile,
   marketingStatusForStage,
   navForRole,
   roleMayRunSalesActions,
@@ -218,11 +219,12 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Partners', 'Messages', 'Settings']
+      ['Today', 'Calendar', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Partners', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
       '/admin',
+      '/admin/calendar',
       '/admin/pipeline',
       '/admin/todos',
       '/admin/sales-kit',
@@ -232,6 +234,7 @@ describe('marketing role handoffs and navigation', () => {
     ])
     assert.deepEqual(navForRole('sales_closer').map((item) => item.href), [
       '/admin',
+      '/admin/calendar',
       '/admin/pipeline',
       '/admin/todos',
       '/admin/sales-kit',
@@ -242,6 +245,7 @@ describe('marketing role handoffs and navigation', () => {
     // Client relations sees Content Kit
     assert.deepEqual(navForRole('client_relations').map((item) => item.href), [
       '/admin',
+      '/admin/calendar',
       '/admin/pipeline',
       '/admin/clients',
       '/admin/todos',
@@ -250,6 +254,7 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/settings',
     ])
     assert.deepEqual(navForRole('credit_manager').map((item) => item.href), [
+      '/admin/calendar',
       '/admin/credit-funding',
       '/admin/todos',
       '/admin/messages',
@@ -284,6 +289,11 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/clients'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline/abc'), false)
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/calendar'), true)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/calendar'), true)
+    assert.equal(roleMayOpenProspectFile('sales_closer'), true)
+    assert.equal(roleMayOpenProspectFile('client_relations'), false)
+    assert.equal(roleMayOpenProspectFile('credit_manager'), false)
     // Client relations can access Content Kit
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/content-kit'), true)
     // Client relations cannot access Sales Kit
