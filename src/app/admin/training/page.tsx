@@ -1,6 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import CloserSopHub, { useCloserTrainingProgress } from '@/components/admin/CloserSopHub'
 import {
   companyInfo,
   services,
@@ -13,26 +16,53 @@ import {
   bestPractices,
   comingSoonResources,
   disputeOpsTraining,
+  liveTrainingResources,
+  closerTrainingComplete,
 } from '@/lib/training-data'
 
-type Tab = 'company' | 'role' | 'workflow' | 'dispute-ops' | 'resources'
+type Tab = 'company' | 'role' | 'workflow' | 'closer-sop' | 'dispute-ops' | 'resources'
 
 export default function TrainingPage() {
+  const { data: session, status } = useSession()
+  const role = session?.user?.role
+  const userId = session?.user?.id || (status === 'loading' ? '' : 'anonymous')
+  const showDisputeOps = role !== 'sales_closer'
   const [tab, setTab] = useState<Tab>('company')
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
+  const defaultedTab = useRef(false)
+  const { progress, persist } = useCloserTrainingProgress(userId)
+  const trainingDone = closerTrainingComplete(progress)
+
+  useEffect(() => {
+    if (defaultedTab.current || status === 'loading') return
+    defaultedTab.current = true
+    if (role === 'sales_closer') setTab('closer-sop')
+  }, [status, role])
+
+  useEffect(() => {
+    if (!showDisputeOps && tab === 'dispute-ops') setTab('closer-sop')
+  }, [showDisputeOps, tab])
 
   const tabs: [Tab, string][] = [
     ['company', 'Company'],
     ['role', 'Your Role'],
     ['workflow', 'How to Work'],
-    ['dispute-ops', 'Credit Repair / Dispute Ops'],
+    ['closer-sop', 'Closer SOP'],
+    ...(showDisputeOps ? [['dispute-ops', 'Credit Repair / Dispute Ops'] as [Tab, string]] : []),
     ['resources', 'Resources'],
   ]
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Sales Training Manual</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text">Sales Training Manual</h1>
+          {trainingDone ? (
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-accent-soft border border-accent text-xs font-bold text-accent">
+              Closer SOP complete
+            </span>
+          ) : null}
+        </div>
         <p className="text-sm text-brand-muted">
           Everything you need to know to succeed as a Sunday Harmony sales specialist.
         </p>
@@ -236,7 +266,11 @@ export default function TrainingPage() {
         </div>
       )}
 
-      {tab === 'dispute-ops' && (
+      {tab === 'closer-sop' && (
+        <CloserSopHub progress={progress} onProgressChange={persist} />
+      )}
+
+      {tab === 'dispute-ops' && showDisputeOps && (
         <div className="space-y-6">
           <div className="bg-accent-soft border border-accent rounded-xl p-5">
             <div className="text-sm font-bold text-accent mb-2">{disputeOpsTraining.title}</div>
@@ -291,10 +325,56 @@ export default function TrainingPage() {
       {tab === 'resources' && (
         <div className="space-y-6">
           <div className="bg-accent-soft border border-accent rounded-xl p-5">
-            <div className="text-sm font-bold text-accent mb-2">Coming Soon</div>
+            <div className="text-sm font-bold text-accent mb-2">Closer tools</div>
             <p className="text-sm text-brand-muted">
-              Additional resources are being prepared and will be available here shortly.
+              Start with the Closer Training Manual and Sales Kit. The interactive SOP lives on the Closer SOP tab.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {liveTrainingResources.map((resource) => {
+              const card = (
+                <>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">{resource.icon}</span>
+                    <h3 className="text-base font-bold text-brand-text">{resource.title}</h3>
+                  </div>
+                  <p className="text-xs text-brand-muted leading-relaxed">{resource.description}</p>
+                </>
+              )
+              const className = 'bg-white border border-brand-border rounded-xl p-5 shadow-sm hover:border-accent transition-colors block'
+              if (resource.external) {
+                return (
+                  <a
+                    key={resource.title}
+                    href={resource.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={className}
+                  >
+                    {card}
+                  </a>
+                )
+              }
+              return (
+                <Link key={resource.title} href={resource.href} className={className}>
+                  {card}
+                </Link>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setTab('closer-sop')}
+              className="bg-white border border-brand-border rounded-xl p-5 shadow-sm hover:border-accent transition-colors text-left"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl">🎓</span>
+                <h3 className="text-base font-bold text-brand-text">Interactive Closer SOP</h3>
+              </div>
+              <p className="text-xs text-brand-muted leading-relaxed">
+                Modules, checkmarks, and the appendix self-check — open the Closer SOP tab.
+              </p>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -320,8 +400,7 @@ export default function TrainingPage() {
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
             <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Need Help Now?</div>
             <p className="text-sm text-brand-muted">
-              If you have questions about payment processing or website navigation before these guides are
-              available, please reach out to your manager.
+              Questions on payment processing or a live deal? Start with the Closer SOP and Sales Kit, then ask your manager.
             </p>
           </div>
         </div>

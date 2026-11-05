@@ -170,7 +170,7 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Content Kit', 'Partners', 'Messages', 'Settings']
+      ['Today', 'Pipeline', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Partners', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
@@ -178,6 +178,7 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/pipeline',
       '/admin/todos',
       '/admin/sales-kit',
+      '/admin/training',
       '/admin/messages',
       '/admin/settings',
     ])
@@ -186,6 +187,7 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/pipeline',
       '/admin/todos',
       '/admin/sales-kit',
+      '/admin/training',
       '/admin/messages',
       '/admin/settings',
     ])
@@ -222,6 +224,10 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/sales-kit'), true)
     assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/sales-kit'), true)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/sales-kit/agreement/new'), true)
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/training'), true)
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/training/sop'), true)
+    assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/training'), true)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/training'), false)
     // Sales roles cannot access Content Kit
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/content-kit'), false)
     assert.equal(roleMayRunSalesActions('sales_closer'), true)

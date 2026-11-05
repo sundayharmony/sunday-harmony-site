@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { salesMaterials, outreachEmailTemplates, type OutreachEmailTemplate } from '@/lib/sales-materials'
+import { MATERIAL_CATEGORY_LABELS, salesMaterials, outreachEmailTemplates, type OutreachEmailTemplate } from '@/lib/sales-materials'
 import type { ServiceDocument } from '@/lib/service-documents'
 import type { DocumentStatus } from '@/lib/document-status'
 
@@ -84,7 +84,7 @@ export default function SalesKitPage() {
                   <p className="text-xs text-brand-muted mt-1">{material.description}</p>
                 </div>
                 <span className="text-xs font-semibold px-2 py-1 rounded bg-accent-soft text-accent uppercase tracking-wide">
-                  {material.category}
+                  {MATERIAL_CATEGORY_LABELS[material.category]}
                 </span>
               </div>
               <div className="flex gap-2 mt-4">

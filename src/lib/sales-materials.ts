@@ -8,8 +8,17 @@ export interface SalesMaterial {
   title: string
   description: string
   pdfPath: string
-  category: 'presentation' | 'proposal' | 'agreement' | 'email' | 'social'
+  category: 'presentation' | 'proposal' | 'agreement' | 'email' | 'social' | 'training'
   forRoles: Array<'admin' | 'sales' | 'marketing'>
+}
+
+export const MATERIAL_CATEGORY_LABELS: Record<SalesMaterial['category'], string> = {
+  presentation: 'Presentation',
+  proposal: 'Proposal',
+  agreement: 'Agreement',
+  email: 'Email',
+  social: 'Social',
+  training: 'Training',
 }
 
 export const salesMaterials: SalesMaterial[] = [
@@ -52,6 +61,14 @@ export const salesMaterials: SalesMaterial[] = [
     pdfPath: '/sales-materials/social-posts.pdf',
     category: 'social',
     forRoles: ['admin', 'marketing'],
+  },
+  {
+    id: 'closer-training-sop',
+    title: 'Closer Training Manual',
+    description: 'SOP for sales closers: admin dashboard, packages, outreach, discovery, proposal, and close.',
+    pdfPath: '/sales-materials/closer-training-sop.pdf',
+    category: 'training',
+    forRoles: ['admin', 'sales'],
   },
 ]
 

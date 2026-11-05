@@ -7,16 +7,24 @@ import {
   outreachEmailTemplates,
   socialPostTemplates,
   getPackageOptionsForAgreement,
+  MATERIAL_CATEGORY_LABELS,
 } from '../sales-materials'
 import { packages } from '../data'
 
 describe('sales materials', () => {
-  it('has five PDF materials in public/sales-materials', () => {
-    assert.equal(salesMaterials.length, 5)
+  it('has PDF materials in public/sales-materials including closer training', () => {
+    assert.equal(salesMaterials.length, 6)
     for (const material of salesMaterials) {
       const fullPath = path.join(process.cwd(), 'public', material.pdfPath.replace(/^\//, ''))
       assert.ok(existsSync(fullPath), `Missing PDF: ${material.pdfPath}`)
+      assert.ok(MATERIAL_CATEGORY_LABELS[material.category], `Missing label for ${material.category}`)
     }
+    const training = salesMaterials.find((material) => material.id === 'closer-training-sop')
+    assert.ok(training)
+    assert.equal(training.category, 'training')
+    assert.equal(MATERIAL_CATEGORY_LABELS.training, 'Training')
+    assert.deepEqual(training.forRoles, ['admin', 'sales'])
+    assert.equal(training.pdfPath, '/sales-materials/closer-training-sop.pdf')
   })
 
   it('assigns materials to appropriate roles', () => {
