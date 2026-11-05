@@ -84,7 +84,7 @@ export const FIELD_PURPOSES = {
   score: '0–10',
   source: 'Where you found them',
   contactDate: 'Last outreach',
-  followUp: 'Next action',
+  followUp: 'Optional reminder. Set only when you actually need one.',
   stage: 'Current status',
   value: 'Potential project revenue',
   notes: 'Conversation history stays in Gmail. These notes stay internal.',
@@ -175,15 +175,13 @@ export function scoreBandLabel(total: number): string {
   return 'Low priority'
 }
 
-export function stageRequiresFollowUp(stage: PipelineStage): boolean {
-  return stage !== 'won' && stage !== 'lost_nurture'
+export function stageRequiresFollowUp(_stage: PipelineStage): boolean {
+  return false
 }
 
-export function followUpError(stage: PipelineStage, followUpAt?: string | null): string | null {
-  if (!stageRequiresFollowUp(stage)) return null
-  if (!followUpAt || Number.isNaN(new Date(followUpAt).getTime())) {
-    return 'Every active prospect needs a follow-up date.'
-  }
+export function followUpError(_stage: PipelineStage, followUpAt?: string | null): string | null {
+  if (!followUpAt) return null
+  if (Number.isNaN(new Date(followUpAt).getTime())) return 'Follow-up must be a valid date.'
   return null
 }
 

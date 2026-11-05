@@ -61,11 +61,19 @@ describe('marketing pipeline scores and stages', () => {
     assert.equal(marketingStatusForStage('responded'), 'contacted')
   })
 
-  it('requires a follow-up date until the prospect is won or lost', () => {
-    assert.match(followUpError('researching', '') || '', /follow-up/)
+  it('treats follow-up dates as optional and only set by hand', () => {
+    assert.equal(followUpError('researching', ''), null)
+    assert.equal(followUpError('researching', null), null)
     assert.equal(followUpError('negotiation', '2026-11-02T15:00:00.000Z'), null)
+    assert.match(followUpError('contacted', 'not-a-date') || '', /valid date/)
     assert.equal(followUpError('won', null), null)
     assert.equal(followUpError('lost_nurture', null), null)
+    const pipeline = readFileSync('src/components/admin/MarketingPipeline.tsx', 'utf8')
+    const followStart = pipeline.indexOf('<span className="font-medium">Follow-up</span>')
+    assert.notEqual(followStart, -1)
+    const followBlock = pipeline.slice(followStart, pipeline.indexOf('Lead source', followStart))
+    assert.match(followBlock, /datetime-local/)
+    assert.doesNotMatch(followBlock, /required/)
   })
 
   it('advances early leads when a consultation is booked and leaves closed deals', () => {

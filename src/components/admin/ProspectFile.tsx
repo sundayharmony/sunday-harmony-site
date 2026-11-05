@@ -541,6 +541,7 @@ export default function ProspectFile({ id }: { id: string }) {
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.followUp}</span>
           <input
             type="datetime-local"
+            data-testid="follow-up-input"
             className={inputClass}
             value={localInput(prospect.followUpAt)}
             onChange={(event) => patch({ followUpAt: event.target.value ? new Date(event.target.value).toISOString() : null })}

@@ -252,6 +252,20 @@ describe('POST /api/internal/leads-import', () => {
     assert.equal(inserted[0].recommended_service, inserted[0].service)
   })
 
+  it('imports a lead without a follow-up date', async () => {
+    process.env.LEADS_IMPORT_SECRET = SECRET
+    const db = memorySupabase()
+    setSupabaseForTests(db as unknown as SupabaseClient)
+    const { followUpAt: _followUpAt, ...lead } = sampleLeads[2]
+
+    const response = await POST(importRequest({ leads: [lead] }))
+    const body = await readJson(response)
+    assert.equal(response.status, 200)
+    assert.equal(body.inserted, 1)
+    const inserted = db.rows('leads').find((row) => row.business === 'Nick & Son Heating & AC')
+    assert.equal(inserted?.follow_up_at, null)
+  })
+
   it('skips in-batch duplicates after inserting the first copy', async () => {
     process.env.LEADS_IMPORT_SECRET = SECRET
     const db = memorySupabase()
