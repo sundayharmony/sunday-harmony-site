@@ -187,6 +187,7 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
       physicalMailingAddress: '1 Example Street, City, ST 00000',
       dailySendLimit: 10,
       historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
     })
     const template = await store.getLatestTemplate('camp-prospect-intro')
     assert.ok(template)
@@ -275,6 +276,7 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
       physicalMailingAddress: '1 Example Street, City, ST 00000',
       dailySendLimit: 10,
       historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
     })
     const template = await store.getLatestTemplate('camp-prospect-intro')
     assert.ok(template)
@@ -463,6 +465,13 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     const dispatch = readFileSync('src/lib/outreach/dispatch.ts', 'utf8')
     assert.match(dispatch, /skippedDisabled/)
     assert.match(dispatch, /markLeadContacted/)
+    assert.match(dispatch, /unsubscribe_token_unusable/)
+    assert.doesNotMatch(dispatch, /unsubscribeUrlFor/)
+    const vercel = readFileSync('vercel.json', 'utf8')
+    assert.doesNotMatch(vercel, /outreach-dispatch/)
+    assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /outreach-dispatch/)
+    const nextConfig = readFileSync('next.config.js', 'utf8')
+    assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)
     const book = readFileSync('src/app/book/page.tsx', 'utf8')
     assert.match(book, /ConsultationBooker/)
   })
