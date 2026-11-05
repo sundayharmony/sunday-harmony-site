@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import CloserBilling from '@/components/admin/CloserBilling'
 import MeetingJoinList from '@/components/admin/MeetingJoinList'
@@ -18,6 +18,8 @@ import {
   canHandOffToRelations,
   canHandOffToSales,
   canMoveStage,
+  isLeadSource,
+  isProspectCategory,
   roleMayRunSalesActions,
   scoreBandLabel,
   scoreTotal,
@@ -63,6 +65,57 @@ type Script = { id: string; label: string; channel: 'email' | 'copy'; subject: s
 type ThreadMessage = { from: string; date: string; snippet: string }
 
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
+const headerButtonClass =
+  'inline-flex w-full sm:w-auto items-center justify-center px-4 py-2.5 rounded-xl border border-brand-border bg-white text-sm font-semibold text-brand-text hover:border-accent hover:text-accent transition-colors'
+
+function formatWhen(iso: string | null): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function formatMoney(value: number | null): string {
+  if (value == null || Number.isNaN(value)) return ''
+  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+}
+
+function websiteHref(value: string): string {
+  if (/^https?:\/\//i.test(value)) return value
+  return `https://${value}`
+}
+
+function sourceLabel(source: string): string {
+  const key = source === 'inbound' ? 'website' : source
+  return isLeadSource(key) ? SOURCE_LABELS[key] : source
+}
+
+function Fact({
+  label,
+  children,
+  wide,
+}: {
+  label: string
+  children?: ReactNode
+  wide?: boolean
+}) {
+  const empty = children == null || children === ''
+  return (
+    <div className={wide ? 'sm:col-span-2' : undefined}>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-brand-muted">{label}</dt>
+      <dd className={`mt-1 text-sm break-words whitespace-pre-wrap ${empty ? 'text-brand-muted' : 'text-brand-text'}`}>
+        {empty ? 'Not set' : children}
+      </dd>
+    </div>
+  )
+}
 
 function localInput(iso: string | null): string {
   if (!iso) return ''
@@ -100,6 +153,8 @@ export default function ProspectFile({ id }: { id: string }) {
   const [agreementPrice, setAgreementPrice] = useState('')
   const [agreementPriceType, setAgreementPriceType] = useState<'one-time' | 'monthly' | 'custom'>('one-time')
   const [meetings, setMeetings] = useState<JoinableMeeting[]>([])
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState<Prospect | null>(null)
 
   function applyProspect(next: Prospect, nextScripts?: Script[]) {
     setProspect(next)
@@ -163,9 +218,24 @@ export default function ProspectFile({ id }: { id: string }) {
     setProspect((current) => (current ? { ...current, ...partial } : current))
   }
 
-  async function save() {
+  function startEdit() {
     if (!prospect) return
-    const current = prospect
+    setDraft(prospect)
+    setEditing(true)
+    setNotice('')
+  }
+
+  function cancelEdit() {
+    if (draft) setProspect(draft)
+    setDraft(null)
+    setEditing(false)
+    setError('')
+    setNotice('')
+  }
+
+  async function save(nextProspect?: Prospect, options?: { keepEditing?: boolean }) {
+    const current = nextProspect || prospect
+    if (!current) return
     setSaving(true)
     setError('')
     setNotice('')
@@ -182,12 +252,23 @@ export default function ProspectFile({ id }: { id: string }) {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Could not save')
       applyProspect(data.prospect)
+      if (!options?.keepEditing) {
+        setEditing(false)
+        setDraft(null)
+      }
       setNotice(data.warning || 'Saved.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save')
     } finally {
       setSaving(false)
     }
+  }
+
+  function changeStage(stage: PipelineStage) {
+    if (!prospect) return
+    const next = { ...prospect, stage }
+    setProspect(next)
+    if (!editing) void save(next, { keepEditing: false })
   }
 
   async function post(path: string, payload?: unknown) {
@@ -227,14 +308,22 @@ export default function ProspectFile({ id }: { id: string }) {
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-2">{prospect.business}</h1>
           <p className="text-sm text-brand-muted">{prospect.contactName || 'Decision-maker not set'} · {scoreBandLabel(total)} ({total}/10)</p>
         </div>
-        {isSales && (
-          <Link
-            href="/admin/sales-kit"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-brand-border bg-white text-sm font-semibold text-brand-text hover:border-accent hover:text-accent transition-colors"
-          >
-            💼 Sales Kit
-          </Link>
-        )}
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row">
+          {editing ? (
+            <button type="button" onClick={cancelEdit} className={headerButtonClass}>
+              Cancel
+            </button>
+          ) : (
+            <button type="button" onClick={startEdit} className={headerButtonClass}>
+              Edit
+            </button>
+          )}
+          {isSales && (
+            <Link href="/admin/sales-kit" className={`${headerButtonClass} gap-2`}>
+              💼 Sales Kit
+            </Link>
+          )}
+        </div>
       </div>
       {error && <p className="text-sm text-brand-red">{error}</p>}
       {notice && <p className="text-sm text-brand-muted">{notice}</p>}
@@ -244,16 +333,24 @@ export default function ProspectFile({ id }: { id: string }) {
         </p>
       )}
 
-      <section className="bg-white border border-brand-border rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="text-sm sm:col-span-2">
+      <section className="bg-white border border-brand-border rounded-xl p-4 sm:p-5 space-y-5">
+        <label className="text-sm block pb-4 border-b border-brand-border">
           <span className="font-medium">Pipeline stage</span>
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.stage}</span>
-          <select className={inputClass} value={prospect.stage} onChange={(event) => patch({ stage: event.target.value as PipelineStage })}>
+          <select
+            className={`${inputClass} sm:max-w-xs`}
+            value={prospect.stage}
+            disabled={saving}
+            onChange={(event) => changeStage(event.target.value as PipelineStage)}
+          >
             {PIPELINE_STAGES.filter((stage) => stage === prospect.stage || canMoveStage(role, prospect.stage, stage)).map((stage) => (
               <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
             ))}
           </select>
         </label>
+
+        {editing ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="text-sm">
           <span className="font-medium">Business name</span>
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.business}</span>
@@ -379,6 +476,57 @@ export default function ProspectFile({ id }: { id: string }) {
             </button>
           )}
         </div>
+        </div>
+        ) : (
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+          <Fact label="Business name">{prospect.business}</Fact>
+          <Fact label="Contact person">{prospect.contactName}</Fact>
+          <Fact label="Email">
+            {prospect.email ? <a className="text-accent hover:underline" href={`mailto:${prospect.email}`}>{prospect.email}</a> : ''}
+          </Fact>
+          <Fact label="Phone">
+            {prospect.phone ? <a className="text-accent hover:underline" href={`tel:${prospect.phone}`}>{prospect.phone}</a> : ''}
+          </Fact>
+          <Fact label="Industry">{prospect.industry}</Fact>
+          <Fact label="Website">
+            {prospect.website ? (
+              <a className="text-accent hover:underline" href={websiteHref(prospect.website)} target="_blank" rel="noreferrer">
+                {prospect.website}
+              </a>
+            ) : ''}
+          </Fact>
+          <Fact label="Location">{prospect.location}</Fact>
+          <Fact label="Prospect category">{isProspectCategory(prospect.category) ? CATEGORY_LABELS[prospect.category] : prospect.category}</Fact>
+          <Fact label="Lead source">{sourceLabel(prospect.source)}</Fact>
+          <Fact label="Follow-up">{formatWhen(prospect.followUpAt)}</Fact>
+          <Fact label="Estimated value">{formatMoney(prospect.estimatedValue)}</Fact>
+          <Fact label="Marketing opportunity" wide>{prospect.opportunity}</Fact>
+          <Fact label="Recommended service" wide>{prospect.recommendedService}</Fact>
+          {showScore && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-brand-muted">Prospect score</dt>
+              <dd className="mt-1 text-sm text-brand-text">{scoreBandLabel(total)} ({total}/10)</dd>
+              <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {SCORE_FACTORS.map((factor) => (
+                  <li key={factor.key} className="flex justify-between gap-3 text-sm text-brand-muted">
+                    <span>{factor.label}</span>
+                    <span className="font-medium text-brand-text tabular-nums">{prospect.scoreFactors[factor.key]}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Fact label="Internal notes" wide>{prospect.notes}</Fact>
+          <Fact label="Last outreach" wide>{prospect.lastContactedAt ? formatWhen(prospect.lastContactedAt) : 'None yet'}</Fact>
+          {canHandOffToSales(role, prospect.stage) && (
+            <div className="sm:col-span-2">
+              <button type="button" disabled={saving} onClick={() => void post(`/api/admin/pipeline/${id}/handoff`, { target: 'sales_closer' })} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg disabled:opacity-60">
+                Hand to sales
+              </button>
+            </div>
+          )}
+        </dl>
+        )}
       </section>
 
       {isSales && (
@@ -589,41 +737,66 @@ export default function ProspectFile({ id }: { id: string }) {
       )}
 
       {showClose && (
-        <section className="bg-white border border-brand-border rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <h2 className="text-sm font-bold text-brand-text sm:col-span-2">Close</h2>
-          <p className="text-xs text-brand-muted sm:col-span-2">
-            Deal details for billing and the handoff to client relations.
-          </p>
-          <label className="text-sm">Services purchased<input className={`${inputClass} mt-1`} value={prospect.servicesPurchased} onChange={(event) => patch({ servicesPurchased: event.target.value })} /></label>
-          <label className="text-sm">Payment status<input className={`${inputClass} mt-1`} value={prospect.paymentStatus} onChange={(event) => patch({ paymentStatus: event.target.value })} /></label>
-          <label className="text-sm sm:col-span-2">Scope<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.scope} onChange={(event) => patch({ scope: event.target.value })} /></label>
-          <label className="text-sm">Deliverables<input className={`${inputClass} mt-1`} value={prospect.deliverables} onChange={(event) => patch({ deliverables: event.target.value })} /></label>
-          <label className="text-sm">Deadline<input className={`${inputClass} mt-1`} value={prospect.deadline} onChange={(event) => patch({ deadline: event.target.value })} /></label>
-          <label className="text-sm">Promises<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.promises} onChange={(event) => patch({ promises: event.target.value })} /></label>
-          <label className="text-sm">Expectations<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.expectations} onChange={(event) => patch({ expectations: event.target.value })} /></label>
-          <label className="text-sm flex items-center gap-2 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={Boolean(prospect.closeMethod)}
-              onChange={(event) => patch({ closeMethod: event.target.checked ? 'nonstandard' : null })}
-            />
-            Closed without proposal (skipped standard flow)
-          </label>
-          <label className="text-sm sm:col-span-2">
-            Proposal / agreement link
-            <span className="block text-xs text-brand-muted mb-1">Filled automatically when you send an agreement, or paste a Google Doc link.</span>
-            <input className={inputClass} value={prospect.proposalDocUrl || ''} onChange={(event) => patch({ proposalDocUrl: event.target.value || null })} />
-          </label>
-          <label className="text-sm flex items-center gap-2 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={Boolean(prospect.agreementSignedAt)}
-              onChange={(event) => patch({ agreementSignedAt: event.target.checked ? new Date().toISOString() : null })}
-            />
-            Agreement signed
-          </label>
-          <div className="flex flex-wrap gap-2 sm:col-span-2">
-            <button type="button" disabled={saving} onClick={() => void save()} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg">Save close details</button>
+        <section className="bg-white border border-brand-border rounded-xl p-4 sm:p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-brand-text">Close</h2>
+            <p className="text-xs text-brand-muted mt-1">
+              Deal details for billing and the handoff to client relations.
+            </p>
+          </div>
+          {editing ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="text-sm">Services purchased<input className={`${inputClass} mt-1`} value={prospect.servicesPurchased} onChange={(event) => patch({ servicesPurchased: event.target.value })} /></label>
+              <label className="text-sm">Payment status<input className={`${inputClass} mt-1`} value={prospect.paymentStatus} onChange={(event) => patch({ paymentStatus: event.target.value })} /></label>
+              <label className="text-sm sm:col-span-2">Scope<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.scope} onChange={(event) => patch({ scope: event.target.value })} /></label>
+              <label className="text-sm">Deliverables<input className={`${inputClass} mt-1`} value={prospect.deliverables} onChange={(event) => patch({ deliverables: event.target.value })} /></label>
+              <label className="text-sm">Deadline<input className={`${inputClass} mt-1`} value={prospect.deadline} onChange={(event) => patch({ deadline: event.target.value })} /></label>
+              <label className="text-sm">Promises<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.promises} onChange={(event) => patch({ promises: event.target.value })} /></label>
+              <label className="text-sm">Expectations<textarea className={`${inputClass} mt-1`} rows={2} value={prospect.expectations} onChange={(event) => patch({ expectations: event.target.value })} /></label>
+              <label className="text-sm flex items-center gap-2 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(prospect.closeMethod)}
+                  onChange={(event) => patch({ closeMethod: event.target.checked ? 'nonstandard' : null })}
+                />
+                Closed without proposal (skipped standard flow)
+              </label>
+              <label className="text-sm sm:col-span-2">
+                Proposal / agreement link
+                <span className="block text-xs text-brand-muted mb-1">Filled automatically when you send an agreement, or paste a Google Doc link.</span>
+                <input className={inputClass} value={prospect.proposalDocUrl || ''} onChange={(event) => patch({ proposalDocUrl: event.target.value || null })} />
+              </label>
+              <label className="text-sm flex items-center gap-2 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(prospect.agreementSignedAt)}
+                  onChange={(event) => patch({ agreementSignedAt: event.target.checked ? new Date().toISOString() : null })}
+                />
+                Agreement signed
+              </label>
+              <div className="sm:col-span-2">
+                <button type="button" disabled={saving} onClick={() => void save()} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg">Save close details</button>
+              </div>
+            </div>
+          ) : (
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+              <Fact label="Services purchased">{prospect.servicesPurchased}</Fact>
+              <Fact label="Payment status">{prospect.paymentStatus}</Fact>
+              <Fact label="Scope" wide>{prospect.scope}</Fact>
+              <Fact label="Deliverables">{prospect.deliverables}</Fact>
+              <Fact label="Deadline">{prospect.deadline}</Fact>
+              <Fact label="Promises">{prospect.promises}</Fact>
+              <Fact label="Expectations">{prospect.expectations}</Fact>
+              <Fact label="Close method" wide>{prospect.closeMethod ? 'Closed without proposal' : ''}</Fact>
+              <Fact label="Proposal / agreement" wide>
+                {prospect.proposalDocUrl ? (
+                  <a href={prospect.proposalDocUrl} className="text-accent hover:underline" target="_blank" rel="noreferrer">Open proposal / agreement</a>
+                ) : ''}
+              </Fact>
+              <Fact label="Agreement signed">{prospect.agreementSignedAt ? 'Yes' : 'No'}</Fact>
+            </dl>
+          )}
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               disabled={saving || !workspaceConnected}
@@ -642,18 +815,15 @@ export default function ProspectFile({ id }: { id: string }) {
                 Hand to client relations
               </button>
             )}
+            {prospect.driveFolderUrl && (
+              <a href={prospect.driveFolderUrl} className="px-4 py-2 text-sm font-semibold text-accent hover:underline" target="_blank" rel="noreferrer">Open Drive folder</a>
+            )}
+            {prospect.creditApplicationId && (
+              <Link href={`/admin/credit-funding?id=${prospect.creditApplicationId}`} className="px-4 py-2 text-sm font-semibold text-accent hover:underline">
+                Open in Credit & Funding
+              </Link>
+            )}
           </div>
-          {prospect.proposalDocUrl && (
-            <a href={prospect.proposalDocUrl} className="text-sm text-accent hover:underline" target="_blank" rel="noreferrer">Open proposal / agreement</a>
-          )}
-          {prospect.driveFolderUrl && (
-            <a href={prospect.driveFolderUrl} className="text-sm text-accent hover:underline" target="_blank" rel="noreferrer">Open Drive folder</a>
-          )}
-          {prospect.creditApplicationId && (
-            <Link href={`/admin/credit-funding?id=${prospect.creditApplicationId}`} className="text-sm text-accent hover:underline sm:col-span-2">
-              Open in Credit & Funding
-            </Link>
-          )}
         </section>
       )}
 
