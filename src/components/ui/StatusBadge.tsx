@@ -33,6 +33,16 @@ const styles: Record<string, { bg: string; text: string; border: string }> = {
   funding_analysis: { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border border-purple-200' },
   recommendations_delivered: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },
   active_client: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border border-emerald-200' },
+  pending: { bg: 'bg-neutral-100', text: 'text-brand-text', border: 'border border-neutral-200' },
+  claimed: { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border border-amber-200' },
+  in_flight: { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border border-amber-200' },
+  accepted: { bg: 'bg-sky-50', text: 'text-sky-800', border: 'border border-sky-200' },
+  delivered: { bg: 'bg-green-50', text: 'text-green-800', border: 'border border-green-200' },
+  bounced: { bg: 'bg-red-50', text: 'text-brand-red', border: 'border border-red-100' },
+  needs_review: { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border border-orange-200' },
+  suppressed: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
+  ineligible: { bg: 'bg-neutral-50', text: 'text-brand-muted', border: 'border border-neutral-200' },
+  blocked_review: { bg: 'bg-orange-50', text: 'text-orange-800', border: 'border border-orange-200' },
 }
 
 const labels: Record<string, string> = {
@@ -70,6 +80,16 @@ const labels: Record<string, string> = {
   funding_analysis: 'Funding Analysis',
   recommendations_delivered: 'Recommendations Delivered',
   active_client: 'Active Client',
+  pending: 'Queued',
+  claimed: 'Claimed',
+  in_flight: 'In flight',
+  accepted: 'Accepted',
+  delivered: 'Delivered',
+  bounced: 'Bounced',
+  needs_review: 'Needs review',
+  suppressed: 'Suppressed',
+  ineligible: 'Ineligible',
+  blocked_review: 'Block review',
 }
 
 export default function StatusBadge({ status }: { status: string }) {

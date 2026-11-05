@@ -11,6 +11,7 @@ import {
   scoreTotal,
   type PipelineStage,
 } from '@/lib/marketing-pipeline'
+import { enqueueImportedLeadsBestEffort } from '@/lib/outreach/import-hook'
 import { getSupabase } from '@/lib/supabase'
 import { timingSafeStringEqual } from '@/lib/timing-safe'
 
@@ -346,37 +347,43 @@ async function backfillLeadIds(leads: unknown[], dryRun: boolean): Promise<Backf
   }
 }
 
+const LEAD_ENQUEUE_SELECT =
+  'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
+
 async function insertChunks(
   rows: Record<string, unknown>[],
   columnAvailable: boolean
-): Promise<{ inserted: number; warning?: string }> {
+): Promise<{ inserted: number; warning?: string; rows: Record<string, unknown>[] }> {
   let warning: string | undefined
   let includeExternalId = columnAvailable
   let inserted = 0
+  const saved: Record<string, unknown>[] = []
 
   for (let index = 0; index < rows.length; index += INSERT_BATCH_SIZE) {
     const chunk = rows.slice(index, index + INSERT_BATCH_SIZE).map((row) => (
       includeExternalId ? row : stripExternalLeadId(row)
     ))
-    const { error } = await getSupabase().from('leads').insert(chunk)
+    const { data, error } = await getSupabase().from('leads').insert(chunk).select(LEAD_ENQUEUE_SELECT)
     if (!error) {
       inserted += chunk.length
+      saved.push(...(((data || []) as Record<string, unknown>[])))
       continue
     }
     if (includeExternalId && isUnknownExternalLeadIdColumn(error)) {
       includeExternalId = false
       warning = MISSING_COLUMN_WARNING
-      const retry = await getSupabase().from('leads').insert(chunk.map(stripExternalLeadId))
+      const retry = await getSupabase().from('leads').insert(chunk.map(stripExternalLeadId)).select(LEAD_ENQUEUE_SELECT)
       if (retry.error) {
         throw new Error(retry.error.message || 'Could not insert leads')
       }
       inserted += chunk.length
+      saved.push(...(((retry.data || []) as Record<string, unknown>[])))
       continue
     }
     throw new Error(error.message || 'Could not insert leads')
   }
 
-  return { inserted, warning }
+  return { inserted, warning, rows: saved }
 }
 
 export async function POST(request: NextRequest) {
@@ -460,6 +467,7 @@ export async function POST(request: NextRequest) {
         actor_email: 'leads-import',
         details: `Imported ${inserted} marketing prospects`,
       })
+      await enqueueImportedLeadsBestEffort(write.rows)
     }
 
     return NextResponse.json({

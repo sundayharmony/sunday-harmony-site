@@ -1,0 +1,114 @@
+import { normalizeBusinessName, normalizeEmail } from './email-address'
+import { extractGroundedFacts } from './facts'
+import type { MxLookupResult } from './mx'
+import { mxBlocksSend } from './mx'
+import type { LeadSnapshot, QueueItem, ReconciliationItem, Suppression } from './types'
+
+const CONTACTED_STAGES = new Set([
+  'contacted',
+  'responded',
+  'meeting_scheduled',
+  'proposal_sent',
+  'negotiation',
+  'won',
+  'lost_nurture',
+])
+
+export type EligibilityDecision = {
+  ok: boolean
+  status: QueueItem['status'] | 'skip'
+  reason: string
+}
+
+export function isAlreadyContacted(lead: LeadSnapshot): boolean {
+  if (lead.lastContactedAt) return true
+  if (lead.gmailThreadId) return true
+  if (lead.pipelineStage && CONTACTED_STAGES.has(lead.pipelineStage)) return true
+  return false
+}
+
+export function evaluateEligibility(input: {
+  lead: LeadSnapshot
+  suppression: Suppression | null
+  reconciliation: ReconciliationItem | null
+  existingQueue: QueueItem | null
+  mx: MxLookupResult | null
+}): EligibilityDecision {
+  const leadType = input.lead.leadType || 'marketing_lead'
+  if (leadType !== 'marketing_lead') {
+    return { ok: false, status: 'ineligible', reason: 'not_marketing_lead' }
+  }
+  const email = normalizeEmail(input.lead.email || '')
+  if (!email) {
+    return { ok: false, status: 'ineligible', reason: 'invalid_or_missing_email' }
+  }
+  if (!extractGroundedFacts({
+    business: input.lead.business,
+    first_name: input.lead.firstName,
+    location_text: input.lead.locationText,
+    industry: input.lead.industry,
+    marketing_opportunity: input.lead.marketingOpportunity,
+    recommended_service: input.lead.recommendedService,
+    website: input.lead.website,
+  })) {
+    return { ok: false, status: 'ineligible', reason: 'missing_business' }
+  }
+  if (input.existingQueue) {
+    if (input.existingQueue.status === 'accepted' || input.existingQueue.status === 'delivered') {
+      return { ok: false, status: 'skip', reason: 'already_sent' }
+    }
+    if (input.existingQueue.status === 'in_flight' || input.existingQueue.status === 'claimed') {
+      return { ok: false, status: 'skip', reason: 'send_in_progress' }
+    }
+    if (input.existingQueue.status === 'needs_review' || input.existingQueue.status === 'blocked_review') {
+      return { ok: false, status: 'skip', reason: input.existingQueue.status }
+    }
+    return { ok: false, status: 'skip', reason: `already_queued:${input.existingQueue.status}` }
+  }
+  if (input.suppression && input.suppression.emailNormalized === email) {
+    return { ok: false, status: 'suppressed', reason: `suppressed:${input.suppression.reason}` }
+  }
+  if (isAlreadyContacted(input.lead)) {
+    return { ok: false, status: 'ineligible', reason: 'already_contacted' }
+  }
+  if (input.reconciliation && input.reconciliation.treatment === 'block_review') {
+    return { ok: false, status: 'blocked_review', reason: `unverified_report:${input.reconciliation.outcome}` }
+  }
+  if (input.mx) {
+    if (input.mx.kind === 'uncertain') {
+      return { ok: true, status: 'pending', reason: 'mx_uncertain_deferred' }
+    }
+    if (mxBlocksSend(input.mx)) {
+      return { ok: false, status: 'ineligible', reason: input.mx.kind === 'null_mx' ? 'null_mx' : 'no_mx' }
+    }
+  }
+  return { ok: true, status: 'pending', reason: 'eligible' }
+}
+
+export function dispatchRecheck(input: {
+  lead: LeadSnapshot
+  suppression: Suppression | null
+  reconciliation: ReconciliationItem | null
+  mx: MxLookupResult
+}): EligibilityDecision {
+  const email = normalizeEmail(input.lead.email || '')
+  if (!email) return { ok: false, status: 'ineligible', reason: 'invalid_or_missing_email' }
+  if (input.suppression && email && input.suppression.emailNormalized === email) {
+    return { ok: false, status: 'suppressed', reason: `suppressed:${input.suppression.reason}` }
+  }
+  if (isAlreadyContacted(input.lead)) return { ok: false, status: 'ineligible', reason: 'already_contacted' }
+  if (input.reconciliation && input.reconciliation.treatment === 'block_review') {
+    return { ok: false, status: 'blocked_review', reason: `unverified_report:${input.reconciliation.outcome}` }
+  }
+  if (input.mx.kind === 'uncertain') {
+    return { ok: false, status: 'pending', reason: 'mx_uncertain' }
+  }
+  if (mxBlocksSend(input.mx)) {
+    return { ok: false, status: 'ineligible', reason: input.mx.kind === 'null_mx' ? 'null_mx' : 'no_mx' }
+  }
+  return { ok: true, status: 'pending', reason: 'eligible' }
+}
+
+export function leadBusinessKey(lead: LeadSnapshot): string {
+  return normalizeBusinessName(lead.business)
+}

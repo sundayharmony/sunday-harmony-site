@@ -109,6 +109,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
   { href: '/admin/calendar', icon: '\u{1F5D3}', label: 'Calendar' },
   { href: '/admin/pipeline', icon: '\u{1F4C8}', label: 'Pipeline' },
+  { href: '/admin/outreach', icon: '\u{1F4E7}', label: 'Outreach' },
   { href: '/admin/clients', icon: '\u{1F91D}', label: 'Clients' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
   { href: '/admin/referrals', icon: '\u{1F381}', label: 'Referrals' },
@@ -440,6 +441,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
       item.href === '/admin' ||
       item.href === '/admin/calendar' ||
       item.href === '/admin/pipeline' ||
+      item.href === '/admin/outreach' ||
       item.href === '/admin/todos' ||
       item.href === '/admin/sales-kit' ||
       item.href === '/admin/training' ||
@@ -452,6 +454,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
       item.href === '/admin'
       || item.href === '/admin/calendar'
       || item.href === '/admin/pipeline'
+      || item.href === '/admin/outreach'
       || item.href === '/admin/todos'
       || item.href === '/admin/sales-kit'
       || item.href === '/admin/training'
@@ -499,6 +502,8 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
     return (
       path === '/admin/pipeline' ||
       path.startsWith('/admin/pipeline/') ||
+      path === '/admin/outreach' ||
+      path.startsWith('/admin/outreach/') ||
       path === '/admin/sales-kit' ||
       path.startsWith('/admin/sales-kit/') ||
       path === '/admin/training' ||
