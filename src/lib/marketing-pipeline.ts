@@ -14,6 +14,19 @@ export const PIPELINE_STAGES = [
 ] as const
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
+/** Stages staff can pick. Older `responded` / `meeting_scheduled` rows still parse. */
+export const STAFF_PIPELINE_STAGES = [
+  'researching',
+  'ready_to_contact',
+  'contacted',
+  'proposal_sent',
+  'negotiation',
+  'won',
+  'lost_nurture',
+] as const satisfies readonly PipelineStage[]
+
+export type StaffPipelineStage = (typeof STAFF_PIPELINE_STAGES)[number]
+
 export const STAGE_LABELS: Record<PipelineStage, string> = {
   researching: 'Researching',
   ready_to_contact: 'Ready to contact',
@@ -84,7 +97,7 @@ export const FIELD_PURPOSES = {
   score: '0–10',
   source: 'Where you found them',
   contactDate: 'Last outreach',
-  followUp: 'Next action',
+  followUp: 'Optional reminder. Set only when you actually need one.',
   stage: 'Current status',
   value: 'Potential project revenue',
   notes: 'Conversation history stays in Gmail. These notes stay internal.',
@@ -94,6 +107,7 @@ export type AdminNavItem = { href: string; label: string; icon: string }
 
 export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
+  { href: '/admin/calendar', icon: '\u{1F5D3}', label: 'Calendar' },
   { href: '/admin/pipeline', icon: '\u{1F4C8}', label: 'Pipeline' },
   { href: '/admin/outreach', icon: '\u{1F4E7}', label: 'Outreach' },
   { href: '/admin/clients', icon: '\u{1F91D}', label: 'Clients' },
@@ -128,6 +142,30 @@ export function isMarketingRole(role?: string | null): role is MarketingRole {
 
 export function isPipelineStage(value: unknown): value is PipelineStage {
   return typeof value === 'string' && STAGE_INDEX.has(value as PipelineStage)
+}
+
+export function isStaffPipelineStage(value: unknown): value is StaffPipelineStage {
+  return typeof value === 'string' && (STAFF_PIPELINE_STAGES as readonly string[]).includes(value)
+}
+
+/** Map retired reply/meeting stages onto Contacted for staff UI. */
+export function staffPipelineStage(stage: PipelineStage): StaffPipelineStage {
+  if (stage === 'responded' || stage === 'meeting_scheduled') return 'contacted'
+  return stage
+}
+
+export function staffStagesVisibleToRole(role?: string | null): StaffPipelineStage[] {
+  const allowed = stagesVisibleToRole(role)
+  const staff = [...STAFF_PIPELINE_STAGES]
+  if (allowed === 'all') return staff
+  return staff.filter((stage) => allowed.includes(stage))
+}
+
+export function staffStageChoices(role: string | null | undefined, current: PipelineStage): StaffPipelineStage[] {
+  const displayed = staffPipelineStage(current)
+  return staffStagesVisibleToRole(role).filter(
+    (stage) => stage === displayed || canMoveStage(role, current, stage) || canMoveStage(role, displayed, stage)
+  )
 }
 
 export function isProspectCategory(value: unknown): value is ProspectCategory {
@@ -175,15 +213,13 @@ export function scoreBandLabel(total: number): string {
   return 'Low priority'
 }
 
-export function stageRequiresFollowUp(stage: PipelineStage): boolean {
-  return stage !== 'won' && stage !== 'lost_nurture'
+export function stageRequiresFollowUp(_stage: PipelineStage): boolean {
+  return false
 }
 
-export function followUpError(stage: PipelineStage, followUpAt?: string | null): string | null {
-  if (!stageRequiresFollowUp(stage)) return null
-  if (!followUpAt || Number.isNaN(new Date(followUpAt).getTime())) {
-    return 'Every active prospect needs a follow-up date.'
-  }
+export function followUpError(_stage: PipelineStage, followUpAt?: string | null): string | null {
+  if (!followUpAt) return null
+  if (Number.isNaN(new Date(followUpAt).getTime())) return 'Follow-up must be a valid date.'
   return null
 }
 
@@ -309,8 +345,6 @@ export type BoardLane = {
 
 const PROCUREMENT_LANE_STAGES: PipelineStage[] = ['researching', 'ready_to_contact', 'contacted']
 const SALES_WORK_STAGES: PipelineStage[] = [
-  'responded',
-  'meeting_scheduled',
   'proposal_sent',
   'negotiation',
   'lost_nurture',
@@ -337,7 +371,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
       {
         id: 'sales',
         title: 'Sales',
-        detail: 'Replies, meetings, proposals, and leads that go Inactive.',
+        detail: 'Proposals, negotiation, and leads that go Inactive.',
         stages: [...SALES_WORK_STAGES],
       },
       {
@@ -366,7 +400,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
     {
       id: 'sales',
       title: 'Sales',
-      detail: 'Replies, meetings, proposals, and inactive leads.',
+      detail: 'Proposals, negotiation, and inactive leads.',
       stages: [...SALES_WORK_STAGES],
     },
     {
@@ -395,6 +429,7 @@ export function canMoveStage(role: string | null | undefined, from: PipelineStag
 export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'credit_manager') {
     return ADMIN_NAV.filter((item) =>
+      item.href === '/admin/calendar' ||
       item.href === '/admin/credit-funding' ||
       item.href === '/admin/todos' ||
       item.href === '/admin/messages' ||
@@ -404,6 +439,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'lead_procurement') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
+      item.href === '/admin/calendar' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/outreach' ||
       item.href === '/admin/todos' ||
@@ -416,6 +452,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'sales_closer') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin'
+      || item.href === '/admin/calendar'
       || item.href === '/admin/pipeline'
       || item.href === '/admin/outreach'
       || item.href === '/admin/todos'
@@ -428,6 +465,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'client_relations') {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
+      item.href === '/admin/calendar' ||
       item.href === '/admin/pipeline' ||
       item.href === '/admin/clients' ||
       item.href === '/admin/todos' ||
@@ -456,7 +494,9 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
     path === '/admin/messages' ||
     path.startsWith('/admin/messages/') ||
     path === '/admin/todos' ||
-    path.startsWith('/admin/todos/')
+    path.startsWith('/admin/todos/') ||
+    path === '/admin/calendar' ||
+    path.startsWith('/admin/calendar/')
   ) return true
   if (role === 'lead_procurement' || role === 'sales_closer') {
     return (
@@ -485,6 +525,11 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
 /** Sales closers and admins can schedule meetings and send agreements from a prospect file. */
 export function roleMayRunSalesActions(role?: string | null): boolean {
   return role === 'admin' || role === 'sales_closer'
+}
+
+/** Pipeline files are for admin and sales roles; client relations stays on the board list. */
+export function roleMayOpenProspectFile(role?: string | null): boolean {
+  return role === 'admin' || role === 'lead_procurement' || role === 'sales_closer'
 }
 
 export type ProcurementChecklistInput = {
@@ -712,7 +757,7 @@ export function prospectVisibleInBoardStage(
   prospect: Pick<PipelineBoardProspect, 'stage' | 'handedToRelationsAt'>,
   stage: PipelineStage
 ): boolean {
-  if (prospect.stage !== stage) return false
+  if (staffPipelineStage(prospect.stage) !== stage) return false
   if (role === 'sales_closer' && stage === 'won' && prospect.handedToRelationsAt) return false
   return true
 }
@@ -749,7 +794,7 @@ export function filterPipelineProspects<T extends PipelineBoardProspect>(
   const stage = input.stage || ''
   return prospects
     .filter((prospect) => pipelineProspectMatchesQuery(prospect, input.query || ''))
-    .filter((prospect) => !stage || prospect.stage === stage)
+    .filter((prospect) => !stage || staffPipelineStage(prospect.stage) === stage)
     .slice()
     .sort(comparePipelineProspects)
 }

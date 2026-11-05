@@ -24,7 +24,8 @@ import {
   upsertWorkspaceContact,
 } from '@/lib/google-workspace'
 import { packages as marketingPackages } from '@/lib/data'
-import { createServiceDocument, sendDocumentToClient } from '@/lib/service-documents'
+import { prospectAgreementCard, prospectMeetingCardState } from '@/lib/prospect-sales-cards'
+import { createServiceDocument, getServiceDocumentsForClient, sendDocumentToClient } from '@/lib/service-documents'
 import { outreachScripts } from '@/lib/marketing-scripts'
 import {
   type LeadSource,
@@ -1078,18 +1079,6 @@ export async function loadMarketingToday(role?: string | null) {
     metrics = role === 'client_relations' ? relations : [...metrics, ...relations]
   }
 
-  let calendarEvents: Array<{ id: string; summary: string; start: string; htmlLink: string }> = []
-  if (isGoogleWorkspaceConfigured()) {
-    try {
-      const start = new Date()
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
-      calendarEvents = await listWorkspaceEvents({ timeMin: start.toISOString(), timeMax: end.toISOString() })
-    } catch (error) {
-      console.error('today calendar error:', error)
-    }
-  }
-
   const billable = role === 'sales_closer'
     ? prospects
         .filter((prospect) => prospect.stage === 'won')
@@ -1114,7 +1103,6 @@ export async function loadMarketingToday(role?: string | null) {
     handoffs,
     billable,
     meetings,
-    calendarEvents,
     metrics,
     workspaceConnected: isGoogleWorkspaceConfigured(),
   }
@@ -1136,27 +1124,105 @@ function meetingProspectRef(prospect: {
   }
 }
 
-export async function listJoinableMeetings(
+export async function loadProspectMeetingSources(
   prospects: MeetingProspectRef[],
-  options?: { includeUnmatchedCalendar?: boolean; calendarEvents?: WorkspaceCalendarEvent[] }
-): Promise<JoinableMeeting[]> {
-  if (prospects.length === 0 && !options?.includeUnmatchedCalendar) return []
+  options?: { calendarEvents?: WorkspaceCalendarEvent[] }
+): Promise<{
+  stored: Awaited<ReturnType<typeof getAllMeetings>>
+  bookings: Awaited<ReturnType<typeof listScheduledBookings>>
+  calendarEvents: WorkspaceCalendarEvent[]
+}> {
+  const empty = { stored: [], bookings: [], calendarEvents: [] as WorkspaceCalendarEvent[] }
+  if (prospects.length === 0 && !options?.calendarEvents) return empty
   try {
     const [stored, bookings] = await Promise.all([
       getAllMeetings().catch(() => []),
       listScheduledBookings().catch(() => []),
     ])
     const calendarEvents = options?.calendarEvents ?? await loadCalendarMeetings(prospects)
+    return { stored, bookings, calendarEvents }
+  } catch (error) {
+    console.error('loadProspectMeetingSources error:', error)
+    return empty
+  }
+}
+
+export async function listJoinableMeetings(
+  prospects: MeetingProspectRef[],
+  options?: {
+    includeUnmatchedCalendar?: boolean
+    includeEnded?: boolean
+    rangeStartMs?: number
+    rangeEndMs?: number
+    calendarEvents?: WorkspaceCalendarEvent[]
+  }
+): Promise<JoinableMeeting[]> {
+  if (prospects.length === 0 && !options?.includeUnmatchedCalendar) return []
+  try {
+    const sources = await loadProspectMeetingSources(prospects, { calendarEvents: options?.calendarEvents })
     return assembleJoinableMeetings({
       prospects,
-      meetings: stored,
-      bookings,
-      calendarEvents,
+      meetings: sources.stored,
+      bookings: sources.bookings,
+      calendarEvents: sources.calendarEvents,
       includeUnmatchedCalendar: options?.includeUnmatchedCalendar,
+      includeEnded: options?.includeEnded,
+      rangeStartMs: options?.rangeStartMs,
+      rangeEndMs: options?.rangeEndMs,
     })
   } catch (error) {
     console.error('listJoinableMeetings error:', error)
     return []
+  }
+}
+
+export async function prospectFileSalesPayload(prospect: {
+  id: string
+  business: string
+  email: string
+  stage: string
+  followUpAt: string | null
+  followUpEventId?: string | null
+  agreementSignedAt?: string | null
+  proposalDocUrl?: string | null
+}): Promise<{
+  meetings: JoinableMeeting[]
+  meetingHistory: JoinableMeeting[]
+  meetingCardState: ReturnType<typeof prospectMeetingCardState>['state']
+  agreement: ReturnType<typeof prospectAgreementCard>
+}> {
+  const ref = meetingProspectRef(prospect)
+  const documents = prospect.email.trim()
+    ? await getServiceDocumentsForClient(prospect.email).catch(() => [])
+    : []
+  const sources = await loadProspectMeetingSources([ref])
+  const storedForProspect = sources.stored.filter((row) => row.lead_id === prospect.id)
+  const meetings = assembleJoinableMeetings({
+    prospects: [ref],
+    meetings: sources.stored,
+    bookings: sources.bookings,
+    calendarEvents: sources.calendarEvents,
+  })
+  const meetingHistory = assembleJoinableMeetings({
+    prospects: [ref],
+    meetings: sources.stored,
+    bookings: sources.bookings,
+    calendarEvents: sources.calendarEvents,
+    includeEnded: true,
+  })
+  return {
+    meetings,
+    meetingHistory,
+    meetingCardState: prospectMeetingCardState({
+      storedMeetings: storedForProspect,
+      followUpAt: prospect.followUpAt,
+      stage: prospect.stage,
+    }).state,
+    agreement: prospectAgreementCard({
+      agreementSignedAt: prospect.agreementSignedAt,
+      proposalDocUrl: prospect.proposalDocUrl,
+      documents,
+    }),
   }
 }
 

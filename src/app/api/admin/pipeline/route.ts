@@ -4,7 +4,7 @@ import {
 } from '@/lib/google-workspace'
 import { attachProspectMeetingLinks, listMarketingProspects, roleMayEditPipeline, roleMayUsePipeline, saveMarketingProspect } from '@/lib/marketing-crm'
 import { marketingActor, marketingError } from '@/lib/marketing-http'
-import { boardLanes, FIELD_PURPOSES, PIPELINE_STAGES, SCORE_FACTORS, STAGE_LABELS, stagesVisibleToRole } from '@/lib/marketing-pipeline'
+import { boardLanes, FIELD_PURPOSES, SCORE_FACTORS, STAGE_LABELS, staffStagesVisibleToRole } from '@/lib/marketing-pipeline'
 import { requireMarketingSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -19,12 +19,11 @@ export async function GET() {
     await listMarketingProspects(session.user.role),
     session.user.role
   )
-  const allowed = stagesVisibleToRole(session.user.role)
   return NextResponse.json({
     role: session.user.role,
     lanes: boardLanes(session.user.role),
     prospects,
-    stages: allowed === 'all' ? PIPELINE_STAGES : allowed,
+    stages: staffStagesVisibleToRole(session.user.role),
     stageLabels: STAGE_LABELS,
     scoreFactors: SCORE_FACTORS,
     purposes: FIELD_PURPOSES,

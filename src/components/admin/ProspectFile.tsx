@@ -7,22 +7,29 @@ import MeetingJoinList from '@/components/admin/MeetingJoinList'
 import type { JoinableMeeting } from '@/lib/joinable-meetings'
 import { packages } from '@/lib/data'
 import {
+  isProspectAgreementStatus,
+  isProspectMeetingCardState,
+  type ProspectAgreementCard,
+  type ProspectAgreementStatus,
+  type ProspectMeetingCardState,
+} from '@/lib/prospect-sales-cards'
+import {
   CATEGORY_LABELS,
   FIELD_PURPOSES,
   LEAD_SOURCES,
-  PIPELINE_STAGES,
   PROSPECT_CATEGORIES,
   SCORE_FACTORS,
   SOURCE_LABELS,
   STAGE_LABELS,
   canHandOffToRelations,
   canHandOffToSales,
-  canMoveStage,
   canSeeCloseSection,
   directCloseSkipsMeetingAndProposal,
   isLeadSource,
   isProspectCategory,
   roleMayRunSalesActions,
+  staffPipelineStage,
+  staffStageChoices,
   stripeHasConfirmedPayment,
   scoreBandLabel,
   scoreTotal,
@@ -138,6 +145,79 @@ function packageDefaults(tier: string): { price: number; priceType: 'one-time' |
   return { price, priceType }
 }
 
+function MeetingScheduleFields({
+  meetingAt,
+  meetingDuration,
+  meetingNotes,
+  onMeetingAt,
+  onDuration,
+  onNotes,
+  saving,
+  workspaceConnected,
+  emailMissing,
+  submitLabel,
+  onSubmit,
+}: {
+  meetingAt: string
+  meetingDuration: number
+  meetingNotes: string
+  onMeetingAt: (value: string) => void
+  onDuration: (value: number) => void
+  onNotes: (value: string) => void
+  saving: boolean
+  workspaceConnected: boolean
+  emailMissing: boolean
+  submitLabel: string
+  onSubmit: () => void
+}) {
+  return (
+    <>
+      <label className="text-sm block">
+        Date & time
+        <input
+          type="datetime-local"
+          className={`${inputClass} mt-1`}
+          value={meetingAt}
+          onChange={(event) => onMeetingAt(event.target.value)}
+        />
+      </label>
+      <label className="text-sm block">
+        Duration
+        <select
+          className={`${inputClass} mt-1`}
+          value={meetingDuration}
+          onChange={(event) => onDuration(Number(event.target.value))}
+        >
+          <option value={30}>30 minutes</option>
+          <option value={45}>45 minutes</option>
+          <option value={60}>60 minutes</option>
+        </select>
+      </label>
+      <label className="text-sm block">
+        Notes for the invite
+        <textarea
+          className={`${inputClass} mt-1`}
+          rows={2}
+          value={meetingNotes}
+          onChange={(event) => onNotes(event.target.value)}
+          placeholder="Agenda or dial-in details"
+        />
+      </label>
+      <button
+        type="button"
+        disabled={saving || !workspaceConnected || !meetingAt}
+        onClick={onSubmit}
+        className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60"
+      >
+        {submitLabel}
+      </button>
+      {emailMissing ? (
+        <p className="text-xs text-brand-muted">Add an email so the invite can go to the prospect.</p>
+      ) : null}
+    </>
+  )
+}
+
 export default function ProspectFile({ id }: { id: string }) {
   const [prospect, setProspect] = useState<Prospect | null>(null)
   const [scripts, setScripts] = useState<Script[]>([])
@@ -157,6 +237,10 @@ export default function ProspectFile({ id }: { id: string }) {
   const [agreementPrice, setAgreementPrice] = useState('')
   const [agreementPriceType, setAgreementPriceType] = useState<'one-time' | 'monthly' | 'custom'>('one-time')
   const [meetings, setMeetings] = useState<JoinableMeeting[]>([])
+  const [meetingCardState, setMeetingCardState] = useState<ProspectMeetingCardState>('none')
+  const [agreementStatus, setAgreementStatus] = useState<ProspectAgreementStatus>('none')
+  const [agreementCard, setAgreementCard] = useState<ProspectAgreementCard>({ status: 'none' })
+  const [rescheduleOpen, setRescheduleOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Prospect | null>(null)
   const [stripePaid, setStripePaid] = useState(false)
@@ -204,6 +288,13 @@ export default function ProspectFile({ id }: { id: string }) {
       }
       applyProspect(data.prospect, data.scripts)
       setMeetings(Array.isArray(data.meetings) ? data.meetings : [])
+      setMeetingCardState(isProspectMeetingCardState(data.meetingCardState) ? data.meetingCardState : 'none')
+      setAgreementStatus(isProspectAgreementStatus(data.agreementStatus) ? data.agreementStatus : 'none')
+      setAgreementCard(
+        data.agreement && isProspectAgreementStatus(data.agreement.status)
+          ? data.agreement
+          : { status: isProspectAgreementStatus(data.agreementStatus) ? data.agreementStatus : 'none' }
+      )
       setWorkspaceConnected(Boolean(data.workspaceConnected))
       setStripePaid(Boolean(data.stripePaid))
     })()
@@ -315,12 +406,23 @@ export default function ProspectFile({ id }: { id: string }) {
       if (data.prospect) applyProspect(data.prospect)
       if (data.messages) setMessages(data.messages)
       if (Array.isArray(data.meetings)) setMeetings(data.meetings)
+      if (isProspectMeetingCardState(data.meetingCardState)) setMeetingCardState(data.meetingCardState)
+      if (isProspectAgreementStatus(data.agreementStatus)) setAgreementStatus(data.agreementStatus)
+      if (data.agreement && isProspectAgreementStatus(data.agreement.status)) setAgreementCard(data.agreement)
       if (data.meetLink) {
+        setMeetingCardState('upcoming')
+        setRescheduleOpen(false)
         setNotice('Meeting scheduled. Join it from the list on this page.')
       } else if (data.documentNumber) {
+        setAgreementStatus('sent')
+        setAgreementCard((current) => ({
+          ...current,
+          status: 'sent',
+          documentNumber: String(data.documentNumber),
+        }))
         setNotice(`Agreement ${data.documentNumber} emailed to the prospect.`)
       } else {
-        setNotice(data.replied ? 'The business replied. Stage moved to Responded.' : 'Done.')
+        setNotice(data.replied ? 'The business replied.' : 'Done.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed')
@@ -368,11 +470,12 @@ export default function ProspectFile({ id }: { id: string }) {
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.stage}</span>
           <select
             className={`${inputClass} sm:max-w-xs`}
-            value={prospect.stage}
+            data-testid="pipeline-stage-select"
+            value={staffPipelineStage(prospect.stage)}
             disabled={saving}
             onChange={(event) => changeStage(event.target.value as PipelineStage)}
           >
-            {PIPELINE_STAGES.filter((stage) => stage === prospect.stage || canMoveStage(role, prospect.stage, stage)).map((stage) => (
+            {staffStageChoices(role, prospect.stage).map((stage) => (
               <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
             ))}
           </select>
@@ -439,6 +542,7 @@ export default function ProspectFile({ id }: { id: string }) {
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.followUp}</span>
           <input
             type="datetime-local"
+            data-testid="follow-up-input"
             className={inputClass}
             value={localInput(prospect.followUpAt)}
             onChange={(event) => patch({ followUpAt: event.target.value ? new Date(event.target.value).toISOString() : null })}
@@ -567,130 +671,170 @@ export default function ProspectFile({ id }: { id: string }) {
             </p>
           </div>
 
-          {(meetings.length > 0 || prospect.stage === 'meeting_scheduled') && (
-            <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3">
+          {meetingCardState === 'upcoming' ? (
+            <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3 w-full min-w-0">
               <h3 className="text-sm font-semibold text-brand-text">Scheduled meeting</h3>
               <MeetingJoinList
                 meetings={meetings}
-                empty={prospect.stage === 'meeting_scheduled' ? 'The Meet link shows here once the consultation is booked.' : undefined}
+                empty={
+                  prospect.stage === 'meeting_scheduled'
+                    ? 'The Meet link shows here once the consultation is booked.'
+                    : undefined
+                }
               />
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-brand-text">Schedule meeting</h3>
-              <p className="text-xs text-brand-muted">Optional when this lead is already contacted, the agreement is signed, and the invoice is sent and paid.</p>
-              <label className="text-sm block">
-                Date & time
-                <input
-                  type="datetime-local"
-                  className={`${inputClass} mt-1`}
-                  value={meetingAt}
-                  onChange={(event) => setMeetingAt(event.target.value)}
-                />
-              </label>
-              <label className="text-sm block">
-                Duration
-                <select
-                  className={`${inputClass} mt-1`}
-                  value={meetingDuration}
-                  onChange={(event) => setMeetingDuration(Number(event.target.value))}
-                >
-                  <option value={30}>30 minutes</option>
-                  <option value={45}>45 minutes</option>
-                  <option value={60}>60 minutes</option>
-                </select>
-              </label>
-              <label className="text-sm block">
-                Notes for the invite
-                <textarea
-                  className={`${inputClass} mt-1`}
-                  rows={2}
-                  value={meetingNotes}
-                  onChange={(event) => setMeetingNotes(event.target.value)}
-                  placeholder="Agenda or dial-in details"
-                />
-              </label>
               <button
                 type="button"
-                disabled={saving || !workspaceConnected || !meetingAt}
-                onClick={() => void post(`/api/admin/pipeline/${id}/meeting`, {
-                  startsAt: new Date(meetingAt).toISOString(),
-                  durationMinutes: meetingDuration,
-                  notes: meetingNotes,
-                })}
-                className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold bg-brand-text text-white rounded-lg disabled:opacity-60"
+                onClick={() => setRescheduleOpen((open) => !open)}
+                className="text-sm font-semibold text-accent hover:underline"
+                aria-expanded={rescheduleOpen}
               >
-                Schedule meeting
+                {rescheduleOpen ? 'Cancel reschedule' : 'Reschedule'}
               </button>
-              {!prospect.email && (
-                <p className="text-xs text-brand-muted">Add an email so the invite can go to the prospect.</p>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-brand-text">Send agreement</h3>
-              <label className="text-sm block">
-                Package
-                <select
-                  className={`${inputClass} mt-1`}
-                  value={agreementTier}
-                  onChange={(event) => {
-                    const tier = event.target.value
-                    setAgreementTier(tier)
-                    const defaults = packageDefaults(tier)
-                    setAgreementPrice(String(defaults.price || ''))
-                    setAgreementPriceType(defaults.priceType)
-                  }}
-                >
-                  {packages.map((pkg) => (
-                    <option key={pkg.tier} value={pkg.tier}>{pkg.tier}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm block">
-                  Price
-                  <input
-                    className={`${inputClass} mt-1`}
-                    inputMode="decimal"
-                    value={agreementPrice}
-                    onChange={(event) => setAgreementPrice(event.target.value)}
+              {rescheduleOpen ? (
+                <div className="space-y-3 border-t border-brand-border pt-3">
+                  <MeetingScheduleFields
+                    meetingAt={meetingAt}
+                    meetingDuration={meetingDuration}
+                    meetingNotes={meetingNotes}
+                    onMeetingAt={setMeetingAt}
+                    onDuration={setMeetingDuration}
+                    onNotes={setMeetingNotes}
+                    saving={saving}
+                    workspaceConnected={workspaceConnected}
+                    emailMissing={!prospect.email}
+                    submitLabel="Save new time"
+                    onSubmit={() => void post(`/api/admin/pipeline/${id}/meeting`, {
+                      startsAt: new Date(meetingAt).toISOString(),
+                      durationMinutes: meetingDuration,
+                      notes: meetingNotes,
+                    })}
                   />
-                </label>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className={`flex flex-col gap-4 ${meetingCardState === 'none' && agreementStatus === 'none' ? 'lg:grid lg:grid-cols-2' : ''}`}>
+            {meetingCardState === 'none' ? (
+              <div data-testid="schedule-meeting-card" className="rounded-xl border border-brand-border bg-white p-4 space-y-3 w-full min-w-0">
+                <h3 className="text-sm font-semibold text-brand-text">Schedule meeting</h3>
+                <p className="text-xs text-brand-muted">Optional when this lead is already contacted, the agreement is signed, and the invoice is sent and paid.</p>
+                <MeetingScheduleFields
+                  meetingAt={meetingAt}
+                  meetingDuration={meetingDuration}
+                  meetingNotes={meetingNotes}
+                  onMeetingAt={setMeetingAt}
+                  onDuration={setMeetingDuration}
+                  onNotes={setMeetingNotes}
+                  saving={saving}
+                  workspaceConnected={workspaceConnected}
+                  emailMissing={!prospect.email}
+                  submitLabel="Schedule meeting"
+                  onSubmit={() => void post(`/api/admin/pipeline/${id}/meeting`, {
+                    startsAt: new Date(meetingAt).toISOString(),
+                    durationMinutes: meetingDuration,
+                    notes: meetingNotes,
+                  })}
+                />
+              </div>
+            ) : null}
+
+            {agreementStatus === 'signed' ? (
+              <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3 w-full min-w-0">
+                <h3 className="text-sm font-semibold text-brand-text">Agreement signed</h3>
+                <dl className="grid grid-cols-1 gap-3">
+                  {agreementCard.documentNumber ? (
+                    <Fact label="Document">{agreementCard.documentNumber}</Fact>
+                  ) : null}
+                  {agreementCard.signedAt ? (
+                    <Fact label="Signed">{formatWhen(agreementCard.signedAt)}</Fact>
+                  ) : (
+                    <Fact label="Signed">Yes</Fact>
+                  )}
+                </dl>
+                {agreementCard.href ? (
+                  <a href={agreementCard.href} className="text-sm font-semibold text-accent hover:underline" target="_blank" rel="noreferrer">
+                    Open agreement
+                  </a>
+                ) : null}
+              </div>
+            ) : agreementStatus === 'sent' ? (
+              <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3 w-full min-w-0">
+                <h3 className="text-sm font-semibold text-brand-text">Send agreement</h3>
+                <p className="text-sm text-brand-text">Agreement sent, awaiting signature</p>
+                {agreementCard.documentNumber ? (
+                  <p className="text-xs text-brand-muted">{agreementCard.documentNumber}</p>
+                ) : null}
+                {agreementCard.href ? (
+                  <a href={agreementCard.href} className="text-sm font-semibold text-accent hover:underline" target="_blank" rel="noreferrer">
+                    Open agreement
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <div data-testid="send-agreement-card" className="rounded-xl border border-brand-border bg-white p-4 space-y-3 w-full min-w-0">
+                <h3 className="text-sm font-semibold text-brand-text">Send agreement</h3>
                 <label className="text-sm block">
-                  Billing
+                  Package
                   <select
                     className={`${inputClass} mt-1`}
-                    value={agreementPriceType}
-                    onChange={(event) => setAgreementPriceType(event.target.value as 'one-time' | 'monthly' | 'custom')}
+                    value={agreementTier}
+                    onChange={(event) => {
+                      const tier = event.target.value
+                      setAgreementTier(tier)
+                      const defaults = packageDefaults(tier)
+                      setAgreementPrice(String(defaults.price || ''))
+                      setAgreementPriceType(defaults.priceType)
+                    }}
                   >
-                    <option value="one-time">One-time</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="custom">Custom</option>
+                    {packages.map((pkg) => (
+                      <option key={pkg.tier} value={pkg.tier}>{pkg.tier}</option>
+                    ))}
                   </select>
                 </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm block">
+                    Price
+                    <input
+                      className={`${inputClass} mt-1`}
+                      inputMode="decimal"
+                      value={agreementPrice}
+                      onChange={(event) => setAgreementPrice(event.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm block">
+                    Billing
+                    <select
+                      className={`${inputClass} mt-1`}
+                      value={agreementPriceType}
+                      onChange={(event) => setAgreementPriceType(event.target.value as 'one-time' | 'monthly' | 'custom')}
+                    >
+                      <option value="one-time">One-time</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving || !agreementTier || !prospect.email || !prospect.contactName}
+                  onClick={() => void post(`/api/admin/pipeline/${id}/agreement`, {
+                    packageTier: agreementTier,
+                    packagePrice: Number(agreementPrice) || 0,
+                    priceType: agreementPriceType,
+                    customScope: prospect.scope,
+                  })}
+                  className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold bg-accent text-white rounded-lg disabled:opacity-60"
+                >
+                  Send agreement
+                </button>
+                <p className="text-xs text-brand-muted">
+                  Emails a secure signing link. Or open the{' '}
+                  <Link href="/admin/sales-kit/agreement/new" className="text-accent hover:underline">full agreement form</Link>
+                  {' '}in Sales Kit.
+                </p>
               </div>
-              <button
-                type="button"
-                disabled={saving || !agreementTier || !prospect.email || !prospect.contactName}
-                onClick={() => void post(`/api/admin/pipeline/${id}/agreement`, {
-                  packageTier: agreementTier,
-                  packagePrice: Number(agreementPrice) || 0,
-                  priceType: agreementPriceType,
-                  customScope: prospect.scope,
-                })}
-                className="w-full sm:w-auto px-4 py-2.5 text-sm font-semibold bg-accent text-white rounded-lg disabled:opacity-60"
-              >
-                Send agreement
-              </button>
-              <p className="text-xs text-brand-muted">
-                Emails a secure signing link. Or open the{' '}
-                <Link href="/admin/sales-kit/agreement/new" className="text-accent hover:underline">full agreement form</Link>
-                {' '}in Sales Kit.
-              </p>
-            </div>
+            )}
           </div>
         </section>
       )}

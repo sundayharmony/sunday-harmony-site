@@ -111,6 +111,11 @@ test.describe('prospect file view mode', () => {
     await expect(page.getByRole('heading', { name: prospect.business })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible()
     await expect(page.getByLabel(/Pipeline stage/i)).toHaveValue('ready_to_contact')
+    const stageOptions = await page.getByTestId('pipeline-stage-select').locator('option').allTextContents()
+    expect(stageOptions).toContain('Ready to contact')
+    expect(stageOptions).toContain('Contacted')
+    expect(stageOptions).not.toContain('Responded')
+    expect(stageOptions).not.toContain('Meeting scheduled')
     await expect(page.getByText('Current status')).toBeVisible()
     await expect(page.getByText('Wilmington, DE')).toBeVisible()
     await expect(page.getByText('Business Essentials $599')).toBeVisible()
@@ -147,6 +152,9 @@ test.describe('prospect file view mode', () => {
     await expect(page.getByRole('heading', { name: prospect.business })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible()
     await expect(page.getByLabel(/Pipeline stage/i)).toBeVisible()
+    const stageOptions = await page.getByTestId('pipeline-stage-select').locator('option').allTextContents()
+    expect(stageOptions).not.toContain('Responded')
+    expect(stageOptions).not.toContain('Meeting scheduled')
     await expect(page.getByLabel(/Business name/i)).toHaveCount(0)
 
     await page.screenshot({
