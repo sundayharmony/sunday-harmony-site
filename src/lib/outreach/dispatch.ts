@@ -1,15 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import { OUTREACH_BACKOFF_SECONDS, OUTREACH_SENDER_EMAIL } from './constants'
-import { evaluateActivationBlockers, sendsPermitted } from './activation'
+import { evaluateActivationBlockers, sendsPermitted, utcDayStartIso, type GateInput } from './activation'
+import { loadCompanyPresentationPdf } from './attachment'
 import { claimNextPending, recoverExpiredInFlight } from './claims'
 import { dispatchRecheck } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
+import { resolveOutreachProvider } from './gmail-binding'
 import { lookupMx, type MxResolver } from './mx'
 import { stageAfterOutboundEmail, type PipelineStage } from '@/lib/marketing-pipeline'
-import { createDisabledProvider, queueItemPayload, shouldAutoRetry, type OutreachMailProvider } from './provider'
+import { queueItemPayload, shouldAutoRetry, type OutreachMailProvider } from './provider'
 import { senderConfiguredHere } from './runtime'
 import type { OutreachStore } from './store'
-import { getPublicSiteUrl } from '@/lib/public-site-url'
+import { ensureQueueUnsubscribeUrl, htmlHasRealUnsubscribe } from './tokens'
 import type { QueueItem } from './types'
 
 export type DispatchResult = {
@@ -27,6 +29,22 @@ function backoffMs(attemptCount: number): number {
   return seconds * 1000
 }
 
+async function markNeedsReview(
+  store: OutreachStore,
+  item: QueueItem,
+  expected: QueueItem['status'],
+  reason: string,
+  reviewed: string[],
+  details: string[]
+) {
+  await store.compareAndSwap(item.id, expected, {
+    status: 'needs_review',
+    eligibilityReason: reason,
+  })
+  reviewed.push(item.id)
+  details.push(reason)
+}
+
 export async function dispatchOutreachBatch(input: {
   store: OutreachStore
   provider?: OutreachMailProvider
@@ -34,8 +52,8 @@ export async function dispatchOutreachBatch(input: {
   limit?: number
   mxResolver?: MxResolver
   attachment?: Buffer
-  unsubscribeUrlFor?: (item: QueueItem) => string
   senderConfigured?: boolean
+  schemaReady?: boolean
 }): Promise<DispatchResult> {
   const store = input.store
   const at = store.now()
@@ -43,15 +61,21 @@ export async function dispatchOutreachBatch(input: {
   const campaign = await store.getCampaignBySlug('prospect-intro')
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
   const senderConfigured = input.senderConfigured ?? senderConfiguredHere()
-  const blockers = evaluateActivationBlockers({
+  const attachment = input.attachment ?? loadCompanyPresentationPdf() ?? undefined
+  const gate: GateInput = {
     settings,
     template,
     senderConfigured,
     unsubscribeRoutePresent: true,
-  })
+    schemaReady: input.schemaReady ?? Boolean(campaign && template),
+    attachmentPresent: Boolean(attachment && attachment.subarray(0, 4).toString('utf8').startsWith('%PDF')),
+  }
+  const blockers = evaluateActivationBlockers(gate)
   const recoveredInFlight = await recoverExpiredInFlight(store, at)
   const reviewed: string[] = []
   const details: string[] = []
+  const liveSendAllowed = sendsPermitted(gate)
+  const provider = input.provider || resolveOutreachProvider({ liveSendAllowed })
 
   await store.addAudit({
     actorType: 'system',
@@ -59,10 +83,10 @@ export async function dispatchOutreachBatch(input: {
     action: 'dispatch_invoked',
     entityType: 'campaign',
     entityId: campaign?.id || null,
-    payload: { blockers: blockers.map((item) => item.code), recoveredInFlight },
+    payload: { blockers: blockers.map((item) => item.code), recoveredInFlight, provider: provider.name },
   })
 
-  if (!sendsPermitted({ settings, template, senderConfigured, unsubscribeRoutePresent: true })) {
+  if (!liveSendAllowed) {
     return {
       dispatched: 0,
       accepted: 0,
@@ -74,13 +98,18 @@ export async function dispatchOutreachBatch(input: {
     }
   }
 
-  const provider = input.provider || createDisabledProvider()
   const workerId = input.workerId || `worker-${randomUUID()}`
   const limit = input.limit ?? 1
   let dispatched = 0
   let accepted = 0
 
   while (dispatched < limit) {
+    const acceptedToday = await store.acceptedCountSince(utcDayStartIso(at))
+    if (acceptedToday >= settings.dailySendLimit) {
+      details.push('daily_cap')
+      break
+    }
+
     const claimed = await claimNextPending(store, workerId, at)
     if (!claimed) break
     dispatched += 1
@@ -92,13 +121,13 @@ export async function dispatchOutreachBatch(input: {
       continue
     }
     const email = normalizeEmail(lead.email || claimed.emailNormalized)
-    const suppression = email ? await store.findSuppression(email) : null
+    const suppressionAfterClaim = email ? await store.findSuppression(email) : null
     const reconciliation = await store.findReconciliationForLead({
       emailNormalized: email,
       businessNormalized: normalizeBusinessName(lead.business),
     })
     const mx = await lookupMx(email || claimed.emailNormalized, input.mxResolver)
-    const recheck = dispatchRecheck({ lead, suppression, reconciliation, mx })
+    const recheck = dispatchRecheck({ lead, suppression: suppressionAfterClaim, reconciliation, mx })
     if (!recheck.ok) {
       const nextStatus = recheck.status === 'pending' ? 'pending' : recheck.status
       await store.compareAndSwap(claimed.id, 'claimed', {
@@ -112,14 +141,15 @@ export async function dispatchOutreachBatch(input: {
       continue
     }
 
-    const inFlight = await store.compareAndSwap(claimed.id, 'claimed', {
+    const inFlightInitial = await store.compareAndSwap(claimed.id, 'claimed', {
       status: 'in_flight',
       attemptCount: claimed.attemptCount + 1,
     })
-    if (!inFlight) {
+    if (!inFlightInitial) {
       details.push('lost_claim')
       continue
     }
+    let inFlight = inFlightInitial
     const attemptId = randomUUID()
     await store.addAttempt({
       id: attemptId,
@@ -136,8 +166,59 @@ export async function dispatchOutreachBatch(input: {
       finishedAt: null,
     })
 
-    const unsubscribeUrl =
-      input.unsubscribeUrlFor?.(inFlight) || `${getPublicSiteUrl()}/unsubscribe/preview-disabled`
+    let unsubscribeUrl: string
+    try {
+      const ensured = await ensureQueueUnsubscribeUrl(store, inFlight)
+      if (!htmlHasRealUnsubscribe(ensured.item.htmlBody) || !ensured.url || /preview-disabled/.test(ensured.url)) {
+        await markNeedsReview(store, inFlight, 'in_flight', 'unsubscribe_token_unusable', reviewed, details)
+        continue
+      }
+      if (ensured.minted) {
+        const saved = await store.compareAndSwap(inFlight.id, 'in_flight', {
+          htmlBody: ensured.item.htmlBody,
+          textBody: ensured.item.textBody,
+          payloadSha256: ensured.item.payloadSha256,
+        })
+        if (!saved) {
+          await markNeedsReview(store, inFlight, 'in_flight', 'unsubscribe_persist_conflict', reviewed, details)
+          continue
+        }
+        inFlight = saved
+      }
+      unsubscribeUrl = ensured.url
+    } catch {
+      await markNeedsReview(store, inFlight, 'in_flight', 'unsubscribe_token_persist_failed', reviewed, details)
+      continue
+    }
+
+    if (!attachment) {
+      await markNeedsReview(store, inFlight, 'in_flight', 'attachment_missing', reviewed, details)
+      continue
+    }
+
+    const suppressionBeforeSend = email ? await store.findSuppression(email) : null
+    if (suppressionBeforeSend) {
+      await store.compareAndSwap(inFlight.id, 'in_flight', {
+        status: 'suppressed',
+        eligibilityReason: `suppressed:${suppressionBeforeSend.reason}`,
+      })
+      details.push('suppressed_before_send')
+      continue
+    }
+
+    const acceptedNow = await store.acceptedCountSince(utcDayStartIso(at))
+    if (acceptedNow >= settings.dailySendLimit) {
+      await store.compareAndSwap(inFlight.id, 'in_flight', {
+        status: 'pending',
+        eligibilityReason: 'daily_cap',
+        claimedBy: null,
+        claimedAt: null,
+        leaseExpiresAt: null,
+      })
+      details.push('daily_cap')
+      break
+    }
+
     let result
     try {
       result = await provider.send(
@@ -145,7 +226,7 @@ export async function dispatchOutreachBatch(input: {
           inFlight,
           `${settings.senderDisplayName} <${OUTREACH_SENDER_EMAIL}>`,
           unsubscribeUrl,
-          input.attachment || Buffer.from('%PDF-1.4')
+          attachment
         )
       )
     } catch (error) {
@@ -238,5 +319,5 @@ export async function dispatchOutreachBatch(input: {
 }
 
 export async function dispatchDisabledSafe(store: OutreachStore): Promise<DispatchResult> {
-  return dispatchOutreachBatch({ store, provider: createDisabledProvider() })
+  return dispatchOutreachBatch({ store })
 }

@@ -1,6 +1,7 @@
 import { isGoogleWorkspaceConfigured, workspaceMailbox } from '@/lib/google-workspace'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { evaluateActivationBlockers } from './activation'
+import { loadCompanyPresentationPdf } from './attachment'
 import { OUTREACH_SENDER_EMAIL } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { createMemoryOutreachStore, getOutreachStore, setOutreachStoreForTests, type OutreachStore } from './store'
@@ -48,6 +49,7 @@ export function staticUnapprovedTemplate(): OutreachTemplateVersion {
     approved: false,
     approvedAt: null,
     approvedBy: null,
+    approvedSettingsVersion: null,
   }
 }
 
@@ -68,14 +70,22 @@ export function defaultDisabledSettings(): OutreachSettings {
     maxAttempts: 5,
     historyReconciliationStatus: 'unverified_reports_loaded',
     providerHistoryVerifiedAt: null,
+    optOutVerifiedAt: null,
+    settingsVersion: 1,
   }
 }
 
-export function currentBlockers(settings?: OutreachSettings, template?: OutreachTemplateVersion | null) {
+export function currentBlockers(
+  settings?: OutreachSettings,
+  template?: OutreachTemplateVersion | null,
+  extras?: { schemaReady?: boolean }
+) {
   return evaluateActivationBlockers({
     settings: settings || defaultDisabledSettings(),
     template: template === undefined ? staticUnapprovedTemplate() : template,
     senderConfigured: senderConfiguredHere(),
     unsubscribeRoutePresent: true,
+    schemaReady: extras?.schemaReady ?? supabaseReadyForOutreach(),
+    attachmentPresent: Boolean(loadCompanyPresentationPdf()),
   })
 }

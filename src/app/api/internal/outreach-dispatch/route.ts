@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
-import { createDisabledProvider } from '@/lib/outreach/provider'
 import { resolveOutreachStore } from '@/lib/outreach/runtime'
 import { timingSafeStringEqual } from '@/lib/timing-safe'
 
@@ -21,13 +20,12 @@ export async function GET(request: NextRequest) {
   const store = resolveOutreachStore()
   const result = await dispatchOutreachBatch({
     store,
-    provider: createDisabledProvider(),
     workerId: 'cron-outreach-dispatch',
   })
   return NextResponse.json({
     ok: true,
-    sent: 0,
-    liveSend: false,
+    sent: result.accepted,
+    liveSend: !result.skippedDisabled,
     ...result,
   })
 }

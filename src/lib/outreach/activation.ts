@@ -13,6 +13,9 @@ export type GateInput = {
   env?: NodeJS.ProcessEnv
   senderConfigured?: boolean
   unsubscribeRoutePresent?: boolean
+  schemaReady?: boolean
+  optOutVerified?: boolean
+  attachmentPresent?: boolean
 }
 
 const ADDRESS_MIN = 12
@@ -37,6 +40,12 @@ export function mailingAddressIsValid(value: string | null | undefined): boolean
 export function evaluateActivationBlockers(input: GateInput): ActivationBlocker[] {
   const env = input.env || process.env
   const blockers: ActivationBlocker[] = []
+  if (input.schemaReady !== true) {
+    blockers.push({
+      code: 'schema_unready',
+      message: 'Outreach schema is missing or unreadable. Fail closed until migration is verified.',
+    })
+  }
   if (envKillSwitchOn(env)) {
     blockers.push({
       code: 'kill_switch',
@@ -84,7 +93,7 @@ export function evaluateActivationBlockers(input: GateInput): ActivationBlocker[
       message: `Sender must be ${OUTREACH_SENDER_EMAIL}.`,
     })
   }
-  if (input.senderConfigured === false) {
+  if (input.senderConfigured !== true) {
     blockers.push({
       code: 'sender_unverified',
       message: 'Sender configuration could not be verified in this environment.',
@@ -96,7 +105,7 @@ export function evaluateActivationBlockers(input: GateInput): ActivationBlocker[
       message: `CTA must remain ${OUTREACH_CTA_URL}.`,
     })
   }
-  if (input.unsubscribeRoutePresent === false) {
+  if (input.unsubscribeRoutePresent !== true) {
     blockers.push({
       code: 'unsubscribe_missing',
       message: 'Public unsubscribe route is not available.',
@@ -117,9 +126,42 @@ export function evaluateActivationBlockers(input: GateInput): ActivationBlocker[
       message: 'Daily send limit is 0. No live send is permitted.',
     })
   }
+  if (!input.settings.optOutVerifiedAt) {
+    blockers.push({
+      code: 'opt_out_unverified',
+      message: 'Opt-out roundtrip has not been verified against stored tokens and suppression.',
+    })
+  }
+  if (
+    input.template?.approved &&
+    input.template.approvedSettingsVersion !== input.settings.settingsVersion
+  ) {
+    blockers.push({
+      code: 'settings_version_mismatch',
+      message: 'Settings changed after template approval. Re-approval is required.',
+    })
+  }
+  if (input.attachmentPresent !== true) {
+    blockers.push({
+      code: 'attachment_missing',
+      message: 'Company presentation PDF is not available on the server.',
+    })
+  }
   return blockers
+}
+
+export function activationRecordBlockers(input: GateInput): ActivationBlocker[] {
+  return evaluateActivationBlockers(input).filter((item) => item.code !== 'not_activated')
+}
+
+export function canRecordActivation(input: GateInput): boolean {
+  return activationRecordBlockers(input).length === 0
 }
 
 export function sendsPermitted(input: GateInput): boolean {
   return evaluateActivationBlockers(input).length === 0
+}
+
+export function utcDayStartIso(at: Date): string {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate())).toISOString()
 }

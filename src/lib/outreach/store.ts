@@ -31,9 +31,19 @@ export type OutreachStore = {
   now: () => Date
   getSettings(): Promise<OutreachSettings>
   updateSettings(patch: Partial<OutreachSettings>): Promise<OutreachSettings>
+  recordActivation(actorId: string, at: Date): Promise<OutreachSettings | null>
   getCampaignBySlug(slug: string): Promise<OutreachCampaign | null>
   getLatestTemplate(campaignId: string): Promise<OutreachTemplateVersion | null>
   approveTemplate(templateId: string, actorId: string, expectedSha: string, at: Date): Promise<OutreachTemplateVersion | null>
+  unapproveLatestTemplate(campaignId: string, reason: string, actorId: string | null): Promise<OutreachTemplateVersion | null>
+  findUnsubscribeTokenByQueueId(queueId: string): Promise<{
+    tokenHash: string
+    emailNormalized: string
+    leadId: string | null
+    queueId: string | null
+    confirmedAt: string | null
+  } | null>
+  markReconProviderConfirmed(id: string, providerMessageId: string): Promise<ReconciliationItem | null>
   listSuppressions(): Promise<Suppression[]>
   findSuppression(emailNormalized: string): Promise<Suppression | null>
   addSuppression(row: Omit<Suppression, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): Promise<Suppression>
@@ -113,6 +123,8 @@ export function createMemoryOutreachStore(options?: {
     maxAttempts: OUTREACH_MAX_ATTEMPTS,
     historyReconciliationStatus: 'unverified_reports_loaded',
     providerHistoryVerifiedAt: null,
+    optOutVerifiedAt: null,
+    settingsVersion: 1,
   }
   const campaign: OutreachCampaign = {
     id: 'camp-prospect-intro',
@@ -129,6 +141,7 @@ export function createMemoryOutreachStore(options?: {
     approved: false,
     approvedAt: null,
     approvedBy: null,
+    approvedSettingsVersion: null,
   }
   const suppressions: Suppression[] = []
   const recon: ReconciliationItem[] = EMAIL_BOT_UNVERIFIED_REPORTS.map((row, index) => ({
@@ -184,6 +197,15 @@ export function createMemoryOutreachStore(options?: {
       settings = { ...settings, ...patch, id: 1 }
       return clone(settings)
     },
+    async recordActivation(actorId, at) {
+      if (settings.activatedAt) return null
+      settings = {
+        ...settings,
+        activatedAt: at.toISOString(),
+        activationApprovedBy: actorId,
+      }
+      return clone(settings)
+    },
     async getCampaignBySlug(slug) {
       return slug === campaign.slug ? clone(campaign) : null
     },
@@ -198,7 +220,29 @@ export function createMemoryOutreachStore(options?: {
         approved: true,
         approvedAt: at.toISOString(),
         approvedBy: actorId,
+        approvedSettingsVersion: settings.settingsVersion,
       }
+      return clone(template)
+    },
+    async unapproveLatestTemplate(campaignId, reason, actorId) {
+      if (template.campaignId !== campaignId) return null
+      template = {
+        ...template,
+        approved: false,
+        approvedAt: null,
+        approvedBy: null,
+        approvedSettingsVersion: null,
+      }
+      audit.unshift({
+        id: randomUUID(),
+        createdAt: iso(),
+        actorType: actorId ? 'staff' : 'system',
+        actorId,
+        action: 'template_invalidated',
+        entityType: 'template',
+        entityId: template.id,
+        payload: { reason },
+      })
       return clone(template)
     },
     async listSuppressions() {
@@ -331,6 +375,17 @@ export function createMemoryOutreachStore(options?: {
     },
     async findUnsubscribeToken(tokenHash) {
       return tokens.find((row) => row.tokenHash === tokenHash) || null
+    },
+    async findUnsubscribeTokenByQueueId(queueId) {
+      const row = [...tokens].reverse().find((item) => item.queueId === queueId)
+      return row || null
+    },
+    async markReconProviderConfirmed(id, providerMessageId) {
+      const row = recon.find((item) => item.id === id)
+      if (!row) return null
+      row.providerConfirmed = true
+      row.notes = `${row.notes} Provider message ${providerMessageId}.`
+      return clone(row)
     },
     async confirmUnsubscribeToken(tokenHash, at) {
       const row = tokens.find((item) => item.tokenHash === tokenHash)

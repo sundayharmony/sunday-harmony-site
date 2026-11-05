@@ -40,6 +40,8 @@ function mapSettings(row: Record<string, unknown>): OutreachSettings {
         : 'unknown',
     providerHistoryVerifiedAt:
       typeof row.provider_history_verified_at === 'string' ? row.provider_history_verified_at : null,
+    optOutVerifiedAt: typeof row.opt_out_verified_at === 'string' ? row.opt_out_verified_at : null,
+    settingsVersion: typeof row.settings_version === 'number' ? row.settings_version : 1,
   }
 }
 
@@ -54,6 +56,8 @@ function mapTemplate(row: Record<string, unknown>): OutreachTemplateVersion {
     approved: row.approved === true,
     approvedAt: typeof row.approved_at === 'string' ? row.approved_at : null,
     approvedBy: typeof row.approved_by === 'string' ? row.approved_by : null,
+    approvedSettingsVersion:
+      typeof row.approved_settings_version === 'number' ? row.approved_settings_version : null,
   }
 }
 
@@ -136,20 +140,42 @@ export function createSupabaseOutreachStore(): OutreachStore {
       return mapSettings(data as Record<string, unknown>)
     },
     async updateSettings(patch) {
+      const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (patch.killSwitch !== undefined) row.kill_switch = patch.killSwitch
+      if (patch.activatedAt !== undefined) row.activated_at = patch.activatedAt
+      if (patch.activationApprovedBy !== undefined) row.activation_approved_by = patch.activationApprovedBy
+      if (patch.physicalMailingAddress !== undefined) row.physical_mailing_address = patch.physicalMailingAddress
+      if (patch.dailySendLimit !== undefined) row.daily_send_limit = patch.dailySendLimit
+      if (patch.historyReconciliationStatus !== undefined) {
+        row.history_reconciliation_status = patch.historyReconciliationStatus
+      }
+      if (patch.providerHistoryVerifiedAt !== undefined) {
+        row.provider_history_verified_at = patch.providerHistoryVerifiedAt
+      }
+      if (patch.optOutVerifiedAt !== undefined) row.opt_out_verified_at = patch.optOutVerifiedAt
+      if (patch.settingsVersion !== undefined) row.settings_version = patch.settingsVersion
       const { data, error } = await db()
         .from('outreach_settings')
-        .update({
-          kill_switch: patch.killSwitch,
-          activated_at: patch.activatedAt,
-          physical_mailing_address: patch.physicalMailingAddress,
-          daily_send_limit: patch.dailySendLimit,
-          history_reconciliation_status: patch.historyReconciliationStatus,
-          updated_at: new Date().toISOString(),
-        })
+        .update(row)
         .eq('id', 1)
         .select('*')
         .maybeSingle()
       if (error || !data) throw new Error(error?.message || 'settings update failed')
+      return mapSettings(data as Record<string, unknown>)
+    },
+    async recordActivation(actorId, at) {
+      const { data, error } = await db()
+        .from('outreach_settings')
+        .update({
+          activated_at: at.toISOString(),
+          activation_approved_by: actorId,
+          updated_at: at.toISOString(),
+        })
+        .eq('id', 1)
+        .is('activated_at', null)
+        .select('*')
+        .maybeSingle()
+      if (error || !data) return null
       return mapSettings(data as Record<string, unknown>)
     },
     async getCampaignBySlug(slug) {
@@ -170,12 +196,14 @@ export function createSupabaseOutreachStore(): OutreachStore {
       return mapTemplate(data as Record<string, unknown>)
     },
     async approveTemplate(templateId, actorId, expectedSha, at) {
+      const settings = await this.getSettings()
       const { data, error } = await db()
         .from('outreach_template_versions')
         .update({
           approved: true,
           approved_at: at.toISOString(),
           approved_by: actorId,
+          approved_settings_version: settings.settingsVersion,
         })
         .eq('id', templateId)
         .eq('content_sha256', expectedSha)
@@ -184,6 +212,68 @@ export function createSupabaseOutreachStore(): OutreachStore {
         .maybeSingle()
       if (error || !data) return null
       return mapTemplate(data as Record<string, unknown>)
+    },
+    async unapproveLatestTemplate(campaignId, reason, actorId) {
+      const latest = await this.getLatestTemplate(campaignId)
+      if (!latest) return null
+      const { data, error } = await db()
+        .from('outreach_template_versions')
+        .update({
+          approved: false,
+          approved_at: null,
+          approved_by: null,
+          approved_settings_version: null,
+        })
+        .eq('id', latest.id)
+        .select('*')
+        .maybeSingle()
+      if (error || !data) return null
+      await this.addAudit({
+        actorType: actorId ? 'staff' : 'system',
+        actorId,
+        action: 'template_invalidated',
+        entityType: 'template',
+        entityId: latest.id,
+        payload: { reason },
+      })
+      return mapTemplate(data as Record<string, unknown>)
+    },
+    async findUnsubscribeTokenByQueueId(queueId) {
+      const { data } = await db()
+        .from('outreach_unsubscribe_tokens')
+        .select('*')
+        .eq('queue_id', queueId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!data) return null
+      const row = data as Record<string, unknown>
+      return {
+        tokenHash: asString(row.token_hash),
+        emailNormalized: asString(row.email_normalized),
+        leadId: typeof row.lead_id === 'string' ? row.lead_id : null,
+        queueId: typeof row.queue_id === 'string' ? row.queue_id : null,
+        confirmedAt: typeof row.confirmed_at === 'string' ? row.confirmed_at : null,
+      }
+    },
+    async markReconProviderConfirmed(id, providerMessageId) {
+      const { data: existing } = await db()
+        .from('outreach_reconciliation_items')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle()
+      if (!existing) return null
+      const current = existing as Record<string, unknown>
+      const notes = `${asString(current.notes)} Provider message ${providerMessageId}.`.trim()
+      const { data, error } = await db()
+        .from('outreach_reconciliation_items')
+        .update({ provider_confirmed: true, notes })
+        .eq('id', id)
+        .select('*')
+        .maybeSingle()
+      if (error || !data) return null
+      const items = await this.listReconciliationItems()
+      return items.find((item) => item.id === id) || null
     },
     async listSuppressions() {
       const { data } = await db().from('outreach_suppressions').select('*')

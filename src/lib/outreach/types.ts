@@ -44,6 +44,8 @@ export type OutreachSettings = {
   maxAttempts: number
   historyReconciliationStatus: HistoryReconciliationStatus
   providerHistoryVerifiedAt: string | null
+  optOutVerifiedAt: string | null
+  settingsVersion: number
 }
 
 export type OutreachCampaign = {
@@ -62,6 +64,7 @@ export type OutreachTemplateVersion = {
   approved: boolean
   approvedAt: string | null
   approvedBy: string | null
+  approvedSettingsVersion: number | null
 }
 
 export type Suppression = {

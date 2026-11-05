@@ -142,6 +142,26 @@ export async function sendWorkspaceEmail(
   return { id: payload.id, threadId: payload.threadId }
 }
 
+/** Send a full MIME payload (HTML + text + PDF) through the existing Workspace Gmail token. */
+export async function sendWorkspaceRawMime(
+  input: { rawMime: string; threadId?: string | null },
+  fetchImpl: FetchLike = fetch
+): Promise<{ id: string; threadId: string }> {
+  const token = await getGoogleAccessToken(fetchImpl)
+  const raw = encodeBase64Url(input.rawMime)
+  const payload = await googleJson<{ id?: string; threadId?: string }>(
+    token,
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+    {
+      method: 'POST',
+      body: JSON.stringify({ raw, threadId: input.threadId || undefined }),
+    },
+    fetchImpl
+  )
+  if (!payload.id) throw new Error('Gmail did not return a message id')
+  return { id: payload.id, threadId: payload.threadId || '' }
+}
+
 export type ThreadMessage = {
   from: string
   subject: string

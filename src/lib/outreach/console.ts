@@ -1,7 +1,9 @@
+import { loadCompanyPresentationPdf } from './attachment'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { EMAIL_BOT_UNVERIFIED_REPORTS } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { buildHandoff, canViewHandoff } from './handoff'
+import { outreachCronExample } from './scheduler'
 import type { OutreachStore } from './store'
 import { deliveryStateFor } from './types'
 
@@ -12,8 +14,9 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
   const queue = await store.listQueue()
   const recon = await store.listReconciliationItems()
   const audit = await store.listAudit(50)
-  const blockers = currentBlockers(settings, template)
+  const blockers = currentBlockers(settings, template, { schemaReady: true })
   const includeHandoff = canViewHandoff(role)
+  const canOperate = role === 'admin'
   const items = []
   for (const item of queue) {
     const lead = includeHandoff ? await store.getLead(item.leadId) : null
@@ -36,8 +39,12 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
   }
   return {
     disabled: true,
+    liveSend: false,
     storage: supabaseReadyForOutreach() ? 'supabase' : 'ephemeral_unmigrated',
     senderConfigured: senderConfiguredHere(),
+    canOperate,
+    attachmentPresent: Boolean(loadCompanyPresentationPdf()),
+    scheduler: outreachCronExample(),
     settings: {
       killSwitch: settings.killSwitch,
       activatedAt: settings.activatedAt,
@@ -49,6 +56,8 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
       ctaLabel: settings.ctaLabel,
       dailySendLimit: settings.dailySendLimit,
       historyReconciliationStatus: settings.historyReconciliationStatus,
+      optOutVerifiedAt: settings.optOutVerifiedAt,
+      settingsVersion: settings.settingsVersion,
     },
     template: template
       ? {
@@ -58,6 +67,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
           approvedAt: template.approvedAt,
           contentSha256: template.contentSha256,
           currentSha256: draftContentSha256(),
+          approvedSettingsVersion: template.approvedSettingsVersion,
         }
       : null,
     blockers,
@@ -81,7 +91,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     provider: {
       intended: 'gmail',
       idempotencyRecovery: false,
-      note: 'Existing prospect mail uses the Gmail API. Gmail has no durable idempotency key, so timeouts and crashes after an unknown result are marked needs_review and are never auto-resent. Provider accepted is not delivered.',
+      note: 'Gmail is bound only when every activation gate is satisfied. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered. No production cron is registered; the scheduler file is an inert opt-in example.',
     },
   }
 }

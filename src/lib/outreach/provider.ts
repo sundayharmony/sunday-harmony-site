@@ -89,6 +89,9 @@ export function createGmailOutreachProvider(sendImpl?: {
         if (/timeout|ETIMEDOUT|ECONNRESET|abort/i.test(message)) {
           return { kind: 'uncertain', reason: 'gmail_timeout' }
         }
+        if (/is not set|token refresh failed|unconfigured/i.test(message)) {
+          return { kind: 'uncertain', reason: 'gmail_unconfigured' }
+        }
         return { kind: 'rejected', retryable: true, code: 'gmail_error', message }
       }
     },

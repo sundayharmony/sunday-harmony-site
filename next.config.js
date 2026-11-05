@@ -124,16 +124,6 @@ const nextConfig = {
         permanent: true,
       },
       {
-        source: '/admin/outreach',
-        destination: '/admin',
-        permanent: true,
-      },
-      {
-        source: '/admin/outreach/:path*',
-        destination: '/admin',
-        permanent: true,
-      },
-      {
         source: '/admin/discovery',
         destination: '/admin',
         permanent: true,

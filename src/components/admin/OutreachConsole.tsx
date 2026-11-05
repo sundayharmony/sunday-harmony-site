@@ -15,6 +15,7 @@ type QueueRow = {
   contactedAt: string | null
   subject: string
   previewText: string
+  previewHtml?: string
   attachment: string
   handoff: {
     phone: string | null
@@ -25,10 +26,14 @@ type QueueRow = {
 
 type ConsolePayload = {
   disabled: boolean
+  liveSend?: boolean
   storage: string
   senderConfigured: boolean
+  canOperate?: boolean
+  attachmentPresent?: boolean
   settings: {
     killSwitch: boolean
+    activatedAt?: string | null
     physicalMailingAddress: string | null
     senderEmail: string
     signerName: string
@@ -36,6 +41,8 @@ type ConsolePayload = {
     ctaUrl: string
     dailySendLimit: number
     historyReconciliationStatus: string
+    optOutVerifiedAt?: string | null
+    settingsVersion?: number
   }
   template: { approved: boolean; version: number } | null
   blockers: Blocker[]
@@ -49,6 +56,7 @@ type ConsolePayload = {
   }>
   audit: Array<{ id: string; action: string; createdAt: string }>
   provider: { intended: string; idempotencyRecovery: boolean; note: string }
+  scheduler?: { enabled: boolean; note: string }
   error?: string
 }
 
@@ -57,6 +65,8 @@ export default function OutreachConsole() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [address, setAddress] = useState('')
+  const [dailyCap, setDailyCap] = useState('0')
 
   const load = useCallback(async () => {
     const response = await fetch('/api/admin/outreach')
@@ -66,20 +76,22 @@ export default function OutreachConsole() {
     }
     const payload = (await response.json()) as ConsolePayload
     setData(payload)
+    setAddress(payload.settings.physicalMailingAddress || '')
+    setDailyCap(String(payload.settings.dailySendLimit ?? 0))
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  async function post(action: string) {
+  async function post(action: string, extra: Record<string, unknown> = {}) {
     setBusy(action)
     setError('')
     try {
       const response = await fetch('/api/admin/outreach', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, ...extra }),
       })
       const payload = (await response.json()) as { error?: string }
       if (!response.ok && payload.error) setError(payload.error)
@@ -94,6 +106,7 @@ export default function OutreachConsole() {
   }
 
   const selected = data.queue.find((row) => row.id === openId) || data.queue[0] || null
+  const canOperate = Boolean(data.canOperate)
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -101,15 +114,17 @@ export default function OutreachConsole() {
         <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Sales review</p>
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
         <p className="text-sm text-brand-muted mt-2 max-w-2xl">
-          Disabled automation. Queue and previews only. No live send, no schedule, and no mailing
-          address has been filled in.
+          Disabled automation. Queue and previews only. Live Gmail send stays off until every
+          server-side gate is satisfied. Templates remain unapproved until you explicitly approve them.
         </p>
       </div>
 
       <div className="rounded-xl border border-brand-border bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <StatusBadge status="paused" />
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand-dim">Kill switch on</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
+            {data.settings.killSwitch ? 'Kill switch on' : 'Kill switch off (still gated)'}
+          </span>
         </div>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
@@ -136,8 +151,17 @@ export default function OutreachConsole() {
             <dt className="text-brand-dim text-xs uppercase tracking-wide">History</dt>
             <dd className="text-brand-text">{data.settings.historyReconciliationStatus}</dd>
           </div>
+          <div>
+            <dt className="text-brand-dim text-xs uppercase tracking-wide">Opt-out verified</dt>
+            <dd className="text-brand-text">{data.settings.optOutVerifiedAt || 'Not verified'}</dd>
+          </div>
+          <div>
+            <dt className="text-brand-dim text-xs uppercase tracking-wide">Settings version</dt>
+            <dd className="text-brand-text">{data.settings.settingsVersion ?? 1}</dd>
+          </div>
         </dl>
         <p className="text-xs text-brand-muted mt-3">{data.provider.note}</p>
+        {data.scheduler ? <p className="text-xs text-brand-muted mt-2">{data.scheduler.note}</p> : null}
       </div>
 
       <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5">
@@ -152,7 +176,51 @@ export default function OutreachConsole() {
         </ul>
       </section>
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      {canOperate ? (
+        <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5 space-y-3">
+          <h2 className="text-sm font-bold text-brand-text">Operator settings</h2>
+          <p className="text-xs text-brand-muted">
+            Saving a mailing address or daily cap invalidates template approval. Client checkboxes
+            cannot mark schema, sender, history, or opt-out as verified.
+          </p>
+          <label className="block text-sm">
+            <span className="text-xs uppercase tracking-wide text-brand-dim">Physical mailing address</span>
+            <textarea
+              className="mt-1 w-full rounded-lg border border-brand-border px-3 py-2 text-sm"
+              rows={2}
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-xs uppercase tracking-wide text-brand-dim">Daily send cap</span>
+            <input
+              className="mt-1 w-full sm:w-40 rounded-lg border border-brand-border px-3 py-2 text-sm"
+              type="number"
+              min={0}
+              max={200}
+              value={dailyCap}
+              onChange={(event) => setDailyCap(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void post('update-settings', {
+              physicalMailingAddress: address,
+              dailySendLimit: Number(dailyCap),
+              schemaReady: true,
+              senderConfigured: true,
+              historyReconciled: true,
+            })}
+            disabled={Boolean(busy)}
+            className="px-4 py-2 rounded-lg border border-brand-border bg-white text-sm font-semibold"
+          >
+            Save settings
+          </button>
+        </section>
+      ) : null}
+
+      <div className="flex flex-col sm:flex-row flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void post('enqueue')}
@@ -161,22 +229,42 @@ export default function OutreachConsole() {
         >
           {busy === 'enqueue' ? 'Queueing…' : 'Prepare queue (no send)'}
         </button>
-        <button
-          type="button"
-          onClick={() => void post('approve-template')}
-          disabled={Boolean(busy)}
-          className="px-4 py-2 rounded-lg border border-brand-border bg-white text-sm font-semibold"
-        >
-          Record template review
-        </button>
-        <button
-          type="button"
-          onClick={() => void post('activate')}
-          disabled={Boolean(busy)}
-          className="px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-sm font-semibold text-red-800"
-        >
-          Attempt activation (expected to fail)
-        </button>
+        {canOperate ? (
+          <>
+            <button
+              type="button"
+              onClick={() => void post('approve-template')}
+              disabled={Boolean(busy)}
+              className="px-4 py-2 rounded-lg border border-brand-border bg-white text-sm font-semibold"
+            >
+              Record template review
+            </button>
+            <button
+              type="button"
+              onClick={() => void post('verify-opt-out')}
+              disabled={Boolean(busy)}
+              className="px-4 py-2 rounded-lg border border-brand-border bg-white text-sm font-semibold"
+            >
+              Verify opt-out
+            </button>
+            <button
+              type="button"
+              onClick={() => void post('set-kill-switch', { killSwitch: !data.settings.killSwitch })}
+              disabled={Boolean(busy)}
+              className="px-4 py-2 rounded-lg border border-brand-border bg-white text-sm font-semibold"
+            >
+              {data.settings.killSwitch ? 'Turn database kill switch off' : 'Turn database kill switch on'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void post('activate', { schemaReady: true, senderConfigured: true, historyReconciled: true })}
+              disabled={Boolean(busy)}
+              className="px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-sm font-semibold text-red-800"
+            >
+              Record activation (server gates only)
+            </button>
+          </>
+        ) : null}
       </div>
       {error ? <p className="text-sm text-red-800">{error}</p> : null}
 
@@ -262,7 +350,7 @@ export default function OutreachConsole() {
         <h2 className="text-sm font-bold text-brand-text mb-3">Unverified historical reports</h2>
         <p className="text-xs text-brand-muted mb-3">
           Email Bot assertions. Not provider-confirmed. They block review and must not duplicate sends.
-          Live lead records are not mutated from this list.
+          Live lead records are not mutated from this list. Reconciliation requires Gmail message ids.
         </p>
         <ul className="space-y-2">
           {data.reconciliation.map((row) => (
