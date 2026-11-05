@@ -12,6 +12,7 @@ import type {
   ReconciliationItem,
   Suppression,
 } from './types'
+import { OUTREACH_MAILING_ADDRESS } from './constants'
 import { leadRowToSnapshot } from './enqueue'
 
 function asString(value: unknown): string {
@@ -24,7 +25,10 @@ function mapSettings(row: Record<string, unknown>): OutreachSettings {
     killSwitch: row.kill_switch !== false,
     activatedAt: typeof row.activated_at === 'string' ? row.activated_at : null,
     activationApprovedBy: typeof row.activation_approved_by === 'string' ? row.activation_approved_by : null,
-    physicalMailingAddress: typeof row.physical_mailing_address === 'string' ? row.physical_mailing_address : null,
+    physicalMailingAddress:
+      typeof row.physical_mailing_address === 'string' && row.physical_mailing_address.trim()
+        ? row.physical_mailing_address
+        : OUTREACH_MAILING_ADDRESS,
     senderEmail: asString(row.sender_email) || 'sales@sundayharmony.com',
     senderDisplayName: asString(row.sender_display_name) || 'Sunday Harmony Consulting',
     signerName: asString(row.signer_name) || 'Mac',

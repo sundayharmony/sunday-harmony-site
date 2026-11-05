@@ -5,6 +5,7 @@
 --   1. If 053 is not applied, apply supabase-migration-053-prospect-outreach.sql first.
 --   2. Apply this file (054). It only adds columns; it does not rewrite 053 data.
 --   3. If 053 was already applied, skip 053 and run 054 only.
+--   4. After 054, apply supabase-migration-055-outreach-mailing-address.sql for the postal address.
 -- Do not drop tables, do not rewind 053, and do not treat Email Bot reports as provider history.
 --
 -- After 054, opt-out verification and settings-version invalidation can persist.

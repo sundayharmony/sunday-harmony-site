@@ -2,7 +2,7 @@ import { isGoogleWorkspaceConfigured, workspaceMailbox } from '@/lib/google-work
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { evaluateActivationBlockers } from './activation'
 import { loadCompanyPresentationPdf } from './attachment'
-import { OUTREACH_SENDER_EMAIL } from './constants'
+import { OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { createMemoryOutreachStore, getOutreachStore, setOutreachStoreForTests, type OutreachStore } from './store'
 import { createSupabaseOutreachStore } from './supabase-store'
@@ -59,7 +59,7 @@ export function defaultDisabledSettings(): OutreachSettings {
     killSwitch: true,
     activatedAt: null,
     activationApprovedBy: null,
-    physicalMailingAddress: null,
+    physicalMailingAddress: OUTREACH_MAILING_ADDRESS,
     senderEmail: OUTREACH_SENDER_EMAIL,
     senderDisplayName: 'Sunday Harmony Consulting',
     signerName: 'Mac',

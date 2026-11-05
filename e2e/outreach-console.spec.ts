@@ -23,7 +23,7 @@ const consolePayload = {
   settings: {
     killSwitch: true,
     activatedAt: null,
-    physicalMailingAddress: null,
+    physicalMailingAddress: 'PO Box 1011, Jersey City, NJ 07304',
     senderEmail: 'sales@sundayharmony.com',
     signerName: 'Mac',
     companyName: 'Sunday Harmony Consulting',
@@ -38,7 +38,7 @@ const consolePayload = {
   blockers: [
     { code: 'kill_switch', message: 'Global kill switch is on.' },
     { code: 'not_activated', message: 'Explicit activation has not been recorded.' },
-    { code: 'missing_mailing_address', message: 'Physical mailing address is missing.' },
+    { code: 'template_unapproved', message: 'Template version is unapproved.' },
   ],
   queue: [
     {
@@ -137,6 +137,9 @@ test.describe('outreach admin preview', () => {
     await expect(page).toHaveURL(/\/admin\/outreach/)
     await expect(page.getByRole('heading', { name: 'Prospect outreach' })).toBeVisible()
     await expect(page.getByText('Disabled automation')).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
+      'PO Box 1011, Jersey City, NJ 07304'
+    )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
     await expect(page.getByText('Hi Christopher,')).toBeVisible()
     await expect(page.getByText('kill_switch')).toBeVisible()
@@ -155,6 +158,9 @@ test.describe('outreach admin preview', () => {
     await page.getByRole('link', { name: /Outreach/i }).click()
     await expect(page).toHaveURL(/\/admin\/outreach/)
     await expect(page.getByRole('heading', { name: 'Prospect outreach' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
+      'PO Box 1011, Jersey City, NJ 07304'
+    )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toBeVisible()
     await page.getByRole('button', { name: 'Toggle menu' }).click()

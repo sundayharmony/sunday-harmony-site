@@ -6,6 +6,8 @@ export const OUTREACH_COMPANY_NAME = 'Sunday Harmony Consulting'
 export const OUTREACH_TAGLINE = 'Brand, strategy, and systems.'
 export const OUTREACH_CTA_LABEL = 'Pick a time'
 export const OUTREACH_CTA_URL = 'https://www.sundayharmony.com/book'
+/** Operator-supplied CAN-SPAM postal address. Do not invent a different one. */
+export const OUTREACH_MAILING_ADDRESS = 'PO Box 1011, Jersey City, NJ 07304'
 export const OUTREACH_ATTACHMENT_PATH = 'public/sales-materials/company-presentation.pdf'
 export const OUTREACH_ATTACHMENT_FILENAME = 'Sunday-Harmony-Consulting-company-presentation.pdf'
 export const OUTREACH_INK = '#0a0a0a'

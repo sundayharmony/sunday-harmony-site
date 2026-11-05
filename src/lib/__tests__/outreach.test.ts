@@ -6,7 +6,7 @@ import { evaluateActivationBlockers, mailingAddressIsValid, sendsPermitted } fro
 import { claimNextPending, recoverExpiredInFlight } from '../outreach/claims'
 import { confirmUnsubscribe } from '../outreach/confirm-unsubscribe'
 import { buildOutreachConsole } from '../outreach/console'
-import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
+import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
 import { copyIssues, escapeHtml } from '../outreach/copy-rules'
 import { isSameOriginRequest, verifyProviderWebhookSignature } from '../outreach/csrf'
 import { dispatchOutreachBatch } from '../outreach/dispatch'
@@ -90,6 +90,13 @@ describe('grounded draft copy', () => {
     assert.equal(draft.ctaUrl, OUTREACH_CTA_URL)
     assert.equal(copyIssues(draft.bodyText).length, 0)
     assert.match(draft.html, /Physical mailing address missing/)
+    const withAddress = renderDraft({
+      facts,
+      unsubscribeUrl: 'https://www.sundayharmony.com/unsubscribe/abc',
+      physicalMailingAddress: OUTREACH_MAILING_ADDRESS,
+    })
+    assert.match(withAddress.html, /PO Box 1011, Jersey City, NJ 07304/)
+    assert.doesNotMatch(withAddress.html, /Physical mailing address missing/)
     const injected = extractGroundedFacts({
       business: 'Acme <script>alert(1)</script>',
       first_name: 'Pat',
@@ -166,13 +173,16 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
   it('never sends while gates are closed, even if the cron route is invoked', async () => {
     const store = createMemoryOutreachStore({ leads: [lead({})] })
     await enqueueLeadSnapshots(store, [lead({})], { mxResolver: mxOk })
+    assert.match((await store.listQueue())[0].htmlBody, /PO Box 1011, Jersey City, NJ 07304/)
     const provider = createMockProvider()
     const result = await dispatchOutreachBatch({ store, provider, mxResolver: mxOk })
     assert.equal(result.skippedDisabled, true)
     assert.equal(result.accepted, 0)
     assert.equal(provider.sendCount, 0)
-    assert.ok(result.blockers.some((item) => item.code === 'missing_mailing_address'))
+    assert.equal(mailingAddressIsValid(OUTREACH_MAILING_ADDRESS), true)
     assert.equal(mailingAddressIsValid(null), false)
+    assert.ok(!result.blockers.some((item) => item.code === 'missing_mailing_address'))
+    assert.ok(result.blockers.some((item) => item.code === 'kill_switch' || item.code === 'not_activated'))
     assert.equal(sendsPermitted({
       settings: await store.getSettings(),
       template: await store.getLatestTemplate('camp-prospect-intro'),
@@ -500,7 +510,8 @@ describe('handoff and activation blockers', () => {
       template: await store.getLatestTemplate('camp-prospect-intro'),
       senderConfigured: false,
     })
-    assert.ok(blockers.some((item) => item.code === 'missing_mailing_address'))
+    assert.equal((await store.getSettings()).physicalMailingAddress, OUTREACH_MAILING_ADDRESS)
+    assert.ok(!blockers.some((item) => item.code === 'missing_mailing_address'))
     assert.ok(blockers.some((item) => item.code === 'template_unapproved'))
     assert.ok(blockers.some((item) => item.code === 'history_unreconciled'))
     const consolePayload = await buildOutreachConsole(store, 'sales_closer')

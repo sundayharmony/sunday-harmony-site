@@ -4,7 +4,7 @@ import { draftContentSha256 } from './draft-shell'
 import { reconcileFromProviderEvidence, type ProviderHistoryEvidence } from './history'
 import { applyOperatorSettings, stripClientVerificationFields } from './operator-settings'
 import { verifyOptOutCapability } from './opt-out-verify'
-import { senderConfiguredHere } from './runtime'
+import { defaultDisabledSettings, senderConfiguredHere } from './runtime'
 import type { OutreachStore } from './store'
 import type { OutreachSettings, OutreachTemplateVersion } from './types'
 
@@ -47,25 +47,7 @@ export async function loadAdminGate(
   env?: NodeJS.ProcessEnv
 ): Promise<{ schemaReady: boolean; gate: GateInput; settings: OutreachSettings; template: OutreachTemplateVersion | null }> {
   const schemaReady = await probeSchemaReady(store)
-  const settings = schemaReady ? await store.getSettings() : {
-    id: 1 as const,
-    killSwitch: true,
-    activatedAt: null,
-    activationApprovedBy: null,
-    physicalMailingAddress: null,
-    senderEmail: 'sales@sundayharmony.com',
-    senderDisplayName: 'Sunday Harmony Consulting',
-    signerName: 'Mac',
-    companyName: 'Sunday Harmony Consulting',
-    ctaLabel: 'Pick a time',
-    ctaUrl: 'https://www.sundayharmony.com/book',
-    dailySendLimit: 0,
-    maxAttempts: 5,
-    historyReconciliationStatus: 'unknown' as const,
-    providerHistoryVerifiedAt: null,
-    optOutVerifiedAt: null,
-    settingsVersion: 1,
-  }
+  const settings = schemaReady ? await store.getSettings() : defaultDisabledSettings()
   const campaign = schemaReady ? await store.getCampaignBySlug('prospect-intro') : null
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
   return { schemaReady, settings, template, gate: gateFrom({ settings, template, schemaReady, env }) }
