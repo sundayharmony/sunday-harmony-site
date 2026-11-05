@@ -1079,18 +1079,6 @@ export async function loadMarketingToday(role?: string | null) {
     metrics = role === 'client_relations' ? relations : [...metrics, ...relations]
   }
 
-  let calendarEvents: Array<{ id: string; summary: string; start: string; htmlLink: string }> = []
-  if (isGoogleWorkspaceConfigured()) {
-    try {
-      const start = new Date()
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
-      calendarEvents = await listWorkspaceEvents({ timeMin: start.toISOString(), timeMax: end.toISOString() })
-    } catch (error) {
-      console.error('today calendar error:', error)
-    }
-  }
-
   const billable = role === 'sales_closer'
     ? prospects
         .filter((prospect) => prospect.stage === 'won')
@@ -1115,7 +1103,6 @@ export async function loadMarketingToday(role?: string | null) {
     handoffs,
     billable,
     meetings,
-    calendarEvents,
     metrics,
     workspaceConnected: isGoogleWorkspaceConfigured(),
   }

@@ -45,6 +45,20 @@ async function signInAndMockCalendar(page: Page) {
   })
   await page.route('**/api/admin/**', async (route) => {
     const url = route.request().url()
+    if (url.includes('/api/admin/today')) {
+      await route.fulfill({
+        json: {
+          kind: 'marketing',
+          role: 'admin',
+          followUps: [],
+          handoffs: [],
+          meetings: [],
+          metrics: [],
+          workspaceConnected: false,
+        },
+      })
+      return
+    }
     if (url.includes('/api/admin/calendar')) {
       const parsed = new URL(url)
       const from = parsed.searchParams.get('from') || '2026-11-01'
@@ -125,5 +139,24 @@ test.describe('admin calendar', () => {
     await expect(page.getByTestId('calendar-month-phone')).toBeVisible()
     await expect(page.getByTestId('calendar-agenda')).toBeVisible()
     await page.screenshot({ path: '/opt/cursor/artifacts/calendar-month-mobile.png', fullPage: true })
+  })
+
+  test('does not duplicate the calendar on Today', async ({ page }) => {
+    await signInAndMockCalendar(page)
+
+    for (const viewport of [
+      { width: 1280, height: 900, shot: 'today-without-calendar-desktop.png' },
+      { width: 390, height: 844, shot: 'today-without-calendar-mobile.png' },
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      await page.goto('/admin')
+      await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: "Today's Calendar" })).toHaveCount(0)
+      await page.screenshot({ path: `/opt/cursor/artifacts/${viewport.shot}`, fullPage: true })
+      if (viewport.width <= 390) {
+        await page.getByRole('button', { name: 'Toggle menu' }).click()
+      }
+      await expect(page.getByRole('link', { name: 'Calendar' })).toBeVisible()
+    }
   })
 })
