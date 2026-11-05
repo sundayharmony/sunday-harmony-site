@@ -17,19 +17,19 @@ import {
   CATEGORY_LABELS,
   FIELD_PURPOSES,
   LEAD_SOURCES,
-  PIPELINE_STAGES,
   PROSPECT_CATEGORIES,
   SCORE_FACTORS,
   SOURCE_LABELS,
   STAGE_LABELS,
   canHandOffToRelations,
   canHandOffToSales,
-  canMoveStage,
   canSeeCloseSection,
   directCloseSkipsMeetingAndProposal,
   isLeadSource,
   isProspectCategory,
   roleMayRunSalesActions,
+  staffPipelineStage,
+  staffStageChoices,
   stripeHasConfirmedPayment,
   scoreBandLabel,
   scoreTotal,
@@ -422,7 +422,7 @@ export default function ProspectFile({ id }: { id: string }) {
         }))
         setNotice(`Agreement ${data.documentNumber} emailed to the prospect.`)
       } else {
-        setNotice(data.replied ? 'The business replied. Stage moved to Responded.' : 'Done.')
+        setNotice(data.replied ? 'The business replied.' : 'Done.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed')
@@ -470,11 +470,12 @@ export default function ProspectFile({ id }: { id: string }) {
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.stage}</span>
           <select
             className={`${inputClass} sm:max-w-xs`}
-            value={prospect.stage}
+            data-testid="pipeline-stage-select"
+            value={staffPipelineStage(prospect.stage)}
             disabled={saving}
             onChange={(event) => changeStage(event.target.value as PipelineStage)}
           >
-            {PIPELINE_STAGES.filter((stage) => stage === prospect.stage || canMoveStage(role, prospect.stage, stage)).map((stage) => (
+            {staffStageChoices(role, prospect.stage).map((stage) => (
               <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
             ))}
           </select>

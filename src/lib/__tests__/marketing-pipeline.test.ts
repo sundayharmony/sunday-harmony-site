@@ -20,7 +20,7 @@ import {
   navForRole,
   roleMayRunSalesActions,
   onboardingComplete,
-  PIPELINE_STAGES,
+  STAFF_PIPELINE_STAGES,
   procurementHandoffGaps,
   procurementMetrics,
   salesHandoffGaps,
@@ -34,6 +34,8 @@ import {
   STAGE_LABELS,
   stageFromLegacy,
   stagesVisibleToRole,
+  staffPipelineStage,
+  staffStageChoices,
   comparePipelineProspects,
   filterPipelineProspects,
   pipelineProspectMatchesQuery,
@@ -84,6 +86,21 @@ describe('marketing pipeline scores and stages', () => {
     assert.equal(stageAfterOutboundEmail('responded'), 'responded')
     assert.equal(stageAfterProspectReply('contacted'), 'responded')
     assert.equal(stageAfterProspectReply('proposal_sent'), null)
+  })
+
+  it('hides Responded and Meeting scheduled from staff stage choices', () => {
+    assert.equal(staffPipelineStage('responded'), 'contacted')
+    assert.equal(staffPipelineStage('meeting_scheduled'), 'contacted')
+    assert.equal(staffPipelineStage('proposal_sent'), 'proposal_sent')
+    const admin = staffStageChoices('admin', 'contacted')
+    assert.equal(admin.includes('responded' as typeof admin[number]), false)
+    assert.equal(admin.includes('meeting_scheduled' as typeof admin[number]), false)
+    assert.deepEqual(admin, [...STAFF_PIPELINE_STAGES])
+    const prospect = readFileSync('src/components/admin/ProspectFile.tsx', 'utf8')
+    const stageStart = prospect.indexOf('<span className="font-medium">Pipeline stage</span>')
+    const stageBlock = prospect.slice(stageStart, prospect.indexOf('{editing ? (', stageStart))
+    assert.match(stageBlock, /staffStageChoices/)
+    assert.doesNotMatch(stageBlock, /PIPELINE_STAGES/)
   })
 })
 
@@ -342,7 +359,9 @@ describe('marketing role handoffs and navigation', () => {
 
     const adminStages = boardLanes('admin').flatMap((lane) => lane.stages)
     assert.equal(new Set(adminStages).size, adminStages.length)
-    assert.deepEqual([...adminStages].sort(), [...PIPELINE_STAGES].sort())
+    assert.equal(salesStages.includes('responded'), false)
+    assert.equal(salesStages.includes('meeting_scheduled'), false)
+    assert.deepEqual([...adminStages].sort(), [...STAFF_PIPELINE_STAGES].sort())
     assert.deepEqual(boardLanes(null).flatMap((lane) => lane.stages), adminStages)
     assert.deepEqual(boardLanes('unknown').flatMap((lane) => lane.stages), adminStages)
   })
@@ -378,6 +397,19 @@ describe('marketing role handoffs and navigation', () => {
     assert.ok(comparePipelineProspects(rows[2], rows[1]) < 0)
     assert.equal(prospectVisibleInBoardStage('sales_closer', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), false)
     assert.equal(prospectVisibleInBoardStage('admin', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'meeting_scheduled' }, 'contacted'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'responded' }, 'contacted'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'meeting_scheduled' }, 'meeting_scheduled'), false)
+    assert.deepEqual(
+      filterPipelineProspects(
+        [
+          { id: 'r', business: 'Replied Bakery', contactName: 'Rae', stage: 'responded' as const, score: 8, followUpAt: null },
+          { id: 'm', business: 'Meet Cafe', contactName: 'Mo', stage: 'meeting_scheduled' as const, score: 7, followUpAt: null },
+        ],
+        { stage: 'contacted' }
+      ).map((row) => row.id),
+      ['r', 'm']
+    )
   })
 
   it('lists pipeline businesses in a searchable list with a compact board fallback', () => {

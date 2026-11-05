@@ -4,7 +4,7 @@
 
 import { DISPUTE_OPS_TASK_TEMPLATES } from '@/lib/dispute-letters/dispute-lifecycle'
 import { packagePriceDisplay, packages } from '@/lib/data'
-import { PIPELINE_STAGES, SCORE_FACTORS, STAGE_LABELS } from '@/lib/marketing-pipeline'
+import { SCORE_FACTORS, STAFF_PIPELINE_STAGES, STAGE_LABELS } from '@/lib/marketing-pipeline'
 
 // ══════════ COMPANY OVERVIEW ══════════
 export const companyInfo = {
@@ -312,7 +312,7 @@ export const closerSopModules: CloserSopModule[] = [
       'Pipeline is the prospect board and file. Score, stage, notes, and handoffs live here.',
       'Sales Kit holds Materials (PDFs), Agreements & Proposals, and Outreach Emails. Use the Closer Training Manual from Materials when you need the full SOP.',
       'Messages is your inbox. Settings is account and security. Todos are personal follow-ups.',
-      'Daily rhythm: clear Today → work high scores and Responded / Meeting stages → log every contact → follow up honestly, never invent audit results.',
+      'Daily rhythm: clear Today → work high scores and Contacted / Proposal stages → log every contact → follow up honestly, never invent audit results.',
       'As a closer you mainly work leads handed to sales. Procurement owns early research; you own replies through close.',
     ],
     links: [
@@ -369,8 +369,8 @@ export const closerSopModules: CloserSopModule[] = [
     bullets: [
       `Five factors, each 0–2: ${SCORE_FACTORS.map((factor) => factor.label.replace(/^Has an? /i, '').replace(/^Appears /i, '')).join('; ')}.`,
       '8–10 is high priority, 5–7 is medium, 0–4 is hold. Move to Ready to contact when research is done.',
-      `Stages: ${PIPELINE_STAGES.map((stage) => STAGE_LABELS[stage]).join(' → ')}.`,
-      'Researching = identified but not contacted. Ready to contact = qualified and researched. Contacted = outreach sent. Responded = they replied. Meeting scheduled = consultation booked. Proposal sent = pricing presented. Negotiation = discussing the opportunity. Active (Won) = signed and paid. Inactive (Lost / Nurture) = not moving forward; keep for later.',
+      `Stages: ${STAFF_PIPELINE_STAGES.map((stage) => STAGE_LABELS[stage]).join(' → ')}.`,
+      'Researching = identified but not contacted. Ready to contact = qualified and researched. Contacted = outreach sent. Book a Google Meet from the meeting card without changing stage. Proposal sent = pricing presented. Negotiation = discussing the opportunity. Active (Won) = signed and paid. Inactive (Lost / Nurture) = not moving forward; keep for later.',
       'Confirm lane labels on the live Pipeline board. Log every contact; mark Lost / Nurture honestly when the timing is wrong.',
     ],
     links: [

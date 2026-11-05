@@ -41,6 +41,7 @@ describe('prospect file view mode', () => {
     const stageBlock = source.slice(stageStart, detailsStart)
     assert.match(stageBlock, /<select/)
     assert.match(stageBlock, /changeStage/)
+    assert.match(stageBlock, /staffStageChoices/)
     assert.doesNotMatch(stageBlock, /\{editing/)
   })
 })

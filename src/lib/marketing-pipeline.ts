@@ -14,6 +14,19 @@ export const PIPELINE_STAGES = [
 ] as const
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
+/** Stages staff can pick. Older `responded` / `meeting_scheduled` rows still parse. */
+export const STAFF_PIPELINE_STAGES = [
+  'researching',
+  'ready_to_contact',
+  'contacted',
+  'proposal_sent',
+  'negotiation',
+  'won',
+  'lost_nurture',
+] as const satisfies readonly PipelineStage[]
+
+export type StaffPipelineStage = (typeof STAFF_PIPELINE_STAGES)[number]
+
 export const STAGE_LABELS: Record<PipelineStage, string> = {
   researching: 'Researching',
   ready_to_contact: 'Ready to contact',
@@ -128,6 +141,30 @@ export function isMarketingRole(role?: string | null): role is MarketingRole {
 
 export function isPipelineStage(value: unknown): value is PipelineStage {
   return typeof value === 'string' && STAGE_INDEX.has(value as PipelineStage)
+}
+
+export function isStaffPipelineStage(value: unknown): value is StaffPipelineStage {
+  return typeof value === 'string' && (STAFF_PIPELINE_STAGES as readonly string[]).includes(value)
+}
+
+/** Map retired reply/meeting stages onto Contacted for staff UI. */
+export function staffPipelineStage(stage: PipelineStage): StaffPipelineStage {
+  if (stage === 'responded' || stage === 'meeting_scheduled') return 'contacted'
+  return stage
+}
+
+export function staffStagesVisibleToRole(role?: string | null): StaffPipelineStage[] {
+  const allowed = stagesVisibleToRole(role)
+  const staff = [...STAFF_PIPELINE_STAGES]
+  if (allowed === 'all') return staff
+  return staff.filter((stage) => allowed.includes(stage))
+}
+
+export function staffStageChoices(role: string | null | undefined, current: PipelineStage): StaffPipelineStage[] {
+  const displayed = staffPipelineStage(current)
+  return staffStagesVisibleToRole(role).filter(
+    (stage) => stage === displayed || canMoveStage(role, current, stage) || canMoveStage(role, displayed, stage)
+  )
 }
 
 export function isProspectCategory(value: unknown): value is ProspectCategory {
@@ -307,8 +344,6 @@ export type BoardLane = {
 
 const PROCUREMENT_LANE_STAGES: PipelineStage[] = ['researching', 'ready_to_contact', 'contacted']
 const SALES_WORK_STAGES: PipelineStage[] = [
-  'responded',
-  'meeting_scheduled',
   'proposal_sent',
   'negotiation',
   'lost_nurture',
@@ -335,7 +370,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
       {
         id: 'sales',
         title: 'Sales',
-        detail: 'Replies, meetings, proposals, and leads that go Inactive.',
+        detail: 'Proposals, negotiation, and leads that go Inactive.',
         stages: [...SALES_WORK_STAGES],
       },
       {
@@ -364,7 +399,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
     {
       id: 'sales',
       title: 'Sales',
-      detail: 'Replies, meetings, proposals, and inactive leads.',
+      detail: 'Proposals, negotiation, and inactive leads.',
       stages: [...SALES_WORK_STAGES],
     },
     {
@@ -717,7 +752,7 @@ export function prospectVisibleInBoardStage(
   prospect: Pick<PipelineBoardProspect, 'stage' | 'handedToRelationsAt'>,
   stage: PipelineStage
 ): boolean {
-  if (prospect.stage !== stage) return false
+  if (staffPipelineStage(prospect.stage) !== stage) return false
   if (role === 'sales_closer' && stage === 'won' && prospect.handedToRelationsAt) return false
   return true
 }
@@ -754,7 +789,7 @@ export function filterPipelineProspects<T extends PipelineBoardProspect>(
   const stage = input.stage || ''
   return prospects
     .filter((prospect) => pipelineProspectMatchesQuery(prospect, input.query || ''))
-    .filter((prospect) => !stage || prospect.stage === stage)
+    .filter((prospect) => !stage || staffPipelineStage(prospect.stage) === stage)
     .slice()
     .sort(comparePipelineProspects)
 }
