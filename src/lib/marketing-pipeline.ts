@@ -667,3 +667,61 @@ export function visibleStages(role: string | null | undefined, stages: PipelineS
   if (allowed === 'all') return stages
   return stages.filter((stage) => allowed.includes(stage))
 }
+
+export type PipelineBoardProspect = {
+  id: string
+  business: string
+  contactName: string
+  stage: PipelineStage
+  score: number | null
+  followUpAt: string | null
+  handedToRelationsAt?: string | null
+  source?: string
+}
+
+export function prospectVisibleInBoardStage(
+  role: string,
+  prospect: Pick<PipelineBoardProspect, 'stage' | 'handedToRelationsAt'>,
+  stage: PipelineStage
+): boolean {
+  if (prospect.stage !== stage) return false
+  if (role === 'sales_closer' && stage === 'won' && prospect.handedToRelationsAt) return false
+  return true
+}
+
+export function pipelineProspectMatchesQuery(
+  prospect: Pick<PipelineBoardProspect, 'business' | 'contactName' | 'source'>,
+  query: string
+): boolean {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return [prospect.business, prospect.contactName, prospect.source]
+    .some((value) => (value || '').toLowerCase().includes(needle))
+}
+
+export function comparePipelineProspects(
+  a: Pick<PipelineBoardProspect, 'business' | 'score' | 'followUpAt'>,
+  b: Pick<PipelineBoardProspect, 'business' | 'score' | 'followUpAt'>
+): number {
+  const aFollow = a.followUpAt ? Date.parse(a.followUpAt) : Number.POSITIVE_INFINITY
+  const bFollow = b.followUpAt ? Date.parse(b.followUpAt) : Number.POSITIVE_INFINITY
+  const aTime = Number.isNaN(aFollow) ? Number.POSITIVE_INFINITY : aFollow
+  const bTime = Number.isNaN(bFollow) ? Number.POSITIVE_INFINITY : bFollow
+  if (aTime !== bTime) return aTime - bTime
+  const aScore = a.score == null || Number.isNaN(a.score) ? -1 : a.score
+  const bScore = b.score == null || Number.isNaN(b.score) ? -1 : b.score
+  if (aScore !== bScore) return bScore - aScore
+  return a.business.localeCompare(b.business)
+}
+
+export function filterPipelineProspects<T extends PipelineBoardProspect>(
+  prospects: T[],
+  input: { query?: string; stage?: PipelineStage | '' }
+): T[] {
+  const stage = input.stage || ''
+  return prospects
+    .filter((prospect) => pipelineProspectMatchesQuery(prospect, input.query || ''))
+    .filter((prospect) => !stage || prospect.stage === stage)
+    .slice()
+    .sort(comparePipelineProspects)
+}

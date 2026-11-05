@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { roleMayEditPipeline, roleMayUsePipeline } from '../marketing-crm'
 import {
@@ -31,6 +32,10 @@ import {
   STAGE_LABELS,
   stageFromLegacy,
   stagesVisibleToRole,
+  comparePipelineProspects,
+  filterPipelineProspects,
+  pipelineProspectMatchesQuery,
+  prospectVisibleInBoardStage,
 } from '../marketing-pipeline'
 
 describe('marketing pipeline scores and stages', () => {
@@ -295,5 +300,33 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(sales[3].value, '$2,500')
     assert.equal(onboardingComplete({ welcomed: true, assets: true, access: true, requirements: true, expectations: true }), true)
     assert.equal(onboardingComplete({ welcomed: true }), false)
+  })
+
+  it('filters and sorts the pipeline list by search, stage, and follow-up', () => {
+    const rows = [
+      { id: '2', business: 'Zed Cafe', contactName: 'Zed', stage: 'contacted' as const, score: 4, followUpAt: '2026-11-08T14:00:00.000Z' },
+      { id: '1', business: 'Bean by Bardea', contactName: 'Bardea', stage: 'researching' as const, score: 9, followUpAt: '2026-11-06T14:00:00.000Z' },
+      { id: '3', business: 'Pasteleria', contactName: 'Ana', stage: 'researching' as const, score: 8, followUpAt: '2026-11-06T13:00:00.000Z' },
+    ]
+    assert.equal(pipelineProspectMatchesQuery(rows[1], 'bardea'), true)
+    assert.equal(pipelineProspectMatchesQuery(rows[1], 'pizza'), false)
+    const searched = filterPipelineProspects(rows, { query: 'cafe' })
+    assert.deepEqual(searched.map((row) => row.id), ['2'])
+    const researching = filterPipelineProspects(rows, { stage: 'researching' })
+    assert.deepEqual(researching.map((row) => row.business), ['Pasteleria', 'Bean by Bardea'])
+    assert.ok(comparePipelineProspects(rows[2], rows[1]) < 0)
+    assert.equal(prospectVisibleInBoardStage('sales_closer', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), false)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), true)
+  })
+
+  it('lists pipeline businesses in a searchable list with a compact board fallback', () => {
+    const ui = readFileSync('src/components/admin/MarketingPipeline.tsx', 'utf8')
+    assert.match(ui, /Search businesses/)
+    assert.match(ui, /All stages/)
+    assert.match(ui, /\['list', 'List'\]/)
+    assert.match(ui, /\['board', 'Board'\]/)
+    assert.match(ui, /sh-pipeline-view/)
+    assert.match(ui, /max-h-\[min\(70vh,36rem\)\]/)
+    assert.match(ui, /ProspectListRow/)
   })
 })
