@@ -107,16 +107,16 @@ Walkthrough he demonstrates:
    - FTC Identity Theft Report / affidavit
    - Credit report excerpt showing the inquiry (name must match the report **exactly**)
 8. Without the full ID set + matching report, he observes removals often fail.
-9. **Multi-bureau in one complaint:** if the same inquiry listing applies across bureaus, add Experian, Equifax, and TransUnion as companies in the same flow (check boxes, last-4 SSN, DOB, name as on report each time). Prefer the primary CRA company name that comes up first.
+9. **Multi-bureau in one complaint:** if the same inquiry listing applies across bureaus, add Experian, Equifax, and TransUnion as companies in the same flow (check boxes, last-4 SSN, DOB, name as on report each time). Prefer the primary CRA company name that comes up first — e.g. Experian (first hit / all-caps variant), **Equifax Information Solutions** or Equifax Inc., TransUnion (first hit).
 10. Complaint on behalf of: always **Myself**.
 11. Review and submit (he stops before actually submitting on camera).
 
 ### 2.6 Observed timelines (his three-inquiry-per-bureau test)
 | Bureau | Rough timing | Notes |
 |--------|--------------|-------|
-| **Experian** | ~**7–10 days** | Sometimes one inquiry needed a **second** submit; same window after resubmit. Phone can work in ~24 hours in his/others’ experience. |
-| **Equifax** | ~**7–14 days** (often **~3–5**) | Generally faster in his tests. |
-| **TransUnion** | ~**30 days** | Slowest. Phone results mixed; may place **fraud alert** that propagates to all three — then you must unwind it. Certified mail packet can be faster when CFPB stalls. |
+| **Experian** | **7 to 10 days** | Sometimes one inquiry needed a **second** submit; same window after resubmit. Phone can work in ~24 hours in his/others’ experience. |
+| **Equifax** | **7 to 14 days** (often **~3–5**) | Generally faster in his tests. |
+| **TransUnion** | about **30 days** | Slowest. Phone results mixed; may place **fraud alert** that propagates to all three — then you must unwind it. Certified mail packet can be faster when CFPB stalls. |
 
 ### 2.7 Fallbacks
 - **Certified letter** with the same docs (affidavit + IDs + report) to the slow bureau.

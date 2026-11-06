@@ -74,9 +74,12 @@ Recent lates/collections/charge-offs/duplicates/inaccurate balances remain ancho
 | Same-issuer limit reallocation calls | **No** | Manual client/bank ops |
 | Business credit / BHG loan playbooks | **No** | Manual; may relate to funding goals but not automated |
 | Clean inaccurate negatives first | **Yes** | Core dispute letters path |
+| Rising auto-mail / dispute templates / response tracking | **No** | Manual Rising (or product mail packages instead) |
 
 **Sunday Harmony role:** diagnose *what’s capping the score* (derogs + utilization signals) and run FCRA disputes.  
 **Not:** execute utilization engineering, retirement loans, or bureau back-reporting.
+
+He pitches Rising as a **90-day** credit-improvement system with dispute templates, bureau response tracking, and **auto-mail** from web/app — parallel to (not inside) Sunday Harmony letter mail.
 
 ---
 

@@ -4,6 +4,12 @@ Staff-facing study notes that map external credit strategies onto the Sunday Har
 
 > **Not legal advice / not financial advice.** Educational ops notes only. Review every dispute, product decision, and tax/retirement move with appropriate professionals.
 
+## How these were studied
+
+1. **Full spoken narration** for every video below is captured via YouTube page fetch (works even when the cloud IP cannot play media). Field-by-field portal steps come from that narration.
+2. **Description chapters / affiliate links** are read from the live watch page when available.
+3. **On-screen UI scrubbing** (pause-frame button labels) requires a signed-in YouTube session or `YOUTUBE_COOKIES_TXT`. From this Cloud Agent IP, YouTube returns *LOGIN_REQUIRED / Sign in to confirm you’re not a bot* and blocks yt-dlp, embeds (Error 153), Invidious, and Cobalt. Re-verify portal UI labels after cookies are available.
+
 ## Playbooks
 
 | File | Video | Primary theme |
