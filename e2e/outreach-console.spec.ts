@@ -16,7 +16,7 @@ const consolePayload = {
   attachmentPresent: true,
   scheduler: {
     path: '/api/internal/outreach-dispatch',
-    schedule: '0 14 * * 1-5',
+    schedule: '0 20 * * 1-5',
     enabled: false,
     note: 'Opt-in example only. Registering this cron would still hit DisabledProvider unless every activation gate is already satisfied.',
   },

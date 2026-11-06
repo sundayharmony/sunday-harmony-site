@@ -436,7 +436,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
       assert.equal(body.liveSend, false)
       assert.equal(body.skippedDisabled, true)
       const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: Array<{ path: string; schedule: string }> }
-      assert.equal(vercel.crons.some((item) => item.path === '/api/internal/outreach-dispatch' && item.schedule === '0 14-20 * * 1-5'), true)
+      assert.equal(vercel.crons.some((item) => item.path === '/api/internal/outreach-dispatch' && item.schedule === '0 20 * * 1-5'), true)
     } finally {
       setOutreachStoreForTests(null)
       if (cron === undefined) delete process.env.CRON_SECRET
@@ -479,7 +479,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.doesNotMatch(dispatch, /unsubscribeUrlFor/)
     const vercel = readFileSync('vercel.json', 'utf8')
     assert.match(vercel, /outreach-dispatch/)
-    assert.match(vercel, /0 14-20 \* \* 1-5/)
+    assert.match(vercel, /0 20 \* \* 1-5/)
     assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /outreach-dispatch/)
     const nextConfig = readFileSync('next.config.js', 'utf8')
     assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)
