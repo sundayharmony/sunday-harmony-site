@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import PartnerShell from '@/components/partner/PartnerShell'
 import { NO_INDEX } from '@/lib/seo'
 
 export const metadata: Metadata = {
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function PartnerLayout({ children }: { children: React.ReactNode }) {
-  return children
+  return <PartnerShell>{children}</PartnerShell>
 }

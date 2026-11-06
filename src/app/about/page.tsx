@@ -4,6 +4,7 @@ import Footer from '@/components/Footer'
 import About from '@/components/About'
 import PartnerLogos from '@/components/PartnerLogos'
 import CtaBanner from '@/components/CtaBanner'
+import { listPublicCaseStudies } from '@/lib/case-studies'
 import { listPublicPartnerLogos } from '@/lib/partner-logos'
 
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
 }
 
 export default async function AboutPage() {
-  const logos = await listPublicPartnerLogos()
+  const caseStudies = await listPublicCaseStudies()
+  const logos = caseStudies.length > 0 ? caseStudies : await listPublicPartnerLogos()
   return (
     <>
       <Navbar />

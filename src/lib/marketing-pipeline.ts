@@ -113,11 +113,11 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin/clients', icon: '\u{1F91D}', label: 'Clients' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
   { href: '/admin/referrals', icon: '\u{1F381}', label: 'Referrals' },
+  { href: '/admin/case-study', icon: '\u{1F5BC}\uFE0F', label: 'Case Study' },
   { href: '/admin/todos', icon: '\u2705', label: 'Todos' },
   { href: '/admin/sales-kit', icon: '\u{1F4BC}', label: 'Sales Kit' },
   { href: '/admin/training', icon: '\u{1F4DA}', label: 'Training' },
   { href: '/admin/content-kit', icon: '\u{1F4F1}', label: 'Content Kit' },
-  { href: '/admin/partners', icon: '\u{1F465}', label: 'Partners' },
   { href: '/admin/messages', icon: '\u{1F4AC}', label: 'Messages' },
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]

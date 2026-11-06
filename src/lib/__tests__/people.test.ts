@@ -320,7 +320,7 @@ describe('people admin wiring', () => {
     assert.match(pipeline, /label: 'Pipeline'/)
     assert.match(pipeline, /label: 'Clients'/)
     assert.match(pipeline, /label: 'Credit & Funding'/)
-    assert.match(pipeline, /label: 'Partners'/)
+    assert.match(pipeline, /label: 'Case Study'/)
     assert.match(pipeline, /label: 'Settings'/)
     assert.doesNotMatch(sidebar, /\/admin\/crm/)
     assert.match(pipeline, /href: '\/admin\/credit-funding'/)
