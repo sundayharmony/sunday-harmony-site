@@ -4,12 +4,12 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'Build & Fund',
+  title: 'Fund',
   description:
     'Choose your path: build personal credit or fund your business. Sunday Harmony helps with both.',
   alternates: { canonical: '/build-fund' },
   openGraph: {
-    title: 'Build & Fund | Sunday Harmony',
+    title: 'Fund | Sunday Harmony',
     description: 'Personal credit building or business funding — pick your path.',
     url: '/build-fund',
   },
@@ -52,7 +52,7 @@ export default function BuildFundPage() {
               Choose your path
             </div>
             <h1 className="font-serif text-[clamp(36px,6vw,60px)] font-extrabold leading-[1.05] text-brand-text mb-5">
-              Build & Fund
+              Fund
             </h1>
             <p className="text-lg text-brand-muted leading-relaxed max-w-[540px] mx-auto">
               Two paths to financial strength. Pick the one that fits where you are today.

@@ -16,7 +16,7 @@ export function isSiteNavLinkActive(href: string, pathname: string): boolean {
 
 export const siteNavLinks: SiteNavLink[] = [
   { label: 'Market', href: '/services' },
-  { label: 'Build & Fund', href: '/build-fund' },
+  { label: 'Fund', href: '/build-fund' },
   { label: 'Contact', href: '/contact' },
   { label: 'About', href: '/about' },
 ]
