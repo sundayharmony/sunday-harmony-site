@@ -263,6 +263,7 @@ export default function AdminPartnerAccountsPanel() {
             <div className="p-5 border-b border-brand-border">
               <ReferralLinkQrPanel
                 title="Partner referral link"
+                hint="People who open this link start the funding intake at the top of the page. Clicks and applications still show here."
                 link={detail.partner.link}
                 code={detail.partner.code}
                 active={detail.partner.linkActive}

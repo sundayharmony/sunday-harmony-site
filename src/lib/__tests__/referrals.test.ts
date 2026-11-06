@@ -20,6 +20,8 @@ import {
   publicCommissionLabel,
   referralAttributionDays,
   referralCommissionCents,
+  appendPartnerIntakeFirst,
+  partnerIntakeFirstPath,
   safeReferralLandingPath,
   selectCreditReferralPayouts,
   shouldCreateCommission,
@@ -80,6 +82,12 @@ describe('referral codes and display', () => {
 
   it('strips ref and blocks open redirects on landing paths', () => {
     assert.equal(safeReferralLandingPath('/credit?ref=ABC12345&invite=tok'), '/credit?invite=tok')
+    assert.equal(safeReferralLandingPath('/credit?ref=ABC12345&apply=1'), '/credit?apply=1')
+    assert.equal(safeReferralLandingPath('/funding?ref=ABC12345&apply=1'), '/funding?apply=1')
+    assert.equal(partnerIntakeFirstPath('abc12345'), '/funding?ref=ABC12345&apply=1')
+    assert.equal(appendPartnerIntakeFirst('/credit?invite=tok'), '/funding?invite=tok&apply=1')
+    assert.equal(appendPartnerIntakeFirst('/funding?apply=1'), '/funding?apply=1')
+    assert.equal(appendPartnerIntakeFirst('/dashboard'), '/funding?apply=1')
     assert.equal(safeReferralLandingPath('/credit-funding?ref=ABC12345&invite=tok'), '/credit?invite=tok')
     assert.equal(safeReferralLandingPath('https://evil.example/credit'), '/credit')
     assert.equal(safeReferralLandingPath('//evil.example'), '/credit')

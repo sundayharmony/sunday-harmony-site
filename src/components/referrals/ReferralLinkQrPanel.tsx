@@ -9,6 +9,7 @@ export default function ReferralLinkQrPanel({
   code,
   active = true,
   inactiveHint,
+  hint,
   downloadLabelPrefix = 'referral',
 }: {
   title: string
@@ -16,6 +17,7 @@ export default function ReferralLinkQrPanel({
   code: string
   active?: boolean
   inactiveHint?: string
+  hint?: string
   downloadLabelPrefix?: string
 }) {
   const [copied, setCopied] = useState(false)
@@ -56,6 +58,7 @@ export default function ReferralLinkQrPanel({
           {inactiveHint && !active ? (
             <p className="mt-1 text-xs text-brand-muted">{inactiveHint}</p>
           ) : null}
+          {hint && active ? <p className="mt-1 text-xs text-brand-muted">{hint}</p> : null}
           <p className="mt-2 text-xs text-brand-dim">
             Code <span className="font-mono font-semibold text-brand-text">{code || '—'}</span>
           </p>

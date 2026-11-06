@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 import FundingHeroVisual from '@/components/funding/FundingHeroVisual'
+import { FUNDING_INTAKE_PATH, isPartnerIntakeFirst, normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
 
 export const metadata: Metadata = {
   title: 'Business Funding',
@@ -130,11 +132,50 @@ function DotMeter({ label, value }: { label: string; value: number }) {
   )
 }
 
-export default function FundingPage() {
+function IntakeSection({ first }: { first: boolean }) {
+  return (
+    <section
+      className={first ? 'bg-brand-bg-soft pb-16 pt-8 sm:pt-10' : 'border-t border-brand-border bg-brand-bg-soft py-20'}
+      id="intake"
+    >
+      <div className="max-w-[800px] mx-auto px-7">
+        <div className="section-label">Business intake</div>
+        <h2 className="font-serif text-[clamp(30px,4.6vw,46px)] font-extrabold leading-[1.1] text-brand-text mb-3">
+          Start the <span className="gold-text">business intake</span>
+        </h2>
+        <p className="text-[15px] text-brand-muted leading-relaxed mb-10 max-w-[600px]">
+          Contact, the amount you are seeking, and the business profile. Personal credit reports are not part of this form.
+        </p>
+        <Suspense fallback={<p className="text-sm text-brand-muted">Loading application form…</p>}>
+          <CreditFundingForm variant="funding" />
+        </Suspense>
+      </div>
+    </section>
+  )
+}
+
+export default async function FundingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string; invite?: string; apply?: string }>
+}) {
+  const params = await searchParams
+  const code = normalizeReferralCode(params.ref)
+  const intakeFirst = isPartnerIntakeFirst(params.apply)
+  if (code) {
+    const nextParams = new URLSearchParams()
+    if (params.invite?.trim()) nextParams.set('invite', params.invite.trim())
+    if (intakeFirst) nextParams.set('apply', '1')
+    const qs = nextParams.toString()
+    const nextPath = safeReferralLandingPath(qs ? `${FUNDING_INTAKE_PATH}?${qs}` : FUNDING_INTAKE_PATH)
+    redirect(`/api/referrals/track?code=${encodeURIComponent(code)}&next=${encodeURIComponent(nextPath)}`)
+  }
+
   return (
     <>
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)]">
+        {intakeFirst ? <IntakeSection first /> : null}
         <section className="relative overflow-hidden bg-gradient-to-br from-white via-neutral-50 to-neutral-100">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] bg-[size:48px_48px] pointer-events-none" />
           <div className="absolute -top-1/3 -right-1/6 w-[700px] h-[700px] rounded-full bg-[radial-gradient(circle,rgba(184,148,63,0.12)_0%,transparent_70%)] pointer-events-none" />
@@ -321,20 +362,7 @@ export default function FundingPage() {
           </div>
         </section>
 
-        <section className="py-20 bg-brand-bg-soft border-t border-brand-border" id="intake">
-          <div className="max-w-[800px] mx-auto px-7">
-            <div className="section-label">Business intake</div>
-            <h2 className="font-serif text-[clamp(30px,4.6vw,46px)] font-extrabold leading-[1.1] text-brand-text mb-3">
-              Start the <span className="gold-text">business intake</span>
-            </h2>
-            <p className="text-[15px] text-brand-muted leading-relaxed mb-10 max-w-[600px]">
-              Contact, the amount you are seeking, and the business profile. Personal credit reports are not part of this form.
-            </p>
-            <Suspense fallback={<p className="text-sm text-brand-muted">Loading application form…</p>}>
-              <CreditFundingForm variant="funding" />
-            </Suspense>
-          </div>
-        </section>
+        {intakeFirst ? null : <IntakeSection first={false} />}
       </main>
       <Footer />
     </>

@@ -109,6 +109,7 @@ export default function PartnerDashboardPage() {
                 code={data.profile.code}
                 active={data.profile.linkActive}
                 inactiveHint="Your QR code is ready, but the link stays inactive until Sunday Harmony approves your account."
+                hint="People who open this link start the funding intake at the top of the page. Clicks and applications still show here."
                 downloadLabelPrefix={data.profile.companyName || 'partner'}
               />
             </div>

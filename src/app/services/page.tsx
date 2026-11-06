@@ -4,7 +4,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import Packages from '@/components/Packages'
 import HeroHarmonyVisual from '@/components/HeroHarmonyVisual'
-import { packages, processSteps, services } from '@/lib/data'
+import { processSteps, services } from '@/lib/data'
 
 export const metadata: Metadata = {
   title: 'Marketing Services',
@@ -23,37 +23,6 @@ const pillars = services.map((service, index) => ({
   ...service,
   number: String(index + 1).padStart(2, '0'),
 }))
-
-const offerings = [
-  {
-    tier: 'Business Essentials',
-    body: 'A polished brand identity: logo, colors, typography, guidelines, and social assets.',
-    best: 'Businesses launching or refreshing their brand',
-    handsOn: 2,
-    reach: 1,
-  },
-  {
-    tier: 'Business Launch',
-    body: 'Brand identity plus a website, SEO basics, Google Business, and launch graphics.',
-    best: 'Businesses ready to go live with a professional presence',
-    handsOn: 3,
-    reach: 3,
-  },
-  {
-    tier: 'Marketing Partner',
-    body: 'Ongoing strategy, social content, website updates, and SEO to keep the momentum.',
-    best: 'Businesses that want steady marketing support',
-    handsOn: 4,
-    reach: 4,
-  },
-  {
-    tier: 'Custom Solutions',
-    body: 'E-commerce, apps, print, apparel, wraps, ads, systems — scoped to the project.',
-    best: 'Businesses with specialized or larger-scale needs',
-    handsOn: 5,
-    reach: 5,
-  },
-] as const
 
 const faqs = [
   {
@@ -77,22 +46,6 @@ const faqs = [
     a: 'No. Marketing services are the main practice. Business funding and credit repair are separate paths, with their own pages.',
   },
 ]
-
-function DotMeter({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-dim">{label}</span>
-      <span className="flex gap-1" role="img" aria-label={`${label} ${value} out of 5`}>
-        {[1, 2, 3, 4, 5].map((dot) => (
-          <span
-            key={dot}
-            className={`h-2 w-5 rounded-full ${dot <= value ? 'bg-accent' : 'bg-neutral-200'}`}
-          />
-        ))}
-      </span>
-    </div>
-  )
-}
 
 export default function ServicesPage() {
   return (
@@ -184,7 +137,7 @@ export default function ServicesPage() {
           </div>
         </section>
 
-        <section className="py-20 bg-brand-bg-soft" id="packages-compare">
+        <section className="py-20 bg-brand-bg-soft" id="packages">
           <div className="max-w-[1100px] mx-auto px-7">
             <div className="section-label">Ways to work together</div>
             <h2 className="font-serif text-[clamp(30px,4.6vw,48px)] font-extrabold leading-[1.1] text-brand-text mb-4 max-w-[680px]">
@@ -193,39 +146,7 @@ export default function ServicesPage() {
             <p className="text-[15px] text-brand-muted leading-relaxed mb-12 max-w-[600px]">
               Business Essentials builds the brand. Business Launch adds a website and launch assets. Marketing Partner keeps the momentum going. Custom Solutions handles anything specialized. Hands-on support and reach both rise as the engagement grows.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              {offerings.map((option) => {
-                const pkg = packages.find((item) => item.tier === option.tier)
-                return (
-                  <article
-                    key={option.tier}
-                    className="rounded-2xl border border-brand-border bg-white p-7 transition-all hover:-translate-y-1 hover:shadow-md"
-                  >
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-brand-border bg-accent-soft text-[22px]">
-                        {pkg?.icon}
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-brand-text leading-tight">{option.tier}</h3>
-                        <p className="text-xs font-semibold text-accent">{pkg ? packageLabel(pkg.price, pkg.priceLabel, pkg.priceSuffix) : ''}</p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-brand-muted leading-relaxed mb-4">{option.body}</p>
-                    <div className="mb-5 rounded-lg bg-neutral-50 border border-brand-border px-3 py-2 text-xs text-brand-muted">
-                      <span className="font-semibold text-brand-text">Best for: </span>
-                      {option.best}
-                    </div>
-                    <div className="space-y-2.5">
-                      <DotMeter label="Hands-on" value={option.handsOn} />
-                      <DotMeter label="Reach" value={option.reach} />
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-            <p className="mt-6 text-xs text-brand-dim">
-              Full pricing and what is included are in the packages below.
-            </p>
+            <Packages />
           </div>
         </section>
 
@@ -282,27 +203,9 @@ export default function ServicesPage() {
           </div>
         </section>
 
-        <div className="bg-brand-bg-soft border-t border-brand-border">
-          <Packages />
-        </div>
       </main>
       <Footer />
     </>
   )
 }
 
-function packageLabel(
-  price: number | undefined,
-  priceLabel: string | undefined,
-  priceSuffix?: 'one-time' | 'monthly' | 'quote'
-): string {
-  if (priceLabel) {
-    if (priceSuffix === 'one-time') return `${priceLabel} one-time`
-    return priceLabel
-  }
-  if (price != null) {
-    if (priceSuffix === 'monthly') return `From $${price.toLocaleString()}/mo`
-    return `$${price.toLocaleString()}`
-  }
-  return 'Custom'
-}

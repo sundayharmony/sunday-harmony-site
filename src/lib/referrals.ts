@@ -75,6 +75,37 @@ export function buildReferralPath(code: string): string {
   return `${CREDIT_INTAKE_PATH}?ref=${encodeURIComponent(code)}`
 }
 
+/** Business funding intake. Partner links land here with the form first. */
+export const FUNDING_INTAKE_PATH = '/funding'
+
+/** Partner links add this so the funding page opens the intake before the guide. */
+export const PARTNER_INTAKE_FIRST_PARAM = 'apply'
+
+export function partnerIntakeFirstPath(code: string): string {
+  const normalized = normalizeReferralCode(code)
+  if (!normalized) return ''
+  return `${FUNDING_INTAKE_PATH}?ref=${encodeURIComponent(normalized)}&${PARTNER_INTAKE_FIRST_PARAM}=1`
+}
+
+/** Send a partner click to the funding intake, form first, and keep an invite token. */
+export function appendPartnerIntakeFirst(path: string): string {
+  const safe = safeReferralLandingPath(path)
+  try {
+    const url = new URL(safe, 'https://placeholder.invalid')
+    const params = new URLSearchParams()
+    const invite = url.searchParams.get('invite')
+    if (invite) params.set('invite', invite)
+    params.set(PARTNER_INTAKE_FIRST_PARAM, '1')
+    return `${FUNDING_INTAKE_PATH}?${params.toString()}`
+  } catch {
+    return `${FUNDING_INTAKE_PATH}?${PARTNER_INTAKE_FIRST_PARAM}=1`
+  }
+}
+
+export function isPartnerIntakeFirst(value: unknown): boolean {
+  return value === '1'
+}
+
 /** Only public credit intake paths, with `ref` stripped so attribution is cookie-only after landing. */
 export function safeReferralLandingPath(raw: unknown): string {
   if (typeof raw !== 'string') return CREDIT_INTAKE_PATH
@@ -83,8 +114,9 @@ export function safeReferralLandingPath(raw: unknown): string {
   try {
     const u = new URL(path, 'https://placeholder.invalid')
     if (u.origin !== 'https://placeholder.invalid') return CREDIT_INTAKE_PATH
-    const normalizedPath = normalizePublicCreditPath(u.pathname)
-    if (!isPublicCreditIntakePath(u.pathname)) return CREDIT_INTAKE_PATH
+    const fundingLanding = u.pathname === FUNDING_INTAKE_PATH
+    const normalizedPath = fundingLanding ? FUNDING_INTAKE_PATH : normalizePublicCreditPath(u.pathname)
+    if (!fundingLanding && !isPublicCreditIntakePath(u.pathname)) return CREDIT_INTAKE_PATH
     u.searchParams.delete('ref')
     const qs = u.searchParams.toString()
     return `${normalizedPath}${qs ? `?${qs}` : ''}`

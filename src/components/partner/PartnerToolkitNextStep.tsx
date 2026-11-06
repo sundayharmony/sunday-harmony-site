@@ -53,6 +53,7 @@ export default function PartnerToolkitNextStep() {
         code={share.code}
         active={share.linkActive}
         inactiveHint="Your QR code is ready, but the link stays inactive until Sunday Harmony approves your account."
+        hint="People who open this link start the funding intake at the top of the page."
         downloadLabelPrefix={share.companyName}
       />
     )
