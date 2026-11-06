@@ -47,16 +47,20 @@ export async function applyOperatorSettings(
     return { ok: false, error: 'No allowed settings fields.' }
   }
   const current = await store.getSettings()
-  const material = Object.keys(patch).some(
-    (key) => (patch as Record<string, unknown>)[key] !== (current as Record<string, unknown>)[key]
-  )
-  if (!material) {
+  const capChanged =
+    patch.dailySendLimit !== undefined && patch.dailySendLimit !== current.dailySendLimit
+  const addressChanged =
+    patch.physicalMailingAddress !== undefined &&
+    patch.physicalMailingAddress !== current.physicalMailingAddress
+  if (!capChanged && !addressChanged) {
     return { ok: true }
   }
-  patch.settingsVersion = current.settingsVersion + 1
-  const campaign = await store.getCampaignBySlug('prospect-intro')
-  if (campaign) {
-    await store.unapproveLatestTemplate(campaign.id, 'settings_changed', actorId)
+  if (addressChanged) {
+    patch.settingsVersion = current.settingsVersion + 1
+    const campaign = await store.getCampaignBySlug('prospect-intro')
+    if (campaign) {
+      await store.unapproveLatestTemplate(campaign.id, 'settings_changed', actorId)
+    }
   }
   await store.updateSettings(patch)
   await store.addAudit({

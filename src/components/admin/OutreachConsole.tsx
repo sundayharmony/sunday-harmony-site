@@ -114,16 +114,21 @@ export default function OutreachConsole() {
         <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Sales review</p>
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
         <p className="text-sm text-brand-muted mt-2 max-w-2xl">
-          Disabled automation. Queue and previews only. Live Gmail send stays off until every
-          server-side gate is satisfied. Templates remain unapproved until you explicitly approve them.
+          {data.liveSend
+            ? 'Live weekday send is on. The production cron sends up to the daily cap from the pending queue. Kill switch and gates still fail closed.'
+            : 'Disabled automation. Queue and previews only. Live Gmail send stays off until every server-side gate is satisfied. Templates remain unapproved until you explicitly approve them.'}
         </p>
       </div>
 
       <div className="rounded-xl border border-brand-border bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 mb-3">
-          <StatusBadge status="paused" />
+          <StatusBadge status={data.liveSend ? 'active' : 'paused'} />
           <span className="text-xs font-semibold uppercase tracking-wide text-brand-dim">
-            {data.settings.killSwitch ? 'Kill switch on' : 'Kill switch off (still gated)'}
+            {data.settings.killSwitch
+              ? 'Kill switch on'
+              : data.liveSend
+                ? 'Kill switch off'
+                : 'Kill switch off (still gated)'}
           </span>
         </div>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -180,8 +185,8 @@ export default function OutreachConsole() {
         <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5 space-y-3">
           <h2 className="text-sm font-bold text-brand-text">Operator settings</h2>
           <p className="text-xs text-brand-muted">
-            Saving a mailing address or daily cap invalidates template approval. Client checkboxes
-            cannot mark schema, sender, history, or opt-out as verified.
+            Saving a mailing address invalidates template approval. Changing only the daily cap
+            does not. Client checkboxes cannot mark schema, sender, history, or opt-out as verified.
           </p>
           <label className="block text-sm">
             <span className="text-xs uppercase tracking-wide text-brand-dim">Physical mailing address</span>

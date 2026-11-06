@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { canRecordActivation, evaluateActivationBlockers, sendsPermitted } from '../outreach/activation'
 import { attemptActivation, reconcileHistory, runOptOutVerification, saveOperatorSettings } from '../outreach/admin-actions'
+import { buildOutreachConsole } from '../outreach/console'
 import { dispatchOutreachBatch } from '../outreach/dispatch'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { enqueueLeadSnapshots } from '../outreach/enqueue'
@@ -9,7 +10,7 @@ import { createBoundGmailOutreachProvider, resolveOutreachProvider } from '../ou
 import { mimeContainsAttachment } from '../outreach/mime'
 import { OPT_OUT_PROBE_EMAIL } from '../outreach/opt-out-verify'
 import { createMockProvider, queueItemPayload } from '../outreach/provider'
-import { outreachCronExample } from '../outreach/scheduler'
+import { OUTREACH_CRON_BATCH_LIMIT, OUTREACH_CRON_SCHEDULE, outreachCron } from '../outreach/scheduler'
 import { createMemoryOutreachStore } from '../outreach/store'
 import { htmlHasRealUnsubscribe } from '../outreach/tokens'
 import { createUnsubscribeToken, hashUnsubscribeToken } from '../outreach/unsubscribe'
@@ -174,7 +175,14 @@ describe('activation and settings gates', () => {
       assert.equal(recorded.body.activated, true)
       assert.ok((await store.getSettings()).activatedAt)
 
-      const saved = await saveOperatorSettings(store, { dailySendLimit: 6, schemaReady: true, historyReconciled: true }, 'admin-1')
+      const capOnly = await saveOperatorSettings(store, { dailySendLimit: 10, schemaReady: true, historyReconciled: true }, 'admin-1')
+      assert.equal(capOnly.ok, true)
+      const afterCap = await store.getLatestTemplate('camp-prospect-intro')
+      assert.equal(afterCap?.approved, true)
+      assert.equal((await store.getSettings()).dailySendLimit, 10)
+      assert.equal((await store.getSettings()).settingsVersion, 1)
+
+      const saved = await saveOperatorSettings(store, { physicalMailingAddress: 'PO Box 9999, Jersey City, NJ 07304', schemaReady: true, historyReconciled: true }, 'admin-1')
       assert.equal(saved.ok, true)
       const after = await store.getLatestTemplate('camp-prospect-intro')
       assert.equal(after?.approved, false)
@@ -353,7 +361,7 @@ describe('dispatch safety: tokens, suppression, ambiguity, workers', () => {
     }
   })
 
-  it('does not treat accepted as delivered and keeps scheduler example inert', async () => {
+  it('does not treat accepted as delivered and registers the weekday send cron', async () => {
     const restoreEnv = googleEnv()
     try {
       const store = createMemoryOutreachStore({ leads: [lead({})] })
@@ -371,8 +379,14 @@ describe('dispatch safety: tokens, suppression, ambiguity, workers', () => {
       const item = (await store.listQueue())[0]
       assert.equal(item.status, 'accepted')
       assert.equal(item.deliveredAt, null)
-      const example = outreachCronExample()
-      assert.equal(example.enabled, false)
+      const cron = outreachCron()
+      assert.equal(cron.enabled, true)
+      assert.equal(cron.schedule, OUTREACH_CRON_SCHEDULE)
+      assert.equal(OUTREACH_CRON_BATCH_LIMIT, 10)
+      const consolePayload = await buildOutreachConsole(store, 'admin')
+      assert.equal(consolePayload.liveSend, true)
+      assert.equal(consolePayload.disabled, false)
+      assert.equal(consolePayload.scheduler.enabled, true)
       assert.equal(createUnsubscribeToken() === createUnsubscribeToken(), false)
       assert.equal(hashUnsubscribeToken('abc').length, 64)
       assert.equal(canRecordActivation({
@@ -383,6 +397,56 @@ describe('dispatch safety: tokens, suppression, ambiguity, workers', () => {
         unsubscribeRoutePresent: true,
         attachmentPresent: true,
       }), true)
+    } finally {
+      restoreEnv()
+    }
+  })
+
+  it('defers uncertain MX and still fills the accepted batch from later queue items', async () => {
+    const restoreEnv = googleEnv()
+    try {
+      const uncertain = lead({
+        id: 'lead-mx-bad',
+        email: 'info@uncertain-mx.test',
+        business: 'Uncertain MX Cafe',
+      })
+      const okLead = lead({
+        id: 'lead-mx-ok',
+        email: 'hello@ok-mx.test',
+        business: 'OK MX Studio',
+      })
+      const store = createMemoryOutreachStore({ leads: [uncertain, okLead] })
+      await openGates(store)
+      const mxResolver = async (domain: string) => {
+        if (domain === 'uncertain-mx.test') {
+          const error = new Error('timeout') as Error & { code: string }
+          error.code = 'ETIMEOUT'
+          throw error
+        }
+        return [{ priority: 10, exchange: 'mail.example.com' }]
+      }
+      await enqueueLeadSnapshots(store, [uncertain, okLead], { mxResolver })
+      const queued = await store.listQueue()
+      const badRow = queued.find((row) => row.leadId === 'lead-mx-bad')
+      assert.ok(badRow)
+      await store.compareAndSwap(badRow.id, 'pending', { nextAttemptAt: '2020-01-01T00:00:00.000Z' })
+      const provider = createMockProvider()
+      const result = await dispatchOutreachBatch({
+        store,
+        provider,
+        mxResolver,
+        attachment: PDF,
+        senderConfigured: true,
+        limit: 1,
+      })
+      assert.equal(result.accepted, 1)
+      const queue = await store.listQueue()
+      const deferred = queue.find((row) => row.leadId === 'lead-mx-bad')
+      const sent = queue.find((row) => row.leadId === 'lead-mx-ok')
+      assert.equal(deferred?.status, 'pending')
+      assert.equal(deferred?.eligibilityReason, 'mx_uncertain')
+      assert.ok(deferred && new Date(deferred.nextAttemptAt).getTime() > store.now().getTime())
+      assert.equal(sent?.status, 'accepted')
     } finally {
       restoreEnv()
     }
