@@ -20,7 +20,7 @@ import {
   publicCommissionLabel,
   referralAttributionDays,
   referralCommissionCents,
-  appendPartnerIntakeFirst,
+  appendReferralChooser,
   partnerIntakeFirstPath,
   safeReferralLandingPath,
   selectCreditReferralPayouts,
@@ -71,7 +71,7 @@ describe('referral codes and display', () => {
   })
 
   it('builds the public credit intake referral path', () => {
-    assert.equal(buildReferralPath('ABC12345'), '/credit?ref=ABC12345')
+    assert.equal(buildReferralPath('ABC12345'), '/build-fund?ref=ABC12345')
     assert.equal(referralCommissionCents(), 5000)
     assert.equal(referralAttributionDays(), 60)
     assert.equal(formatCommissionCents(5000), '$50.00')
@@ -84,10 +84,12 @@ describe('referral codes and display', () => {
     assert.equal(safeReferralLandingPath('/credit?ref=ABC12345&invite=tok'), '/credit?invite=tok')
     assert.equal(safeReferralLandingPath('/credit?ref=ABC12345&apply=1'), '/credit?apply=1')
     assert.equal(safeReferralLandingPath('/funding?ref=ABC12345&apply=1'), '/funding?apply=1')
-    assert.equal(partnerIntakeFirstPath('abc12345'), '/funding?ref=ABC12345&apply=1')
-    assert.equal(appendPartnerIntakeFirst('/credit?invite=tok'), '/funding?invite=tok&apply=1')
-    assert.equal(appendPartnerIntakeFirst('/funding?apply=1'), '/funding?apply=1')
-    assert.equal(appendPartnerIntakeFirst('/dashboard'), '/funding?apply=1')
+    assert.equal(safeReferralLandingPath('/build-fund?ref=ABC12345&choose=1'), '/build-fund?choose=1')
+    assert.equal(partnerIntakeFirstPath('abc12345'), '/build-fund?ref=ABC12345')
+    assert.equal(appendReferralChooser('/credit?invite=tok'), '/build-fund?invite=tok&choose=1')
+    assert.equal(appendReferralChooser('/funding?apply=1'), '/build-fund?choose=1')
+    assert.equal(appendReferralChooser('/build-fund?choose=1'), '/build-fund?choose=1')
+    assert.equal(appendReferralChooser('/dashboard'), '/build-fund?choose=1')
     assert.equal(safeReferralLandingPath('/credit-funding?ref=ABC12345&invite=tok'), '/credit?invite=tok')
     assert.equal(safeReferralLandingPath('https://evil.example/credit'), '/credit')
     assert.equal(safeReferralLandingPath('//evil.example'), '/credit')

@@ -1,5 +1,5 @@
 import { getPublicSiteUrl } from '@/lib/public-site-url'
-import { FUNDING_INTAKE_PATH, normalizeReferralCode, partnerIntakeFirstPath } from '@/lib/referrals'
+import { FUNDING_INTAKE_PATH, FUND_CHOOSER_PATH, buildReferralPath, normalizeReferralCode } from '@/lib/referrals'
 import { CREDIT_INTAKE_PATH, isPublicCreditIntakePath } from '@/lib/credit-intake-routes'
 
 export const QR_SERVER_CREATE_URL = 'https://api.qrserver.com/v1/create-qr-code/'
@@ -18,7 +18,7 @@ export function buildQrServerImageUrl(data: string, size = DEFAULT_REFERRAL_QR_S
 export function buildPartnerReferralUrl(code: string): string {
   const normalized = normalizeReferralCode(code)
   if (!normalized) return ''
-  return `${getPublicSiteUrl()}${partnerIntakeFirstPath(normalized)}`
+  return `${getPublicSiteUrl()}${buildReferralPath(normalized)}`
 }
 
 /** Referral links we allow encoded in QR (same-site credit intake with ref). */
@@ -29,10 +29,12 @@ export function isAllowedReferralQrPayload(data: string): boolean {
     const site = new URL(getPublicSiteUrl())
     const target = new URL(trimmed)
     if (target.origin !== site.origin) return false
-    const fundingLanding = target.pathname === FUNDING_INTAKE_PATH
-    if (!fundingLanding && !isPublicCreditIntakePath(target.pathname) && target.pathname !== CREDIT_INTAKE_PATH) {
-      return false
-    }
+    const allowedLanding =
+      target.pathname === FUND_CHOOSER_PATH ||
+      target.pathname === FUNDING_INTAKE_PATH ||
+      target.pathname === CREDIT_INTAKE_PATH ||
+      isPublicCreditIntakePath(target.pathname)
+    if (!allowedLanding) return false
     const ref = normalizeReferralCode(target.searchParams.get('ref'))
     return Boolean(ref)
   } catch {

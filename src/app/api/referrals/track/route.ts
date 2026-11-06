@@ -3,8 +3,7 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { CREDIT_INTAKE_PATH } from '@/lib/credit-intake-routes'
-import { appendPartnerIntakeFirst, normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
-import { getReferralProfileByCode } from '@/lib/referral-db'
+import { appendReferralChooser, normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
 import { trackReferralClick } from '@/lib/referral-service'
 
 export const dynamic = 'force-dynamic'
@@ -23,10 +22,7 @@ export async function GET(req: NextRequest) {
 
     const code = normalizeReferralCode(req.nextUrl.searchParams.get('code') || req.nextUrl.searchParams.get('ref'))
     let nextPath = safeReferralLandingPath(req.nextUrl.searchParams.get('next') || CREDIT_INTAKE_PATH)
-    if (code) {
-      const profile = await getReferralProfileByCode(code)
-      if (profile?.partner_profile_id) nextPath = appendPartnerIntakeFirst(nextPath)
-    }
+    if (code) nextPath = appendReferralChooser(nextPath)
     const res = NextResponse.redirect(new URL(nextPath, req.url))
     if (!code) return res
     await trackReferralClick(req, res, code, nextPath)

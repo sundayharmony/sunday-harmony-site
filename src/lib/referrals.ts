@@ -72,33 +72,39 @@ export function referralAttributionTtlMs(): number {
 }
 
 export function buildReferralPath(code: string): string {
-  return `${CREDIT_INTAKE_PATH}?ref=${encodeURIComponent(code)}`
+  return `${FUND_CHOOSER_PATH}?ref=${encodeURIComponent(code)}`
 }
 
-/** Business funding intake. Partner links land here with the form first. */
+/** Chooser where a referred visitor picks personal credit or business funding. */
+export const FUND_CHOOSER_PATH = '/build-fund'
+
+/** Business funding intake. After the chooser, apply=1 puts the form first. */
 export const FUNDING_INTAKE_PATH = '/funding'
 
-/** Partner links add this so the funding page opens the intake before the guide. */
+/** Partner and client referral links add this so the chooser opens before either intake. */
+export const REFERRAL_CHOOSE_PARAM = 'choose'
+
+/** Intake pages add this so the form renders before the guide. */
 export const PARTNER_INTAKE_FIRST_PARAM = 'apply'
 
 export function partnerIntakeFirstPath(code: string): string {
   const normalized = normalizeReferralCode(code)
   if (!normalized) return ''
-  return `${FUNDING_INTAKE_PATH}?ref=${encodeURIComponent(normalized)}&${PARTNER_INTAKE_FIRST_PARAM}=1`
+  return buildReferralPath(normalized)
 }
 
-/** Send a partner click to the funding intake, form first, and keep an invite token. */
-export function appendPartnerIntakeFirst(path: string): string {
+/** Send a tracked referral click to the chooser, and keep an invite token. */
+export function appendReferralChooser(path: string): string {
   const safe = safeReferralLandingPath(path)
   try {
     const url = new URL(safe, 'https://placeholder.invalid')
     const params = new URLSearchParams()
     const invite = url.searchParams.get('invite')
     if (invite) params.set('invite', invite)
-    params.set(PARTNER_INTAKE_FIRST_PARAM, '1')
-    return `${FUNDING_INTAKE_PATH}?${params.toString()}`
+    params.set(REFERRAL_CHOOSE_PARAM, '1')
+    return `${FUND_CHOOSER_PATH}?${params.toString()}`
   } catch {
-    return `${FUNDING_INTAKE_PATH}?${PARTNER_INTAKE_FIRST_PARAM}=1`
+    return `${FUND_CHOOSER_PATH}?${REFERRAL_CHOOSE_PARAM}=1`
   }
 }
 
@@ -114,9 +120,14 @@ export function safeReferralLandingPath(raw: unknown): string {
   try {
     const u = new URL(path, 'https://placeholder.invalid')
     if (u.origin !== 'https://placeholder.invalid') return CREDIT_INTAKE_PATH
+    const chooserLanding = u.pathname === FUND_CHOOSER_PATH
     const fundingLanding = u.pathname === FUNDING_INTAKE_PATH
-    const normalizedPath = fundingLanding ? FUNDING_INTAKE_PATH : normalizePublicCreditPath(u.pathname)
-    if (!fundingLanding && !isPublicCreditIntakePath(u.pathname)) return CREDIT_INTAKE_PATH
+    const normalizedPath = chooserLanding
+      ? FUND_CHOOSER_PATH
+      : fundingLanding
+        ? FUNDING_INTAKE_PATH
+        : normalizePublicCreditPath(u.pathname)
+    if (!chooserLanding && !fundingLanding && !isPublicCreditIntakePath(u.pathname)) return CREDIT_INTAKE_PATH
     u.searchParams.delete('ref')
     const qs = u.searchParams.toString()
     return `${normalizedPath}${qs ? `?${qs}` : ''}`

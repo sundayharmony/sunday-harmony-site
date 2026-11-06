@@ -28,7 +28,8 @@ describe('referral QR helpers', () => {
   })
 
   it('builds partner referral URLs from codes', () => {
-    assert.equal(buildPartnerReferralUrl('abc12345'), 'https://sundayharmony.com/funding?ref=ABC12345&apply=1')
+    assert.equal(buildPartnerReferralUrl('abc12345'), 'https://sundayharmony.com/build-fund?ref=ABC12345')
+    assert.equal(isAllowedReferralQrPayload('https://sundayharmony.com/build-fund?ref=ABC12345'), true)
     assert.equal(isAllowedReferralQrPayload('https://sundayharmony.com/funding?ref=ABC12345&apply=1'), true)
     assert.equal(buildPartnerReferralUrl(''), '')
   })

@@ -1,7 +1,15 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import {
+  FUND_CHOOSER_PATH,
+  PARTNER_INTAKE_FIRST_PARAM,
+  REFERRAL_CHOOSE_PARAM,
+  normalizeReferralCode,
+  safeReferralLandingPath,
+} from '@/lib/referrals'
 
 export const metadata: Metadata = {
   title: 'Fund',
@@ -23,7 +31,7 @@ const paths = [
     subtitle: 'Personal Credit',
     description: 'Strengthen your credit score. Review your file, dispute inaccuracies, and track progress across all three bureaus.',
     features: ['Credit analysis', 'Dispute letters', 'Score tracking'],
-    href: '/credit',
+    href: '/credit' as const,
     cta: 'Start building →',
   },
   {
@@ -33,12 +41,27 @@ const paths = [
     subtitle: 'Business Funding',
     description: 'Get capital for your business. Equipment, working capital, lines of credit, and more — matched to your profile.',
     features: ['Multiple options', 'No SSN required', 'Fast review'],
-    href: '/funding',
+    href: '/funding' as const,
     cta: 'Get funded →',
   },
 ]
 
-export default function BuildFundPage() {
+export default async function BuildFundPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string; invite?: string; choose?: string }>
+}) {
+  const params = await searchParams
+  const code = normalizeReferralCode(params.ref)
+  const fromReferral = params.choose === '1'
+  if (code) {
+    const nextParams = new URLSearchParams()
+    if (params.invite?.trim()) nextParams.set('invite', params.invite.trim())
+    nextParams.set(REFERRAL_CHOOSE_PARAM, '1')
+    const nextPath = safeReferralLandingPath(`${FUND_CHOOSER_PATH}?${nextParams.toString()}`)
+    redirect(`/api/referrals/track?code=${encodeURIComponent(code)}&next=${encodeURIComponent(nextPath)}`)
+  }
+
   return (
     <>
       <Navbar />
@@ -63,7 +86,7 @@ export default function BuildFundPage() {
             {paths.map((path) => (
               <Link
                 key={path.id}
-                href={path.href}
+                href={fromReferral ? `${path.href}?${PARTNER_INTAKE_FIRST_PARAM}=1` : path.href}
                 className="group relative overflow-hidden rounded-3xl border-2 border-brand-border bg-white p-8 sm:p-10 transition-all duration-300 hover:border-accent hover:shadow-xl hover:-translate-y-1"
               >
                 <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-accent/5 transition-transform duration-300 group-hover:scale-150" />
