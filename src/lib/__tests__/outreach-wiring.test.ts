@@ -361,7 +361,7 @@ describe('dispatch safety: tokens, suppression, ambiguity, workers', () => {
     }
   })
 
-  it('does not treat accepted as delivered and registers the weekday send cron', async () => {
+  it('does not treat accepted as delivered and keeps automatic send off', async () => {
     const restoreEnv = googleEnv()
     try {
       const store = createMemoryOutreachStore({ leads: [lead({})] })
@@ -380,13 +380,13 @@ describe('dispatch safety: tokens, suppression, ambiguity, workers', () => {
       assert.equal(item.status, 'accepted')
       assert.equal(item.deliveredAt, null)
       const cron = outreachCron()
-      assert.equal(cron.enabled, true)
+      assert.equal(cron.enabled, false)
       assert.equal(cron.schedule, OUTREACH_CRON_SCHEDULE)
       assert.equal(OUTREACH_CRON_BATCH_LIMIT, 10)
       const consolePayload = await buildOutreachConsole(store, 'admin')
       assert.equal(consolePayload.liveSend, true)
       assert.equal(consolePayload.disabled, false)
-      assert.equal(consolePayload.scheduler.enabled, true)
+      assert.equal(consolePayload.scheduler.enabled, false)
       assert.equal(createUnsubscribeToken() === createUnsubscribeToken(), false)
       assert.equal(hashUnsubscribeToken('abc').length, 64)
       assert.equal(canRecordActivation({

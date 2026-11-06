@@ -18,7 +18,7 @@ const consolePayload = {
     path: '/api/internal/outreach-dispatch',
     schedule: '0 20 * * 1-5',
     enabled: false,
-    note: 'Opt-in example only. Registering this cron would still hit DisabledProvider unless every activation gate is already satisfied.',
+    note: 'Automatic send is off. Use Send batch on this page. Each click sends until 10 messages are accepted today. Kill switch and gates still fail closed.',
   },
   settings: {
     killSwitch: true,
@@ -143,6 +143,7 @@ test.describe('outreach admin preview', () => {
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
     await expect(page.getByText('Hi Christopher,')).toBeVisible()
     await expect(page.getByText('kill_switch')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Record activation (server gates only)' })).toBeVisible()
     await page.screenshot({
       path: '/opt/cursor/artifacts/outreach-console-desktop.png',
@@ -163,6 +164,7 @@ test.describe('outreach admin preview', () => {
     )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
     await page.getByRole('button', { name: 'Toggle menu' }).click()
     await expect(page.getByRole('link', { name: /Outreach/i }).first()).toBeVisible()
     await page.screenshot({

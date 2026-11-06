@@ -94,7 +94,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
       intended: 'gmail',
       idempotencyRecovery: false,
       note: liveSend
-        ? 'Gmail sends through the weekday cron, up to the daily cap. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered.'
+        ? 'Gmail sends only when you click Send batch, up to the daily cap. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered.'
         : 'Gmail is bound only when every activation gate is satisfied. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered.',
     },
   }
