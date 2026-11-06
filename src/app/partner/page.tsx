@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
 import StatCard from '@/components/ui/StatCard'
+import { formatPartnerDate } from '@/lib/partner-progress'
 
 type CurrentScores = {
   transunion: number | null
@@ -61,6 +62,33 @@ type DashboardPayload = {
   referrals: ReferralRow[]
 }
 
+function ReferralFacts({ row }: { row: ReferralRow }) {
+  return (
+    <>
+      <div>
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-brand-dim">Submitted</dt>
+        <dd className="mt-0.5 text-brand-text">{formatPartnerDate(row.date)}</dd>
+      </div>
+      <div>
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-brand-dim">Current scores</dt>
+        <dd className="mt-0.5"><CurrentScoresCell scores={row.currentScores} /></dd>
+      </div>
+      <div>
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-brand-dim">Stage</dt>
+        <dd className="mt-0.5 text-brand-text">{row.stage}</dd>
+      </div>
+      <div>
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-brand-dim">Updated</dt>
+        <dd className="mt-0.5 text-brand-text">{formatPartnerDate(row.updatedAt)}</dd>
+      </div>
+      <div>
+        <dt className="text-[11px] font-semibold uppercase tracking-wide text-brand-dim">Dispute round</dt>
+        <dd className="mt-0.5 text-brand-text">{row.disputeRound ? `Round ${row.disputeRound}` : '—'}</dd>
+      </div>
+    </>
+  )
+}
+
 export default function PartnerDashboardPage() {
   const [data, setData] = useState<DashboardPayload | null>(null)
   const [error, setError] = useState('')
@@ -75,6 +103,7 @@ export default function PartnerDashboardPage() {
         setData(null)
         return
       }
+      setError('')
       setData(payload)
     } catch {
       setError('Unable to load your partner dashboard.')
@@ -88,13 +117,13 @@ export default function PartnerDashboardPage() {
   }, [load])
 
   return (
-    <main className="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 sm:py-10">
+    <main className="mx-auto max-w-[1100px] min-w-0 px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Partner dashboard</h1>
         {loading ? <p className="text-sm text-brand-muted">Loading…</p> : null}
-        {error && !data ? <p className="text-sm text-brand-muted">{error}</p> : null}
+        {error && !data ? <p className="text-sm text-brand-red" role="alert">{error}</p> : null}
         {data ? (
           <>
-            <p className="text-sm text-brand-muted mb-6">
+            <p className="text-sm text-brand-muted mb-6 break-words">
               {data.profile.companyName} · {data.profile.profession} · {data.profile.serviceArea}
             </p>
             {!data.profile.linkActive ? (
@@ -102,7 +131,7 @@ export default function PartnerDashboardPage() {
                 Sunday Harmony still needs to approve this account. Your referral link is saved and stays inactive until then.
               </div>
             ) : null}
-            <div className="mb-6">
+            <div className="mb-6 min-w-0">
               <ReferralLinkQrPanel
                 title="Partner referral link"
                 link={data.profile.link}
@@ -119,45 +148,55 @@ export default function PartnerDashboardPage() {
               <StatCard label="In progress" value={data.summary.inProgress} />
               <StatCard label="Completed" value={data.summary.completed} color="gold" />
             </div>
-            <div className="bg-white border border-brand-border rounded-xl overflow-hidden">
+            <div className="bg-white border border-brand-border rounded-xl overflow-hidden min-w-0">
               <div className="p-5 border-b border-brand-border">
                 <h2 className="text-sm font-bold text-brand-text">Referred clients</h2>
                 <p className="text-xs text-brand-muted mt-1">
                   Names are shortened. Current scores are the latest bureau scores on file. Contact details and documents stay with Sunday Harmony.
                 </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
-                    <tr>
-                      {['Submitted', 'Client', 'Current scores', 'Stage', 'Updated', 'Dispute round'].map((heading) => (
-                        <th key={heading} className="text-left p-3 font-semibold">{heading}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.referrals.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-6 text-center text-brand-dim">
-                          No applications yet.{' '}
-                          <Link href="/credit" className="text-accent hover:underline">See the credit page</Link>
-                        </td>
-                      </tr>
-                    ) : (
-                      data.referrals.map((row) => (
-                        <tr key={row.id} className="border-t border-brand-border">
-                          <td className="p-3">{new Date(row.date).toLocaleDateString()}</td>
-                          <td className="p-3">{row.applicant}</td>
-                          <td className="p-3"><CurrentScoresCell scores={row.currentScores} /></td>
-                          <td className="p-3">{row.stage}</td>
-                          <td className="p-3">{new Date(row.updatedAt).toLocaleDateString()}</td>
-                          <td className="p-3">{row.disputeRound ? `Round ${row.disputeRound}` : '—'}</td>
+              {data.referrals.length === 0 ? (
+                <p className="p-6 text-center text-brand-dim">
+                  No applications yet.{' '}
+                  <Link href="/build-fund" className="text-accent hover:underline">See the Fund page</Link>
+                </p>
+              ) : (
+                <>
+                  <ul className="sm:hidden divide-y divide-brand-border">
+                    {data.referrals.map((row) => (
+                      <li key={row.id} className="p-4">
+                        <p className="font-semibold text-brand-text break-words">{row.applicant}</p>
+                        <dl className="mt-3 grid grid-cols-1 gap-3 text-sm">
+                          <ReferralFacts row={row} />
+                        </dl>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
+                        <tr>
+                          {['Submitted', 'Client', 'Current scores', 'Stage', 'Updated', 'Dispute round'].map((heading) => (
+                            <th key={heading} className="text-left p-3 font-semibold">{heading}</th>
+                          ))}
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {data.referrals.map((row) => (
+                          <tr key={row.id} className="border-t border-brand-border">
+                            <td className="p-3 whitespace-nowrap">{formatPartnerDate(row.date)}</td>
+                            <td className="p-3">{row.applicant}</td>
+                            <td className="p-3"><CurrentScoresCell scores={row.currentScores} /></td>
+                            <td className="p-3">{row.stage}</td>
+                            <td className="p-3 whitespace-nowrap">{formatPartnerDate(row.updatedAt)}</td>
+                            <td className="p-3">{row.disputeRound ? `Round ${row.disputeRound}` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : null}

@@ -11,6 +11,7 @@ import {
   countReferralClicks,
   updateReferralProfile,
 } from '@/lib/referral-db'
+import { decryptFieldOrLegacy } from '@/lib/field-encryption'
 import { partnerLogoPublicUrl } from '@/lib/partner-logos'
 import {
   getPartnerProfileById,
@@ -21,11 +22,15 @@ import {
   type PartnerProfileRow,
   type PartnerStatus,
 } from '@/lib/partner-db'
-import { partnerCurrentScores, toPartnerReferralProgress } from '@/lib/partner-progress'
+import {
+  partnerCurrentScores,
+  referralStatusForPartnerProfile,
+  toPartnerReferralProgress,
+} from '@/lib/partner-progress'
 import { buildCreditProgressDiff } from '@/lib/dispute-letters/credit-progress'
 import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
 import type { PartnerSignupInput } from '@/lib/partner-signup'
-import { PARTNER_PROFESSION_LABELS } from '@/lib/partner-signup'
+import { partnerProfessionLabel } from '@/lib/partner-signup'
 
 async function currentScoresForApplication(applicationUuid: string) {
   const sessions = await listDisputeSessionsForApplication(applicationUuid)
@@ -53,7 +58,11 @@ async function latestDisputeRound(applicationUuid: string): Promise<number | nul
 
 async function ensurePartnerReferralCode(partnerProfileId: string, status: 'active' | 'disabled') {
   const existing = await getReferralProfileByPartnerId(partnerProfileId)
-  if (existing) return existing
+  if (existing) {
+    if (existing.status === status) return existing
+    const updated = await updateReferralProfile(existing.id, { status })
+    return updated || { ...existing, status }
+  }
   for (let i = 0; i < 6; i++) {
     const code = generateReferralCode(n => randomBytes(n))
     const referral = await insertReferralProfile({
@@ -64,6 +73,22 @@ async function ensurePartnerReferralCode(partnerProfileId: string, status: 'acti
     if (referral) return referral
   }
   return null
+}
+
+export function adminPartnerReferralContact(app: {
+  full_name?: string | null
+  email?: string | null
+  phone?: string | null
+  application_id?: string | null
+  id?: string | null
+}) {
+  return {
+    applicant: app.full_name || 'Applicant',
+    email: app.email || '',
+    phone: decryptFieldOrLegacy(app.phone),
+    applicationId: app.application_id || '',
+    applicationUuid: app.id || '',
+  }
 }
 
 export async function createPartnerAccount(input: PartnerSignupInput): Promise<
@@ -105,28 +130,35 @@ export async function getPartnerDashboard(userId: string) {
   const profile = await getPartnerProfileByUserId(userId)
   if (!profile) return { error: 'Partner profile not found.', status: 404 as const }
   const user = await getUserById(userId)
-  const referral = await ensurePartnerReferralCode(profile.id, profile.status === 'active' ? 'active' : 'disabled')
+  const referral = await ensurePartnerReferralCode(
+    profile.id,
+    referralStatusForPartnerProfile(profile.status)
+  )
   const referrals = referral ? await listReferralsForProfile(referral.id) : []
   const clicks = referral ? await countReferralClicks(referral.id) : 0
 
   const rows = []
   for (const referralRow of referrals) {
-    if (!referralRow.referred_application_id) continue
-    const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
-    if (!app) continue
-    const disputeRound = await latestDisputeRound(app.id)
-    const currentScores = await currentScoresForApplication(app.id)
-    rows.push(
-      toPartnerReferralProgress({
-        id: referralRow.id,
-        date: referralRow.application_submitted_at || referralRow.attributed_at,
-        fullName: app.full_name,
-        status: app.status,
-        updatedAt: app.updated_at,
-        disputeRound,
-        currentScores,
-      })
-    )
+    try {
+      if (!referralRow.referred_application_id) continue
+      const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
+      if (!app) continue
+      const disputeRound = await latestDisputeRound(app.id)
+      const currentScores = await currentScoresForApplication(app.id)
+      rows.push(
+        toPartnerReferralProgress({
+          id: referralRow.id,
+          date: referralRow.application_submitted_at || referralRow.attributed_at,
+          fullName: app.full_name,
+          status: app.status,
+          updatedAt: app.updated_at,
+          disputeRound,
+          currentScores,
+        })
+      )
+    } catch (error) {
+      console.error('partner dashboard referral row error:', error)
+    }
   }
 
   return {
@@ -134,7 +166,7 @@ export async function getPartnerDashboard(userId: string) {
       name: user?.name || '',
       companyName: profile.company_name,
       serviceArea: profile.service_area,
-      profession: PARTNER_PROFESSION_LABELS[profile.profession],
+      profession: partnerProfessionLabel(profile.profession),
       yearsInField: profile.years_in_field,
       status: profile.status,
       code: referral?.referral_code || '',
@@ -157,28 +189,28 @@ async function partnerReferralActivity(partnerProfileId: string) {
   const clicks = referral ? await countReferralClicks(referral.id) : 0
   const rows = []
   for (const referralRow of referrals) {
-    if (!referralRow.referred_application_id) continue
-    const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
-    if (!app) continue
-    const disputeRound = await latestDisputeRound(app.id)
-    const currentScores = await currentScoresForApplication(app.id)
-    const progress = toPartnerReferralProgress({
-      id: referralRow.id,
-      date: referralRow.application_submitted_at || referralRow.attributed_at,
-      fullName: app.full_name,
-      status: app.status,
-      updatedAt: app.updated_at,
-      disputeRound,
-      currentScores,
-    })
-    rows.push({
-      ...progress,
-      applicant: app.full_name,
-      email: app.email,
-      phone: app.phone,
-      applicationId: app.application_id,
-      applicationUuid: app.id,
-    })
+    try {
+      if (!referralRow.referred_application_id) continue
+      const app = await getCreditFundingApplicationById(referralRow.referred_application_id)
+      if (!app) continue
+      const disputeRound = await latestDisputeRound(app.id)
+      const currentScores = await currentScoresForApplication(app.id)
+      const progress = toPartnerReferralProgress({
+        id: referralRow.id,
+        date: referralRow.application_submitted_at || referralRow.attributed_at,
+        fullName: app.full_name,
+        status: app.status,
+        updatedAt: app.updated_at,
+        disputeRound,
+        currentScores,
+      })
+      rows.push({
+        ...progress,
+        ...adminPartnerReferralContact(app),
+      })
+    } catch (error) {
+      console.error('admin partner referral row error:', error)
+    }
   }
   return {
     referral,
@@ -198,7 +230,7 @@ export async function listPartnersForAdmin() {
   const rows = []
   for (const profile of profiles) {
     const user = await getUserById(profile.user_id)
-    await ensurePartnerReferralCode(profile.id, profile.status === 'active' ? 'active' : 'disabled')
+    await ensurePartnerReferralCode(profile.id, referralStatusForPartnerProfile(profile.status))
     const activity = await partnerReferralActivity(profile.id)
     const code = activity.referral?.referral_code || ''
     rows.push({
@@ -218,7 +250,7 @@ export async function getAdminPartnerDetail(partnerId: string) {
   const profile = await getPartnerProfileById(partnerId)
   if (!profile) return { error: 'Partner not found.', status: 404 as const }
   const user = await getUserById(profile.user_id)
-  await ensurePartnerReferralCode(profile.id, profile.status === 'active' ? 'active' : 'disabled')
+  await ensurePartnerReferralCode(profile.id, referralStatusForPartnerProfile(profile.status))
   const activity = await partnerReferralActivity(profile.id)
   return {
     partner: {
@@ -245,7 +277,7 @@ function adminPartnerRow(
     companyName: profile.company_name,
     serviceArea: profile.service_area,
     yearsInField: profile.years_in_field,
-    profession: PARTNER_PROFESSION_LABELS[profile.profession],
+    profession: partnerProfessionLabel(profile.profession),
     status: profile.status,
     code,
     createdAt: profile.created_at,
@@ -262,9 +294,6 @@ export async function setPartnerApproval(
   const next: PartnerStatus = action === 'approve' ? 'active' : 'disabled'
   const updated = await updatePartnerProfileStatus(profile.id, next)
   if (!updated) return { ok: false, error: 'Could not update the partner.', status: 500 }
-  const referral = await ensurePartnerReferralCode(profile.id, next === 'active' ? 'active' : 'disabled')
-  if (referral && referral.status !== (next === 'active' ? 'active' : 'disabled')) {
-    await updateReferralProfile(referral.id, { status: next === 'active' ? 'active' : 'disabled' })
-  }
+  await ensurePartnerReferralCode(profile.id, referralStatusForPartnerProfile(next))
   return { ok: true, status: next }
 }

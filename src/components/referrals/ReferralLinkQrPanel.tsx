@@ -10,6 +10,7 @@ export default function ReferralLinkQrPanel({
   active = true,
   inactiveHint,
   hint,
+  scanHint = 'Scans to the Build or Fund chooser',
   downloadLabelPrefix = 'referral',
 }: {
   title: string
@@ -18,6 +19,7 @@ export default function ReferralLinkQrPanel({
   active?: boolean
   inactiveHint?: string
   hint?: string
+  scanHint?: string
   downloadLabelPrefix?: string
 }) {
   const [copied, setCopied] = useState(false)
@@ -98,7 +100,7 @@ export default function ReferralLinkQrPanel({
             />
           ) : null}
           <span className="text-[10px] text-brand-dim text-center max-w-[200px]">
-            Scans to your credit intake link
+            {scanHint}
           </span>
         </div>
       </div>
