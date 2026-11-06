@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
+import { formatPartnerDate } from '@/lib/partner-progress'
 
 type PartnerRow = {
   id: string
@@ -134,7 +135,7 @@ export default function AdminPartnerAccountsPanel() {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-sm text-brand-muted mb-6">
         Click a partner to see everyone they referred and open that credit file. Company names, notes, and logos for the About page live on{' '}
         <Link href="/admin/case-study" className="font-semibold text-accent hover:underline">
@@ -179,73 +180,129 @@ export default function AdminPartnerAccountsPanel() {
         </div>
         {inviteNote ? <p className="mt-3 text-sm text-brand-text">{inviteNote}</p> : null}
       </form>
-      {error ? <p className="mb-4 text-sm text-red-700">{error}</p> : null}
+      {error ? <p className="mb-4 text-sm text-red-700" role="alert">{error}</p> : null}
       {loading ? <p className="text-sm text-brand-muted">Loading…</p> : null}
-      <div className="bg-white border border-brand-border rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
-              <tr>
-                {['Partner', 'Company', 'Area', 'Field', 'Clicks', 'Applications', 'In progress', 'Status', ''].map((heading) => (
-                  <th key={heading || 'actions'} className="text-left p-3 font-semibold">{heading}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {partners.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={9} className="p-6 text-center text-brand-dim">No partner accounts yet.</td>
-                </tr>
-              ) : (
-                partners.map((partner) => (
-                  <tr
-                    key={partner.id}
-                    className={`border-t border-brand-border align-top cursor-pointer hover:bg-neutral-50 ${
-                      selectedId === partner.id ? 'bg-accent-soft/60' : ''
-                    }`}
+      {partners.length === 0 && !loading ? (
+        <p className="bg-white border border-brand-border rounded-xl p-6 text-center text-brand-dim">No partner accounts yet.</p>
+      ) : (
+        <>
+          <ul className="sm:hidden space-y-3">
+            {partners.map((partner) => (
+              <li
+                key={partner.id}
+                className={`rounded-xl border border-brand-border bg-white p-4 ${
+                  selectedId === partner.id ? 'ring-2 ring-accent' : ''
+                }`}
+              >
+                <p className="font-semibold text-brand-text break-words">{partner.name}</p>
+                <p className="text-xs text-brand-muted break-words">{partner.email}</p>
+                <p className="text-xs text-brand-dim">{partner.phone}</p>
+                <p className="mt-2 text-sm text-brand-text break-words">
+                  {partner.companyName} · {partner.profession} · {partner.serviceArea}
+                </p>
+                <p className="mt-1 text-xs text-brand-muted">
+                  {partner.clicks} clicks · {partner.submitted} applications · {partner.inProgress} in progress · {partner.status}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
                     onClick={() => void openPartner(partner.id)}
+                    className="text-xs font-semibold text-accent hover:underline"
                   >
-                    <td className="p-3">
-                      <div className="font-semibold text-brand-text">{partner.name}</div>
-                      <div className="text-xs text-brand-muted">{partner.email}</div>
-                      <div className="text-xs text-brand-dim">{partner.phone}</div>
-                    </td>
-                    <td className="p-3">{partner.companyName}</td>
-                    <td className="p-3">{partner.serviceArea}</td>
-                    <td className="p-3">{partner.profession}</td>
-                    <td className="p-3">{partner.clicks}</td>
-                    <td className="p-3">{partner.submitted}</td>
-                    <td className="p-3">{partner.inProgress}</td>
-                    <td className="p-3 capitalize">{partner.status}</td>
-                    <td className="p-3 whitespace-nowrap" onClick={(event) => event.stopPropagation()}>
-                      {partner.status !== 'active' ? (
-                        <button
-                          type="button"
-                          disabled={busyId === partner.id}
-                          onClick={() => update(partner.id, 'approve')}
-                          className="mr-2 text-xs font-semibold text-accent hover:underline disabled:opacity-50"
-                        >
-                          Approve
-                        </button>
-                      ) : null}
-                      {partner.status !== 'disabled' ? (
-                        <button
-                          type="button"
-                          disabled={busyId === partner.id}
-                          onClick={() => update(partner.id, 'disable')}
-                          className="text-xs font-semibold text-brand-muted hover:underline disabled:opacity-50"
-                        >
-                          Disable
-                        </button>
-                      ) : null}
-                    </td>
+                    Open
+                  </button>
+                  {partner.status !== 'active' ? (
+                    <button
+                      type="button"
+                      disabled={busyId === partner.id}
+                      onClick={() => update(partner.id, 'approve')}
+                      className="text-xs font-semibold text-accent hover:underline disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                  ) : null}
+                  {partner.status !== 'disabled' ? (
+                    <button
+                      type="button"
+                      disabled={busyId === partner.id}
+                      onClick={() => update(partner.id, 'disable')}
+                      className="text-xs font-semibold text-brand-muted hover:underline disabled:opacity-50"
+                    >
+                      Disable
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden sm:block bg-white border border-brand-border rounded-xl overflow-hidden min-w-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
+                  <tr>
+                    {['Partner', 'Company', 'Area', 'Field', 'Clicks', 'Applications', 'In progress', 'Status', ''].map((heading) => (
+                      <th key={heading || 'actions'} className="text-left p-3 font-semibold">{heading}</th>
+                    ))}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody>
+                  {partners.map((partner) => (
+                    <tr
+                      key={partner.id}
+                      className={`border-t border-brand-border align-top cursor-pointer hover:bg-neutral-50 ${
+                        selectedId === partner.id ? 'bg-accent-soft/60' : ''
+                      }`}
+                      onClick={() => void openPartner(partner.id)}
+                    >
+                      <td className="p-3">
+                        <div className="font-semibold text-brand-text">{partner.name}</div>
+                        <div className="text-xs text-brand-muted">{partner.email}</div>
+                        <div className="text-xs text-brand-dim">{partner.phone}</div>
+                      </td>
+                      <td className="p-3">{partner.companyName}</td>
+                      <td className="p-3">{partner.serviceArea}</td>
+                      <td className="p-3">{partner.profession}</td>
+                      <td className="p-3">{partner.clicks}</td>
+                      <td className="p-3">{partner.submitted}</td>
+                      <td className="p-3">{partner.inProgress}</td>
+                      <td className="p-3 capitalize">{partner.status}</td>
+                      <td className="p-3 whitespace-nowrap" onClick={(event) => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => void openPartner(partner.id)}
+                          className="mr-2 text-xs font-semibold text-accent hover:underline"
+                        >
+                          Open
+                        </button>
+                        {partner.status !== 'active' ? (
+                          <button
+                            type="button"
+                            disabled={busyId === partner.id}
+                            onClick={() => update(partner.id, 'approve')}
+                            className="mr-2 text-xs font-semibold text-accent hover:underline disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                        ) : null}
+                        {partner.status !== 'disabled' ? (
+                          <button
+                            type="button"
+                            disabled={busyId === partner.id}
+                            onClick={() => update(partner.id, 'disable')}
+                            className="text-xs font-semibold text-brand-muted hover:underline disabled:opacity-50"
+                          >
+                            Disable
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {selectedId ? (
         <section className="mt-6 bg-white border border-brand-border rounded-xl overflow-hidden">
@@ -273,34 +330,51 @@ export default function AdminPartnerAccountsPanel() {
             </div>
           ) : null}
           {detailLoading ? <p className="p-5 text-sm text-brand-muted">Loading referrals…</p> : null}
-          {detail && !detailLoading ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
-                  <tr>
-                    {['Submitted', 'Client', 'Stage', 'Updated', 'Round', 'File'].map((heading) => (
-                      <th key={heading} className="text-left p-3 font-semibold">{heading}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.referrals.length === 0 ? (
+          {detail && !detailLoading && detail.referrals.length === 0 ? (
+            <p className="p-6 text-center text-brand-dim">
+              No one has submitted through this partner link yet.
+            </p>
+          ) : null}
+          {detail && !detailLoading && detail.referrals.length > 0 ? (
+            <>
+              <ul className="sm:hidden divide-y divide-brand-border">
+                {detail.referrals.map((row) => (
+                  <li key={row.id} className="p-4 space-y-2">
+                    <p className="font-semibold text-brand-text break-words">{row.applicant}</p>
+                    <p className="text-xs text-brand-muted break-words">{row.email}</p>
+                    <p className="text-xs text-brand-dim">{row.phone}</p>
+                    <p className="text-sm text-brand-text">
+                      {formatPartnerDate(row.date)} · {row.stage} · {row.disputeRound ? `Round ${row.disputeRound}` : 'No round'}
+                    </p>
+                    <Link
+                      href={`/admin/credit-funding?id=${encodeURIComponent(row.applicationUuid)}`}
+                      className="inline-flex text-xs font-semibold text-accent hover:underline"
+                    >
+                      Open {row.applicationId}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
                     <tr>
-                      <td colSpan={6} className="p-6 text-center text-brand-dim">
-                        No one has submitted through this partner link yet.
-                      </td>
+                      {['Submitted', 'Client', 'Stage', 'Updated', 'Round', 'File'].map((heading) => (
+                        <th key={heading} className="text-left p-3 font-semibold">{heading}</th>
+                      ))}
                     </tr>
-                  ) : (
-                    detail.referrals.map((row) => (
+                  </thead>
+                  <tbody>
+                    {detail.referrals.map((row) => (
                       <tr key={row.id} className="border-t border-brand-border">
-                        <td className="p-3">{new Date(row.date).toLocaleDateString()}</td>
+                        <td className="p-3 whitespace-nowrap">{formatPartnerDate(row.date)}</td>
                         <td className="p-3">
                           <div className="font-semibold text-brand-text">{row.applicant}</div>
                           <div className="text-xs text-brand-muted">{row.email}</div>
                           <div className="text-xs text-brand-dim">{row.phone}</div>
                         </td>
                         <td className="p-3">{row.stage}</td>
-                        <td className="p-3">{new Date(row.updatedAt).toLocaleDateString()}</td>
+                        <td className="p-3 whitespace-nowrap">{formatPartnerDate(row.updatedAt)}</td>
                         <td className="p-3">{row.disputeRound ? `Round ${row.disputeRound}` : '—'}</td>
                         <td className="p-3">
                           <Link
@@ -311,11 +385,11 @@ export default function AdminPartnerAccountsPanel() {
                           </Link>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : null}
         </section>
       ) : null}

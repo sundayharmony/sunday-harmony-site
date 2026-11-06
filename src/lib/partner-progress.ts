@@ -84,3 +84,20 @@ export function shouldSkipPartnerCommission(profile: {
 }): boolean {
   return Boolean(profile.partner_profile_id) && !profile.client_id
 }
+
+export function referralStatusForPartnerProfile(status: string | null | undefined): 'active' | 'disabled' {
+  return status === 'active' ? 'active' : 'disabled'
+}
+
+/** Dates on the partner dashboard stay on the same calendar day as staff tools. */
+export function formatPartnerDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}

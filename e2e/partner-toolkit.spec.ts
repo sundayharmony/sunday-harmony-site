@@ -65,7 +65,17 @@ async function mockPartnerDashboard(page: Page) {
           linkActive: true,
         },
         summary: { clicks: 3, submitted: 1, inProgress: 1, completed: 0 },
-        referrals: [],
+        referrals: [
+          {
+            id: 'ref-1',
+            date: '2026-11-06T16:00:00.000Z',
+            applicant: 'Jane D.',
+            stage: 'Under review',
+            updatedAt: '2026-11-06T18:00:00.000Z',
+            disputeRound: 2,
+            currentScores: { transunion: 710, experian: 698, equifax: 705 },
+          },
+        ],
       },
     })
   })
@@ -112,6 +122,10 @@ test('partner toolkit tab, copy controls, and diagrams work on desktop and 390px
   const nav = page.getByRole('navigation', { name: 'Partner' })
   await expect(nav.getByRole('link', { name: 'Dashboard' })).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Toolkit' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Jane D.' })).toBeVisible()
+  await expect(page.getByRole('cell').filter({ hasText: 'TransUnion' })).toBeVisible()
+  await expect(page.getByText('Scans to the Build or Fund chooser')).toBeVisible()
+  await expect(page.getByText('Scans to your credit intake link')).toHaveCount(0)
   await page.screenshot({ path: `${ARTIFACTS}/partner-dashboard-desktop.png`, fullPage: true })
 
   await nav.getByRole('link', { name: 'Toolkit' }).click()
@@ -158,5 +172,8 @@ test('partner toolkit tab, copy controls, and diagrams work on desktop and 390px
 
   await nav.getByRole('link', { name: 'Dashboard' }).click()
   await expect(page.getByRole('heading', { name: 'Partner dashboard' })).toBeVisible()
+  await expect(page.getByRole('listitem').filter({ hasText: 'Jane D.' })).toBeVisible()
+  await expect(page.getByRole('listitem').filter({ hasText: 'TransUnion' })).toBeVisible()
+  expect(await page.evaluate(overflowAmount)).toBeLessThanOrEqual(8)
   await page.screenshot({ path: `${ARTIFACTS}/partner-dashboard-mobile-390.png`, fullPage: true })
 })

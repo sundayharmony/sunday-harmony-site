@@ -2,15 +2,19 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { destinationAfterLogin } from '../login-redirect'
+import { encryptField } from '../field-encryption'
 import {
+  formatPartnerDate,
   isReferralProfileAttributable,
   partnerCurrentScores,
+  referralStatusForPartnerProfile,
   shouldSkipPartnerCommission,
   toPartnerReferralProgress,
 } from '../partner-progress'
 import { partnerSignupInviteEmailHtml } from '../partner-invite-email'
 import { detectPartnerLogo, partnerLogoPublicUrl, validatePartnerLogo } from '../partner-logos'
-import { parsePartnerSignup } from '../partner-signup'
+import { parsePartnerSignup, partnerProfessionLabel } from '../partner-signup'
+import { adminPartnerReferralContact } from '../partner-service'
 
 function source(path: string): string {
   return readFileSync(path, 'utf8')
@@ -87,6 +91,35 @@ describe('partner referral progress', () => {
       experian: 640,
       equifax: null,
     })
+  })
+
+  it('formats partner dates in America/New_York and labels professions safely', () => {
+    assert.equal(formatPartnerDate(''), '—')
+    assert.equal(formatPartnerDate('not-a-date'), '—')
+    assert.equal(formatPartnerDate('2026-11-06T16:00:00.000Z'), 'Nov 6, 2026')
+    assert.equal(formatPartnerDate('2026-11-06T03:00:00.000Z'), 'Nov 5, 2026')
+    assert.equal(partnerProfessionLabel('mortgage'), 'Mortgage')
+    assert.equal(partnerProfessionLabel('mystery_trade'), 'mystery trade')
+    assert.equal(partnerProfessionLabel(''), '—')
+    assert.equal(referralStatusForPartnerProfile('active'), 'active')
+    assert.equal(referralStatusForPartnerProfile('pending'), 'disabled')
+    assert.equal(referralStatusForPartnerProfile('disabled'), 'disabled')
+  })
+
+  it('decrypts referred-client phones before showing them to staff', () => {
+    const contact = adminPartnerReferralContact({
+      full_name: 'Jane Doe',
+      email: 'jane@example.com',
+      phone: encryptField('215-555-0199'),
+      application_id: 'CF-1',
+      id: 'app-1',
+    })
+    assert.equal(contact.phone, '215-555-0199')
+    assert.equal(contact.applicant, 'Jane Doe')
+    assert.equal(
+      adminPartnerReferralContact({ full_name: 'Ada', email: '', phone: '804-555-0100' }).phone,
+      '804-555-0100'
+    )
   })
 })
 
@@ -167,6 +200,14 @@ describe('partner surfaces', () => {
     assert.match(source('src/components/partner/PartnerShell.tsx'), /\/partner\/toolkit/)
     assert.match(source('src/app/partner/page.tsx'), /Current scores/)
     assert.match(source('src/app/partner/page.tsx'), /choose Build or Fund/)
+    assert.match(source('src/app/partner/page.tsx'), /href="\/build-fund"/)
+    assert.match(source('src/app/partner/page.tsx'), /sm:hidden/)
+    assert.match(source('src/components/referrals/ReferralLinkQrPanel.tsx'), /Scans to the Build or Fund chooser/)
+    assert.doesNotMatch(source('src/components/referrals/ReferralLinkQrPanel.tsx'), /credit intake link/)
+    assert.match(source('src/lib/partner-service.ts'), /decryptFieldOrLegacy/)
+    assert.match(source('src/lib/partner-service.ts'), /existing\.status === status/)
+    assert.match(source('src/app/api/partner/route.ts'), /logApiRouteError/)
+    assert.match(source('src/components/admin/AdminPartnerAccountsPanel.tsx'), /Open/)
     assert.match(source('src/app/funding/page.tsx'), /isPartnerIntakeFirst/)
     assert.match(source('src/app/credit/page.tsx'), /isPartnerIntakeFirst/)
     assert.match(source('src/app/build-fund/page.tsx'), /fromReferral/)

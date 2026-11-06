@@ -194,10 +194,11 @@ test('admin referrals workspace and case study replace the old partners tab', as
   await page.getByRole('link', { name: 'Partners', exact: true }).click()
   await expect(page).toHaveURL(/\/admin\/referrals\?tab=partners/)
   await expect(page.getByRole('heading', { name: 'Email a signup link' })).toBeVisible()
-  await expect(page.getByText('Rivera Lending')).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'Rivera Lending' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Upload logo' })).toHaveCount(0)
-  await page.getByText('Rivera Lending').click()
+  await page.getByRole('button', { name: 'Open', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Partner referral link' })).toBeVisible()
+  await expect(page.getByText('Scans to the Build or Fund chooser')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible()
   await page.screenshot({ path: `${ARTIFACTS}/admin-referrals-partners-desktop.png`, fullPage: true })
 

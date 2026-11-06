@@ -10,6 +10,16 @@ export const PARTNER_PROFESSION_LABELS: Record<PartnerProfession, string> = {
   other: 'Other',
 }
 
+export function isPartnerProfession(value: string | null | undefined): value is PartnerProfession {
+  return Boolean(value && (PARTNER_PROFESSIONS as readonly string[]).includes(value))
+}
+
+export function partnerProfessionLabel(profession: string | null | undefined): string {
+  if (isPartnerProfession(profession)) return PARTNER_PROFESSION_LABELS[profession]
+  const cleaned = (profession || '').trim()
+  return cleaned ? cleaned.replace(/_/g, ' ') : '—'
+}
+
 export type PartnerSignupInput = {
   fullName: string
   email: string

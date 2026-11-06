@@ -13,14 +13,19 @@ export const runtime = 'nodejs'
 export async function GET(req: NextRequest) {
   const session = await requireAdminSession()
   if (session instanceof NextResponse) return session
-  const id = req.nextUrl.searchParams.get('id')?.trim()
-  if (id) {
-    const detail = await getAdminPartnerDetail(id)
-    if ('error' in detail) return NextResponse.json({ error: detail.error }, { status: detail.status })
-    return NextResponse.json(detail)
+  try {
+    const id = req.nextUrl.searchParams.get('id')?.trim()
+    if (id) {
+      const detail = await getAdminPartnerDetail(id)
+      if ('error' in detail) return NextResponse.json({ error: detail.error }, { status: detail.status })
+      return NextResponse.json(detail)
+    }
+    const partners = await listPartnersForAdmin()
+    return NextResponse.json({ partners })
+  } catch (error) {
+    logApiRouteError(req, 'admin/partners', error)
+    return NextResponse.json({ error: 'Unable to load partners.' }, { status: 500 })
   }
-  const partners = await listPartnersForAdmin()
-  return NextResponse.json({ partners })
 }
 
 export async function POST(req: NextRequest) {
