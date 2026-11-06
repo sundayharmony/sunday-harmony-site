@@ -24,7 +24,14 @@ function authorized(request: NextRequest): boolean {
 function connectionString(): string {
   for (const key of ['POSTGRES_URL_NON_POOLING', 'POSTGRES_URL', 'DATABASE_URL', 'POSTGRES_PRISMA_URL']) {
     const value = process.env[key]?.trim() || ''
-    if (value.startsWith('postgres')) return value
+    if (!value.startsWith('postgres')) continue
+    try {
+      const parsed = new URL(value)
+      parsed.searchParams.set('sslmode', 'no-verify')
+      return parsed.toString()
+    } catch {
+      return value
+    }
   }
   return ''
 }
