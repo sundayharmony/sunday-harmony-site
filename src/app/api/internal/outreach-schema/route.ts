@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-// pg ships without types in this repo; the runtime package is already a dependency.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { Client } = require('pg') as {
-  Client: new (config: { connectionString: string; ssl?: { rejectUnauthorized: boolean } }) => {
-    connect: () => Promise<void>
-    query: (sql: string) => Promise<{ rows: Array<Record<string, unknown>> }>
-    end: () => Promise<void>
-  }
-}
+import { Client } from 'pg'
 import { OUTREACH_SCHEMA_SQL } from '@/lib/outreach/schema-sql'
 import { timingSafeStringEqual } from '@/lib/timing-safe'
 
