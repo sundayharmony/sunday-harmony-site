@@ -1,4 +1,5 @@
 import { sanitizeGroundedText } from './copy-rules'
+import { toProspectObservation } from './observation'
 
 export type LeadFactSource = {
   id?: string | null
@@ -30,12 +31,31 @@ export type GroundedFacts = {
   website: string | null
 }
 
-const PLACEHOLDER_NAMES = new Set(['name', 'there', 'friend', 'owner', 'contact', 'team'])
+const PLACEHOLDER_NAMES = new Set([
+  'name',
+  'there',
+  'friend',
+  'owner',
+  'contact',
+  'team',
+  'not',
+  'none',
+  'unknown',
+  'missing',
+  'n/a',
+  'na',
+  'tbd',
+  'test',
+  'admin',
+  'info',
+  'null',
+])
 
 export function usableFirstName(raw?: string | null): string | null {
   const value = (raw || '').trim()
   if (!value) return null
   if (value.includes('&') || value.includes('/')) return null
+  if (/^(not\s+(found|available|provided|listed|sure)|n\/a|none|unknown)/i.test(value)) return null
   const first = value.split(/\s+/)[0]
   if (!first) return null
   if (PLACEHOLDER_NAMES.has(first.toLowerCase())) return null
@@ -47,12 +67,15 @@ export function extractGroundedFacts(lead: LeadFactSource): GroundedFacts | null
   const business = sanitizeGroundedText(lead.business || '')
   if (!business) return null
   const observationRaw = sanitizeGroundedText(lead.marketing_opportunity || '')
+  const location = sanitizeGroundedText(lead.location_text || '') || null
   return {
     business,
     firstName: usableFirstName(lead.first_name),
-    location: sanitizeGroundedText(lead.location_text || '') || null,
+    location,
     industry: sanitizeGroundedText(lead.industry || '') || null,
-    observation: observationRaw || null,
+    observation: observationRaw
+      ? toProspectObservation(observationRaw, { location, business })
+      : null,
     recommendedService: sanitizeGroundedText(lead.recommended_service || '') || null,
     website: (lead.website || '').trim() || null,
   }

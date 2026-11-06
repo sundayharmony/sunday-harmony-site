@@ -9,8 +9,10 @@ import {
 } from '@/lib/outreach/admin-actions'
 import { buildOutreachConsole } from '@/lib/outreach/console'
 import { isSameOriginRequest } from '@/lib/outreach/csrf'
+import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
 import { enqueueFromStoreCandidates } from '@/lib/outreach/enqueue'
 import { currentBlockers, resolveOutreachStore } from '@/lib/outreach/runtime'
+import { OUTREACH_BATCH_LIMIT } from '@/lib/outreach/scheduler'
 import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -89,6 +91,20 @@ export async function POST(request: NextRequest) {
   if (action === 'activate') {
     const result = await attemptActivation(store, { actorId, clientBody: body })
     return NextResponse.json(result.body, { status: result.status })
+  }
+
+  if (action === 'send-batch') {
+    const result = await dispatchOutreachBatch({
+      store,
+      workerId: `admin-send-batch:${actorId}`,
+      limit: OUTREACH_BATCH_LIMIT,
+    })
+    return NextResponse.json({
+      ok: true,
+      sent: result.accepted,
+      liveSend: !result.skippedDisabled,
+      ...result,
+    })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

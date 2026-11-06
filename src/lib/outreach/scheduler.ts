@@ -1,20 +1,21 @@
 export const OUTREACH_CRON_PATH = '/api/internal/outreach-dispatch'
-/** 20:00 UTC Monday–Friday: 3:00 PM Eastern in standard time. Hobby plans allow one run per day. */
+/** Kept for docs only. Production does not register this schedule. */
 export const OUTREACH_CRON_SCHEDULE = '0 20 * * 1-5'
-export const OUTREACH_CRON_ENABLED = true
-/** Max provider-accepted sends per cron invocation. Daily cap is enforced separately. */
-export const OUTREACH_CRON_BATCH_LIMIT = 10
+export const OUTREACH_CRON_ENABLED = false
+/** Max provider-accepted sends per manual batch. Daily cap is enforced separately. */
+export const OUTREACH_BATCH_LIMIT = 10
+export const OUTREACH_CRON_BATCH_LIMIT = OUTREACH_BATCH_LIMIT
 
 export function outreachCron(): {
   path: string
   schedule: string
-  enabled: true
+  enabled: boolean
   note: string
 } {
   return {
     path: OUTREACH_CRON_PATH,
     schedule: OUTREACH_CRON_SCHEDULE,
-    enabled: true,
-    note: 'Weekday cron at 3:00 PM Eastern. Each run sends until 10 messages are accepted today. Kill switch and activation gates still fail closed.',
+    enabled: false,
+    note: 'Automatic send is off. Use Send batch on this page. Each click sends until 10 messages are accepted today. Kill switch and gates still fail closed.',
   }
 }

@@ -14,8 +14,10 @@ import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility } from '../outreach/eligibility'
-import { enqueueLeadSnapshots } from '../outreach/enqueue'
-import { extractGroundedFacts } from '../outreach/facts'
+import { enqueueLeadSnapshots, refreshUnsentQueueCopy } from '../outreach/enqueue'
+import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
+import { prospectGreetingIsUsable } from '../outreach/greeting'
+import { toProspectObservation } from '../outreach/observation'
 import type { LeadSnapshot } from '../outreach/types'
 import { buildHandoff } from '../outreach/handoff'
 import { buildOutreachMime, mimeContainsAttachment } from '../outreach/mime'
@@ -84,8 +86,10 @@ describe('grounded draft copy', () => {
     const draft = renderDraft({ facts, unsubscribeUrl: 'https://www.sundayharmony.com/unsubscribe/abc', physicalMailingAddress: null })
     assert.match(draft.subject, /SwingStop Hammonton/)
     assert.match(draft.text, /Hi Christopher,/)
-    assert.match(draft.text, /I came across SwingStop Hammonton while looking at Indoor golf simulator in Hammonton, NJ/)
-    assert.match(draft.text, /No Hammonton landing page/)
+    assert.match(draft.text, /I came across SwingStop Hammonton in Hammonton, NJ/)
+    assert.doesNotMatch(draft.text, /while looking at Indoor golf simulator/)
+    assert.match(draft.text, /doesn't clearly say you're in Hammonton yet/)
+    assert.doesNotMatch(draft.text, /No Hammonton landing page/)
     assert.match(draft.html, /Pick a time/)
     assert.equal(draft.ctaUrl, OUTREACH_CTA_URL)
     assert.equal(copyIssues(draft.bodyText).length, 0)
@@ -117,6 +121,73 @@ describe('grounded draft copy', () => {
     assert.doesNotMatch(draft.text, /Hi Name/)
     assert.doesNotMatch(draft.bodyText, /Atlantic County|South Jersey|—/)
   })
+
+  it('uses a bare Hi when the first name is missing and still enqueues', async () => {
+    assert.equal(usableFirstName('Not'), null)
+    assert.equal(usableFirstName('Not found'), null)
+    assert.equal(usableFirstName('Christopher'), 'Christopher')
+    const facts = extractGroundedFacts({
+      business: 'Galloway Nursery',
+      first_name: 'Not',
+      location_text: 'Egg Harbor City, NJ',
+      marketing_opportunity: 'GoDaddy site, GA only, no pixel; strong TikTok/IG to leverage',
+    })
+    assert.equal(facts?.firstName, null)
+    const draft = renderDraft({ facts: facts!, unsubscribeUrl: 'https://example.test/u/x' })
+    assert.match(draft.bodyText, /^Hi,/)
+    assert.doesNotMatch(draft.bodyText, /Hi Not,/)
+    assert.equal(prospectGreetingIsUsable(draft.html, facts?.firstName), true)
+    assert.match(draft.bodyText, /getting set up/)
+    assert.doesNotMatch(draft.bodyText, /GA only|pixel|GoDaddy/)
+    const store = createMemoryOutreachStore({
+      leads: [lead({ id: 'no-name', firstName: 'Not', business: 'Galloway Nursery', email: 'emma@gallowaynursery.test' })],
+    })
+    const result = await enqueueLeadSnapshots(store, await store.listEligibleLeadCandidates(), { mxResolver: mxOk })
+    assert.equal(result.enqueued, 1)
+    assert.equal((await store.listQueue())[0]?.status, 'pending')
+    assert.match((await store.listQueue())[0]?.htmlBody || '', /Hi,/)
+  })
+
+  it('rewrites research notes into plain sentences a business owner can understand', () => {
+    const lawn = toProspectObservation(
+      'Free Wix subdomain, no Facebook found, no Google Business Profile found , invisible in local Google Maps lawn searches',
+      { location: 'Summerville, SC', business: 'Lawn Enforcement' }
+    )
+    assert.match(lawn || '', /getting set up/)
+    assert.match(lawn || '', /Google Maps/)
+    assert.doesNotMatch(lawn || '', /Wix subdomain|GBP|pixel|harder to trust/i)
+
+    const capri = toProspectObservation(
+      'Free Wix co-branding banner on site; no analytics; no online ordering link',
+      { location: 'Ventnor City, NJ', business: 'Capri Pizza & Grill' }
+    )
+    assert.match(capri || '', /getting set up/)
+    assert.match(capri || '', /order from the website yet/)
+    assert.doesNotMatch(capri || '', /analytics|Wix|cannot/i)
+
+    const florist = toProspectObservation(
+      'Personal AOL email (jonjenk@aol.com) as business contact',
+      { location: 'Mays Landing, NJ', business: 'County Seat Florist' }
+    )
+    assert.match(florist || '', /email still looks personal/)
+    assert.doesNotMatch(florist || '', /jonjenk|aol\.com|harder to trust/i)
+
+    const coffee = toProspectObservation('Three closing times online (2:40, 3, 4 PM)', {
+      location: 'Brigantine, NJ',
+      business: 'Summer & Sage Coffee',
+    })
+    assert.match(coffee || '', /hours show up a few different ways/)
+
+    const nursery = extractGroundedFacts({
+      business: 'Galloway Nursery',
+      first_name: 'Not',
+      location_text: 'Egg Harbor City, NJ',
+      marketing_opportunity: 'GoDaddy site, GA only, no pixel; strong TikTok/IG to leverage',
+    })
+    assert.match(nursery?.observation || '', /getting set up|social media/)
+    assert.doesNotMatch(nursery?.observation || '', /GA only|pixel|GoDaddy|TikTok/)
+    assert.equal(copyIssues(nursery?.observation || '').includes('internal_jargon'), false)
+  })
 })
 
 describe('eligibility, suppression, and unverified reports', () => {
@@ -147,6 +218,55 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal((await store.getLead('d'))?.lastContactedAt || null, null)
     const wise = EMAIL_BOT_UNVERIFIED_REPORTS.find((row) => row.business === 'Wise Bean')
     assert.equal(wise?.outcome, 'null_mx')
+  })
+
+  it('rewrites observations that mention a prospect email instead of putting that email in the body', async () => {
+    const store = createMemoryOutreachStore({
+      leads: [
+        lead({
+          id: 'email-in-note',
+          firstName: 'John',
+          business: 'County Seat Florist',
+          email: 'jonjenk@aol.test',
+          marketingOpportunity: 'Personal AOL email (jonjenk@aol.com) as business contact',
+        }),
+      ],
+    })
+    const result = await enqueueLeadSnapshots(store, await store.listEligibleLeadCandidates(), { mxResolver: mxOk })
+    assert.equal(result.enqueued, 1)
+    const queued = (await store.listQueue())[0]
+    assert.equal(queued?.status, 'pending')
+    assert.match(queued?.htmlBody || '', /email still looks personal/)
+    assert.doesNotMatch(queued?.htmlBody || '', /jonjenk@aol\.com/)
+    assert.doesNotMatch(queued?.textBody || '', /jonjenk@aol\.com/)
+  })
+
+  it('refreshes already queued research-note drafts without sending', async () => {
+    const store = createMemoryOutreachStore({
+      leads: [lead({ id: 'lead-1', firstName: 'Not' })],
+    })
+    await enqueueLeadSnapshots(store, [lead({ id: 'lead-1', firstName: 'Not' })], { mxResolver: mxOk })
+    const [item] = await store.listQueue()
+    await store.compareAndSwap(item.id, 'pending', {
+      htmlBody: item.htmlBody.replace('Hi,', 'Hi Not,'),
+      textBody: item.textBody.replace('Hi,', 'Hi Not,'),
+      groundedFacts: {
+        ...item.groundedFacts,
+        firstName: 'Not',
+        observation: 'No Hammonton landing page or title mention',
+      },
+      status: 'needs_review',
+      eligibilityReason: 'unusable_greeting',
+    })
+    const refreshed = await refreshUnsentQueueCopy(store)
+    assert.equal(refreshed.refreshed, 1)
+    const next = (await store.listQueue())[0]
+    assert.equal(next.status, 'pending')
+    assert.match(next.textBody, /^Hi,|^Preheader:.*\n\nHi,/m)
+    assert.match(next.htmlBody, />Hi,</)
+    assert.doesNotMatch(next.htmlBody, /Hi Not,/)
+    assert.match(next.textBody, /doesn't clearly say you're in Hammonton yet/)
+    assert.doesNotMatch(next.textBody, /No Hammonton landing page/)
   })
 
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
@@ -323,6 +443,61 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
       else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
     }
   })
+
+  it('holds queued Hi Not greetings and does not retry missing Gmail send scopes', async () => {
+    const store = createMemoryOutreachStore({ leads: [lead({})] })
+    await store.updateSettings({
+      killSwitch: false,
+      activatedAt: '2026-11-05T00:00:00.000Z',
+      physicalMailingAddress: '1 Example Street, City, ST 00000',
+      dailySendLimit: 10,
+      historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
+    })
+    const template = await store.getLatestTemplate('camp-prospect-intro')
+    assert.ok(template)
+    await store.approveTemplate(template.id, 'admin', draftContentSha256(), store.now())
+    await enqueueLeadSnapshots(store, [lead({})], { mxResolver: mxOk })
+    const [item] = await store.listQueue()
+    await store.compareAndSwap(item.id, 'pending', {
+      htmlBody: item.htmlBody.replace('Hi Christopher,', 'Hi Not,'),
+      groundedFacts: { ...item.groundedFacts, firstName: 'Not' },
+    })
+    const originalKill = process.env.OUTREACH_KILL_SWITCH
+    const originalAllow = process.env.OUTREACH_ACTIVATION_ALLOWED
+    process.env.OUTREACH_KILL_SWITCH = 'false'
+    process.env.OUTREACH_ACTIVATION_ALLOWED = 'true'
+    try {
+      const provider = createMockProvider()
+      const held = await dispatchOutreachBatch({ store, provider, mxResolver: mxOk, senderConfigured: true })
+      assert.equal(held.accepted, 0)
+      assert.equal(provider.sendCount, 0)
+      assert.equal((await store.getQueueItem(item.id))?.status, 'needs_review')
+      assert.equal((await store.getQueueItem(item.id))?.eligibilityReason, 'unusable_greeting')
+
+      const gmail = createGmailOutreachProvider({
+        sendMime: async () => {
+          throw new Error('Request had insufficient authentication scopes.')
+        },
+      })
+      const scoped = await gmail.send(queueItemPayload(
+        item,
+        OUTREACH_SENDER_EMAIL,
+        'https://example.test/u/x',
+        Buffer.from('%PDF')
+      ))
+      assert.equal(scoped.kind, 'rejected')
+      if (scoped.kind === 'rejected') {
+        assert.equal(scoped.retryable, false)
+        assert.equal(scoped.code, 'gmail_insufficient_scopes')
+      }
+    } finally {
+      if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
+      else process.env.OUTREACH_KILL_SWITCH = originalKill
+      if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
+      else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
+    }
+  })
 })
 
 describe('unsubscribe, MIME, CSRF, and routes', () => {
@@ -419,7 +594,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.equal(good, true)
   })
 
-  it('keeps gated dispatch send-free even when the weekday cron is registered', async () => {
+  it('keeps the internal dispatch route send-free because automatic cron is off', async () => {
     const cron = process.env.CRON_SECRET
     process.env.CRON_SECRET = 'outreach-cron-test'
     const store = createMemoryOutreachStore({ leads: [lead({})] })
@@ -430,11 +605,12 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
       const allowed = await dispatchGet(new NextRequest('https://example.test/api/internal/outreach-dispatch', {
         headers: { authorization: 'Bearer outreach-cron-test' },
       }))
-      const body = await allowed.json() as { sent: number; skippedDisabled: boolean; liveSend: boolean }
+      const body = await allowed.json() as { sent: number; skippedDisabled: boolean; liveSend: boolean; details?: string[] }
       assert.equal(allowed.status, 200)
       assert.equal(body.sent, 0)
       assert.equal(body.liveSend, false)
       assert.equal(body.skippedDisabled, true)
+      assert.equal(body.details?.includes('automatic_dispatch_disabled'), true)
       process.env.SUPABASE_SECRET_KEY = 'outreach-sb-test'
       const viaSupabase = await dispatchGet(new NextRequest('https://example.test/api/internal/outreach-dispatch', {
         headers: { authorization: 'Bearer outreach-sb-test' },
@@ -442,7 +618,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
       assert.equal(viaSupabase.status, 200)
       delete process.env.SUPABASE_SECRET_KEY
       const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: Array<{ path: string; schedule: string }> }
-      assert.equal(vercel.crons.some((item) => item.path === '/api/internal/outreach-dispatch' && item.schedule === '0 20 * * 1-5'), true)
+      assert.equal(vercel.crons.some((item) => item.path === '/api/internal/outreach-dispatch'), false)
     } finally {
       setOutreachStoreForTests(null)
       if (cron === undefined) delete process.env.CRON_SECRET
@@ -477,16 +653,21 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /requireSalesSession/)
     assert.match(admin, /requireAdminSession/)
     assert.match(admin, /isSameOriginRequest/)
+    assert.match(admin, /send-batch/)
+    assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
+    const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
+    assert.match(consoleUi, /Send batch/)
+    assert.match(consoleUi, /send-batch/)
     const dispatch = readFileSync('src/lib/outreach/dispatch.ts', 'utf8')
     assert.match(dispatch, /skippedDisabled/)
     assert.match(dispatch, /markLeadContacted/)
     assert.match(dispatch, /unsubscribe_token_unusable/)
     assert.doesNotMatch(dispatch, /unsubscribeUrlFor/)
     const vercel = readFileSync('vercel.json', 'utf8')
-    assert.match(vercel, /outreach-dispatch/)
-    assert.match(vercel, /0 20 \* \* 1-5/)
-    assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /outreach-dispatch/)
+    assert.doesNotMatch(vercel, /outreach-dispatch/)
+    assert.doesNotMatch(vercel, /0 20 \* \* 1-5/)
+    assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /Send batch/)
     const nextConfig = readFileSync('next.config.js', 'utf8')
     assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)
     assert.match(nextConfig, /outputFileTracingIncludes/)

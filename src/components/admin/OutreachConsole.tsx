@@ -67,6 +67,7 @@ export default function OutreachConsole() {
   const [openId, setOpenId] = useState<string | null>(null)
   const [address, setAddress] = useState('')
   const [dailyCap, setDailyCap] = useState('0')
+  const [lastSend, setLastSend] = useState('')
 
   const load = useCallback(async () => {
     const response = await fetch('/api/admin/outreach')
@@ -93,8 +94,23 @@ export default function OutreachConsole() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action, ...extra }),
       })
-      const payload = (await response.json()) as { error?: string }
+      const payload = (await response.json()) as {
+        error?: string
+        sent?: number
+        blockers?: Array<{ code?: string; message?: string }>
+      }
       if (!response.ok && payload.error) setError(payload.error)
+      if (action === 'send-batch' && response.ok) {
+        const sent = Number(payload.sent || 0)
+        const blockers = payload.blockers || []
+        setLastSend(
+          sent > 0
+            ? `Sent ${sent} email${sent === 1 ? '' : 's'} from this batch.`
+            : blockers.length
+              ? `No emails sent. ${blockers.map((item) => item.message || item.code).filter(Boolean).join(' ')}`
+              : 'No emails sent. The pending queue may be empty or already at the daily cap.'
+        )
+      }
       await load()
     } finally {
       setBusy('')
@@ -115,7 +131,7 @@ export default function OutreachConsole() {
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
         <p className="text-sm text-brand-muted mt-2 max-w-2xl">
           {data.liveSend
-            ? 'Live weekday send is on. The production cron sends up to the daily cap from the pending queue. Kill switch and gates still fail closed.'
+            ? 'Live send is on. Emails go out only when you click Send batch, up to the daily cap. Kill switch and gates still fail closed.'
             : 'Disabled automation. Queue and previews only. Live Gmail send stays off until every server-side gate is satisfied. Templates remain unapproved until you explicitly approve them.'}
         </p>
       </div>
@@ -238,6 +254,23 @@ export default function OutreachConsole() {
           <>
             <button
               type="button"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Send up to 10 outreach emails from the pending queue now? This uses the daily cap and cannot be undone.'
+                  )
+                ) {
+                  return
+                }
+                void post('send-batch')
+              }}
+              disabled={Boolean(busy)}
+              className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold disabled:opacity-60"
+            >
+              {busy === 'send-batch' ? 'Sending…' : 'Send batch'}
+            </button>
+            <button
+              type="button"
               onClick={() => void post('approve-template')}
               disabled={Boolean(busy)}
               className="px-4 py-2 rounded-lg border border-brand-border bg-white text-sm font-semibold"
@@ -271,6 +304,7 @@ export default function OutreachConsole() {
           </>
         ) : null}
       </div>
+      {lastSend ? <p className="text-sm text-brand-text">{lastSend}</p> : null}
       {error ? <p className="text-sm text-red-800">{error}</p> : null}
 
       <section className="rounded-xl border border-brand-border bg-white overflow-hidden">

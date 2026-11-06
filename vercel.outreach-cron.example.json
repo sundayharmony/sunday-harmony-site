@@ -1,9 +1,4 @@
 {
-  "$comment": "Mirrors the production outreach cron in vercel.json. Weekdays 20:00 UTC, up to 10 accepted sends per day.",
-  "crons": [
-    {
-      "path": "/api/internal/outreach-dispatch",
-      "schedule": "0 20 * * 1-5"
-    }
-  ]
+  "$comment": "Not registered in production. Outreach sends only from Admin → Outreach → Send batch. This file is a historical example of the old weekday cron.",
+  "crons": []
 }

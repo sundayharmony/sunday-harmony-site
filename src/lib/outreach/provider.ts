@@ -92,6 +92,9 @@ export function createGmailOutreachProvider(sendImpl?: {
         if (/is not set|token refresh failed|unconfigured/i.test(message)) {
           return { kind: 'uncertain', reason: 'gmail_unconfigured' }
         }
+        if (/insufficient authentication scopes|insufficient_scope/i.test(message)) {
+          return { kind: 'rejected', retryable: false, code: 'gmail_insufficient_scopes', message }
+        }
         return { kind: 'rejected', retryable: true, code: 'gmail_error', message }
       }
     },
