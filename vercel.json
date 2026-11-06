@@ -8,6 +8,10 @@
     {
       "path": "/api/internal/consultation-reminders",
       "schedule": "15 13 * * *"
+    },
+    {
+      "path": "/api/internal/outreach-dispatch",
+      "schedule": "0 14-20 * * 1-5"
     }
   ]
 }

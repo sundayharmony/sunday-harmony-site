@@ -419,7 +419,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.equal(good, true)
   })
 
-  it('keeps the internal dispatch route send-free and unscheduled', async () => {
+  it('keeps gated dispatch send-free even when the weekday cron is registered', async () => {
     const cron = process.env.CRON_SECRET
     process.env.CRON_SECRET = 'outreach-cron-test'
     const store = createMemoryOutreachStore({ leads: [lead({})] })
@@ -435,8 +435,8 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
       assert.equal(body.sent, 0)
       assert.equal(body.liveSend, false)
       assert.equal(body.skippedDisabled, true)
-      const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: Array<{ path: string }> }
-      assert.equal(vercel.crons.some((item) => item.path.includes('outreach')), false)
+      const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: Array<{ path: string; schedule: string }> }
+      assert.equal(vercel.crons.some((item) => item.path === '/api/internal/outreach-dispatch' && item.schedule === '0 14-20 * * 1-5'), true)
     } finally {
       setOutreachStoreForTests(null)
       if (cron === undefined) delete process.env.CRON_SECRET
@@ -478,7 +478,8 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(dispatch, /unsubscribe_token_unusable/)
     assert.doesNotMatch(dispatch, /unsubscribeUrlFor/)
     const vercel = readFileSync('vercel.json', 'utf8')
-    assert.doesNotMatch(vercel, /outreach-dispatch/)
+    assert.match(vercel, /outreach-dispatch/)
+    assert.match(vercel, /0 14-20 \* \* 1-5/)
     assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /outreach-dispatch/)
     const nextConfig = readFileSync('next.config.js', 'utf8')
     assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)

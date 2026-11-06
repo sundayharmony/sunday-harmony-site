@@ -3,7 +3,7 @@ import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from 
 import { EMAIL_BOT_UNVERIFIED_REPORTS } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { buildHandoff, canViewHandoff } from './handoff'
-import { outreachCronExample } from './scheduler'
+import { outreachCron } from './scheduler'
 import type { OutreachStore } from './store'
 import { deliveryStateFor } from './types'
 
@@ -38,14 +38,15 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
       handoff: includeHandoff ? await buildHandoff(store, item, lead) : null,
     })
   }
+  const liveSend = blockers.length === 0
   return {
-    disabled: true,
-    liveSend: false,
+    disabled: !liveSend,
+    liveSend,
     storage: supabaseReadyForOutreach() ? 'supabase' : 'ephemeral_unmigrated',
     senderConfigured: senderConfiguredHere(),
     canOperate,
     attachmentPresent,
-    scheduler: outreachCronExample(),
+    scheduler: outreachCron(),
     settings: {
       killSwitch: settings.killSwitch,
       activatedAt: settings.activatedAt,
@@ -92,7 +93,9 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     provider: {
       intended: 'gmail',
       idempotencyRecovery: false,
-      note: 'Gmail is bound only when every activation gate is satisfied. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered. No production cron is registered; the scheduler file is an inert opt-in example.',
+      note: liveSend
+        ? 'Gmail sends through the weekday cron, up to the daily cap. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered.'
+        : 'Gmail is bound only when every activation gate is satisfied. Timeouts and crashes after an unknown result are needs_review and are never auto-resent. Accepted is not delivered.',
     },
   }
 }

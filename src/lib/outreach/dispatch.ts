@@ -99,11 +99,12 @@ export async function dispatchOutreachBatch(input: {
   }
 
   const workerId = input.workerId || `worker-${randomUUID()}`
-  const limit = input.limit ?? 1
+  const maxAccepted = input.limit ?? 1
+  const maxClaims = Math.min(Math.max(maxAccepted * 8, maxAccepted), 80)
   let dispatched = 0
   let accepted = 0
 
-  while (dispatched < limit) {
+  while (accepted < maxAccepted && dispatched < maxClaims) {
     const acceptedToday = await store.acceptedCountSince(utcDayStartIso(at))
     if (acceptedToday >= settings.dailySendLimit) {
       details.push('daily_cap')
@@ -130,12 +131,16 @@ export async function dispatchOutreachBatch(input: {
     const recheck = dispatchRecheck({ lead, suppression: suppressionAfterClaim, reconciliation, mx })
     if (!recheck.ok) {
       const nextStatus = recheck.status === 'pending' ? 'pending' : recheck.status
+      const pendingAgain = nextStatus === 'pending' || nextStatus === 'skip'
       await store.compareAndSwap(claimed.id, 'claimed', {
         status: nextStatus === 'skip' ? 'pending' : nextStatus,
         eligibilityReason: recheck.reason,
         claimedBy: null,
         claimedAt: null,
         leaseExpiresAt: null,
+        ...(pendingAgain
+          ? { nextAttemptAt: new Date(at.getTime() + backoffMs(claimed.attemptCount)).toISOString() }
+          : {}),
       })
       details.push(recheck.reason)
       continue

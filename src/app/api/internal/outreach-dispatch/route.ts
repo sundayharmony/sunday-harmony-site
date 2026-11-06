@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
 import { resolveOutreachStore } from '@/lib/outreach/runtime'
+import { OUTREACH_CRON_BATCH_LIMIT } from '@/lib/outreach/scheduler'
 import { timingSafeStringEqual } from '@/lib/timing-safe'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
   const result = await dispatchOutreachBatch({
     store,
     workerId: 'cron-outreach-dispatch',
+    limit: OUTREACH_CRON_BATCH_LIMIT,
   })
   return NextResponse.json({
     ok: true,
