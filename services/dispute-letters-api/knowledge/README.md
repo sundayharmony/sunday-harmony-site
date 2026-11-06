@@ -19,7 +19,12 @@ This directory contains ingested federal consumer credit statutes used as the au
 | [usc/15-usc-ch41-subch-i-part-d-fcba.md](usc/15-usc-ch41-subch-i-part-d-fcba.md) | 15 U.S.C. Part D (FCBA) |
 | [usc/15-usc-ch41-subch-iv-ecoa.md](usc/15-usc-ch41-subch-iv-ecoa.md) | 15 U.S.C. Subchapter IV (ECOA) |
 | [index.md](index.md) | Dispute-type routing guide |
+| [ops/README.md](ops/README.md) | Index of Stephen Smith credit-ops video playbooks |
 | [ops/late-payment-cross-bureau-playbook.md](ops/late-payment-cross-bureau-playbook.md) | Late-payment cross-bureau method: video study notes, system map, manual ops checklist |
+| [ops/delete-anything-rising-dispute-playbook.md](ops/delete-anything-rising-dispute-playbook.md) | Rising / e-OSCAR dispute method: why generic disputes fail, personalized letters |
+| [ops/overnight-100-point-strategies-playbook.md](ops/overnight-100-point-strategies-playbook.md) | Rent/utility back-report, 401(k) utilization move, same-issuer limit transplant |
+| [ops/score-strategy-tier-list-playbook.md](ops/score-strategy-tier-list-playbook.md) | F→S tier ranking of common credit-score strategies |
+| [ops/maxed-cards-utilization-playbook.md](ops/maxed-cards-utilization-playbook.md) | Maxed revolving: business credit, BT, CLI, velocity banking, installment |
 | [citations.yaml](citations.yaml) | Structured citation lookup |
 | [sources.json](sources.json) | Source URL manifest |
 
