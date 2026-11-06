@@ -155,6 +155,7 @@ describe('partner surfaces', () => {
     assert.match(source('src/lib/partner-logos.ts'), /listActivePartnerLogoRows/)
     assert.match(source('src/app/admin/partners/page.tsx'), /Open /)
     assert.match(source('src/app/api/partner/route.ts'), /requirePartnerSession/)
+    assert.match(source('src/components/partner/PartnerShell.tsx'), /\/partner\/toolkit/)
     assert.match(source('src/app/partner/page.tsx'), /Current scores/)
     assert.match(source('src/app/partner/page.tsx'), /TransUnion/)
     assert.match(source('src/lib/partner-service.ts'), /currentScoresForApplication/)

@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { signOut } from 'next-auth/react'
-import BrandLogo from '@/components/BrandLogo'
 import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
 import StatCard from '@/components/ui/StatCard'
 
@@ -90,20 +88,7 @@ export default function PartnerDashboardPage() {
   }, [load])
 
   return (
-    <div className="min-h-screen bg-brand-bg-soft">
-      <header className="border-b border-brand-border bg-white">
-        <div className="max-w-[1100px] mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <BrandLogo height={32} href="/partner" />
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="text-sm font-semibold text-brand-muted hover:text-brand-text"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-      <main className="max-w-[1100px] mx-auto px-6 py-10">
+    <main className="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Partner dashboard</h1>
         {loading ? <p className="text-sm text-brand-muted">Loading…</p> : null}
         {error && !data ? <p className="text-sm text-brand-muted">{error}</p> : null}
@@ -175,7 +160,6 @@ export default function PartnerDashboardPage() {
             </div>
           </>
         ) : null}
-      </main>
-    </div>
+    </main>
   )
 }
