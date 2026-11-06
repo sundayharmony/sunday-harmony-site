@@ -14,6 +14,22 @@ const QR_PNG = Buffer.from(
   'base64'
 )
 
+type CaseStudyMock = {
+  id: string
+  companyName: string
+  blurb: string
+  logoUrl: string | null
+  published: boolean
+}
+
+const caseStudyRow: CaseStudyMock = {
+  id: 'study-1',
+  companyName: 'Rivera Lending',
+  blurb: 'A Philadelphia lending shop we work alongside.',
+  logoUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  published: true,
+}
+
 const partnerRow = {
   id: 'partner-1',
   name: 'Alex Rivera',
@@ -78,9 +94,27 @@ async function signIn(page: Page) {
   await page.route('**/api/referral-qr**', async (route) => {
     await route.fulfill({ contentType: 'image/png', body: QR_PNG })
   })
+  let caseStudies: CaseStudyMock[] = [caseStudyRow]
   await page.route('**/api/admin/**', async (route) => {
     const url = new URL(route.request().url())
     const path = url.pathname
+    if (path === '/api/admin/case-studies') {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as { companyName?: string; blurb?: string }
+        const created = {
+          id: 'study-2',
+          companyName: body.companyName || 'Harbor Goods',
+          blurb: body.blurb || '',
+          logoUrl: null,
+          published: true,
+        }
+        caseStudies = [...caseStudies, created]
+        await route.fulfill({ json: { ok: true, caseStudy: created } })
+        return
+      }
+      await route.fulfill({ json: { caseStudies } })
+      return
+    }
     if (path === '/api/admin/partners') {
       const id = url.searchParams.get('id')
       if (id) {
@@ -174,10 +208,20 @@ test('admin referrals workspace and case study replace the old partners tab', as
   await page.locator('aside a[href="/admin/case-study"]').click()
   await expect(page).toHaveURL(/\/admin\/case-study/)
   await expect(page.getByRole('heading', { name: 'Case Study' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Add a company' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'About page preview' })).toBeVisible()
-  await page.locator('table tbody tr').filter({ hasText: 'Rivera Lending' }).click()
-  await expect(page.getByRole('button', { name: 'Upload logo' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible()
+  await page.getByPlaceholder('Company people will see').fill('Harbor Goods')
+  await page.getByPlaceholder('A short note about this company and the work you did together.').first().fill(
+    'We rebuilt their homepage.'
+  )
+  await page.getByRole('button', { name: 'Add company' }).click()
+  await expect(page.getByRole('button', { name: 'Harbor Goods' })).toBeVisible()
+  await expect(page.locator('textarea').nth(1)).toHaveValue('We rebuilt their homepage.')
+  await page.getByRole('button', { name: 'Rivera Lending' }).click()
+  await expect(page.locator('textarea').nth(1)).toHaveValue('A Philadelphia lending shop we work alongside.')
+  await expect(page.getByRole('button', { name: 'Save company info' })).toBeVisible()
+  await expect(page.getByLabel('Upload logo').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove logo' })).toBeVisible()
   await page.screenshot({ path: `${ARTIFACTS}/admin-case-study-desktop.png`, fullPage: true })
 
   await page.setViewportSize({ width: 390, height: 844 })
@@ -207,8 +251,9 @@ test('admin referrals workspace and case study replace the old partners tab', as
   await expect(page.locator('aside a[href="/admin/case-study"]')).toBeInViewport()
   await page.getByRole('button', { name: 'Toggle menu' }).click()
   await expect(page.locator('aside')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, -240, 0)')
-  await page.locator('table tbody tr').filter({ hasText: 'Rivera Lending' }).click()
-  await expect(page.getByRole('button', { name: 'Upload logo' })).toBeVisible()
+  await page.getByRole('button', { name: 'Rivera Lending' }).click()
+  await expect(page.getByRole('button', { name: 'Save company info' })).toBeVisible()
+  await expect(page.getByLabel('What to say on the About page').last()).toBeVisible()
   expect(await page.evaluate(overflowAmount)).toBeLessThanOrEqual(8)
   await page.screenshot({ path: `${ARTIFACTS}/admin-case-study-mobile-390.png`, fullPage: true })
 })

@@ -7,7 +7,8 @@ export const PARTNER_LOGO_MAX_BYTES = 2 * 1024 * 1024
 
 export type PartnerLogo = {
   companyName: string
-  src: string
+  src: string | null
+  blurb?: string
 }
 
 type DetectedLogo = {
@@ -59,7 +60,7 @@ export async function listPublicPartnerLogos(): Promise<PartnerLogo[]> {
   for (const row of rows) {
     const src = partnerLogoPublicUrl(row.logo_path)
     if (!src) continue
-    logos.push({ companyName: row.company_name, src })
+    logos.push({ companyName: row.company_name, src, blurb: '' })
   }
   return logos
 }

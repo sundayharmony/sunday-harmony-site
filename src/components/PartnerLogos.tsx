@@ -3,8 +3,6 @@ import type { PartnerLogo } from '@/lib/partner-logos'
 
 export default function PartnerLogos({ logos }: { logos: PartnerLogo[] }) {
   if (logos.length === 0) return null
-  const sliding = logos.length > 1
-  const loop = sliding ? [...logos, ...logos] : logos
 
   return (
     <section className="bg-accent-soft/60 border-y border-brand-border py-20" aria-label="Case studies">
@@ -16,33 +14,33 @@ export default function PartnerLogos({ logos }: { logos: PartnerLogo[] }) {
               Businesses we <span className="gold-text">work alongside</span>
             </>
           }
-          description="Logos from active partner case studies. The strip keeps moving so each mark gets a turn."
+          description="Company names, logos, and short notes from the Case Study tab."
         />
-      </div>
-      <div className="partner-logo-window mt-12 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
-        <ul
-          className={sliding ? 'partner-logo-marquee flex w-max gap-6 px-6' : 'flex justify-center px-6'}
-          style={sliding ? { animationDuration: `${Math.max(logos.length * 7, 18)}s` } : undefined}
-        >
-          {loop.map((logo, index) => {
-            const duplicate = index >= logos.length
-            return (
-              <li
-                key={`${logo.src}-${index}`}
-                aria-hidden={duplicate || undefined}
-                className="w-[220px] shrink-0 bg-white border border-brand-border rounded-2xl px-6 py-5 flex flex-col items-center justify-center gap-3"
-              >
-                {/* Logos are uploaded files, not bundled images. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+        <ul className="case-study-grid mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {logos.map((logo) => (
+            <li
+              key={`${logo.companyName}-${logo.src || 'note'}`}
+              className="bg-white border border-brand-border rounded-2xl px-6 py-5 flex flex-col items-center text-center gap-3"
+            >
+              {logo.src ? (
+                // Logos are uploaded files, not bundled images.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={logo.src}
-                  alt={duplicate ? '' : `${logo.companyName} logo`}
+                  alt={`${logo.companyName} logo`}
                   className="h-16 w-full object-contain"
                 />
-                <span className="text-xs font-semibold text-brand-text text-center leading-snug">{logo.companyName}</span>
-              </li>
-            )
-          })}
+              ) : (
+                <div className="h-16 w-full flex items-center justify-center text-sm font-semibold text-brand-dim">
+                  {logo.companyName.slice(0, 1)}
+                </div>
+              )}
+              <span className="text-sm font-semibold text-brand-text leading-snug">{logo.companyName}</span>
+              {logo.blurb ? (
+                <p className="text-sm text-brand-muted leading-relaxed whitespace-pre-wrap">{logo.blurb}</p>
+              ) : null}
+            </li>
+          ))}
         </ul>
       </div>
     </section>

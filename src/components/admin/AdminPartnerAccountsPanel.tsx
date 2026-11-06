@@ -136,7 +136,7 @@ export default function AdminPartnerAccountsPanel() {
   return (
     <div>
       <p className="text-sm text-brand-muted mb-6">
-        Click a partner to see everyone they referred and open that credit file. Logos for the About page live on{' '}
+        Click a partner to see everyone they referred and open that credit file. Company names, notes, and logos for the About page live on{' '}
         <Link href="/admin/case-study" className="font-semibold text-accent hover:underline">
           Case Study
         </Link>
