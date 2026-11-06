@@ -33,8 +33,14 @@ function buildContentSecurityPolicy() {
 const csp = buildContentSecurityPolicy()
 
 /** @type {import('next').NextConfig} */
+const OUTREACH_PRESENTATION_PDF = ['./public/sales-materials/company-presentation.pdf']
+
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  outputFileTracingIncludes: {
+    '/api/admin/outreach': OUTREACH_PRESENTATION_PDF,
+    '/api/internal/outreach-dispatch': OUTREACH_PRESENTATION_PDF,
+  },
   serverExternalPackages: [
     'pdfkit',
     'fontkit',

@@ -78,7 +78,7 @@ export function defaultDisabledSettings(): OutreachSettings {
 export function currentBlockers(
   settings?: OutreachSettings,
   template?: OutreachTemplateVersion | null,
-  extras?: { schemaReady?: boolean }
+  extras?: { schemaReady?: boolean; attachmentPresent?: boolean }
 ) {
   return evaluateActivationBlockers({
     settings: settings || defaultDisabledSettings(),
@@ -86,6 +86,6 @@ export function currentBlockers(
     senderConfigured: senderConfiguredHere(),
     unsubscribeRoutePresent: true,
     schemaReady: extras?.schemaReady ?? supabaseReadyForOutreach(),
-    attachmentPresent: Boolean(loadCompanyPresentationPdf()),
+    attachmentPresent: extras?.attachmentPresent ?? Boolean(loadCompanyPresentationPdf()),
   })
 }

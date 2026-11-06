@@ -9,6 +9,7 @@ export const OUTREACH_CTA_URL = 'https://www.sundayharmony.com/book'
 /** Operator-supplied CAN-SPAM postal address. Do not invent a different one. */
 export const OUTREACH_MAILING_ADDRESS = 'PO Box 1011, Jersey City, NJ 07304'
 export const OUTREACH_ATTACHMENT_PATH = 'public/sales-materials/company-presentation.pdf'
+export const OUTREACH_ATTACHMENT_PUBLIC_PATH = '/sales-materials/company-presentation.pdf'
 export const OUTREACH_ATTACHMENT_FILENAME = 'Sunday-Harmony-Consulting-company-presentation.pdf'
 export const OUTREACH_INK = '#0a0a0a'
 export const OUTREACH_GOLD = '#b8943f'

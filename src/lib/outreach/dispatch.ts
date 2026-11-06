@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { OUTREACH_BACKOFF_SECONDS, OUTREACH_SENDER_EMAIL } from './constants'
 import { evaluateActivationBlockers, sendsPermitted, utcDayStartIso, type GateInput } from './activation'
-import { loadCompanyPresentationPdf } from './attachment'
+import { resolveCompanyPresentationPdf } from './attachment'
 import { claimNextPending, recoverExpiredInFlight } from './claims'
 import { dispatchRecheck } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
@@ -61,7 +61,7 @@ export async function dispatchOutreachBatch(input: {
   const campaign = await store.getCampaignBySlug('prospect-intro')
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
   const senderConfigured = input.senderConfigured ?? senderConfiguredHere()
-  const attachment = input.attachment ?? loadCompanyPresentationPdf() ?? undefined
+  const attachment = input.attachment ?? (await resolveCompanyPresentationPdf()) ?? undefined
   const gate: GateInput = {
     settings,
     template,

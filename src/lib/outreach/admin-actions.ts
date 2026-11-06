@@ -1,5 +1,5 @@
 import { canRecordActivation, evaluateActivationBlockers, type GateInput } from './activation'
-import { loadCompanyPresentationPdf } from './attachment'
+import { resolveCompanyPresentationPdf } from './attachment'
 import { draftContentSha256 } from './draft-shell'
 import { reconcileFromProviderEvidence, type ProviderHistoryEvidence } from './history'
 import { applyOperatorSettings, stripClientVerificationFields } from './operator-settings'
@@ -19,6 +19,7 @@ function gateFrom(storeState: {
   template: OutreachTemplateVersion | null
   schemaReady: boolean
   env?: NodeJS.ProcessEnv
+  attachmentPresent?: boolean
 }): GateInput {
   return {
     settings: storeState.settings,
@@ -27,7 +28,7 @@ function gateFrom(storeState: {
     schemaReady: storeState.schemaReady,
     senderConfigured: senderConfiguredHere(),
     unsubscribeRoutePresent: true,
-    attachmentPresent: Boolean(loadCompanyPresentationPdf()),
+    attachmentPresent: storeState.attachmentPresent === true,
   }
 }
 
@@ -50,7 +51,13 @@ export async function loadAdminGate(
   const settings = schemaReady ? await store.getSettings() : defaultDisabledSettings()
   const campaign = schemaReady ? await store.getCampaignBySlug('prospect-intro') : null
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
-  return { schemaReady, settings, template, gate: gateFrom({ settings, template, schemaReady, env }) }
+  const attachmentPresent = Boolean(await resolveCompanyPresentationPdf())
+  return {
+    schemaReady,
+    settings,
+    template,
+    gate: gateFrom({ settings, template, schemaReady, env, attachmentPresent }),
+  }
 }
 
 export async function approveLatestTemplate(store: OutreachStore, actorId: string): Promise<AdminActionResult> {

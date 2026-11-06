@@ -482,6 +482,8 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /outreach-dispatch/)
     const nextConfig = readFileSync('next.config.js', 'utf8')
     assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)
+    assert.match(nextConfig, /outputFileTracingIncludes/)
+    assert.match(nextConfig, /company-presentation\.pdf/)
     const book = readFileSync('src/app/book/page.tsx', 'utf8')
     assert.match(book, /ConsultationBooker/)
   })
