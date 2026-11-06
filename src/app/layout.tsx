@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Montserrat } from 'next/font/google'
+import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import GoogleAdsTag from '@/components/GoogleAdsTag'
@@ -14,11 +14,11 @@ import {
 } from '@/lib/seo'
 import '@/styles/globals.css'
 
-const montserrat = Montserrat({
-  subsets: ['latin'],
+const montserrat = localFont({
+  src: '../fonts/montserrat-latin-wght-normal.woff2',
   variable: '--font-montserrat',
   display: 'swap',
-  weight: ['400', '500', '600', '700'],
+  weight: '100 900',
 })
 
 export const metadata: Metadata = {
