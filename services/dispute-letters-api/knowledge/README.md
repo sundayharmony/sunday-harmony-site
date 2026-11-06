@@ -25,6 +25,7 @@ This directory contains ingested federal consumer credit statutes used as the au
 | [ops/overnight-100-point-strategies-playbook.md](ops/overnight-100-point-strategies-playbook.md) | Rent/utility back-report, 401(k) utilization move, same-issuer limit transplant |
 | [ops/score-strategy-tier-list-playbook.md](ops/score-strategy-tier-list-playbook.md) | F→S tier ranking of common credit-score strategies |
 | [ops/maxed-cards-utilization-playbook.md](ops/maxed-cards-utilization-playbook.md) | Maxed revolving: business credit, BT, CLI, velocity banking, installment |
+| [ops/hard-inquiry-removal-2026-playbook.md](ops/hard-inquiry-removal-2026-playbook.md) | Hard inquiries 2026: FTC affidavit + CFPB; product letter fallback |
 | [citations.yaml](citations.yaml) | Structured citation lookup |
 | [sources.json](sources.json) | Source URL manifest |
 

@@ -46,7 +46,7 @@ Ranks popular credit moves from **F (can hurt)** to **S (highest leverage)**, so
 |----------|-----------------|
 | On-time payment education | Recommendations / factor framework |
 | Dispute derogs / lates / collections / COs | **Core** dispute letters + rounds + MOV/CFPB drafts |
-| Hard inquiry disputes | Possible as selected items if on report — no specialized inquiry workflow |
+| Hard inquiry disputes | Possible as selected items if on report — no specialized inquiry workflow; see [hard-inquiry-removal-2026-playbook.md](hard-inquiry-removal-2026-playbook.md) for FTC/CFPB portal method |
 | Utilization diagnosis | Credit Intelligence revolving utilization factor |
 | AU / purchased tradelines / builder loans / new cards / CLI | **No** — coaching only |
 | “Never close old cards” coaching | **No** dedicated UI — ops note |
