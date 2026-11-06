@@ -45,9 +45,13 @@ describe('marketing packages', () => {
     assert.match(home, /lg:grid-cols-4/)
     assert.match(home, /href="\/book"/)
     assert.match(home, /ctaLabel/)
+    assert.match(home, /See what&apos;s included/)
+    assert.match(home, /Back to overview/)
     assert.doesNotMatch(home, /\/contact/)
     assert.doesNotMatch(home, /Social Essentials/)
-    assert.match(home, /Four ways to work together/)
+    const servicesPage = source('src/app/services/page.tsx')
+    assert.match(servicesPage, /Ways to work together/)
+    assert.equal(servicesPage.match(/<Packages/g)?.length, 1)
   })
 
   it('moves pricing off the homepage onto /services', () => {
