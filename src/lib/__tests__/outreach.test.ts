@@ -88,7 +88,7 @@ describe('grounded draft copy', () => {
     assert.match(draft.text, /Hi Christopher,/)
     assert.match(draft.text, /I came across SwingStop Hammonton in Hammonton, NJ/)
     assert.doesNotMatch(draft.text, /while looking at Indoor golf simulator/)
-    assert.match(draft.text, /doesn't clearly say you are in Hammonton/)
+    assert.match(draft.text, /doesn't clearly say you're in Hammonton yet/)
     assert.doesNotMatch(draft.text, /No Hammonton landing page/)
     assert.match(draft.html, /Pick a time/)
     assert.equal(draft.ctaUrl, OUTREACH_CTA_URL)
@@ -137,7 +137,7 @@ describe('grounded draft copy', () => {
     assert.match(draft.bodyText, /^Hi,/)
     assert.doesNotMatch(draft.bodyText, /Hi Not,/)
     assert.equal(prospectGreetingIsUsable(draft.html, facts?.firstName), true)
-    assert.match(draft.bodyText, /website looks unfinished/)
+    assert.match(draft.bodyText, /getting set up/)
     assert.doesNotMatch(draft.bodyText, /GA only|pixel|GoDaddy/)
     const store = createMemoryOutreachStore({
       leads: [lead({ id: 'no-name', firstName: 'Not', business: 'Galloway Nursery', email: 'emma@gallowaynursery.test' })],
@@ -153,29 +153,30 @@ describe('grounded draft copy', () => {
       'Free Wix subdomain, no Facebook found, no Google Business Profile found , invisible in local Google Maps lawn searches',
       { location: 'Summerville, SC', business: 'Lawn Enforcement' }
     )
-    assert.match(lawn || '', /unfinished|Google Maps/)
-    assert.doesNotMatch(lawn || '', /Wix subdomain|GBP|pixel/i)
+    assert.match(lawn || '', /getting set up/)
+    assert.match(lawn || '', /Google Maps/)
+    assert.doesNotMatch(lawn || '', /Wix subdomain|GBP|pixel|harder to trust/i)
 
     const capri = toProspectObservation(
       'Free Wix co-branding banner on site; no analytics; no online ordering link',
       { location: 'Ventnor City, NJ', business: 'Capri Pizza & Grill' }
     )
-    assert.match(capri || '', /unfinished/)
-    assert.match(capri || '', /order online/)
-    assert.doesNotMatch(capri || '', /analytics|Wix/i)
+    assert.match(capri || '', /getting set up/)
+    assert.match(capri || '', /order from the website yet/)
+    assert.doesNotMatch(capri || '', /analytics|Wix|cannot/i)
 
     const florist = toProspectObservation(
       'Personal AOL email (jonjenk@aol.com) as business contact',
       { location: 'Mays Landing, NJ', business: 'County Seat Florist' }
     )
-    assert.match(florist || '', /contact email looks personal/)
-    assert.doesNotMatch(florist || '', /jonjenk|aol\.com/i)
+    assert.match(florist || '', /email still looks personal/)
+    assert.doesNotMatch(florist || '', /jonjenk|aol\.com|harder to trust/i)
 
     const coffee = toProspectObservation('Three closing times online (2:40, 3, 4 PM)', {
       location: 'Brigantine, NJ',
       business: 'Summer & Sage Coffee',
     })
-    assert.match(coffee || '', /hours don't match/)
+    assert.match(coffee || '', /hours show up a few different ways/)
 
     const nursery = extractGroundedFacts({
       business: 'Galloway Nursery',
@@ -183,7 +184,7 @@ describe('grounded draft copy', () => {
       location_text: 'Egg Harbor City, NJ',
       marketing_opportunity: 'GoDaddy site, GA only, no pixel; strong TikTok/IG to leverage',
     })
-    assert.match(nursery?.observation || '', /unfinished|social media/)
+    assert.match(nursery?.observation || '', /getting set up|social media/)
     assert.doesNotMatch(nursery?.observation || '', /GA only|pixel|GoDaddy|TikTok/)
     assert.equal(copyIssues(nursery?.observation || '').includes('internal_jargon'), false)
   })
@@ -235,7 +236,7 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(result.enqueued, 1)
     const queued = (await store.listQueue())[0]
     assert.equal(queued?.status, 'pending')
-    assert.match(queued?.htmlBody || '', /contact email looks personal/)
+    assert.match(queued?.htmlBody || '', /email still looks personal/)
     assert.doesNotMatch(queued?.htmlBody || '', /jonjenk@aol\.com/)
     assert.doesNotMatch(queued?.textBody || '', /jonjenk@aol\.com/)
   })
@@ -264,7 +265,7 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.match(next.textBody, /^Hi,|^Preheader:.*\n\nHi,/m)
     assert.match(next.htmlBody, />Hi,</)
     assert.doesNotMatch(next.htmlBody, /Hi Not,/)
-    assert.match(next.textBody, /doesn't clearly say you are in Hammonton/)
+    assert.match(next.textBody, /doesn't clearly say you're in Hammonton yet/)
     assert.doesNotMatch(next.textBody, /No Hammonton landing page/)
   })
 

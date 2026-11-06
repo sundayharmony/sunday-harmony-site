@@ -57,7 +57,10 @@ export function toProspectObservation(
       t
     )
   ) {
-    addUnique(sentences, 'The website people click is broken, so they never see the shop.')
+    addUnique(
+      sentences,
+      "When someone clicks the website, the page doesn't seem to load. A working site would let them see the shop right away."
+    )
   }
   if (
     /no (real |owned |official |millville-owned )?website|no official website|facebook-only|list facebook as the website|website as facebook|facebook \+ directories only|facebook \+ email only|no owned domain|no millville-owned website/.test(
@@ -66,7 +69,7 @@ export function toProspectObservation(
   ) {
     addUnique(
       sentences,
-      'There is no real website, so customers only find you if they already know your Facebook or a directory listing.'
+      'It looks like people mostly find you on Facebook. A simple website would make it easier for new customers to find you on their own.'
     )
   }
   if (
@@ -74,7 +77,10 @@ export function toProspectObservation(
       t
     )
   ) {
-    addUnique(sentences, 'The website looks unfinished, which can make the shop harder to trust.')
+    addUnique(
+      sentences,
+      "The website still looks like it's getting set up. A little polish would make it feel more like the shop people meet in person."
+    )
   }
   if (
     /hours differ|homepage vs contact hours|contradictory.{0,40}hours|closing times|three closing|split hours|contact hours|hours \(/.test(
@@ -83,18 +89,21 @@ export function toProspectObservation(
   ) {
     addUnique(
       sentences,
-      "Your hours don't match across the internet, so people may show up when you're closed."
+      "Your hours show up a few different ways online. Lining those up would help people arrive when you're actually open."
     )
   }
   if (/old .{0,40}address|still advertises the old|park ave address/.test(t)) {
-    addUnique(sentences, 'The website still shows an old address, which can send people to the wrong place.')
+    addUnique(
+      sentences,
+      'The website still has an older address on it. Updating that would keep people from going to the wrong place.'
+    )
   }
   if (
     /still named|name inconsistency|rebranded from|brand\/domain mismatch|doesn't match brand|email domain/.test(t)
   ) {
     addUnique(
       sentences,
-      "The shop name doesn't match from one website to another, which can confuse people."
+      "The shop name doesn't quite match from one listing to another. Lining those up would make you easier to recognize."
     )
   }
   if (
@@ -102,20 +111,26 @@ export function toProspectObservation(
       t
     )
   ) {
-    addUnique(sentences, 'People searching Google Maps nearby may not find you.')
+    addUnique(
+      sentences,
+      'Nearby people may have a hard time finding you on Google Maps. A complete listing there would help them walk in.'
+    )
   }
   if (town && (new RegExp(`no ${town}`, 'i').test(source) || /no .{0,20}landing page|title mention/.test(t))) {
     addUnique(
       sentences,
-      `The website doesn't clearly say you are in ${town}, so local searchers may skip you.`
+      `The website doesn't clearly say you're in ${town} yet. Adding that would help local people recognize you.`
     )
   } else if (/homepage title targets|no [a-z]+ landing page/.test(t)) {
-    addUnique(sentences, 'The website talks about the wrong town, so local searchers may skip you.')
+    addUnique(
+      sentences,
+      'The website mentions a different town than where the shop is. Matching that up would help local people find you.'
+    )
   }
   if (/title\/h1|searches miss|septic only/.test(t)) {
     addUnique(
       sentences,
-      'The website does not mention all of your services, so some customers may never find you.'
+      "The website doesn't mention all of your services yet. Naming them would help more of the right people find you."
     )
   }
   if (
@@ -125,7 +140,7 @@ export function toProspectObservation(
   ) {
     addUnique(
       sentences,
-      'The public contact email looks personal, which can make the shop harder to trust.'
+      'The public email still looks personal. A shop email would feel a bit more official to someone new.'
     )
   }
   if (
@@ -133,33 +148,47 @@ export function toProspectObservation(
       t
     )
   ) {
-    addUnique(sentences, 'Customers cannot order online from the website.')
+    addUnique(
+      sentences,
+      "There isn't a way to order from the website yet. Adding that would make it easier for people to buy when they're ready."
+    )
   }
   if (/no booking|no booksy|fragmented square booking/.test(t)) {
-    addUnique(sentences, 'Customers cannot book a visit online from the website.')
+    addUnique(
+      sentences,
+      "There isn't a way to book a visit from the website yet. A simple booking button would make that easier."
+    )
   }
   if (
     /two live domains|dual domains|split the brand|brand\/domain mismatch/.test(t) &&
-    !sentences.some((sentence) => sentence.includes('name doesn\'t match') || sentence.includes('more than one name'))
+    !sentences.some(
+      (sentence) => sentence.includes("doesn't quite match") || sentence.includes('more than one name')
+    )
   ) {
     addUnique(
       sentences,
-      'The shop shows up under more than one name or website, which can confuse people.'
+      'The shop shows up under more than one name or website. Bringing those together would make you easier to find.'
     )
   }
   if (/typos/.test(t)) {
-    addUnique(sentences, 'The website has typos, which can make the shop look less careful than it is.')
+    addUnique(
+      sentences,
+      'A couple of typos on the site make it look less careful than the shop probably is. A quick pass would help.'
+    )
   }
   if (/buried|subpage of a personal/.test(t)) {
     addUnique(
       sentences,
-      'The shop is buried inside another website, so people may never find it on their own.'
+      'The shop is a bit tucked away inside another website. A page of your own would make you easier to find.'
     )
   }
   if (
     /outdated|aging |dated |© 2017|footer '©|decades-old|weebly|adobe muse|established outdated/.test(t)
   ) {
-    addUnique(sentences, 'The website looks old, so it may not match the shop people find in person.')
+    addUnique(
+      sentences,
+      'The website looks a little dated next to the shop people find in person. A refresh would help it match.'
+    )
   }
   if (
     sentences.length < 2 &&
@@ -167,7 +196,7 @@ export function toProspectObservation(
   ) {
     addUnique(
       sentences,
-      'People can find you on social media, but it is still hard to understand the shop online.'
+      "You're easy to find on social media. A clearer website would help those posts turn into real visits."
     )
   }
 
@@ -180,5 +209,5 @@ export function toProspectObservation(
     return source
   }
 
-  return "It's harder than it should be for nearby customers to find you online and see what the shop is about."
+  return "There's a small gap between how the shop is in person and how it shows up online. That's something we can make easier."
 }
