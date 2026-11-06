@@ -15,11 +15,12 @@ import {
   followUpError,
   homeForRole,
   marketingRoleAllowedPath,
+  roleMayOpenProspectFile,
   marketingStatusForStage,
   navForRole,
   roleMayRunSalesActions,
   onboardingComplete,
-  PIPELINE_STAGES,
+  STAFF_PIPELINE_STAGES,
   procurementHandoffGaps,
   procurementMetrics,
   salesHandoffGaps,
@@ -33,6 +34,8 @@ import {
   STAGE_LABELS,
   stageFromLegacy,
   stagesVisibleToRole,
+  staffPipelineStage,
+  staffStageChoices,
   comparePipelineProspects,
   filterPipelineProspects,
   pipelineProspectMatchesQuery,
@@ -60,11 +63,19 @@ describe('marketing pipeline scores and stages', () => {
     assert.equal(marketingStatusForStage('responded'), 'contacted')
   })
 
-  it('requires a follow-up date until the prospect is won or lost', () => {
-    assert.match(followUpError('researching', '') || '', /follow-up/)
+  it('treats follow-up dates as optional and only set by hand', () => {
+    assert.equal(followUpError('researching', ''), null)
+    assert.equal(followUpError('researching', null), null)
     assert.equal(followUpError('negotiation', '2026-11-02T15:00:00.000Z'), null)
+    assert.match(followUpError('contacted', 'not-a-date') || '', /valid date/)
     assert.equal(followUpError('won', null), null)
     assert.equal(followUpError('lost_nurture', null), null)
+    const pipeline = readFileSync('src/components/admin/MarketingPipeline.tsx', 'utf8')
+    const followStart = pipeline.indexOf('<span className="font-medium">Follow-up</span>')
+    assert.notEqual(followStart, -1)
+    const followBlock = pipeline.slice(followStart, pipeline.indexOf('Lead source', followStart))
+    assert.match(followBlock, /datetime-local/)
+    assert.doesNotMatch(followBlock, /required/)
   })
 
   it('advances early leads when a consultation is booked and leaves closed deals', () => {
@@ -75,6 +86,21 @@ describe('marketing pipeline scores and stages', () => {
     assert.equal(stageAfterOutboundEmail('responded'), 'responded')
     assert.equal(stageAfterProspectReply('contacted'), 'responded')
     assert.equal(stageAfterProspectReply('proposal_sent'), null)
+  })
+
+  it('hides Responded and Meeting scheduled from staff stage choices', () => {
+    assert.equal(staffPipelineStage('responded'), 'contacted')
+    assert.equal(staffPipelineStage('meeting_scheduled'), 'contacted')
+    assert.equal(staffPipelineStage('proposal_sent'), 'proposal_sent')
+    const admin = staffStageChoices('admin', 'contacted')
+    assert.equal(admin.includes('responded' as typeof admin[number]), false)
+    assert.equal(admin.includes('meeting_scheduled' as typeof admin[number]), false)
+    assert.deepEqual(admin, [...STAFF_PIPELINE_STAGES])
+    const prospect = readFileSync('src/components/admin/ProspectFile.tsx', 'utf8')
+    const stageStart = prospect.indexOf('<span className="font-medium">Pipeline stage</span>')
+    const stageBlock = prospect.slice(stageStart, prospect.indexOf('{editing ? (', stageStart))
+    assert.match(stageBlock, /staffStageChoices/)
+    assert.doesNotMatch(stageBlock, /PIPELINE_STAGES/)
   })
 })
 
@@ -218,11 +244,12 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Pipeline', 'Outreach', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Partners', 'Messages', 'Settings']
+      ['Today', 'Calendar', 'Pipeline', 'Outreach', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Partners', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
       '/admin',
+      '/admin/calendar',
       '/admin/pipeline',
       '/admin/outreach',
       '/admin/todos',
@@ -233,6 +260,7 @@ describe('marketing role handoffs and navigation', () => {
     ])
     assert.deepEqual(navForRole('sales_closer').map((item) => item.href), [
       '/admin',
+      '/admin/calendar',
       '/admin/pipeline',
       '/admin/outreach',
       '/admin/todos',
@@ -244,6 +272,7 @@ describe('marketing role handoffs and navigation', () => {
     // Client relations sees Content Kit
     assert.deepEqual(navForRole('client_relations').map((item) => item.href), [
       '/admin',
+      '/admin/calendar',
       '/admin/pipeline',
       '/admin/clients',
       '/admin/todos',
@@ -252,6 +281,7 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/settings',
     ])
     assert.deepEqual(navForRole('credit_manager').map((item) => item.href), [
+      '/admin/calendar',
       '/admin/credit-funding',
       '/admin/todos',
       '/admin/messages',
@@ -289,6 +319,11 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/clients'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/pipeline/abc'), false)
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/calendar'), true)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/calendar'), true)
+    assert.equal(roleMayOpenProspectFile('sales_closer'), true)
+    assert.equal(roleMayOpenProspectFile('client_relations'), false)
+    assert.equal(roleMayOpenProspectFile('credit_manager'), false)
     // Client relations can access Content Kit
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/content-kit'), true)
     // Client relations cannot access Sales Kit
@@ -329,7 +364,9 @@ describe('marketing role handoffs and navigation', () => {
 
     const adminStages = boardLanes('admin').flatMap((lane) => lane.stages)
     assert.equal(new Set(adminStages).size, adminStages.length)
-    assert.deepEqual([...adminStages].sort(), [...PIPELINE_STAGES].sort())
+    assert.equal(salesStages.includes('responded'), false)
+    assert.equal(salesStages.includes('meeting_scheduled'), false)
+    assert.deepEqual([...adminStages].sort(), [...STAFF_PIPELINE_STAGES].sort())
     assert.deepEqual(boardLanes(null).flatMap((lane) => lane.stages), adminStages)
     assert.deepEqual(boardLanes('unknown').flatMap((lane) => lane.stages), adminStages)
   })
@@ -365,6 +402,19 @@ describe('marketing role handoffs and navigation', () => {
     assert.ok(comparePipelineProspects(rows[2], rows[1]) < 0)
     assert.equal(prospectVisibleInBoardStage('sales_closer', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), false)
     assert.equal(prospectVisibleInBoardStage('admin', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'meeting_scheduled' }, 'contacted'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'responded' }, 'contacted'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'meeting_scheduled' }, 'meeting_scheduled'), false)
+    assert.deepEqual(
+      filterPipelineProspects(
+        [
+          { id: 'r', business: 'Replied Bakery', contactName: 'Rae', stage: 'responded' as const, score: 8, followUpAt: null },
+          { id: 'm', business: 'Meet Cafe', contactName: 'Mo', stage: 'meeting_scheduled' as const, score: 7, followUpAt: null },
+        ],
+        { stage: 'contacted' }
+      ).map((row) => row.id),
+      ['r', 'm']
+    )
   })
 
   it('lists pipeline businesses in a searchable list with a compact board fallback', () => {

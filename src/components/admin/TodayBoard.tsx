@@ -22,7 +22,6 @@ type MarketingToday = {
   handoffs: { id: string; business: string; stage: PipelineStage; href: string }[]
   billable?: BillableDeal[]
   meetings?: JoinableMeeting[]
-  calendarEvents: { id: string; summary: string; start: string; htmlLink: string; meetLink?: string }[]
   metrics: { label: string; value: string }[]
   workspaceConnected: boolean
 }
@@ -92,34 +91,7 @@ function DealRow({
   )
 }
 
-function CalendarRow({
-  href,
-  summary,
-  time,
-}: {
-  href: string
-  summary: string
-  time: string
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="flex items-center gap-3 rounded-xl px-3 py-2.5 -mx-1 transition-all hover:bg-white/80 hover:shadow-sm group"
-    >
-      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm group-hover:bg-blue-200 transition-colors">
-        📅
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-brand-text truncate">{summary}</div>
-        <div className="text-xs text-brand-muted">{time}</div>
-      </div>
-    </a>
-  )
-}
-
-type SectionVariant = 'followups' | 'attention' | 'calendar'
+type SectionVariant = 'followups' | 'attention'
 
 const sectionStyles: Record<SectionVariant, { icon: string; accent: string; bg: string; iconBg: string }> = {
   followups: {
@@ -133,12 +105,6 @@ const sectionStyles: Record<SectionVariant, { icon: string; accent: string; bg: 
     accent: 'border-l-orange-500',
     bg: 'bg-gradient-to-br from-orange-50/50 to-white',
     iconBg: 'bg-orange-100',
-  },
-  calendar: {
-    icon: '📅',
-    accent: 'border-l-blue-500',
-    bg: 'bg-gradient-to-br from-blue-50/50 to-white',
-    iconBg: 'bg-blue-100',
   },
 }
 
@@ -217,14 +183,14 @@ export default function TodayBoard() {
 
   const meetings = board.meetings || []
   const showMeetings = board.role === 'sales_closer' || board.role === 'admin'
-  const totalItems = board.followUps.length + board.handoffs.length + board.calendarEvents.length
+  const totalItems = board.followUps.length + board.handoffs.length
 
   return (
     <div>
       <div className="mb-8">
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-1">Today</h1>
         <p className="text-sm text-brand-muted">
-          Follow-ups, handoffs, meetings, and the sales calendar for the marketing pipeline.
+          Follow-ups, handoffs, and meetings for the marketing pipeline. Open Calendar for the week and month.
         </p>
       </div>
 
@@ -334,27 +300,6 @@ export default function TodayBoard() {
                     business={row.business}
                     badge={STAGE_LABELS[row.stage]}
                     badgeColor="orange"
-                  />
-                ))}
-              </div>
-            )}
-          </Section>
-
-          <Section
-            title="Today's Calendar"
-            count={board.calendarEvents.length}
-            variant="calendar"
-            empty="No events on the sales calendar today."
-            className="lg:col-span-2"
-          >
-            {board.calendarEvents.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                {board.calendarEvents.map((event) => (
-                  <CalendarRow
-                    key={event.id}
-                    href={event.meetLink || event.htmlLink || '#'}
-                    summary={event.summary}
-                    time={formatWhen(event.start)}
                   />
                 ))}
               </div>

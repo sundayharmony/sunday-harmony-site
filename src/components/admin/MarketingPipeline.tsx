@@ -388,7 +388,13 @@ export default function MarketingPipeline() {
           <label className="text-sm">
             <span className="font-medium">Follow-up</span>
             <span className="mb-1 block text-xs text-brand-muted">{FIELD_PURPOSES.followUp}</span>
-            <input type="datetime-local" required className={inputClass} value={form.followUpAt} onChange={(event) => setForm({ ...form, followUpAt: event.target.value })} />
+            <input
+              type="datetime-local"
+              data-testid="follow-up-input"
+              className={inputClass}
+              value={form.followUpAt}
+              onChange={(event) => setForm({ ...form, followUpAt: event.target.value })}
+            />
           </label>
           <label className="text-sm">
             <span className="font-medium">Lead source</span>

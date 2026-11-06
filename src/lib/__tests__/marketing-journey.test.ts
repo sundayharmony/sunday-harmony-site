@@ -187,6 +187,7 @@ describe('Lumen & Co. Floral continuity', () => {
     const salesToday = await loadMarketingToday('sales_closer')
     assert.equal(salesToday.handoffs.some((row) => row.business === 'Lumen & Co. Floral'), true)
     assert.equal(salesToday.workspaceConnected, false)
+    assert.equal('calendarEvents' in salesToday, false)
 
     await saveMarketingProspect(id, { stage: 'contacted' }, sales)
     await saveMarketingProspect(id, { stage: 'responded' }, sales)
