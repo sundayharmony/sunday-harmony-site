@@ -7,16 +7,16 @@ export default function PartnerLogos({ logos }: { logos: PartnerLogo[] }) {
   const loop = sliding ? [...logos, ...logos] : logos
 
   return (
-    <section className="bg-accent-soft/60 border-y border-brand-border py-20" aria-label="Partners">
+    <section className="bg-accent-soft/60 border-y border-brand-border py-20" aria-label="Case studies">
       <div className="max-w-[1100px] mx-auto px-7">
         <SectionHeader
-          label="Partners"
+          label="Case studies"
           title={
             <>
               Businesses we <span className="gold-text">work alongside</span>
             </>
           }
-          description="Logos from partners whose profiles are active. The strip keeps moving so each mark gets a turn."
+          description="Logos from active partner case studies. The strip keeps moving so each mark gets a turn."
         />
       </div>
       <div className="partner-logo-window mt-12 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">

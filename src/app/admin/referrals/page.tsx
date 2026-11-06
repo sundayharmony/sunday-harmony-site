@@ -1,7 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import AdminClientReferrersPanel from '@/components/admin/AdminClientReferrersPanel'
+import AdminPartnerAccountsPanel from '@/components/admin/AdminPartnerAccountsPanel'
 import ReferrerPayoutForm from '@/components/admin/ReferrerPayoutForm'
 import StatCard from '@/components/ui/StatCard'
 import { creditReferralStatusLabel, formatCommissionCents } from '@/lib/referrals'
@@ -110,7 +113,41 @@ function payoutLine(row: CreditReferralRow): string {
   return `${paid} · ${formatCommissionCents(row.amountCents)}`
 }
 
+function ReferralsTabLink({
+  href,
+  current,
+  children,
+}: {
+  href: string
+  current: boolean
+  children: ReactNode
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={current ? 'page' : undefined}
+      className={`px-4 py-2 text-sm font-semibold rounded-lg border ${
+        current
+          ? 'bg-brand-text text-white border-brand-text'
+          : 'bg-white text-brand-muted border-brand-border hover:bg-neutral-50'
+      }`}
+    >
+      {children}
+    </Link>
+  )
+}
+
 export default function AdminReferralsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-brand-dim">Loading referrals…</p>}>
+      <AdminReferralsWorkspace />
+    </Suspense>
+  )
+}
+
+function AdminReferralsWorkspace() {
+  const searchParams = useSearchParams()
+  const tab = searchParams.get('tab') === 'partners' ? 'partners' : 'clients'
   const [data, setData] = useState<OverviewPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -131,7 +168,7 @@ export default function AdminReferralsPage() {
       .finally(() => setLoading(false))
   }, [load])
 
-  const rows = data?.creditReferrals || []
+  const rows = useMemo(() => data?.creditReferrals || [], [data])
   const referrers = useMemo(() => (data ? referrerCards(data) : []), [data])
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -166,20 +203,28 @@ export default function AdminReferralsPage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-brand-dim">Loading referral payouts…</p>
+  if (tab === 'clients' && loading) return (
+    <div>
+      <ReferralsHeader tab={tab} />
+      <p className="text-sm text-brand-dim">Loading referral payouts…</p>
+    </div>
+  )
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Referrals</h1>
-        <p className="text-sm text-brand-muted max-w-2xl">
-          Clients who referred someone to credit repair. Enter an amount and choose Send payout to pay that referrer through Stripe. Mark paid only records a payment you already made yourself. It does not send money.
-        </p>
-      </div>
-
+      <ReferralsHeader tab={tab} />
+      {tab === 'partners' ? <AdminPartnerAccountsPanel /> : null}
+      {tab === 'clients' ? (
+      <>
       {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
       {notice && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">{notice}</div>}
 
+      <p className="text-sm text-brand-muted mb-6 max-w-2xl">
+        Clients who referred someone to credit repair. Enter an amount and choose Send payout to pay that referrer through Stripe. Mark paid only records a payment you already made yourself. It does not send money.
+      </p>
+      <div className="mb-8">
+        <AdminClientReferrersPanel />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard label="Referral clients" value={data?.overview.referralClients ?? 0} />
         <StatCard label="Applications" value={data?.overview.submitted ?? 0} />
@@ -296,6 +341,27 @@ export default function AdminReferralsPage() {
           )}
         </div>
       )}
+      </>
+      ) : null}
+    </div>
+  )
+}
+
+function ReferralsHeader({ tab }: { tab: 'clients' | 'partners' }) {
+  return (
+    <div className="mb-6">
+      <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-2">Referrals</h1>
+      <p className="text-sm text-brand-muted max-w-2xl mb-4">
+        Client referrers and partner accounts share this page. Partner logos for the About page live on Case Study.
+      </p>
+      <nav aria-label="Referral type" className="flex flex-wrap gap-2">
+        <ReferralsTabLink href="/admin/referrals" current={tab === 'clients'}>
+          Client referrers
+        </ReferralsTabLink>
+        <ReferralsTabLink href="/admin/referrals?tab=partners" current={tab === 'partners'}>
+          Partners
+        </ReferralsTabLink>
+      </nav>
     </div>
   )
 }

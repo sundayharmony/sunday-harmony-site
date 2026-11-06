@@ -244,7 +244,7 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Calendar', 'Pipeline', 'Outreach', 'Clients', 'Credit & Funding', 'Referrals', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Partners', 'Messages', 'Settings']
+      ['Today', 'Calendar', 'Pipeline', 'Outreach', 'Clients', 'Credit & Funding', 'Referrals', 'Case Study', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
@@ -288,11 +288,15 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/settings',
     ])
     assert.equal(navForRole('admin').some((item) => item.href === '/admin/referrals' && item.label === 'Referrals'), true)
+    assert.equal(navForRole('admin').some((item) => item.href === '/admin/case-study' && item.label === 'Case Study'), true)
+    assert.equal(navForRole('admin').some((item) => item.href === '/admin/partners'), false)
     assert.equal(navForRole('credit_manager').some((item) => item.href === '/admin/referrals'), false)
+    assert.equal(navForRole('credit_manager').some((item) => item.href === '/admin/case-study'), false)
     assert.equal(navForRole('lead_procurement').some((item) => item.href === '/admin/referrals'), false)
     assert.equal(navForRole('sales_closer').some((item) => item.href === '/admin/referrals'), false)
     assert.equal(navForRole('client_relations').some((item) => item.href === '/admin/referrals'), false)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/referrals'), false)
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/case-study'), false)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/referrals'), false)
     assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/messages'), true)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/messages'), true)
