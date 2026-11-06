@@ -4,10 +4,10 @@ import { describe, it } from 'node:test'
 import {
   CREDIT_REPAIR_STEPS,
   FUNDING_STEPS,
-  SHAREABLE_RESOURCES,
   TALKING_POINTS,
   TOOLKIT_CONTENT_SOURCES,
   TOOLKIT_DEFINITIONS,
+  TOOLKIT_NEXT_STEP,
   TOOLKIT_SECTIONS,
   collectToolkitPlainText,
 } from '../partner-toolkit'
@@ -65,17 +65,18 @@ describe('partner toolkit content', () => {
     }
   })
 
-  it('points partners at the existing referral path and public pages', () => {
-    assert.deepEqual(
-      SHAREABLE_RESOURCES.map((item) => item.href),
-      ['/partner', '/credit', '/funding', '/build-fund']
-    )
+  it('points partners at sharing their QR code or intake link', () => {
+    assert.equal(TOOLKIT_NEXT_STEP.title, 'Share your QR code or intake link.')
+    assert.match(TOOLKIT_NEXT_STEP.lead, /client gets started/i)
     assert.equal(
-      TALKING_POINTS.some((point) => /share your Sunday Harmony referral link/i.test(point.text)),
+      TALKING_POINTS.some((point) => /share your QR code or intake link/i.test(point.text)),
       true
     )
+    assert.doesNotMatch(collectToolkitPlainText(), /\/build-fund/)
+    assert.match(source('src/components/partner/PartnerToolkit.tsx'), /PartnerToolkitNextStep/)
+    assert.match(source('src/components/partner/PartnerToolkitNextStep.tsx'), /ReferralLinkQrPanel/)
     assert.equal(
-      TOOLKIT_SECTIONS.some((section) => section.id === 'what-to-say'),
+      TOOLKIT_SECTIONS.some((section) => section.id === 'next-step'),
       true
     )
   })

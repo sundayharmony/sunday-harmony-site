@@ -227,7 +227,7 @@ export const TALKING_POINTS = [
   {
     id: 'how-to-refer',
     label: 'How to refer',
-    text: 'If someone wants help, share your Sunday Harmony referral link. They complete their own intake.',
+    text: 'If someone wants help, share your QR code or intake link. They complete their own form.',
   },
 ] as const
 
@@ -277,7 +277,7 @@ export const TOOLKIT_FAQS = [
   },
   {
     q: 'What do I send people?',
-    a: 'Your referral link on the Dashboard. After Sunday Harmony approves your account, that link opens the personal credit intake. The person submits their own form.',
+    a: 'Share your QR code or intake link. After Sunday Harmony approves your account, that starts the personal credit intake. The person submits their own form.',
   },
   {
     q: 'Is the funding form the same as credit repair?',
@@ -285,32 +285,11 @@ export const TOOLKIT_FAQS = [
   },
 ] as const
 
-export const SHAREABLE_RESOURCES = [
-  {
-    id: 'referral-dashboard',
-    title: 'Your referral link and QR',
-    href: '/partner',
-    note: 'On the Dashboard tab. Share the link. Do not submit the form for them. The link stays off until Sunday Harmony approves your account.',
-  },
-  {
-    id: 'credit-page',
-    title: 'Personal credit page',
-    href: '/credit',
-    note: 'Public education. This is the intake path your tracked partner link uses.',
-  },
-  {
-    id: 'funding-page',
-    title: 'Business funding page',
-    href: '/funding',
-    note: 'Public education and a separate business intake. It is not your tracked partner link.',
-  },
-  {
-    id: 'build-fund',
-    title: 'Build & Fund overview',
-    href: '/build-fund',
-    note: 'A simple public choice between personal credit and business funding.',
-  },
-] as const
+export const TOOLKIT_NEXT_STEP = {
+  title: 'Share your QR code or intake link.',
+  lead: 'That is how a client gets started. They fill out their own form.',
+  loadError: 'Open the Dashboard tab to copy your intake link or QR code.',
+} as const
 
 export const TOOLKIT_UNAVAILABLE_FACTS = [
   'This page does not list partner pay, prices, or special eligibility.',
@@ -334,7 +313,9 @@ export function collectToolkitPlainText(): string {
     ...TALKING_POINTS.flatMap((item) => [item.label, item.text]),
     ...WHAT_NOT_TO_PROMISE.flatMap((item) => [item.title, item.body]),
     ...TOOLKIT_FAQS.flatMap((item) => [item.q, item.a]),
-    ...SHAREABLE_RESOURCES.flatMap((item) => [item.title, item.href, item.note]),
+    TOOLKIT_NEXT_STEP.title,
+    TOOLKIT_NEXT_STEP.lead,
+    TOOLKIT_NEXT_STEP.loadError,
     ...TOOLKIT_UNAVAILABLE_FACTS,
   ].join('\n')
 }

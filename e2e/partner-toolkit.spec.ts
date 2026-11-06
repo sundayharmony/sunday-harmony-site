@@ -40,6 +40,11 @@ async function setRoleCookie(
   ])
 }
 
+const QR_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+)
+
 async function mockPartnerDashboard(page: Page) {
   await page.route('**/api/partner', async (route) => {
     if (route.request().method() !== 'GET') {
@@ -62,6 +67,13 @@ async function mockPartnerDashboard(page: Page) {
         summary: { clicks: 3, submitted: 1, inProgress: 1, completed: 0 },
         referrals: [],
       },
+    })
+  })
+  await page.route('**/api/referral-qr**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: QR_PNG,
     })
   })
 }
@@ -118,8 +130,15 @@ test('partner toolkit tab, copy controls, and diagrams work on desktop and 390px
   await page.getByRole('button', { name: 'Copy: What credit repair does' }).click()
   await expect(page.getByRole('button', { name: 'Copied: What credit repair does' })).toBeVisible()
 
-  await expect(page.getByRole('link', { name: 'Open Your referral link and QR' })).toHaveAttribute('href', '/partner')
+  await page.getByRole('navigation', { name: 'Toolkit sections' }).getByRole('link', { name: 'Next step' }).click()
+  await expect(page.getByRole('heading', { name: 'Share your QR code or intake link.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your intake link' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Download QR code' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'QR code for Your intake link' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Open Your referral/ })).toHaveCount(0)
   await page.screenshot({ path: `${ARTIFACTS}/partner-toolkit-desktop.png`, fullPage: true })
+  await page.locator('#next-step').screenshot({ path: `${ARTIFACTS}/partner-toolkit-next-step-desktop.png` })
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/partner/toolkit')
@@ -130,10 +149,12 @@ test('partner toolkit tab, copy controls, and diagrams work on desktop and 390px
   await expect(page.getByRole('heading', { name: 'Secure intake' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Take action' })).toBeVisible()
   await expect(page.getByText('How the pieces fit')).toBeVisible()
-  await page.getByRole('navigation', { name: 'Toolkit sections' }).getByRole('link', { name: 'How they connect' }).click()
-  await expect(page.getByRole('heading', { name: /Personal credit can affect some business loans/ })).toBeVisible()
+  await page.getByRole('navigation', { name: 'Toolkit sections' }).getByRole('link', { name: 'Next step' }).click()
+  await expect(page.getByRole('heading', { name: 'Share your QR code or intake link.' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible()
   expect(await page.evaluate(overflowAmount)).toBeLessThanOrEqual(8)
   await page.screenshot({ path: `${ARTIFACTS}/partner-toolkit-mobile-390.png`, fullPage: true })
+  await page.locator('#next-step').screenshot({ path: `${ARTIFACTS}/partner-toolkit-next-step-mobile-390.png` })
 
   await nav.getByRole('link', { name: 'Dashboard' }).click()
   await expect(page.getByRole('heading', { name: 'Partner dashboard' })).toBeVisible()

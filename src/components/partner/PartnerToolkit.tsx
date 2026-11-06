@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import Link from 'next/link'
 import {
   CONNECTION_POINTS,
   CREDIT_REPAIR_LIMITS,
@@ -7,17 +6,17 @@ import {
   FUNDING_LENDER_LOOKS_AT,
   FUNDING_OPTIONS,
   FUNDING_STEPS,
-  SHAREABLE_RESOURCES,
   TALKING_POINTS,
   TOOLKIT_DEFINITIONS,
   TOOLKIT_FAQS,
   TOOLKIT_INTRO,
+  TOOLKIT_NEXT_STEP,
   TOOLKIT_SECTIONS,
-  TOOLKIT_UNAVAILABLE_FACTS,
   WHAT_NOT_TO_PROMISE,
   WHO_DOES_WHAT,
 } from '@/lib/partner-toolkit'
 import { CopyTextButton, PrintToolkitButton } from '@/components/partner/PartnerToolkitActions'
+import PartnerToolkitNextStep from '@/components/partner/PartnerToolkitNextStep'
 import {
   ConnectionFlow,
   DefinitionIcon,
@@ -207,32 +206,9 @@ export default function PartnerToolkit() {
 
       <section id="next-step" className={`${sectionClass} mb-8`}>
         <SectionLabel>Next step</SectionLabel>
-        <h2 className={h2Class}>Share the existing referral path. Do not submit a live application.</h2>
-        <p className="max-w-[40rem] text-lg leading-relaxed text-brand-muted">
-          Your tracked partner link is on the Dashboard. It opens the personal credit intake after approval. These public pages are safe to share as education.
-        </p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {SHAREABLE_RESOURCES.map((item) => (
-            <article key={item.id} className={cardClass}>
-              <h3 className="text-xl font-bold text-brand-text">{item.title}</h3>
-              <p className="mt-2 text-base leading-relaxed text-brand-muted">{item.note}</p>
-              <p className="mt-3 font-mono text-base text-brand-text">{item.href}</p>
-              <Link
-                href={item.href}
-                className="mt-4 inline-flex min-h-11 items-center text-base font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              >
-                Open {item.title}
-              </Link>
-            </article>
-          ))}
-        </div>
-        <div className="rounded-2xl border border-brand-border bg-white px-5 py-4">
-          {TOOLKIT_UNAVAILABLE_FACTS.map((line) => (
-            <p key={line} className="text-base leading-relaxed text-brand-muted">
-              {line}
-            </p>
-          ))}
-        </div>
+        <h2 className={h2Class}>{TOOLKIT_NEXT_STEP.title}</h2>
+        <p className="max-w-[40rem] text-lg leading-relaxed text-brand-muted">{TOOLKIT_NEXT_STEP.lead}</p>
+        <PartnerToolkitNextStep />
       </section>
     </main>
   )
