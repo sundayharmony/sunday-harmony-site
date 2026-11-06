@@ -15,7 +15,8 @@ import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility } from '../outreach/eligibility'
 import { enqueueLeadSnapshots } from '../outreach/enqueue'
-import { extractGroundedFacts } from '../outreach/facts'
+import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
+import { prospectGreetingIsUsable } from '../outreach/greeting'
 import type { LeadSnapshot } from '../outreach/types'
 import { buildHandoff } from '../outreach/handoff'
 import { buildOutreachMime, mimeContainsAttachment } from '../outreach/mime'
@@ -117,6 +118,27 @@ describe('grounded draft copy', () => {
     assert.doesNotMatch(draft.text, /Hi Name/)
     assert.doesNotMatch(draft.bodyText, /Atlantic County|South Jersey|—/)
   })
+
+  it('rejects placeholder first names such as Not and will not enqueue or send them', async () => {
+    assert.equal(usableFirstName('Not'), null)
+    assert.equal(usableFirstName('Not found'), null)
+    assert.equal(usableFirstName('Christopher'), 'Christopher')
+    const facts = extractGroundedFacts({
+      business: 'Galloway Nursery',
+      first_name: 'Not',
+      marketing_opportunity: 'GoDaddy site',
+    })
+    assert.equal(facts?.firstName, null)
+    const draft = renderDraft({ facts: facts!, unsubscribeUrl: 'https://example.test/u/x' })
+    assert.equal(prospectGreetingIsUsable(draft.html, facts?.firstName), false)
+    const store = createMemoryOutreachStore({
+      leads: [lead({ id: 'no-name', firstName: 'Not', business: 'Galloway Nursery', email: 'emma@gallowaynursery.test' })],
+    })
+    const result = await enqueueLeadSnapshots(store, await store.listEligibleLeadCandidates(), { mxResolver: mxOk })
+    assert.equal(result.enqueued, 0)
+    assert.equal((await store.listQueue())[0]?.eligibilityReason, 'missing_first_name')
+    assert.equal((await store.listQueue())[0]?.status, 'blocked_review')
+  })
 })
 
 describe('eligibility, suppression, and unverified reports', () => {
@@ -147,6 +169,24 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal((await store.getLead('d'))?.lastContactedAt || null, null)
     const wise = EMAIL_BOT_UNVERIFIED_REPORTS.find((row) => row.business === 'Wise Bean')
     assert.equal(wise?.outcome, 'null_mx')
+  })
+
+  it('holds observations that would put a prospect email in the body', async () => {
+    const store = createMemoryOutreachStore({
+      leads: [
+        lead({
+          id: 'email-in-note',
+          firstName: 'John',
+          business: 'County Seat Florist',
+          email: 'jonjenk@aol.test',
+          marketingOpportunity: 'Personal AOL email (jonjenk@aol.com) as business contact',
+        }),
+      ],
+    })
+    const result = await enqueueLeadSnapshots(store, await store.listEligibleLeadCandidates(), { mxResolver: mxOk })
+    assert.equal(result.enqueued, 0)
+    assert.equal((await store.listQueue())[0]?.status, 'blocked_review')
+    assert.equal((await store.listQueue())[0]?.eligibilityReason, 'observation_contains_email')
   })
 
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
@@ -316,6 +356,61 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
       assert.equal(third.kind, 'accepted')
       assert.equal(provider.sendCount, 3)
       assert.equal((await store.listQueue()).filter((row) => row.status === 'accepted').length, 1)
+    } finally {
+      if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
+      else process.env.OUTREACH_KILL_SWITCH = originalKill
+      if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
+      else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
+    }
+  })
+
+  it('holds queued Hi Not greetings and does not retry missing Gmail send scopes', async () => {
+    const store = createMemoryOutreachStore({ leads: [lead({})] })
+    await store.updateSettings({
+      killSwitch: false,
+      activatedAt: '2026-11-05T00:00:00.000Z',
+      physicalMailingAddress: '1 Example Street, City, ST 00000',
+      dailySendLimit: 10,
+      historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
+    })
+    const template = await store.getLatestTemplate('camp-prospect-intro')
+    assert.ok(template)
+    await store.approveTemplate(template.id, 'admin', draftContentSha256(), store.now())
+    await enqueueLeadSnapshots(store, [lead({})], { mxResolver: mxOk })
+    const [item] = await store.listQueue()
+    await store.compareAndSwap(item.id, 'pending', {
+      htmlBody: item.htmlBody.replace('Hi Christopher,', 'Hi Not,'),
+      groundedFacts: { ...item.groundedFacts, firstName: 'Not' },
+    })
+    const originalKill = process.env.OUTREACH_KILL_SWITCH
+    const originalAllow = process.env.OUTREACH_ACTIVATION_ALLOWED
+    process.env.OUTREACH_KILL_SWITCH = 'false'
+    process.env.OUTREACH_ACTIVATION_ALLOWED = 'true'
+    try {
+      const provider = createMockProvider()
+      const held = await dispatchOutreachBatch({ store, provider, mxResolver: mxOk, senderConfigured: true })
+      assert.equal(held.accepted, 0)
+      assert.equal(provider.sendCount, 0)
+      assert.equal((await store.getQueueItem(item.id))?.status, 'needs_review')
+      assert.equal((await store.getQueueItem(item.id))?.eligibilityReason, 'unusable_greeting')
+
+      const gmail = createGmailOutreachProvider({
+        sendMime: async () => {
+          throw new Error('Request had insufficient authentication scopes.')
+        },
+      })
+      const scoped = await gmail.send(queueItemPayload(
+        item,
+        OUTREACH_SENDER_EMAIL,
+        'https://example.test/u/x',
+        Buffer.from('%PDF')
+      ))
+      assert.equal(scoped.kind, 'rejected')
+      if (scoped.kind === 'rejected') {
+        assert.equal(scoped.retryable, false)
+        assert.equal(scoped.code, 'gmail_insufficient_scopes')
+      }
     } finally {
       if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
       else process.env.OUTREACH_KILL_SWITCH = originalKill

@@ -1,5 +1,6 @@
 import { normalizeBusinessName, normalizeEmail } from './email-address'
-import { extractGroundedFacts } from './facts'
+import { extractGroundedFacts, usableFirstName } from './facts'
+import { prospectObservationIsSafe } from './greeting'
 import type { MxLookupResult } from './mx'
 import { mxBlocksSend } from './mx'
 import type { LeadSnapshot, QueueItem, ReconciliationItem, Suppression } from './types'
@@ -52,6 +53,12 @@ export function evaluateEligibility(input: {
     website: input.lead.website,
   })) {
     return { ok: false, status: 'ineligible', reason: 'missing_business' }
+  }
+  if (!usableFirstName(input.lead.firstName)) {
+    return { ok: false, status: 'blocked_review', reason: 'missing_first_name' }
+  }
+  if (!prospectObservationIsSafe(input.lead.marketingOpportunity)) {
+    return { ok: false, status: 'blocked_review', reason: 'observation_contains_email' }
   }
   if (input.existingQueue) {
     if (input.existingQueue.status === 'accepted' || input.existingQueue.status === 'delivered') {

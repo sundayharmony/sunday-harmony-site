@@ -30,12 +30,31 @@ export type GroundedFacts = {
   website: string | null
 }
 
-const PLACEHOLDER_NAMES = new Set(['name', 'there', 'friend', 'owner', 'contact', 'team'])
+const PLACEHOLDER_NAMES = new Set([
+  'name',
+  'there',
+  'friend',
+  'owner',
+  'contact',
+  'team',
+  'not',
+  'none',
+  'unknown',
+  'missing',
+  'n/a',
+  'na',
+  'tbd',
+  'test',
+  'admin',
+  'info',
+  'null',
+])
 
 export function usableFirstName(raw?: string | null): string | null {
   const value = (raw || '').trim()
   if (!value) return null
   if (value.includes('&') || value.includes('/')) return null
+  if (/^(not\s+(found|available|provided|listed|sure)|n\/a|none|unknown)/i.test(value)) return null
   const first = value.split(/\s+/)[0]
   if (!first) return null
   if (PLACEHOLDER_NAMES.has(first.toLowerCase())) return null

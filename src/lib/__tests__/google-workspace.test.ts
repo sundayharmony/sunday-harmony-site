@@ -9,6 +9,8 @@ import {
   proposalDocumentText,
   prospectReplied,
   sendWorkspaceEmail,
+  tokenScopesIncludeGmailSend,
+  workspaceGmailSendReady,
 } from '../google-workspace'
 
 describe('google workspace mappers', () => {
@@ -20,6 +22,33 @@ describe('google workspace mappers', () => {
     assert.match(scopes, /drive\.file/)
     assert.match(scopes, /documents/)
     assert.match(scopes, /contacts/)
+  })
+
+  it('fails closed when the live token is missing gmail.send', async () => {
+    assert.equal(
+      tokenScopesIncludeGmailSend('https://www.googleapis.com/auth/calendar.events'),
+      false
+    )
+    assert.equal(
+      tokenScopesIncludeGmailSend(
+        'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.send'
+      ),
+      true
+    )
+    process.env.GOOGLE_CALENDAR_CLIENT_ID = 'id'
+    process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'secret'
+    process.env.GOOGLE_CALENDAR_REFRESH_TOKEN = 'refresh'
+    process.env.GOOGLE_CALENDAR_ID = 'sales@sundayharmony.com'
+    const ready = await workspaceGmailSendReady(async (url) => {
+      if (url.includes('oauth2.googleapis.com/token') && !url.includes('tokeninfo')) {
+        return new Response(JSON.stringify({ access_token: 'token' }), { status: 200 })
+      }
+      return new Response(
+        JSON.stringify({ scope: 'https://www.googleapis.com/auth/calendar.events' }),
+        { status: 200 }
+      )
+    })
+    assert.deepEqual(ready, { ok: false, reason: 'gmail_send_scope' })
   })
 
   it('builds a base64url Gmail message and detects a prospect reply', () => {

@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { OUTREACH_BACKOFF_SECONDS, OUTREACH_SENDER_EMAIL } from './constants'
+import { workspaceGmailSendReady } from '@/lib/google-workspace'
 import { evaluateActivationBlockers, sendsPermitted, utcDayStartIso, type GateInput } from './activation'
 import { resolveCompanyPresentationPdf } from './attachment'
 import { claimNextPending, recoverExpiredInFlight } from './claims'
 import { dispatchRecheck } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
+import { prospectGreetingIsUsable, prospectObservationIsSafe } from './greeting'
 import { resolveOutreachProvider } from './gmail-binding'
 import { lookupMx, type MxResolver } from './mx'
 import { stageAfterOutboundEmail, type PipelineStage } from '@/lib/marketing-pipeline'
@@ -98,6 +100,26 @@ export async function dispatchOutreachBatch(input: {
     }
   }
 
+  if (!input.provider) {
+    const gmailReady = await workspaceGmailSendReady()
+    if (!gmailReady.ok) {
+      const code = gmailReady.reason === 'gmail_send_scope' ? 'gmail_send_scope' : 'gmail_unready'
+      const message =
+        code === 'gmail_send_scope'
+          ? 'The website Gmail token does not include gmail.send. Live website send is blocked until the mailbox is reconnected with that scope.'
+          : 'Website Gmail send could not be verified. Live website send is blocked.'
+      return {
+        dispatched: 0,
+        accepted: 0,
+        skippedDisabled: false,
+        blockers: [...blockers, { code, message }],
+        recoveredInFlight,
+        reviewed,
+        details: [gmailReady.reason],
+      }
+    }
+  }
+
   const workerId = input.workerId || `worker-${randomUUID()}`
   const maxAccepted = input.limit ?? 1
   const maxClaims = Math.min(Math.max(maxAccepted * 8, maxAccepted), 80)
@@ -143,6 +165,22 @@ export async function dispatchOutreachBatch(input: {
           : {}),
       })
       details.push(recheck.reason)
+      continue
+    }
+
+    const greetingOk = prospectGreetingIsUsable(claimed.htmlBody, claimed.groundedFacts.firstName)
+    const observationOk = prospectObservationIsSafe(claimed.groundedFacts.observation)
+    if (!greetingOk || !observationOk) {
+      const reason = greetingOk ? 'observation_contains_email' : 'unusable_greeting'
+      await store.compareAndSwap(claimed.id, 'claimed', {
+        status: 'needs_review',
+        eligibilityReason: reason,
+        claimedBy: null,
+        claimedAt: null,
+        leaseExpiresAt: null,
+      })
+      reviewed.push(claimed.id)
+      details.push(reason)
       continue
     }
 
@@ -304,12 +342,18 @@ export async function dispatchOutreachBatch(input: {
       errorMessage: result.kind === 'rejected' ? result.message : result.reason,
       finishedAt: at.toISOString(),
     })
+    const authBlocked = result.kind === 'rejected' && result.code === 'gmail_insufficient_scopes'
     await store.compareAndSwap(inFlight.id, 'in_flight', {
       status: 'needs_review',
-      eligibilityReason: result.kind === 'uncertain' ? result.reason : 'provider_result_not_auto_retried',
+      eligibilityReason: result.kind === 'uncertain'
+        ? result.reason
+        : authBlocked
+          ? 'gmail_insufficient_scopes'
+          : 'provider_result_not_auto_retried',
     })
     reviewed.push(inFlight.id)
-    details.push('needs_review')
+    details.push(authBlocked ? 'gmail_insufficient_scopes' : 'needs_review')
+    if (authBlocked) break
   }
 
   return {

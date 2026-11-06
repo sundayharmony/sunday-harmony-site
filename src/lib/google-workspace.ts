@@ -28,6 +28,31 @@ function requiredEnv(name: string): string {
   return value
 }
 
+export function tokenScopesIncludeGmailSend(scopeHeader: string | null | undefined): boolean {
+  return (scopeHeader || '')
+    .split(/[ ,]+/)
+    .filter(Boolean)
+    .includes('https://www.googleapis.com/auth/gmail.send')
+}
+
+export async function workspaceGmailSendReady(
+  fetchImpl: FetchLike = fetch
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  if (!isGoogleWorkspaceConfigured()) return { ok: false, reason: 'gmail_unconfigured' }
+  try {
+    const token = await getGoogleAccessToken(fetchImpl)
+    const response = await fetchImpl(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`
+    )
+    const payload = (await response.json().catch(() => ({}))) as { scope?: string; error?: string }
+    if (!response.ok) return { ok: false, reason: payload.error || 'gmail_tokeninfo_failed' }
+    if (!tokenScopesIncludeGmailSend(payload.scope)) return { ok: false, reason: 'gmail_send_scope' }
+    return { ok: true }
+  } catch {
+    return { ok: false, reason: 'gmail_probe_failed' }
+  }
+}
+
 export async function getGoogleAccessToken(fetchImpl: FetchLike = fetch): Promise<string> {
   const body = new URLSearchParams({
     client_id: requiredEnv('GOOGLE_CALENDAR_CLIENT_ID'),
