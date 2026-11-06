@@ -9,6 +9,11 @@ export function htmlHasRealUnsubscribe(html: string): boolean {
   return /\/unsubscribe\/[A-Za-z0-9_-]{16,}/.test(html) && !html.includes(PREVIEW_DISABLED)
 }
 
+export function extractUnsubscribeUrl(html: string): string | null {
+  const match = html.match(/https?:\/\/[^\s"'<>]+\/unsubscribe\/[A-Za-z0-9_-]{16,}/)
+  return match ? match[0] : null
+}
+
 export async function ensureQueueUnsubscribeUrl(
   store: OutreachStore,
   item: QueueItem

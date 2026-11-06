@@ -1,17 +1,41 @@
 import { usableFirstName } from './facts'
+import {
+  hasProspectEmail,
+  htmlHasLeakedProspectEmail,
+  prospectCopyLooksInternal,
+} from './observation'
 
-const NAMED_GREETING = /Hi\s+([A-Za-z][A-Za-z'.-]*)\s*,/
-const EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+const NAMED_GREETING = /\b(Hi|Hello)\s+([A-Za-z][A-Za-z'.-]*)\s*,/
+const BARE_GREETING = /\b(Hi|Hello),/
 
 export function prospectGreetingIsUsable(html: string, firstName?: string | null): boolean {
-  if (!usableFirstName(firstName)) return false
   const named = html.match(NAMED_GREETING)
-  if (!named) return false
-  return Boolean(usableFirstName(named[1]))
+  if (named && !usableFirstName(named[2])) return false
+  const name = usableFirstName(firstName)
+  if (name) return Boolean(named && usableFirstName(named[2]))
+  return BARE_GREETING.test(html) && !named
 }
 
 export function prospectObservationIsSafe(text?: string | null): boolean {
   const value = (text || '').trim()
   if (!value) return true
-  return !EMAIL_IN_TEXT.test(value)
+  return !hasProspectEmail(value) && !prospectCopyLooksInternal(value)
+}
+
+export function outboundCopyHoldReason(input: {
+  html: string
+  text?: string | null
+  firstName?: string | null
+  observation?: string | null
+}): string | null {
+  if (!prospectGreetingIsUsable(input.html, input.firstName)) return 'unusable_greeting'
+  const leaked =
+    htmlHasLeakedProspectEmail(input.html) ||
+    htmlHasLeakedProspectEmail(input.text) ||
+    hasProspectEmail(input.observation)
+  if (leaked) return 'observation_contains_email'
+  if (prospectCopyLooksInternal(input.observation) || prospectCopyLooksInternal(input.text)) {
+    return 'observation_internal_notes'
+  }
+  return null
 }

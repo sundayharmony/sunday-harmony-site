@@ -1,5 +1,5 @@
 import { normalizeBusinessName, normalizeEmail } from './email-address'
-import { extractGroundedFacts, usableFirstName } from './facts'
+import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
 import type { MxLookupResult } from './mx'
 import { mxBlocksSend } from './mx'
@@ -43,7 +43,7 @@ export function evaluateEligibility(input: {
   if (!email) {
     return { ok: false, status: 'ineligible', reason: 'invalid_or_missing_email' }
   }
-  if (!extractGroundedFacts({
+  const facts = extractGroundedFacts({
     business: input.lead.business,
     first_name: input.lead.firstName,
     location_text: input.lead.locationText,
@@ -51,14 +51,16 @@ export function evaluateEligibility(input: {
     marketing_opportunity: input.lead.marketingOpportunity,
     recommended_service: input.lead.recommendedService,
     website: input.lead.website,
-  })) {
+  })
+  if (!facts) {
     return { ok: false, status: 'ineligible', reason: 'missing_business' }
   }
-  if (!usableFirstName(input.lead.firstName)) {
-    return { ok: false, status: 'blocked_review', reason: 'missing_first_name' }
-  }
-  if (!prospectObservationIsSafe(input.lead.marketingOpportunity)) {
-    return { ok: false, status: 'blocked_review', reason: 'observation_contains_email' }
+  if (!prospectObservationIsSafe(facts.observation)) {
+    return {
+      ok: false,
+      status: 'blocked_review',
+      reason: 'observation_internal_notes',
+    }
   }
   if (input.existingQueue) {
     if (input.existingQueue.status === 'accepted' || input.existingQueue.status === 'delivered') {

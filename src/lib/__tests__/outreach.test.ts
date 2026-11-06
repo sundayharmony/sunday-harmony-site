@@ -14,9 +14,10 @@ import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility } from '../outreach/eligibility'
-import { enqueueLeadSnapshots } from '../outreach/enqueue'
+import { enqueueLeadSnapshots, refreshUnsentQueueCopy } from '../outreach/enqueue'
 import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
 import { prospectGreetingIsUsable } from '../outreach/greeting'
+import { toProspectObservation } from '../outreach/observation'
 import type { LeadSnapshot } from '../outreach/types'
 import { buildHandoff } from '../outreach/handoff'
 import { buildOutreachMime, mimeContainsAttachment } from '../outreach/mime'
@@ -85,8 +86,10 @@ describe('grounded draft copy', () => {
     const draft = renderDraft({ facts, unsubscribeUrl: 'https://www.sundayharmony.com/unsubscribe/abc', physicalMailingAddress: null })
     assert.match(draft.subject, /SwingStop Hammonton/)
     assert.match(draft.text, /Hi Christopher,/)
-    assert.match(draft.text, /I came across SwingStop Hammonton while looking at Indoor golf simulator in Hammonton, NJ/)
-    assert.match(draft.text, /No Hammonton landing page/)
+    assert.match(draft.text, /I came across SwingStop Hammonton in Hammonton, NJ/)
+    assert.doesNotMatch(draft.text, /while looking at Indoor golf simulator/)
+    assert.match(draft.text, /doesn't clearly say you are in Hammonton/)
+    assert.doesNotMatch(draft.text, /No Hammonton landing page/)
     assert.match(draft.html, /Pick a time/)
     assert.equal(draft.ctaUrl, OUTREACH_CTA_URL)
     assert.equal(copyIssues(draft.bodyText).length, 0)
@@ -119,25 +122,70 @@ describe('grounded draft copy', () => {
     assert.doesNotMatch(draft.bodyText, /Atlantic County|South Jersey|—/)
   })
 
-  it('rejects placeholder first names such as Not and will not enqueue or send them', async () => {
+  it('uses a bare Hi when the first name is missing and still enqueues', async () => {
     assert.equal(usableFirstName('Not'), null)
     assert.equal(usableFirstName('Not found'), null)
     assert.equal(usableFirstName('Christopher'), 'Christopher')
     const facts = extractGroundedFacts({
       business: 'Galloway Nursery',
       first_name: 'Not',
-      marketing_opportunity: 'GoDaddy site',
+      location_text: 'Egg Harbor City, NJ',
+      marketing_opportunity: 'GoDaddy site, GA only, no pixel; strong TikTok/IG to leverage',
     })
     assert.equal(facts?.firstName, null)
     const draft = renderDraft({ facts: facts!, unsubscribeUrl: 'https://example.test/u/x' })
-    assert.equal(prospectGreetingIsUsable(draft.html, facts?.firstName), false)
+    assert.match(draft.bodyText, /^Hi,/)
+    assert.doesNotMatch(draft.bodyText, /Hi Not,/)
+    assert.equal(prospectGreetingIsUsable(draft.html, facts?.firstName), true)
+    assert.match(draft.bodyText, /website looks unfinished/)
+    assert.doesNotMatch(draft.bodyText, /GA only|pixel|GoDaddy/)
     const store = createMemoryOutreachStore({
       leads: [lead({ id: 'no-name', firstName: 'Not', business: 'Galloway Nursery', email: 'emma@gallowaynursery.test' })],
     })
     const result = await enqueueLeadSnapshots(store, await store.listEligibleLeadCandidates(), { mxResolver: mxOk })
-    assert.equal(result.enqueued, 0)
-    assert.equal((await store.listQueue())[0]?.eligibilityReason, 'missing_first_name')
-    assert.equal((await store.listQueue())[0]?.status, 'blocked_review')
+    assert.equal(result.enqueued, 1)
+    assert.equal((await store.listQueue())[0]?.status, 'pending')
+    assert.match((await store.listQueue())[0]?.htmlBody || '', /Hi,/)
+  })
+
+  it('rewrites research notes into plain sentences a business owner can understand', () => {
+    const lawn = toProspectObservation(
+      'Free Wix subdomain, no Facebook found, no Google Business Profile found , invisible in local Google Maps lawn searches',
+      { location: 'Summerville, SC', business: 'Lawn Enforcement' }
+    )
+    assert.match(lawn || '', /unfinished|Google Maps/)
+    assert.doesNotMatch(lawn || '', /Wix subdomain|GBP|pixel/i)
+
+    const capri = toProspectObservation(
+      'Free Wix co-branding banner on site; no analytics; no online ordering link',
+      { location: 'Ventnor City, NJ', business: 'Capri Pizza & Grill' }
+    )
+    assert.match(capri || '', /unfinished/)
+    assert.match(capri || '', /order online/)
+    assert.doesNotMatch(capri || '', /analytics|Wix/i)
+
+    const florist = toProspectObservation(
+      'Personal AOL email (jonjenk@aol.com) as business contact',
+      { location: 'Mays Landing, NJ', business: 'County Seat Florist' }
+    )
+    assert.match(florist || '', /contact email looks personal/)
+    assert.doesNotMatch(florist || '', /jonjenk|aol\.com/i)
+
+    const coffee = toProspectObservation('Three closing times online (2:40, 3, 4 PM)', {
+      location: 'Brigantine, NJ',
+      business: 'Summer & Sage Coffee',
+    })
+    assert.match(coffee || '', /hours don't match/)
+
+    const nursery = extractGroundedFacts({
+      business: 'Galloway Nursery',
+      first_name: 'Not',
+      location_text: 'Egg Harbor City, NJ',
+      marketing_opportunity: 'GoDaddy site, GA only, no pixel; strong TikTok/IG to leverage',
+    })
+    assert.match(nursery?.observation || '', /unfinished|social media/)
+    assert.doesNotMatch(nursery?.observation || '', /GA only|pixel|GoDaddy|TikTok/)
+    assert.equal(copyIssues(nursery?.observation || '').includes('internal_jargon'), false)
   })
 })
 
@@ -171,7 +219,7 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(wise?.outcome, 'null_mx')
   })
 
-  it('holds observations that would put a prospect email in the body', async () => {
+  it('rewrites observations that mention a prospect email instead of putting that email in the body', async () => {
     const store = createMemoryOutreachStore({
       leads: [
         lead({
@@ -184,9 +232,40 @@ describe('eligibility, suppression, and unverified reports', () => {
       ],
     })
     const result = await enqueueLeadSnapshots(store, await store.listEligibleLeadCandidates(), { mxResolver: mxOk })
-    assert.equal(result.enqueued, 0)
-    assert.equal((await store.listQueue())[0]?.status, 'blocked_review')
-    assert.equal((await store.listQueue())[0]?.eligibilityReason, 'observation_contains_email')
+    assert.equal(result.enqueued, 1)
+    const queued = (await store.listQueue())[0]
+    assert.equal(queued?.status, 'pending')
+    assert.match(queued?.htmlBody || '', /contact email looks personal/)
+    assert.doesNotMatch(queued?.htmlBody || '', /jonjenk@aol\.com/)
+    assert.doesNotMatch(queued?.textBody || '', /jonjenk@aol\.com/)
+  })
+
+  it('refreshes already queued research-note drafts without sending', async () => {
+    const store = createMemoryOutreachStore({
+      leads: [lead({ id: 'lead-1', firstName: 'Not' })],
+    })
+    await enqueueLeadSnapshots(store, [lead({ id: 'lead-1', firstName: 'Not' })], { mxResolver: mxOk })
+    const [item] = await store.listQueue()
+    await store.compareAndSwap(item.id, 'pending', {
+      htmlBody: item.htmlBody.replace('Hi,', 'Hi Not,'),
+      textBody: item.textBody.replace('Hi,', 'Hi Not,'),
+      groundedFacts: {
+        ...item.groundedFacts,
+        firstName: 'Not',
+        observation: 'No Hammonton landing page or title mention',
+      },
+      status: 'needs_review',
+      eligibilityReason: 'unusable_greeting',
+    })
+    const refreshed = await refreshUnsentQueueCopy(store)
+    assert.equal(refreshed.refreshed, 1)
+    const next = (await store.listQueue())[0]
+    assert.equal(next.status, 'pending')
+    assert.match(next.textBody, /^Hi,|^Preheader:.*\n\nHi,/m)
+    assert.match(next.htmlBody, />Hi,</)
+    assert.doesNotMatch(next.htmlBody, /Hi Not,/)
+    assert.match(next.textBody, /doesn't clearly say you are in Hammonton/)
+    assert.doesNotMatch(next.textBody, /No Hammonton landing page/)
   })
 
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {

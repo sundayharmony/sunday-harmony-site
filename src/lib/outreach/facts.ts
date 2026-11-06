@@ -1,4 +1,5 @@
 import { sanitizeGroundedText } from './copy-rules'
+import { toProspectObservation } from './observation'
 
 export type LeadFactSource = {
   id?: string | null
@@ -66,12 +67,15 @@ export function extractGroundedFacts(lead: LeadFactSource): GroundedFacts | null
   const business = sanitizeGroundedText(lead.business || '')
   if (!business) return null
   const observationRaw = sanitizeGroundedText(lead.marketing_opportunity || '')
+  const location = sanitizeGroundedText(lead.location_text || '') || null
   return {
     business,
     firstName: usableFirstName(lead.first_name),
-    location: sanitizeGroundedText(lead.location_text || '') || null,
+    location,
     industry: sanitizeGroundedText(lead.industry || '') || null,
-    observation: observationRaw || null,
+    observation: observationRaw
+      ? toProspectObservation(observationRaw, { location, business })
+      : null,
     recommendedService: sanitizeGroundedText(lead.recommended_service || '') || null,
     website: (lead.website || '').trim() || null,
   }

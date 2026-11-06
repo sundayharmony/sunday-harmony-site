@@ -6,7 +6,7 @@ import { resolveCompanyPresentationPdf } from './attachment'
 import { claimNextPending, recoverExpiredInFlight } from './claims'
 import { dispatchRecheck } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
-import { prospectGreetingIsUsable, prospectObservationIsSafe } from './greeting'
+import { outboundCopyHoldReason } from './greeting'
 import { resolveOutreachProvider } from './gmail-binding'
 import { lookupMx, type MxResolver } from './mx'
 import { stageAfterOutboundEmail, type PipelineStage } from '@/lib/marketing-pipeline'
@@ -168,19 +168,22 @@ export async function dispatchOutreachBatch(input: {
       continue
     }
 
-    const greetingOk = prospectGreetingIsUsable(claimed.htmlBody, claimed.groundedFacts.firstName)
-    const observationOk = prospectObservationIsSafe(claimed.groundedFacts.observation)
-    if (!greetingOk || !observationOk) {
-      const reason = greetingOk ? 'observation_contains_email' : 'unusable_greeting'
+    const copyHold = outboundCopyHoldReason({
+      html: claimed.htmlBody,
+      text: claimed.textBody,
+      firstName: claimed.groundedFacts.firstName,
+      observation: claimed.groundedFacts.observation,
+    })
+    if (copyHold) {
       await store.compareAndSwap(claimed.id, 'claimed', {
         status: 'needs_review',
-        eligibilityReason: reason,
+        eligibilityReason: copyHold,
         claimedBy: null,
         claimedAt: null,
         leaseExpiresAt: null,
       })
       reviewed.push(claimed.id)
-      details.push(reason)
+      details.push(copyHold)
       continue
     }
 

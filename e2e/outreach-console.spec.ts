@@ -51,7 +51,7 @@ const consolePayload = {
       acceptedAt: null,
       contactedAt: null,
       subject: 'SwingStop Hammonton: a note from Sunday Harmony',
-      previewText: 'Hi Christopher,\n\nI came across SwingStop Hammonton while looking at Indoor golf simulator in Hammonton, NJ.',
+      previewText: 'Hi Christopher,\n\nI came across SwingStop Hammonton in Hammonton, NJ. The website doesn\'t clearly say you are in Hammonton, so local searchers may skip you.',
       previewHtml: '<p>Hi Christopher,</p>',
       attachment: 'Sunday-Harmony-Consulting-company-presentation.pdf',
       facts: { business: 'SwingStop Hammonton', firstName: 'Christopher' },

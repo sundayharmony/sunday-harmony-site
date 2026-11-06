@@ -36,11 +36,8 @@ function fill(template: string, values: Record<string, string>): string {
 }
 
 function lookingAtClause(facts: GroundedFacts): string {
-  const parts: string[] = []
-  if (facts.industry) parts.push(facts.industry)
-  if (facts.location) parts.push(`in ${facts.location}`)
-  if (parts.length === 0) return ''
-  return ` while looking at ${parts.join(' ')}`
+  if (facts.location) return ` in ${facts.location}`
+  return ''
 }
 
 export function buildBodyParagraphs(facts: GroundedFacts): string[] {
