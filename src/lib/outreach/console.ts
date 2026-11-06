@@ -1,4 +1,4 @@
-import { loadCompanyPresentationPdf } from './attachment'
+import { resolveCompanyPresentationPdf } from './attachment'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { EMAIL_BOT_UNVERIFIED_REPORTS } from './constants'
 import { draftContentSha256 } from './draft-shell'
@@ -14,7 +14,8 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
   const queue = await store.listQueue()
   const recon = await store.listReconciliationItems()
   const audit = await store.listAudit(50)
-  const blockers = currentBlockers(settings, template, { schemaReady: true })
+  const attachmentPresent = Boolean(await resolveCompanyPresentationPdf())
+  const blockers = currentBlockers(settings, template, { schemaReady: true, attachmentPresent })
   const includeHandoff = canViewHandoff(role)
   const canOperate = role === 'admin'
   const items = []
@@ -43,7 +44,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     storage: supabaseReadyForOutreach() ? 'supabase' : 'ephemeral_unmigrated',
     senderConfigured: senderConfiguredHere(),
     canOperate,
-    attachmentPresent: Boolean(loadCompanyPresentationPdf()),
+    attachmentPresent,
     scheduler: outreachCronExample(),
     settings: {
       killSwitch: settings.killSwitch,
