@@ -1,15 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Great_Vibes } from 'next/font/google'
+import localFont from 'next/font/local'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@/lib/dispute-letters/types'
-
-const signatureFont = Great_Vibes({
-  weight: '400',
-  subsets: ['latin'],
-  display: 'swap',
-})
 import {
   confirmLetterPackageSent,
   disputeLetterDownloadUrl,
@@ -25,6 +19,12 @@ import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import './letter-preview.css'
+
+const signatureFont = localFont({
+  src: '../../fonts/great-vibes-latin-400-normal.woff2',
+  display: 'swap',
+  weight: '400',
+})
 
 function renderInlineMarkup(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g)
