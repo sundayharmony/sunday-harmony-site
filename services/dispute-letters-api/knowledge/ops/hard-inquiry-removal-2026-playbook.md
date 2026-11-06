@@ -6,6 +6,23 @@
 
 > **Not legal advice.** Educational ops notes only. Staff must verify whether an inquiry was truly unauthorized before treating it as identity theft. Filing false FTC identity-theft reports is unlawful. Outcomes are never guaranteed.
 
+### Study status (visual vs narration)
+- **Chapters / description studied on the live YouTube page** (timestamps + Ryezing / guide links).
+- **Full spoken walkthrough captured** from the video page narration (FTC + CFPB field-by-field).
+- **On-screen UI demos could not be frame-scrubbed in the cloud VM:** YouTube shows *“Sign in to confirm you’re not a bot”* and blocks playback/embed (Error 153). Re-verify button labels against a signed-in watch when possible.
+
+### Official chapters (from video description)
+| Time | Chapter |
+|------|---------|
+| 0:00 | How to Remove Hard Inquiries |
+| 3:00 | View Your Credit Report |
+| 5:19 | IdentityTheft.gov Guide |
+| 10:26 | CFPB Complaint Guide |
+| 14:43 | How Long Does It Take? |
+| 16:28 | Thanks for Watching |
+
+Affiliate / tools named on the page: **ryezing.com** ($1 · 7-day trial), **successwithstephensmith.com** guides.
+
 ---
 
 ## 1. Deep summary
