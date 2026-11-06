@@ -435,6 +435,12 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
       assert.equal(body.sent, 0)
       assert.equal(body.liveSend, false)
       assert.equal(body.skippedDisabled, true)
+      process.env.SUPABASE_SECRET_KEY = 'outreach-sb-test'
+      const viaSupabase = await dispatchGet(new NextRequest('https://example.test/api/internal/outreach-dispatch', {
+        headers: { authorization: 'Bearer outreach-sb-test' },
+      }))
+      assert.equal(viaSupabase.status, 200)
+      delete process.env.SUPABASE_SECRET_KEY
       const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as { crons: Array<{ path: string; schedule: string }> }
       assert.equal(vercel.crons.some((item) => item.path === '/api/internal/outreach-dispatch' && item.schedule === '0 20 * * 1-5'), true)
     } finally {
