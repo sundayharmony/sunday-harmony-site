@@ -39,7 +39,7 @@ from app.models import (
     ReportSessionResponse,
     TradelineUpdateRequest,
 )
-from app.services.credit_health import sort_by_priority
+from app.services.credit_health import enrich_tradeline, sort_by_priority
 from app.services.credit_intelligence import build_credit_intelligence
 from app.services.cursor_client import bridge_manager
 from app.services.letter_jobs import (
@@ -462,7 +462,10 @@ def dispute_plan_from_report(
 
     Used for isolated live verification when Supabase is not wired on a test service.
     Does not persist plans or accept consumer SSN/DOB.
+    Applies the same tradeline enrichment used after analyze so Round 1/2 reasons match.
     """
+    enriched = body.report.model_copy(deep=True)
+    enriched.tradelines = [enrich_tradeline(tl) for tl in enriched.tradelines]
     request = DisputePlanRequest(
         session_id=body.session_id,
         selections=body.selections,
@@ -470,7 +473,7 @@ def dispute_plan_from_report(
         round_number=body.round_number,
         force_one_item_per_bureau=body.force_one_item_per_bureau,
     )
-    return build_plan(body.session_id, body.report, request)
+    return build_plan(body.session_id, enriched, request)
 
 
 @app.post("/internal/letters/generate/start")
