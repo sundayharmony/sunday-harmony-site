@@ -949,7 +949,6 @@ function CreditFundingAdminContent() {
                   </a>
                 )}
                 {canSetLetterCopy &&
-                  Boolean(doc.signedUrl) &&
                   ((doc.mime_type || '').startsWith('image/') ||
                     /\.(png|jpe?g|webp)$/i.test(doc.file_name)) && (
                     <button
@@ -1894,17 +1893,18 @@ function CreditFundingAdminContent() {
           )}
         </div>
       </div>
-      {cropDoc?.signedUrl && (
+      {cropDoc && selected && (
         <LetterIdentityCropModal
           title={documentDisplayLabel(cropDoc.document_type)}
-          imageUrl={cropDoc.signedUrl}
           fileName={cropDoc.file_name}
+          documentId={cropDoc.id}
+          applicationId={selected.id}
+          imageUrl={cropDoc.signedUrl}
           saving={replacingDocId === cropDoc.id}
           onCancel={() => setCropDoc(null)}
-          onSave={(file) => {
-            void replaceDocument(cropDoc, file).then((ok) => {
-              if (ok) setCropDoc(null)
-            })
+          onSave={async (file) => {
+            const ok = await replaceDocument(cropDoc, file)
+            if (ok) setCropDoc(null)
           }}
         />
       )}
