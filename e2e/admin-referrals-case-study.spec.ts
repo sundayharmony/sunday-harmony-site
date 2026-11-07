@@ -48,6 +48,7 @@ const partnerRow = {
   submitted: 2,
   inProgress: 1,
   completed: 1,
+  closed: 0,
   logoUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
 }
 
@@ -121,7 +122,7 @@ async function signIn(page: Page) {
         await route.fulfill({
           json: {
             partner: partnerRow,
-            summary: { clicks: 4, submitted: 2, inProgress: 1, completed: 1 },
+            summary: { clicks: 4, submitted: 2, inProgress: 1, completed: 1, closed: 0 },
             referrals: [],
           },
         })

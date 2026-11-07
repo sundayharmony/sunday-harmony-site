@@ -35,8 +35,10 @@ describe('login callback sanitization', () => {
     assert.equal(sanitizeLoginCallbackUrl(null), '/')
   })
 
-  it('still restricts notification links to dashboard/admin', () => {
+  it('still restricts notification links to dashboard, admin, and partner', () => {
     assert.equal(sanitizeNotificationLink('/dashboard/files'), '/dashboard/files')
+    assert.equal(sanitizeNotificationLink('/partner'), '/partner')
+    assert.equal(sanitizeNotificationLink('/partner/toolkit'), '/partner/toolkit')
     assert.equal(sanitizeNotificationLink('/login'), null)
     assert.equal(sanitizeNotificationLink('https://evil.example'), null)
   })

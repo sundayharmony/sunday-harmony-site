@@ -48,11 +48,11 @@ export default function PartnerToolkitNextStep() {
   if (share) {
     return (
       <ReferralLinkQrPanel
-        title="Your intake link"
+        title="Your referral link"
         link={share.link}
         code={share.code}
         active={share.linkActive}
-        inactiveHint="Your QR code is ready, but the link stays inactive until Sunday Harmony approves your account."
+        inactiveHint="Copy, QR, and scans stay off until Sunday Harmony approves this account."
         hint="People who open this link choose Build or Fund, then start that intake at the top of the page."
         downloadLabelPrefix={share.companyName}
       />
@@ -61,7 +61,7 @@ export default function PartnerToolkitNextStep() {
 
   return (
     <p className="rounded-2xl border border-brand-border bg-white px-5 py-4 text-base leading-relaxed text-brand-muted">
-      {error ? TOOLKIT_NEXT_STEP.loadError : 'Loading your intake link…'}
+      {error ? TOOLKIT_NEXT_STEP.loadError : 'Loading your referral link…'}
     </p>
   )
 }

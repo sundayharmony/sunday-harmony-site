@@ -202,7 +202,7 @@ export async function attachReferralToApplication(params: {
     await createNotification({
       user_id: partnerUser.id,
       title: 'New referral application',
-      message: 'Someone used your partner link and submitted a credit application.',
+      message: 'Someone used your partner link and submitted a credit or funding application.',
       type: 'info',
       link: '/partner',
     })
@@ -214,7 +214,7 @@ export async function attachReferralToApplication(params: {
           heading: 'New referral application',
           firstName: partnerUser.name.split(/\s+/)[0] || 'there',
           bodyParagraphs: [
-            'Someone used your partner link and submitted a credit application.',
+            'Someone used your partner link and submitted a credit or funding application.',
             'You can see their progress on your partner dashboard. Personal details stay private.',
           ],
           dashboardPath: '/partner',

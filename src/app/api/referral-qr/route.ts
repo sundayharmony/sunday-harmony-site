@@ -33,7 +33,7 @@ async function sessionMayUseReferralPayload(data: string): Promise<boolean> {
   if (session.user.role === 'partner' && session.user.id) {
     const dashboard = await getPartnerDashboard(session.user.id)
     if ('error' in dashboard) return false
-    return dashboard.profile.code.toUpperCase() === code
+    return dashboard.profile.linkActive && dashboard.profile.code.toUpperCase() === code
   }
 
   if (session.user.role === 'client') {

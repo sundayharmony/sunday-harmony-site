@@ -130,6 +130,29 @@ export async function updatePartnerLogoPath(
   return { ok: true, profile: data as PartnerProfileRow }
 }
 
+export async function updatePartnerProfile(
+  id: string,
+  updates: {
+    phone: string
+    company_name: string
+    service_area: string
+    years_in_field: number
+    profession: PartnerProfession
+  }
+): Promise<PartnerProfileRow | null> {
+  const { data, error } = await getSupabase()
+    .from('partner_profiles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) {
+    console.error('updatePartnerProfile:', error)
+    return null
+  }
+  return data as PartnerProfileRow
+}
+
 export async function updatePartnerProfileStatus(
   id: string,
   status: PartnerStatus

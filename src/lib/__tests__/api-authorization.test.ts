@@ -174,6 +174,12 @@ describe('Area 06 API authorization hardening', () => {
     }
     assert.match(files, /file\.client_id !== clientId/)
     assert.match(notifications, /notification\.user_id !== userId/)
+    const partnerNotifications = readFileSync(
+      'src/app/api/partner/notifications/route.ts',
+      'utf8'
+    )
+    assert.match(partnerNotifications, /requirePartnerSession/)
+    assert.match(partnerNotifications, /notification\.user_id !== session\.user\.id/)
   })
 
   it('does not keep a standalone content-approvals tab', () => {

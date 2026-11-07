@@ -23,6 +23,7 @@ type PartnerRow = {
   submitted: number
   inProgress: number
   completed: number
+  closed: number
 }
 
 type ReferralRow = {
@@ -40,7 +41,7 @@ type ReferralRow = {
 
 type PartnerDetail = {
   partner: PartnerRow & { link: string; linkActive: boolean }
-  summary: { clicks: number; submitted: number; inProgress: number; completed: number }
+  summary: { clicks: number; submitted: number; inProgress: number; completed: number; closed: number }
   referrals: ReferralRow[]
 }
 
@@ -201,7 +202,7 @@ export default function AdminPartnerAccountsPanel() {
                   {partner.companyName} · {partner.profession} · {partner.serviceArea}
                 </p>
                 <p className="mt-1 text-xs text-brand-muted">
-                  {partner.clicks} clicks · {partner.submitted} applications · {partner.inProgress} in progress · {partner.status}
+                  {partner.clicks} clicks · {partner.submitted} applications · {partner.inProgress} in progress · {partner.closed} closed · {partner.status}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-3">
                   <button
@@ -240,7 +241,7 @@ export default function AdminPartnerAccountsPanel() {
               <table className="w-full text-sm">
                 <thead className="bg-neutral-50 text-xs uppercase text-brand-dim">
                   <tr>
-                    {['Partner', 'Company', 'Area', 'Field', 'Clicks', 'Applications', 'In progress', 'Status', ''].map((heading) => (
+                    {['Partner', 'Company', 'Area', 'Field', 'Clicks', 'Applications', 'In progress', 'Closed', 'Status', ''].map((heading) => (
                       <th key={heading || 'actions'} className="text-left p-3 font-semibold">{heading}</th>
                     ))}
                   </tr>
@@ -265,6 +266,7 @@ export default function AdminPartnerAccountsPanel() {
                       <td className="p-3">{partner.clicks}</td>
                       <td className="p-3">{partner.submitted}</td>
                       <td className="p-3">{partner.inProgress}</td>
+                      <td className="p-3">{partner.closed}</td>
                       <td className="p-3 capitalize">{partner.status}</td>
                       <td className="p-3 whitespace-nowrap" onClick={(event) => event.stopPropagation()}>
                         <button
@@ -312,7 +314,7 @@ export default function AdminPartnerAccountsPanel() {
             </h2>
             <p className="text-xs text-brand-muted mt-1">
               {detail
-                ? `${detail.partner.name} · code ${detail.partner.code || '—'} · ${detail.summary.completed} completed`
+                ? `${detail.partner.name} · code ${detail.partner.code || '—'} · ${detail.summary.completed} completed · ${detail.summary.closed} closed`
                 : 'Loading referrals…'}
             </p>
           </div>
@@ -324,7 +326,7 @@ export default function AdminPartnerAccountsPanel() {
                 link={detail.partner.link}
                 code={detail.partner.code}
                 active={detail.partner.linkActive}
-                inactiveHint="Link stays inactive until this partner is approved."
+                inactiveHint="Copy, QR, and scans stay off until this partner is approved."
                 downloadLabelPrefix={detail.partner.companyName || 'partner'}
               />
             </div>
