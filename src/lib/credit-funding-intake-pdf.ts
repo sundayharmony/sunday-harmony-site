@@ -4,6 +4,7 @@ import {
   STATUS_LABELS,
   documentDisplayLabel,
   establishedMonthLabel,
+  isLetterWorkingCopyPath,
   isStaffSharedDocument,
   type ApplicationStatus,
   type BusinessProfile,
@@ -490,6 +491,14 @@ export function planIntakeAttachments(docs: IntakeAttachmentSource[]): {
   for (const doc of ordered) {
     const label = documentDisplayLabel(doc.document_type)
     const fileName = (doc.file_name || 'file').trim() || 'file'
+    if (isLetterWorkingCopyPath(doc.storage_path)) {
+      skipped.push({
+        label,
+        fileName,
+        reason: 'Letter copy. The original client file stays in the packet.',
+      })
+      continue
+    }
     if (
       isStaffSharedDocument({
         document_type: doc.document_type,

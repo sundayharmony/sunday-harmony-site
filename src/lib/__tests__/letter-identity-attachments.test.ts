@@ -88,6 +88,54 @@ describe('letter identity attachments', () => {
     assert.equal(namedLetterIdentityAttachments([doc({ id: 'id-1', document_type: 'photo_id' })]).length, 1)
   })
 
+  it('uses the letter copy instead of the original photo ID', () => {
+    const originalId = '123e4567-e89b-42d3-a456-426614174000'
+    const picked = pickLetterIdentityDocuments([
+      doc({
+        id: originalId,
+        document_type: 'photo_id',
+        file_name: 'client.jpg',
+        storage_path: `app/photo_id/${originalId}_client.jpg`,
+      }),
+      doc({
+        id: 'letter-copy',
+        document_type: 'photo_id',
+        file_name: 'clear.jpg',
+        storage_path: `app/photo_id/letter-current_${originalId}_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee_clear.jpg`,
+        created_at: '2026-11-07T12:00:00.000Z',
+      }),
+      doc({
+        id: 'id-back',
+        document_type: 'photo_id',
+        file_name: 'back.jpg',
+        storage_path: 'app/photo_id/back.jpg',
+      }),
+    ])
+    assert.deepEqual(
+      picked.photoIds.map((row) => row.id),
+      ['letter-copy', 'id-back']
+    )
+  })
+
+  it('uses the letter copy of mail proof for the address enclosure', () => {
+    const originalId = '223e4567-e89b-42d3-a456-426614174111'
+    const picked = pickLetterIdentityDocuments([
+      doc({
+        id: originalId,
+        document_type: 'mail_proof',
+        file_name: 'blurry.pdf',
+        storage_path: `app/mail_proof/${originalId}_blurry.pdf`,
+      }),
+      doc({
+        id: 'mail-copy',
+        document_type: 'mail_proof',
+        file_name: 'clear.pdf',
+        storage_path: `app/mail_proof/letter-current_${originalId}_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee_clear.pdf`,
+      }),
+    ])
+    assert.equal(picked.proofOfAddress?.id, 'mail-copy')
+  })
+
   it('still packages letters when identity documents are missing', () => {
     const payload = new Uint8Array([0x50, 0x4b, 0x03, 0x04])
     const files = buildLetterZipFiles([{ title: 'Experian — 1 item(s)', data: payload }])

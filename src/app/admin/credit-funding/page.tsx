@@ -20,6 +20,8 @@ import {
   compareCreditFundingApplicationsByStatus,
   documentDisplayLabel,
   establishedMonthLabel,
+  getCreditFundingFileValidationError,
+  isLetterWorkingCopyPath,
   needsFundingWorkflow,
   type ApplicationStatus,
   type FundingScores,
@@ -108,6 +110,7 @@ interface DocumentItem {
   file_size: number
   scan_status: string
   signedUrl?: string
+  storage_path?: string
   created_at?: string
 }
 
@@ -271,6 +274,7 @@ function CreditFundingAdminContent() {
   const [inviteSending, setInviteSending] = useState(false)
   const [inviteNotice, setInviteNotice] = useState('')
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+  const [replacingDocId, setReplacingDocId] = useState<string | null>(null)
   const [downloadingIntake, setDownloadingIntake] = useState(false)
   const [revealingField, setRevealingField] = useState<SensitiveRevealField | null>(null)
   const [revealFieldError, setRevealFieldError] = useState<{ field: SensitiveRevealField; message: string } | null>(
@@ -686,6 +690,33 @@ function CreditFundingAdminContent() {
     }
   }
 
+  const replaceDocument = async (doc: DocumentItem, file: File) => {
+    if (!selected) return
+    const validation = getCreditFundingFileValidationError(file)
+    if (validation) {
+      setError(validation)
+      return
+    }
+
+    setReplacingDocId(doc.id)
+    setError('')
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const r = await fetch(
+        `/api/admin/credit-funding/documents/${encodeURIComponent(doc.id)}?applicationId=${encodeURIComponent(selected.id)}`,
+        { method: 'PUT', body }
+      )
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'Failed to set letter copy')
+      await loadDetail(selected.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to set letter copy')
+    } finally {
+      setReplacingDocId(null)
+    }
+  }
+
   const deleteDocument = async (doc: DocumentItem) => {
     if (!selected) return
     if (
@@ -863,23 +894,43 @@ function CreditFundingAdminContent() {
     </button>
   )
 
-  const renderDocumentList = () => (
+  const renderDocumentList = () => {
+    const listed = [...documents].sort((a, b) => {
+      const typeCmp = a.document_type.localeCompare(b.document_type)
+      if (typeCmp !== 0) return typeCmp
+      const aCopy = isLetterWorkingCopyPath(a.storage_path)
+      const bCopy = isLetterWorkingCopyPath(b.storage_path)
+      if (aCopy !== bCopy) return aCopy ? 1 : -1
+      return (a.created_at || '').localeCompare(b.created_at || '')
+    })
+
+    return (
     <>
       <div className="flex items-center justify-between gap-3 mb-2">
         <h3 className="text-sm font-bold">Uploaded Documents</h3>
         {renderIntakeDownloadButton(true)}
       </div>
-      {documents.length === 0 ? (
+      {listed.length === 0 ? (
         <p className="text-sm text-brand-dim">No documents.</p>
       ) : (
         <div className="space-y-2">
-          {documents.map((doc) => (
-            <div key={doc.id} className="flex items-center justify-between gap-3 p-3 bg-neutral-50 rounded-lg text-sm">
+          <p className="text-xs text-brand-dim">
+            Original client uploads stay on file. Use for letters sets the photo attached to dispute letters without removing the original.
+          </p>
+          {listed.map((doc) => {
+            const letterCopy = isLetterWorkingCopyPath(doc.storage_path)
+            const canSetLetterCopy =
+              doc.document_type !== 'staff_shared' && !doc.storage_path?.includes('/staff_shared/')
+            return (
+            <div key={doc.id} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 bg-neutral-50 rounded-lg text-sm">
               <div className="min-w-0">
                 <p className="font-medium">{documentDisplayLabel(doc.document_type)}</p>
                 <p className="text-xs text-brand-dim truncate">{doc.file_name}</p>
+                <p className="text-[11px] text-brand-muted mt-0.5">
+                  {letterCopy ? 'Used for letters' : 'Original client upload'}
+                </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 shrink-0">
                 {doc.signedUrl && (
                   <a
                     href={doc.signedUrl}
@@ -889,6 +940,26 @@ function CreditFundingAdminContent() {
                   >
                     View
                   </a>
+                )}
+                {canSetLetterCopy && (
+                  <label className="text-xs font-semibold text-accent hover:underline cursor-pointer">
+                    {replacingDocId === doc.id
+                      ? 'Saving…'
+                      : letterCopy
+                        ? 'Replace letter copy'
+                        : 'Use for letters'}
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,.jpg,.jpeg,.png,.txt,application/pdf,image/png,image/jpeg,text/plain"
+                      disabled={replacingDocId === doc.id}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        event.target.value = ''
+                        if (file) void replaceDocument(doc, file)
+                      }}
+                    />
+                  </label>
                 )}
                 <button
                   type="button"
@@ -900,11 +971,13 @@ function CreditFundingAdminContent() {
                 </button>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </>
-  )
+    )
+  }
 
   const renderDocRequestPanel = () => (
     <div className="mb-5 p-4 bg-amber-50/50 rounded-xl border border-amber-200/80">
@@ -1723,7 +1796,7 @@ function CreditFundingAdminContent() {
                 <CreditIntelligencePanel
                   applicationId={selected.id}
                   intakeCreditReports={documents
-                    .filter((doc) => doc.document_type === 'credit_report')
+                    .filter((doc) => doc.document_type === 'credit_report' && !isLetterWorkingCopyPath(doc.storage_path))
                     .map((doc) => ({
                       id: doc.id,
                       file_name: doc.file_name,

@@ -468,6 +468,27 @@ export function isStaffSharedDocument(doc: {
   return Boolean(doc.storage_path?.includes('/staff_shared/'))
 }
 
+const LETTER_WORKING_COPY_NAME_RE =
+  /^letter-current_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_/i
+
+function storageObjectName(storagePath: string | null | undefined): string {
+  return (storagePath || '').split('/').pop() || ''
+}
+
+/** Prefix stored on the letter-use copy of a client original. */
+export function letterWorkingCopyFilePrefix(originalDocumentId: string): string {
+  return `letter-current_${originalDocumentId.toLowerCase()}_`
+}
+
+export function isLetterWorkingCopyPath(storagePath: string | null | undefined): boolean {
+  return LETTER_WORKING_COPY_NAME_RE.test(storageObjectName(storagePath))
+}
+
+export function letterWorkingCopyOriginalId(storagePath: string | null | undefined): string | null {
+  const match = LETTER_WORKING_COPY_NAME_RE.exec(storageObjectName(storagePath))
+  return match?.[1]?.toLowerCase() || null
+}
+
 export interface CreditProfile {
   creditScore?: string
   bankruptcy?: boolean

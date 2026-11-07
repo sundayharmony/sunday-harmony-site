@@ -1,4 +1,8 @@
 import { getDocumentsByApplicationUuid } from '@/lib/credit-funding-db'
+import {
+  isLetterWorkingCopyPath,
+  letterWorkingCopyOriginalId,
+} from '@/lib/credit-funding-types'
 import { downloadCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { disputeLettersFetch, disputeLettersFetchForm } from '@/lib/dispute-letters/api-client'
 import { mapWithConcurrency, withRetries } from '@/lib/dispute-letters/async-pool'
@@ -11,6 +15,7 @@ export type LetterIdentityDoc = {
   file_name: string
   mime_type?: string | null
   scan_status?: string | null
+  created_at?: string | null
 }
 
 export type LetterIdentityPicks = {
@@ -34,12 +39,45 @@ function isUsableIdentityDoc(doc: LetterIdentityDoc): boolean {
   return doc.scan_status !== 'rejected' && Boolean(doc.storage_path)
 }
 
+function latestCreated(docs: LetterIdentityDoc[]): LetterIdentityDoc | undefined {
+  return [...docs].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0]
+}
+
+function resolveLetterIdentityDocs(usable: LetterIdentityDoc[], documentType: string): LetterIdentityDoc[] {
+  const ofType = usable.filter((doc) => doc.document_type === documentType)
+  const originals = ofType.filter((doc) => !isLetterWorkingCopyPath(doc.storage_path))
+  const copies = ofType.filter((doc) => isLetterWorkingCopyPath(doc.storage_path))
+  const resolved: LetterIdentityDoc[] = []
+  const usedCopyIds = new Set<string>()
+
+  for (const original of originals) {
+    const copy = latestCreated(
+      copies.filter((doc) => letterWorkingCopyOriginalId(doc.storage_path) === original.id.toLowerCase())
+    )
+    if (copy) {
+      resolved.push(copy)
+      usedCopyIds.add(copy.id)
+    } else {
+      resolved.push(original)
+    }
+  }
+
+  for (const copy of copies) {
+    if (usedCopyIds.has(copy.id)) continue
+    const originalId = letterWorkingCopyOriginalId(copy.storage_path)
+    if (originalId && originals.some((doc) => doc.id.toLowerCase() === originalId)) continue
+    resolved.push(copy)
+  }
+
+  return resolved
+}
+
 export function pickLetterIdentityDocuments(docs: LetterIdentityDoc[]): LetterIdentityPicks {
   const usable = docs.filter(isUsableIdentityDoc)
-  const photoIds = usable.filter((doc) => doc.document_type === 'photo_id')
+  const photoIds = resolveLetterIdentityDocs(usable, 'photo_id')
   const proofOfAddress =
-    usable.find((doc) => doc.document_type === 'proof_of_address') ||
-    usable.find((doc) => doc.document_type === 'mail_proof') ||
+    resolveLetterIdentityDocs(usable, 'proof_of_address')[0] ||
+    resolveLetterIdentityDocs(usable, 'mail_proof')[0] ||
     null
   return { photoIds, proofOfAddress }
 }

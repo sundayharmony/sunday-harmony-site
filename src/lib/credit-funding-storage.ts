@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { getSupabase } from '@/lib/supabase'
 import type { DocumentType, StorageDocumentType } from '@/lib/credit-funding-types'
+import { letterWorkingCopyFilePrefix, letterWorkingCopyOriginalId } from '@/lib/credit-funding-types'
 import {
   createStagedFileMetadataToken,
   UPLOAD_SESSION_TTL_MS,
@@ -337,12 +338,19 @@ export interface UploadCreditFundingDocResult {
   scan_status: 'clean' | 'rejected'
 }
 
+function storageObjectNamePrefix(prefix?: string): string {
+  if (!prefix) return ''
+  const originalId = letterWorkingCopyOriginalId(prefix)
+  return originalId ? letterWorkingCopyFilePrefix(originalId) : ''
+}
+
 export async function uploadCreditFundingDocument(params: {
   applicationUuid: string
   documentType: StorageDocumentType
   buffer: Buffer
   contentType: string
   originalFileName: string
+  objectNamePrefix?: string
 }): Promise<{ ok: true; data: UploadCreditFundingDocResult } | { ok: false; error: string }> {
   const { applicationUuid, documentType, buffer, contentType, originalFileName } = params
 
@@ -353,7 +361,8 @@ export async function uploadCreditFundingDocument(params: {
   if (!scan.ok) return { ok: false, error: scan.reason }
 
   const safe = sanitizeStorageFileName(originalFileName)
-  const objectPath = `${applicationUuid}/${documentType}/${randomUUID()}_${safe}`
+  const prefix = storageObjectNamePrefix(params.objectNamePrefix)
+  const objectPath = `${applicationUuid}/${documentType}/${prefix}${randomUUID()}_${safe}`
 
   const supabase = getSupabase()
   const { error: upErr } = await supabase.storage.from(CREDIT_FUNDING_BUCKET).upload(objectPath, buffer, {
@@ -377,6 +386,25 @@ export async function uploadCreditFundingDocument(params: {
       displayName: displayName.slice(0, 300),
       scan_status: 'clean',
     },
+  }
+}
+
+/** Fields written when replacing a file in place. Document type is never changed. */
+export function replacementRowPatch(upload: UploadCreditFundingDocResult): {
+  file_name: string
+  file_type: string
+  file_size: number
+  storage_path: string
+  mime_type: string
+  scan_status: UploadCreditFundingDocResult['scan_status']
+} {
+  return {
+    file_name: upload.displayName,
+    file_type: upload.file_type,
+    file_size: upload.file_size,
+    storage_path: upload.storagePath,
+    mime_type: upload.mime_type,
+    scan_status: upload.scan_status,
   }
 }
 

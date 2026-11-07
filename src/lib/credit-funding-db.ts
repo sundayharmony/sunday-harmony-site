@@ -12,7 +12,11 @@ import type {
   StorageDocumentType,
   UploadedDocument,
 } from '@/lib/credit-funding-types'
-import { isStaffSharedDocument } from '@/lib/credit-funding-types'
+import {
+  isStaffSharedDocument,
+  letterWorkingCopyFilePrefix,
+  letterWorkingCopyOriginalId,
+} from '@/lib/credit-funding-types'
 import { deriveIntakeClassification } from '@/lib/credit-funding-classify'
 import { mapApplicationStatusToCfClientStatus } from '@/lib/crm-types'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
@@ -30,6 +34,8 @@ import {
   CREDIT_FUNDING_BUCKET,
   deleteAllCreditFundingFilesForApplication,
   deleteCreditFundingStoragePaths,
+  replacementRowPatch,
+  uploadCreditFundingDocument,
 } from '@/lib/credit-funding-storage'
 
 export function generateApplicationId(): string {
@@ -1207,6 +1213,117 @@ export async function deleteAdminUploadedDocument(
   applicationUuid: string
 ): Promise<DeleteCreditFundingDocumentResult> {
   return deleteUploadedDocumentCore(documentId, applicationUuid, { allowStaffShared: true })
+}
+
+export type ReplaceCreditFundingDocumentResult =
+  | { ok: true; document: UploadedDocument; original: UploadedDocument }
+  | {
+      ok: false
+      reason: 'not_found' | 'wrong_application' | 'staff_shared' | 'upload_failed' | 'update_failed'
+      error?: string
+    }
+
+function isSpecialistSharedFile(doc: UploadedDocument): boolean {
+  return (
+    doc.document_type === 'staff_shared' || Boolean(doc.storage_path?.includes('/staff_shared/'))
+  )
+}
+
+async function cleanupFailedLetterCopy(storagePath: string) {
+  try {
+    await deleteCreditFundingStoragePaths([storagePath])
+  } catch (err) {
+    console.error('replaceUploadedDocument cleanup error:', err)
+  }
+}
+
+export async function replaceUploadedDocument(input: {
+  documentId: string
+  applicationUuid: string
+  buffer: Buffer
+  contentType: string
+  originalFileName: string
+  allowStaffShared: boolean
+}): Promise<ReplaceCreditFundingDocumentResult> {
+  const existing = await getUploadedDocumentById(input.documentId)
+  if (!existing) return { ok: false, reason: 'not_found' }
+  if (existing.application_uuid !== input.applicationUuid) {
+    return { ok: false, reason: 'wrong_application' }
+  }
+  if (isSpecialistSharedFile(existing)) {
+    return { ok: false, reason: 'staff_shared' }
+  }
+  if (!input.allowStaffShared && isStaffSharedDocument(existing) && !letterWorkingCopyOriginalId(existing.storage_path)) {
+    return { ok: false, reason: 'staff_shared' }
+  }
+
+  const originalId = letterWorkingCopyOriginalId(existing.storage_path) || existing.id
+  const original = (await getUploadedDocumentById(originalId)) || existing
+  if (original.application_uuid !== input.applicationUuid) {
+    return { ok: false, reason: 'wrong_application' }
+  }
+  if (isSpecialistSharedFile(original)) {
+    return { ok: false, reason: 'staff_shared' }
+  }
+
+  const siblings = await getDocumentsByApplicationUuid(input.applicationUuid)
+  const existingCopy = siblings
+    .filter((doc) => letterWorkingCopyOriginalId(doc.storage_path) === originalId.toLowerCase())
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0]
+
+  const upload = await uploadCreditFundingDocument({
+    applicationUuid: input.applicationUuid,
+    documentType: original.document_type,
+    buffer: input.buffer,
+    contentType: input.contentType,
+    originalFileName: input.originalFileName,
+    objectNamePrefix: letterWorkingCopyFilePrefix(originalId),
+  })
+  if (!upload.ok) return { ok: false, reason: 'upload_failed', error: upload.error }
+
+  if (existingCopy) {
+    const { data, error } = await getSupabase()
+      .from('uploaded_documents')
+      .update(replacementRowPatch(upload.data))
+      .eq('id', existingCopy.id)
+      .eq('application_uuid', input.applicationUuid)
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('replaceUploadedDocument update error:', error)
+      await cleanupFailedLetterCopy(upload.data.storagePath)
+      return { ok: false, reason: 'update_failed' }
+    }
+
+    if (existingCopy.storage_path && existingCopy.storage_path !== upload.data.storagePath) {
+      try {
+        await deleteCreditFundingStoragePaths([existingCopy.storage_path])
+      } catch (err) {
+        console.error('replaceUploadedDocument old letter copy cleanup error:', err)
+      }
+    }
+
+    return { ok: true, document: data as UploadedDocument, original }
+  }
+
+  const created = await createUploadedDocument({
+    application_uuid: input.applicationUuid,
+    document_type: original.document_type,
+    file_name: upload.data.displayName,
+    file_type: upload.data.file_type,
+    file_size: upload.data.file_size,
+    storage_path: upload.data.storagePath,
+    mime_type: upload.data.mime_type,
+    scan_status: upload.data.scan_status,
+    shared_by: 'admin',
+  })
+  if (!created) {
+    await cleanupFailedLetterCopy(upload.data.storagePath)
+    return { ok: false, reason: 'update_failed' }
+  }
+
+  return { ok: true, document: created, original }
 }
 
 export async function linkApplicationToUser(applicationId: string, userId: string, clientId?: string): Promise<boolean> {

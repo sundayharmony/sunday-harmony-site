@@ -440,6 +440,7 @@ describe('credit report viewing in admin workspace', () => {
     assert.match(adminPage, /intakeCreditReports/)
     assert.match(reportFileRoute, /getDisputeLetterSignedDownloadUrl/)
     assert.match(docRoute, /export async function GET/)
+    assert.match(docRoute, /export async function PUT/)
   })
 })
 

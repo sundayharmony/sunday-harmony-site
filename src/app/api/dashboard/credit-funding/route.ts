@@ -10,7 +10,13 @@ import {
   syncStaffSharedDocumentsFromStorage,
 } from '@/lib/credit-funding-db'
 import { getCreditFundingDocumentSignedUrl } from '@/lib/credit-funding-storage'
-import { documentDisplayLabel, isStaffSharedDocument, needsFundingWorkflow, requiresBusinessSection } from '@/lib/credit-funding-types'
+import {
+  documentDisplayLabel,
+  isLetterWorkingCopyPath,
+  isStaffSharedDocument,
+  needsFundingWorkflow,
+  requiresBusinessSection,
+} from '@/lib/credit-funding-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,8 +54,12 @@ export async function GET() {
       }))
     )
 
-    const applicantDocuments = docsWithUrls.filter((d) => !isStaffSharedDocument(d))
-    const teamDocuments = docsWithUrls.filter((d) => isStaffSharedDocument(d))
+    const applicantDocuments = docsWithUrls.filter(
+      (d) => !isStaffSharedDocument(d) && !isLetterWorkingCopyPath(d.storage_path)
+    )
+    const teamDocuments = docsWithUrls.filter(
+      (d) => isStaffSharedDocument(d) && !isLetterWorkingCopyPath(d.storage_path)
+    )
 
     const messagesWithAttachments = messages.map((message) => ({
       ...message,

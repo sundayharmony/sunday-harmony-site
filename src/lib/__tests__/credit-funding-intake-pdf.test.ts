@@ -171,6 +171,36 @@ describe('credit funding intake PDF', () => {
     assert.match(plan.skipped.map((file) => file.reason).join('\n'), /safety check/)
   })
 
+  it('keeps the original client ID in the packet and skips the letter copy', () => {
+    const originalId = '123e4567-e89b-42d3-a456-426614174000'
+    const plan = planIntakeAttachments([
+      {
+        id: originalId,
+        document_type: 'photo_id',
+        file_name: 'license.jpg',
+        mime_type: 'image/jpeg',
+        storage_path: `app/photo_id/${originalId}_license.jpg`,
+        scan_status: 'clean',
+        created_at: '2026-03-02T00:00:00.000Z',
+      },
+      {
+        id: 'letter-copy',
+        document_type: 'photo_id',
+        file_name: 'clear.jpg',
+        mime_type: 'image/jpeg',
+        storage_path: `app/photo_id/letter-current_${originalId}_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee_clear.jpg`,
+        scan_status: 'clean',
+        shared_by: 'admin',
+        created_at: '2026-11-07T12:00:00.000Z',
+      },
+    ])
+    assert.deepEqual(
+      plan.include.map((file) => file.id),
+      [originalId]
+    )
+    assert.match(plan.skipped.map((file) => file.reason).join('\n'), /Letter copy/)
+  })
+
   it('stops adding files once the packet reaches its size limit', async () => {
     const docs: IntakeAttachmentSource[] = [
       {
