@@ -40,7 +40,14 @@ describe('credit funding letter copy wiring', () => {
     assert.match(adminPage, /Crop for letters/)
     assert.match(adminPage, /Original client upload/)
     assert.match(adminPage, /Used for letters/)
+    assert.match(adminPage, /documentId=\{cropDoc\.id\}/)
     assert.match(identity, /resolveLetterIdentityDocs/)
+    const content = readFileSync(
+      'src/app/api/admin/credit-funding/documents/[id]/content/route.ts',
+      'utf8'
+    )
+    assert.match(content, /downloadCreditFundingDocument/)
+    assert.match(content, /requireCreditFundingStaffSession/)
   })
 
   it('blocks letter generation until ID, residence proof, and SSN card are on file', () => {

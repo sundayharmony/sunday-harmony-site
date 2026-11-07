@@ -49,7 +49,7 @@ export default function LetterIdentityPrepPanel({
     id: string
     title: string
     fileName: string
-    imageUrl: string
+    imageUrl?: string
   } | null>(null)
 
   const load = useCallback(async (quiet = false) => {
@@ -198,7 +198,7 @@ export default function LetterIdentityPrepPanel({
                       View
                     </a>
                   )}
-                  {doc.canCrop && doc.signedUrl && (
+                  {doc.canCrop && state?.applicationId && (
                     <button
                       type="button"
                       className="font-semibold text-accent hover:underline"
@@ -208,7 +208,7 @@ export default function LetterIdentityPrepPanel({
                           id: doc.id,
                           title: item.label,
                           fileName: doc.file_name,
-                          imageUrl: doc.signedUrl!,
+                          imageUrl: doc.signedUrl,
                         })
                       }
                     >
@@ -277,17 +277,20 @@ export default function LetterIdentityPrepPanel({
       {notice && <p className="text-sm text-green-700">{notice}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {cropDoc && (
+      {cropDoc && state?.applicationId && (
         <LetterIdentityCropModal
           title={cropDoc.title}
-          imageUrl={cropDoc.imageUrl}
           fileName={cropDoc.fileName}
+          documentId={cropDoc.id}
+          applicationId={state.applicationId}
+          imageUrl={cropDoc.imageUrl}
           saving={busyKey === cropDoc.itemKey}
           onCancel={() => setCropDoc(null)}
-          onSave={(file) => {
+          onSave={async (file) => {
             const item = state?.items.find((row) => row.key === cropDoc.itemKey)
             if (!item) return
-            void uploadFile(item, file, cropDoc.id)
+            await uploadFile(item, file, cropDoc.id)
+            setCropDoc(null)
           }}
         />
       )}
