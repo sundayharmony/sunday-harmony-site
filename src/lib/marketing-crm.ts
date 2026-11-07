@@ -1029,7 +1029,10 @@ export async function loadMarketingToday(role?: string | null) {
   const handoffs = prospects
     .filter((prospect) => {
       if (role === 'sales_closer') {
-        return prospect.stage === 'ready_to_contact' || (Boolean(prospect.handedToSalesAt) && prospect.stage === 'contacted')
+        return (
+          prospect.stage === 'ready_to_contact' ||
+          (prospect.stage === 'contacted' && Boolean(prospect.handedToSalesAt || prospect.lastContactedAt))
+        )
       }
       if (role === 'client_relations') return prospect.stage === 'won' && !onboardingComplete(prospect.onboarding)
       if (role === 'lead_procurement') return prospect.stage === 'researching' || prospect.stage === 'ready_to_contact'

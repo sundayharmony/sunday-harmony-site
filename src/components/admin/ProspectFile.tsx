@@ -74,6 +74,17 @@ type Prospect = {
 
 type Script = { id: string; label: string; channel: 'email' | 'copy'; subject: string; body: string }
 type ThreadMessage = { from: string; date: string; snippet: string }
+type OutreachLetter = {
+  id: string
+  subject: string
+  previewHtml: string
+  deliveryState: string
+  deliveryLabel: string
+  acceptedAt: string | null
+  deliveredAt: string | null
+  bouncedAt: string | null
+  contactedAt: string | null
+}
 
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
 const headerButtonClass =
@@ -244,6 +255,7 @@ export default function ProspectFile({ id }: { id: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Prospect | null>(null)
   const [stripePaid, setStripePaid] = useState(false)
+  const [outreachLetter, setOutreachLetter] = useState<OutreachLetter | null>(null)
 
   function applyProspect(next: Prospect, nextScripts?: Script[]) {
     setProspect(next)
@@ -297,6 +309,7 @@ export default function ProspectFile({ id }: { id: string }) {
       )
       setWorkspaceConnected(Boolean(data.workspaceConnected))
       setStripePaid(Boolean(data.stripePaid))
+      setOutreachLetter(data.outreachLetter && typeof data.outreachLetter.subject === 'string' ? data.outreachLetter : null)
     })()
   }, [id])
 
@@ -842,6 +855,27 @@ export default function ProspectFile({ id }: { id: string }) {
       {showOutreach && (
         <section className="bg-white border border-brand-border rounded-xl p-4 space-y-3">
           <h2 className="text-sm font-bold text-brand-text">Outreach</h2>
+          {outreachLetter ? (
+            <div className="rounded-lg border border-brand-border p-3 space-y-2">
+              <p className="text-sm font-medium text-brand-text">{outreachLetter.subject}</p>
+              <p className="text-xs text-brand-muted">
+                {outreachLetter.deliveryLabel}
+                {outreachLetter.acceptedAt ? ` · Gmail accepted ${formatWhen(outreachLetter.acceptedAt)}` : ''}
+                {outreachLetter.deliveredAt ? ` · Delivered ${formatWhen(outreachLetter.deliveredAt)}` : ''}
+                {outreachLetter.bouncedAt ? ` · Bounced ${formatWhen(outreachLetter.bouncedAt)}` : ''}
+              </p>
+              {outreachLetter.previewHtml ? (
+                <iframe
+                  title="Sent outreach letter"
+                  srcDoc={outreachLetter.previewHtml}
+                  sandbox=""
+                  className="w-full h-64 sm:h-80 rounded-lg border border-brand-border bg-white"
+                />
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-brand-muted">No queued or Gmail-accepted letter on file yet.</p>
+          )}
           <p className="text-xs text-brand-muted">
             {isProcurement
               ? 'First contact scripts and reply checks before handing the lead to sales.'

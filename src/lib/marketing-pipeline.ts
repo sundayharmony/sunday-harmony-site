@@ -311,7 +311,12 @@ export function stageAfterProspectReply(current: PipelineStage): PipelineStage |
 /** Procurement stops seeing a lead after the sales handoff. Sales can open every Ready to contact lead. */
 export function roleCanSeeProspect(
   role: string | null | undefined,
-  prospect: { stage: PipelineStage; handedToSalesAt?: string | null; handedToRelationsAt?: string | null }
+  prospect: {
+    stage: PipelineStage
+    handedToSalesAt?: string | null
+    handedToRelationsAt?: string | null
+    lastContactedAt?: string | null
+  }
 ): boolean {
   if (role === 'admin') return true
   if (role === 'lead_procurement') {
@@ -320,7 +325,9 @@ export function roleCanSeeProspect(
   if (role === 'sales_closer') {
     if (!SALES_STAGES.has(prospect.stage)) return false
     if (prospect.stage === 'ready_to_contact') return true
-    if (prospect.stage === 'contacted') return Boolean(prospect.handedToSalesAt)
+    if (prospect.stage === 'contacted') {
+      return Boolean(prospect.handedToSalesAt || prospect.lastContactedAt)
+    }
     return true
   }
   if (role === 'client_relations') {

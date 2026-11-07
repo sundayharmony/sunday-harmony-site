@@ -223,6 +223,15 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(roleCanSeeProspect('sales_closer', ready), true)
     assert.equal(roleCanSeeProspect('lead_procurement', ready), true)
     assert.equal(roleCanSeeProspect('sales_closer', { stage: 'contacted' as const, handedToSalesAt: null, handedToRelationsAt: null }), false)
+    assert.equal(
+      roleCanSeeProspect('sales_closer', {
+        stage: 'contacted' as const,
+        handedToSalesAt: null,
+        handedToRelationsAt: null,
+        lastContactedAt: '2026-11-07T02:00:00.000Z',
+      }),
+      true
+    )
     const handed = { stage: 'contacted' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: null }
     assert.equal(roleCanSeeProspect('lead_procurement', handed), false)
     assert.equal(roleCanSeeProspect('sales_closer', handed), true)
