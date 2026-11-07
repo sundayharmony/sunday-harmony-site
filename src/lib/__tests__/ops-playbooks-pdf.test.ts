@@ -21,4 +21,15 @@ describe('ops playbooks PDF (admin asset builder)', () => {
     assert.doesNotMatch(source, /requireCreditFundingStaffSession/)
     assert.doesNotMatch(source, /public\//)
   })
+
+  it('auth matrix: admin gate rejects credit_manager / client / unauth at source level', () => {
+    const auth = readFileSync('src/lib/stripe-admin-auth.ts', 'utf8')
+    const route = readFileSync('src/app/api/admin/ops-playbooks/pdf/route.ts', 'utf8')
+    assert.match(auth, /export async function requireAdminSession/)
+    assert.match(auth, /role === 'admin'/)
+    assert.match(route, /requireAdminSession/)
+    // Training UI only shows download for admin role
+    const training = readFileSync('src/app/admin/training/page.tsx', 'utf8')
+    assert.match(training, /role === 'admin' && disputeOpsTraining\.staffPdfHref/)
+  })
 })

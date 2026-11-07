@@ -81,6 +81,19 @@ export function parseBasisRewritePayload(raw: string, allowedIds: Set<string>): 
   return out
 }
 
+/** Merge Gemini basis text into selection dispute_reason map (facts-only; no-op when disabled). */
+export function mergeBasisIntoReasons(
+  current: Record<string, string>,
+  rewritten: Record<string, string>
+): Record<string, string> {
+  const out = { ...current }
+  for (const [id, basis] of Object.entries(rewritten)) {
+    if (!basis || basis.length < 20) continue
+    out[id] = basis
+  }
+  return out
+}
+
 export async function rewriteBasisWithGemini(params: {
   facts: BasisFact[]
   timeoutMs?: number

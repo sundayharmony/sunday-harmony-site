@@ -118,30 +118,78 @@ def mismatch_sort_key(tl: Tradeline) -> tuple:
     return (kind_order, (tl.creditor or "").lower(), tl.id)
 
 
+CLEARED_ITEM_STATUSES = frozenset(
+    {"deleted", "updated", "removed", "completed", "resolved", "cleared"}
+)
+
+
+def item_status_cleared(status: str | None) -> bool:
+    return (status or "").strip().lower() in CLEARED_ITEM_STATUSES
+
+
+def open_inconsistencies_remain(
+    tradelines: list[Tradeline],
+    item_statuses: dict[str, str] | None = None,
+) -> bool:
+    """True when a cross-bureau mismatch is still open (not cleared/aligned)."""
+    statuses = item_statuses or {}
+    for tl in tradelines:
+        enriched = apply_cross_bureau_enrichment(tl.model_copy(deep=True))
+        if FLAG_INCONSISTENT not in (enriched.legal_flags or []):
+            continue
+        if not item_status_cleared(statuses.get(tl.id)):
+            return True
+    return False
+
+
 def select_for_round(
     tradelines: list[Tradeline],
     *,
     round_number: int,
     max_items: int = 7,
+    item_statuses: dict[str, str] | None = None,
 ) -> list[Tradeline]:
-    """Pick tradelines for a dispute round following the locked strategy."""
+    """Order/filter tradelines for a dispute round.
+
+    Round 1: inconsistency-first ordering. Does **not** silently drop other
+    selected items — letter_router paginates with MAX_ITEMS_PER_LETTER (7) into
+    additional bureau letters ("letter N of M").
+
+    Round 2+: consistent inaccuracies **only after** open mismatches are
+    cleared/aligned. If mismatches remain open, return those open mismatch
+    items for follow-up instead of shifting focus.
+    """
     round_number = max(1, int(round_number or 1))
+    statuses = item_statuses or {}
     enriched = [apply_cross_bureau_enrichment(tl.model_copy(deep=True)) for tl in tradelines]
     if round_number <= 1:
         pool = sorted(enriched, key=mismatch_sort_key)
-        # Prefer inconsistent; still allow other high/medium to fill ≤ max_items.
         preferred = [tl for tl in pool if FLAG_INCONSISTENT in (tl.legal_flags or [])]
         fillers = [
             tl
             for tl in pool
-            if tl not in preferred and (tl.repair_priority in ("high", "medium") or FLAG_CONSISTENT in (tl.legal_flags or []))
+            if tl.id not in {p.id for p in preferred}
+            and (
+                tl.repair_priority in ("high", "medium")
+                or FLAG_CONSISTENT in (tl.legal_flags or [])
+            )
         ]
-        ordered = preferred + fillers
-        return ordered[: max(1, max_items) * 3]  # multi-bureau letters share the pool; router chunks per bureau
-    # Round 2+: consistent inaccuracies after mismatches are the focus.
+        # Full ordered pool — chunking/pagination is the letter router's job.
+        return preferred + fillers
+
+    if open_inconsistencies_remain(enriched, statuses):
+        open_mismatches = [
+            tl
+            for tl in enriched
+            if FLAG_INCONSISTENT in (tl.legal_flags or [])
+            and not item_status_cleared(statuses.get(tl.id))
+        ]
+        open_mismatches.sort(key=lambda t: (t.creditor or "").lower())
+        return open_mismatches
+
     consistent = [tl for tl in enriched if FLAG_CONSISTENT in (tl.legal_flags or [])]
     consistent.sort(key=lambda t: (t.creditor or "").lower())
-    return consistent[: max(1, max_items) * 3]
+    return consistent
 
 
 def inconsistent_reason(tl: Tradeline) -> str:

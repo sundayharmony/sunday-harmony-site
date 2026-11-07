@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   buildBasisPrompt,
+  mergeBasisIntoReasons,
   parseBasisRewritePayload,
   rewriteBasisWithGemini,
 } from '../dispute-letters/gemini-basis'
@@ -54,6 +55,25 @@ describe('gemini basis rewrite (facts-only)', () => {
       else process.env.GEMINI_LETTER_BASIS = previous
       delete process.env.GEMINI_API_KEY
     }
+  })
+
+  it('plan route wires gemini-basis behind the off-by-default flag', () => {
+    const source = require('node:fs').readFileSync(
+      'src/app/api/admin/dispute-letters/[id]/plan/route.ts',
+      'utf8'
+    )
+    assert.match(source, /rewriteBasisWithGemini/)
+    assert.match(source, /geminiBasisEnabled/)
+    assert.match(source, /allowLive:\s*true/)
+  })
+
+  it('merges rewritten basis into selection reasons', () => {
+    const merged = mergeBasisIntoReasons(
+      { t1: 'old', t2: 'keep' },
+      { t1: 'New confirmed facts basis text that is long enough to accept.' }
+    )
+    assert.match(merged.t1, /New confirmed/)
+    assert.equal(merged.t2, 'keep')
   })
 
   it('uses mocked fetch when allowLive is true', async () => {

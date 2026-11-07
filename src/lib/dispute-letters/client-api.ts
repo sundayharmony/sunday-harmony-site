@@ -97,7 +97,8 @@ export async function analyzeReport(
     if (status === 'ready') {
       onProgress?.('Loading analysis results…')
       const loaded = await fetchDisputeReport(sessionId)
-      if ((loaded.report?.tradelines || []).length > 0) return loaded
+      const { needsGeminiReportFallback } = await import('@/lib/dispute-letters/gemini-report-read')
+      if (!needsGeminiReportFallback(loaded.report)) return loaded
       onProgress?.('Reading this scan…')
       const modelRes = await fetch(`/api/admin/dispute-letters/${sessionId}/model-read`, {
         method: 'POST',

@@ -130,3 +130,62 @@ export function consistentInaccuracyDisputeReason(tl: Tradeline): string {
     'information that cannot be verified.'
   )
 }
+
+const CLEARED = new Set(['deleted', 'updated', 'removed', 'completed', 'resolved', 'cleared'])
+
+export function itemStatusCleared(status?: string | null): boolean {
+  return CLEARED.has(String(status || '').trim().toLowerCase())
+}
+
+export function openInconsistenciesRemain(
+  tradelines: Tradeline[],
+  itemStatuses: Record<string, string> = {}
+): boolean {
+  for (const tl of tradelines) {
+    const enriched = applyCrossBureauEnrichment(tl)
+    if (!(enriched.legal_flags || []).includes(FLAG_INCONSISTENT)) continue
+    if (!itemStatusCleared(itemStatuses[tl.id])) return true
+  }
+  return false
+}
+
+/**
+ * Round 1: inconsistency-first order (no silent drop — router paginates ≤7/letter).
+ * Round 2+: consistent inaccuracies only after mismatches cleared; else open mismatches.
+ */
+export function selectForRound(
+  tradelines: Tradeline[],
+  opts: { roundNumber: number; itemStatuses?: Record<string, string> }
+): Tradeline[] {
+  const roundNumber = Math.max(1, opts.roundNumber || 1)
+  const statuses = opts.itemStatuses || {}
+  const enriched = tradelines.map((tl) => applyCrossBureauEnrichment(tl))
+  if (roundNumber <= 1) {
+    const sorted = [...enriched].sort((a, b) => {
+      const ka = mismatchSortKey(a)
+      const kb = mismatchSortKey(b)
+      return ka[0] - kb[0] || ka[1].localeCompare(kb[1])
+    })
+    const preferred = sorted.filter((tl) => (tl.legal_flags || []).includes(FLAG_INCONSISTENT))
+    const preferredIds = new Set(preferred.map((t) => t.id))
+    const fillers = sorted.filter(
+      (tl) =>
+        !preferredIds.has(tl.id) &&
+        (tl.repair_priority === 'high' ||
+          tl.repair_priority === 'medium' ||
+          (tl.legal_flags || []).includes(FLAG_CONSISTENT))
+    )
+    return [...preferred, ...fillers]
+  }
+  if (openInconsistenciesRemain(enriched, statuses)) {
+    return enriched
+      .filter(
+        (tl) =>
+          (tl.legal_flags || []).includes(FLAG_INCONSISTENT) && !itemStatusCleared(statuses[tl.id])
+      )
+      .sort((a, b) => (a.creditor || '').localeCompare(b.creditor || ''))
+  }
+  return enriched
+    .filter((tl) => (tl.legal_flags || []).includes(FLAG_CONSISTENT))
+    .sort((a, b) => (a.creditor || '').localeCompare(b.creditor || ''))
+}

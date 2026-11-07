@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   applyGeminiRead,
   geminiReportMimeType,
+  needsGeminiReportFallback,
   parseGeminiReportPayload,
   readReportWithGemini,
 } from '../dispute-letters/gemini-report-read'
@@ -31,6 +32,89 @@ function emptyReport(): ParsedReport {
     extraction_quality: 'low',
   }
 }
+
+describe('needsGeminiReportFallback', () => {
+  it('triggers on empty tradelines when API key present', () => {
+    process.env.GEMINI_API_KEY = 'test-key'
+    try {
+      assert.equal(needsGeminiReportFallback(emptyReport()), true)
+    } finally {
+      delete process.env.GEMINI_API_KEY
+    }
+  })
+
+  it('triggers on weak/malformed nonempty parse (thin shells)', () => {
+    process.env.GEMINI_API_KEY = 'test-key'
+    try {
+      const weak = emptyReport()
+      weak.tradelines = [
+        {
+          id: 'x1',
+          creditor: '',
+          account_tu: '',
+          account_exp: '',
+          account_eqf: '',
+          account_type: '',
+          status: '',
+          balance: '',
+          past_due: '',
+          remarks: '',
+          bureaus: [],
+          is_collection: false,
+          selected: false,
+          dispute_reason: '',
+          analysis_notes: '',
+          suggested_dispute_reason: '',
+          dispute_bureaus: [],
+          dispute_furnisher: true,
+          legal_flags: [],
+          repair_priority: 'none',
+          item_category: '',
+        },
+      ]
+      weak.extraction_quality = 'medium'
+      assert.equal(needsGeminiReportFallback(weak), true)
+    } finally {
+      delete process.env.GEMINI_API_KEY
+    }
+  })
+
+  it('skips healthy nonempty reports', () => {
+    process.env.GEMINI_API_KEY = 'test-key'
+    try {
+      const ok = emptyReport()
+      ok.extraction_quality = 'high'
+      ok.tradelines = [
+        {
+          id: 'good',
+          creditor: 'HARBOR BANK',
+          account_tu: '1111',
+          account_exp: '',
+          account_eqf: '',
+          account_type: 'Revolving',
+          status: 'Open',
+          balance: '100',
+          past_due: '',
+          remarks: '',
+          bureaus: ['TUC'],
+          is_collection: false,
+          selected: false,
+          dispute_reason: '',
+          analysis_notes: '',
+          suggested_dispute_reason: '',
+          dispute_bureaus: [],
+          dispute_furnisher: true,
+          legal_flags: [],
+          repair_priority: 'none',
+          item_category: '',
+        },
+      ]
+      assert.equal(needsGeminiReportFallback(ok), false)
+    } finally {
+      delete process.env.GEMINI_API_KEY
+    }
+  })
+})
 
 describe('parseGeminiReportPayload', () => {
   it('keeps a real account and drops an empty creditor', () => {

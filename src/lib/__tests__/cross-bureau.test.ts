@@ -8,6 +8,7 @@ import {
   applyCrossBureauEnrichment,
   classifyMismatchKind,
   mismatchSortKey,
+  selectForRound,
 } from '../dispute-letters/cross-bureau'
 import { resolvedDisputeReason } from '../dispute-letters/dispute-reasons'
 import type { Tradeline } from '../dispute-letters/types'
@@ -82,5 +83,34 @@ describe('cross-bureau classification', () => {
     const { kind, summary } = classifyMismatchKind(row)
     assert.equal(kind, 'consistent_inaccuracy')
     assert.match(summary, /Staff marked/)
+  })
+
+  it('round2 waits for mismatch clearance before consistent focus', () => {
+    const items = [
+      applyCrossBureauEnrichment(tl(FIXTURES.A_inconsistent_late)),
+      applyCrossBureauEnrichment(tl(FIXTURES.B_consistent_late)),
+    ]
+    const blocked = selectForRound(items, { roundNumber: 2 })
+    assert.equal(blocked.length, 1)
+    assert.equal(blocked[0].id, 'fix-a-coast')
+    const ready = selectForRound(items, {
+      roundNumber: 2,
+      itemStatuses: { 'fix-a-coast': 'updated' },
+    })
+    assert.ok(ready.every((t) => t.legal_flags.includes(FLAG_CONSISTENT)))
+  })
+
+  it('round1 ordered pool keeps all inconsistencies (no silent truncate)', () => {
+    const many = Array.from({ length: 8 }, (_, i) =>
+      applyCrossBureauEnrichment(
+        tl({
+          ...FIXTURES.A_inconsistent_late,
+          id: `inc-${i}`,
+          creditor: `BANK${i}`,
+          payment_history: `EQF:30:2020-0${(i % 8) + 1};EXP:OK;TUC:OK`,
+        })
+      )
+    )
+    assert.equal(selectForRound(many, { roundNumber: 1 }).length, 8)
   })
 })
