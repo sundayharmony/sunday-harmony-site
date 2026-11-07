@@ -122,5 +122,16 @@ He pitches Rising as a **90-day** credit-improvement system with dispute templat
 - Staff checklist template linking to this playbook when utilization is primary constraint.
 - Explicit “derogatories capping utilization strategies” warning in recommendations.
 
+## 6. Visual study (SnapYT MP4 keyframes)
+
+Full MP4 studied locally (`84Hi8hcQ3mw.mp4`, ~16:12, 640×360). On-screen slides confirm the three overnight levers:
+
+| Beat | What appears on screen |
+|------|------------------------|
+| Strategy framing | Title card style “3 Ways…” with speaker inset; rent/utility path contrasted with dispute-only thinking |
+| 401(k) loan | Slide **“Replace Reportable Debt With Debt the Credit Bureaus Cannot See”** + pill **“The 401(k) Loan”**; body warns repayment / tax / retirement risks while utilization drops after card paydown reports |
+| Limit transplant | Same-issuer reallocation explained on slides (move unused limit onto the maxed card without new hard pull when issuer allows) |
+| Caveats | On-screen emphasis that derogatories can cap gains even when utilization math looks perfect |
+
 ## Source
 https://www.youtube.com/watch?v=84Hi8hcQ3mw

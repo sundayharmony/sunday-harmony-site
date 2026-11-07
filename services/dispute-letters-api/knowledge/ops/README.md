@@ -8,7 +8,7 @@ Staff-facing study notes that map external credit strategies onto the Sunday Har
 
 1. **Full spoken narration** for every video below is captured via YouTube page fetch (works even when the cloud IP cannot play media). Field-by-field portal steps come from that narration.
 2. **Description chapters / affiliate links** are read from the live watch page when available.
-3. **On-screen UI scrubbing** (pause-frame button labels) requires a signed-in YouTube session or `YOUTUBE_COOKIES_TXT`. From this Cloud Agent IP, YouTube returns *LOGIN_REQUIRED / Sign in to confirm you’re not a bot* and blocks yt-dlp, embeds (Error 153), Invidious, and Cobalt. Re-verify portal UI labels after cookies are available.
+3. **On-screen UI scrubbing** uses full MP4 downloads + keyframe extraction (YouTubeToolkit for the first two; **[SnapYT](https://www.snapyt.app/)** for the remaining four after `app.ytdown.to` stuck on Cloudflare). Local artifacts live under `/opt/cursor/artifacts/video-study/` (MP4s + `frames/<id>/`) and are **not** committed to git.
 
 ## Playbooks
 

@@ -80,5 +80,15 @@ Ranks popular credit moves from **F (can hurt)** to **S (highest leverage)**, so
 - Staff script snippets for F-tier “don’t close that card” coaching.
 - Inquiry-specific dispute reason presets.
 
+## 6. Visual study (SnapYT MP4 keyframes)
+
+Full MP4 studied locally (`puS_pUv3kaE.mp4`, ~21:38, 640×360). Key on-screen teaching graphic:
+
+| Beat | What appears on screen |
+|------|------------------------|
+| Closing cards (F-tier) | Dark graphic: three cards; leftmost **CLOSED** ($4k limit). Header **COMBINED LIMIT: $6 000**; **REPORTED BALANCE: $3 000**; **OVERALL UTILIZATION: 30%** — used to show how closing a limit *raises* utilization (was 30% of $10k → becomes 50% of $6k) |
+| Tier list | Narrated F→S ranking overlaid on score/strategy slides (payment history / derogs / utilization / inquiries / thin-file / AU / tradelines) |
+| Bottleneck framing | Visuals emphasize diagnosing the *primary* constraint before stacking low-ROI tactics |
+
 ## Source
 https://www.youtube.com/watch?v=puS_pUv3kaE

@@ -118,5 +118,15 @@ He lists (links in description; always re-check terms):
 - Statement-cycle field on revolving tradelines (if parseable) for coaching.
 - Funding recommendation link: “utilization restructuring playbook” when factor is critical.
 
+## 6. Visual study (SnapYT MP4 keyframes)
+
+Full MP4 studied locally (`14NZLQ2DfTs.mp4`, ~15:30, 640×360). On-screen strategy cards:
+
+| Beat | What appears on screen |
+|------|------------------------|
+| Core concept | Blue slide **“THE CORE CONCEPT: SHIFTING PERSONAL DEBT INTO BUSINESS CREDIT”** — personal → business cards that usually **don’t report** to personal files; 0% BT interest savings; faster utilization relief |
+| If no business credit yet | Four blue boxes: **CREDIT LIMIT INCREASES** · **VELOCITY BANKING** (pay before statement reports) · **MOVE REVOLVING → INSTALLMENT** · **AUTHORIZED USER** |
+| Sequencing | Slides push structure-first (shift / CLI / BT) before hoping disputes alone fix maxed revolving |
+
 ## Source
 https://www.youtube.com/watch?v=14NZLQ2DfTs
