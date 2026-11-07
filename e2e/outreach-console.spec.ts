@@ -141,7 +141,12 @@ test.describe('outreach admin preview', () => {
       'PO Box 1011, Jersey City, NJ 07304'
     )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
-    await expect(page.getByText('Hi Christopher,')).toBeVisible()
+    await page.getByRole('button', { name: 'SwingStop Hammonton' }).click()
+    await expect(page.getByTitle('Formatted email preview')).toBeVisible()
+    await expect(
+      page.frameLocator('iframe[title="Formatted email preview"]').getByText('Hi Christopher')
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
     await expect(page.getByText('kill_switch')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Record activation (server gates only)' })).toBeVisible()
@@ -163,6 +168,9 @@ test.describe('outreach admin preview', () => {
       'PO Box 1011, Jersey City, NJ 07304'
     )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
+    await page.getByRole('button', { name: 'SwingStop Hammonton' }).click()
+    await expect(page.getByTitle('Formatted email preview')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
     await page.getByRole('button', { name: 'Toggle menu' }).click()

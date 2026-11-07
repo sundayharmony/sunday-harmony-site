@@ -20,7 +20,7 @@ import { prospectGreetingIsUsable } from '../outreach/greeting'
 import { toProspectObservation } from '../outreach/observation'
 import type { LeadSnapshot } from '../outreach/types'
 import { buildHandoff } from '../outreach/handoff'
-import { buildOutreachMime, mimeContainsAttachment } from '../outreach/mime'
+import { buildOutreachMime, mimeContainsAttachment, toQuotedPrintable } from '../outreach/mime'
 import { lookupMx } from '../outreach/mx'
 import { createGmailOutreachProvider, createMockProvider, queueItemPayload } from '../outreach/provider'
 import { createMemoryOutreachStore, setOutreachStoreForTests } from '../outreach/store'
@@ -520,12 +520,13 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.equal((await store.getQueueItem(item.id))?.status, 'suppressed')
   })
 
-  it('builds MIME with the PDF attachment, list-unsubscribe, and escaped HTML', () => {
+  it('builds MIME with the PDF attachment, list-unsubscribe, and quoted-printable HTML', () => {
+    const html = '<div style="color:#b8943f">Hi</div>'
     const raw = buildOutreachMime({
       to: 'owner@example.com',
       from: `Sunday Harmony Consulting <${OUTREACH_SENDER_EMAIL}>`,
       subject: 'Hello',
-      html: '<p>Hi</p>',
+      html,
       text: 'Hi',
       idempotencyKey: 'prospect-intro/abc',
       payloadSha256: 'abc',
@@ -539,6 +540,9 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.equal(mimeContainsAttachment(raw, 'Sunday-Harmony-Consulting-company-presentation.pdf'), true)
     assert.match(raw, /List-Unsubscribe: <https:\/\/www\.sundayharmony\.com\/api\/unsubscribe\/tok>/)
     assert.match(raw, /List-Unsubscribe-Post/)
+    assert.equal(toQuotedPrintable(html).includes('style=3D"color:#b8943f"'), true)
+    assert.match(raw, /style=3D"color:#b8943f"/)
+    assert.doesNotMatch(raw, /style="color:#b8943f"/)
   })
 
   it('redirects browser confirm to a branded page and keeps one-click on the API', async () => {
@@ -659,6 +663,9 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
     assert.match(consoleUi, /Send batch/)
     assert.match(consoleUi, /send-batch/)
+    assert.match(consoleUi, /Formatted email preview/)
+    assert.match(consoleUi, /previewHtml/)
+    assert.doesNotMatch(consoleUi, />Audit</)
     const dispatch = readFileSync('src/lib/outreach/dispatch.ts', 'utf8')
     assert.match(dispatch, /skippedDisabled/)
     assert.match(dispatch, /markLeadContacted/)
@@ -707,6 +714,7 @@ describe('handoff and activation blockers', () => {
     const consolePayload = await buildOutreachConsole(store, 'sales_closer')
     assert.equal(consolePayload.disabled, true)
     assert.equal(consolePayload.queue[0].handoff?.phone, '877-734-9145')
+    assert.equal('audit' in consolePayload, false)
   })
 })
 

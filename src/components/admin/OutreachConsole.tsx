@@ -54,7 +54,6 @@ type ConsolePayload = {
     providerConfirmed?: boolean
     notes: string
   }>
-  audit: Array<{ id: string; action: string; createdAt: string }>
   provider: { intended: string; idempotencyRecovery: boolean; note: string }
   scheduler?: { enabled: boolean; note: string }
   error?: string
@@ -356,9 +355,18 @@ export default function OutreachConsole() {
         <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5 space-y-3">
           <h2 className="text-sm font-bold text-brand-text">Preview and handoff</h2>
           <p className="text-sm text-brand-text font-medium">{selected.subject}</p>
-          <pre className="whitespace-pre-wrap text-sm text-brand-muted bg-neutral-50 border border-brand-border rounded-lg p-3">
-            {selected.previewText}
-          </pre>
+          {selected.previewHtml ? (
+            <iframe
+              title="Formatted email preview"
+              srcDoc={selected.previewHtml}
+              sandbox=""
+              className="w-full h-[28rem] sm:h-[36rem] rounded-lg border border-brand-border bg-white"
+            />
+          ) : (
+            <pre className="whitespace-pre-wrap text-sm text-brand-muted bg-neutral-50 border border-brand-border rounded-lg p-3">
+              {selected.previewText}
+            </pre>
+          )}
           <p className="text-xs text-brand-dim">Attachment: {selected.attachment}</p>
           {selected.handoff ? (
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -403,20 +411,6 @@ export default function OutreachConsole() {
         </ul>
       </section>
 
-      <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5">
-        <h2 className="text-sm font-bold text-brand-text mb-3">Audit</h2>
-        {data.audit.length === 0 ? (
-          <p className="text-sm text-brand-muted">No outreach audit events yet.</p>
-        ) : (
-          <ul className="space-y-1 text-xs text-brand-muted">
-            {data.audit.map((event) => (
-              <li key={event.id}>
-                {event.createdAt} · {event.action}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   )
 }

@@ -13,7 +13,6 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
   const queue = await store.listQueue()
   const recon = await store.listReconciliationItems()
-  const audit = await store.listAudit(50)
   const attachmentPresent = Boolean(await resolveCompanyPresentationPdf())
   const blockers = currentBlockers(settings, template, { schemaReady: true, attachmentPresent })
   const includeHandoff = canViewHandoff(role)
@@ -83,13 +82,6 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
           providerConfirmed: false,
           notes: row.notes,
         })),
-    audit: audit.map((event) => ({
-      id: event.id,
-      action: event.action,
-      entityType: event.entityType,
-      createdAt: event.createdAt,
-      payload: event.payload,
-    })),
     provider: {
       intended: 'gmail',
       idempotencyRecovery: false,
