@@ -7,13 +7,20 @@ import {
   formatPartnerDate,
   isReferralProfileAttributable,
   partnerCurrentScores,
+  partnerReferralSummary,
   referralStatusForPartnerProfile,
   shouldSkipPartnerCommission,
   toPartnerReferralProgress,
 } from '../partner-progress'
 import { partnerSignupInviteEmailHtml } from '../partner-invite-email'
 import { detectPartnerLogo, partnerLogoPublicUrl, validatePartnerLogo } from '../partner-logos'
-import { parsePartnerSignup, partnerProfessionLabel } from '../partner-signup'
+import {
+  parsePartnerPasswordChange,
+  parsePartnerProfileUpdate,
+  parsePartnerSignup,
+  partnerProfessionLabel,
+  planPartnerSignupUser,
+} from '../partner-signup'
 import { adminPartnerReferralContact } from '../partner-service'
 
 function source(path: string): string {
@@ -46,6 +53,38 @@ describe('partner signup validation', () => {
     assert.equal(parsePartnerSignup({ ...valid, profession: 'lawyer' }).ok, false)
     assert.equal(parsePartnerSignup({ ...valid, companyName: ' ' }).ok, false)
     assert.equal(parsePartnerSignup({ ...valid, yearsInField: '90' }).ok, false)
+  })
+
+  it('completes a stranded partner login instead of creating a second user', () => {
+    assert.equal(planPartnerSignupUser(null, false), 'create')
+    assert.equal(planPartnerSignupUser({ role: 'partner' }, false), 'complete_orphan')
+    assert.equal(planPartnerSignupUser({ role: 'partner' }, true), 'conflict')
+    assert.equal(planPartnerSignupUser({ role: 'client' }, false), 'conflict')
+    assert.match(source('src/lib/partner-service.ts'), /deleteUser/)
+    assert.match(source('src/lib/partner-service.ts'), /planPartnerSignupUser/)
+  })
+
+  it('lets an approved partner edit company details and change a password', () => {
+    const parsed = parsePartnerProfileUpdate({
+      fullName: 'Alex Rivera',
+      phone: '215-555-0100',
+      companyName: 'Rivera Lending',
+      serviceArea: 'Philadelphia',
+      yearsInField: '9',
+      profession: 'real_estate',
+    })
+    assert.equal(parsed.ok, true)
+    if (parsed.ok) assert.equal(parsed.value.yearsInField, 9)
+    assert.equal(parsePartnerProfileUpdate({ ...valid, companyName: ' ' }).ok, false)
+    const password = parsePartnerPasswordChange({
+      currentPassword: 'Harbor1a',
+      newPassword: 'Harbor2b',
+    })
+    assert.equal(password.ok, true)
+    assert.equal(parsePartnerPasswordChange({ currentPassword: 'Harbor1a', newPassword: 'Harbor1a' }).ok, false)
+    assert.match(source('src/app/api/partner/route.ts'), /action === 'profile'/)
+    assert.match(source('src/app/api/partner/route.ts'), /action === 'password'/)
+    assert.match(source('src/app/partner/account/page.tsx'), /Save details/)
   })
 })
 
@@ -93,6 +132,21 @@ describe('partner referral progress', () => {
     })
   })
 
+  it('counts closed files so application totals add up', () => {
+    const summary = partnerReferralSummary(
+      [{ bucket: 'in_progress' }, { bucket: 'completed' }, { bucket: 'closed' }, { bucket: 'closed' }],
+      7
+    )
+    assert.deepEqual(summary, {
+      clicks: 7,
+      submitted: 4,
+      inProgress: 1,
+      completed: 1,
+      closed: 2,
+    })
+    assert.equal(summary.submitted, summary.inProgress + summary.completed + summary.closed)
+  })
+
   it('formats partner dates in America/New_York and labels professions safely', () => {
     assert.equal(formatPartnerDate(''), '—')
     assert.equal(formatPartnerDate('not-a-date'), '—')
@@ -131,6 +185,8 @@ describe('partner signup invite email', () => {
     assert.match(html, /#f4efe5/)
     assert.match(html, /\/partners\/signup/)
     assert.match(html, /Sign up as a partner/)
+    assert.match(html, /Build or Fund/)
+    assert.doesNotMatch(html, /personal credit link/)
     assert.equal(html.includes('<script>'), false)
     assert.match(html, /Alex &lt;script&gt;/)
   })
@@ -202,11 +258,21 @@ describe('partner surfaces', () => {
     assert.match(source('src/app/partner/page.tsx'), /choose Build or Fund/)
     assert.match(source('src/app/partner/page.tsx'), /href="\/build-fund"/)
     assert.match(source('src/app/partner/page.tsx'), /sm:hidden/)
+    assert.match(source('src/app/partner/page.tsx'), /Closed/)
     assert.match(source('src/components/referrals/ReferralLinkQrPanel.tsx'), /Scans to the Build or Fund chooser/)
+    assert.match(source('src/components/referrals/ReferralLinkQrPanel.tsx'), /disabled=\{!active\}/)
+    assert.match(source('src/components/referrals/ReferralLinkQrPanel.tsx'), /if \(!active \|\| !link\.trim\(\)\) return ''/)
     assert.doesNotMatch(source('src/components/referrals/ReferralLinkQrPanel.tsx'), /credit intake link/)
     assert.match(source('src/lib/partner-service.ts'), /decryptFieldOrLegacy/)
     assert.match(source('src/lib/partner-service.ts'), /existing\.status === status/)
     assert.match(source('src/app/api/partner/route.ts'), /logApiRouteError/)
+    assert.match(source('src/app/api/partner/notifications/route.ts'), /requirePartnerSession/)
+    assert.match(source('src/app/api/referral-qr/route.ts'), /linkActive/)
+    assert.match(source('src/app/api/referrals/track/route.ts'), /FUND_CHOOSER_PATH/)
+    assert.match(source('src/app/partners/signup/page.tsx'), /Build \(personal credit\) or Fund/)
+    assert.match(source('src/app/login/page.tsx'), /credit or funding/)
+    assert.match(source('src/lib/referral-service.ts'), /credit or funding application/)
+    assert.match(source('src/middleware.ts'), /\/partners\/signup/)
     assert.match(source('src/components/admin/AdminPartnerAccountsPanel.tsx'), /Open/)
     assert.match(source('src/app/funding/page.tsx'), /isPartnerIntakeFirst/)
     assert.match(source('src/app/credit/page.tsx'), /isPartnerIntakeFirst/)

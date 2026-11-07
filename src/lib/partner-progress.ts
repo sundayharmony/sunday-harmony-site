@@ -89,6 +89,19 @@ export function referralStatusForPartnerProfile(status: string | null | undefine
   return status === 'active' ? 'active' : 'disabled'
 }
 
+export function partnerReferralSummary(
+  rows: Array<{ bucket: PartnerReferralProgress['bucket'] }>,
+  clicks: number
+) {
+  return {
+    clicks,
+    submitted: rows.length,
+    inProgress: rows.filter(row => row.bucket === 'in_progress').length,
+    completed: rows.filter(row => row.bucket === 'completed').length,
+    closed: rows.filter(row => row.bucket === 'closed').length,
+  }
+}
+
 /** Dates on the partner dashboard stay on the same calendar day as staff tools. */
 export function formatPartnerDate(iso: string | null | undefined): string {
   if (!iso) return '—'

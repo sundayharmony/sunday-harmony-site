@@ -34,7 +34,9 @@ export function sanitizeNotificationLink(raw: string | null | undefined): string
     pathname === '/dashboard' ||
     pathname.startsWith('/dashboard/') ||
     pathname === '/admin' ||
-    pathname.startsWith('/admin/')
+    pathname.startsWith('/admin/') ||
+    pathname === '/partner' ||
+    pathname.startsWith('/partner/')
   if (!allowed) return null
   return path
 }

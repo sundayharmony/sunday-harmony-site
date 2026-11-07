@@ -65,11 +65,11 @@ describe('partner toolkit content', () => {
     }
   })
 
-  it('points partners at sharing their QR code or intake link', () => {
-    assert.equal(TOOLKIT_NEXT_STEP.title, 'Share your QR code or intake link.')
-    assert.match(TOOLKIT_NEXT_STEP.lead, /client gets started/i)
+  it('points partners at sharing their QR code or referral link', () => {
+    assert.equal(TOOLKIT_NEXT_STEP.title, 'Share your QR code or referral link.')
+    assert.match(TOOLKIT_NEXT_STEP.lead, /choose Build or Fund/i)
     assert.equal(
-      TALKING_POINTS.some((point) => /share your QR code or intake link/i.test(point.text)),
+      TALKING_POINTS.some((point) => /share your QR code or referral link/i.test(point.text)),
       true
     )
     assert.doesNotMatch(collectToolkitPlainText(), /\/build-fund/)
@@ -95,8 +95,11 @@ describe('partner toolkit surface', () => {
     assert.match(middleware, /role !== 'partner'/)
     assert.match(source('src/app/partner/layout.tsx'), /PartnerShell/)
     assert.match(source('src/components/partner/PartnerShell.tsx'), /href="\/partner\/toolkit"/)
+    assert.match(source('src/components/partner/PartnerShell.tsx'), /href="\/partner\/account"/)
     assert.match(source('src/components/partner/PartnerShell.tsx'), /Dashboard/)
     assert.match(source('src/components/partner/PartnerShell.tsx'), /Toolkit/)
+    assert.match(source('src/components/partner/PartnerShell.tsx'), /Account/)
+    assert.match(source('src/components/partner/PartnerShell.tsx'), /\/api\/partner\/notifications/)
     assert.match(source('src/app/partner/toolkit/page.tsx'), /PartnerToolkit/)
     assert.match(source('src/app/partner/toolkit/page.tsx'), /NO_INDEX/)
     assert.doesNotMatch(source('src/components/partner/PartnerToolkit.tsx'), /sales-kit|salesMaterials/)

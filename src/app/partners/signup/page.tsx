@@ -61,7 +61,7 @@ export default function PartnerSignupPage() {
   return (
     <AuthPageShell
       title="Partner signup"
-      subtitle="For mortgage, auto, and real estate professionals who refer clients for credit repair."
+      subtitle="For mortgage, auto, and real estate professionals who refer people to Build (personal credit) or Fund (business funding)."
       backHref="/login"
       backLabel="Already have an account? Sign in"
     >

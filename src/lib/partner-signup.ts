@@ -31,6 +31,20 @@ export type PartnerSignupInput = {
   profession: PartnerProfession
 }
 
+export type PartnerProfileUpdateInput = Omit<PartnerSignupInput, 'email' | 'password'>
+
+export type PartnerSignupUserPlan = 'create' | 'complete_orphan' | 'conflict'
+
+/** Decide whether signup should create a user, finish a stranded partner login, or reject. */
+export function planPartnerSignupUser(
+  existing: { role: string } | null | undefined,
+  hasProfile: boolean
+): PartnerSignupUserPlan {
+  if (!existing) return 'create'
+  if (existing.role !== 'partner' || hasProfile) return 'conflict'
+  return 'complete_orphan'
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function clean(value: unknown, max: number): string {
@@ -39,9 +53,28 @@ function clean(value: unknown, max: number): string {
 }
 
 export function parsePartnerSignup(body: Record<string, unknown>): { ok: true; value: PartnerSignupInput } | { ok: false; error: string } {
-  const fullName = clean(body.fullName, 120)
   const email = clean(body.email, 254).toLowerCase()
   const password = typeof body.password === 'string' ? body.password : ''
+  if (!EMAIL_RE.test(email)) return { ok: false, error: 'A valid email is required.' }
+  const passwordError = validatePassword(password)
+  if (passwordError) return { ok: false, error: passwordError }
+  const fields = parsePartnerProfileFields(body)
+  if (!fields.ok) return fields
+
+  return {
+    ok: true,
+    value: {
+      ...fields.value,
+      email,
+      password,
+    },
+  }
+}
+
+function parsePartnerProfileFields(
+  body: Record<string, unknown>
+): { ok: true; value: PartnerProfileUpdateInput } | { ok: false; error: string } {
+  const fullName = clean(body.fullName, 120)
   const phone = clean(body.phone, 30)
   const companyName = clean(body.companyName, 160)
   const serviceArea = clean(body.serviceArea, 160)
@@ -49,9 +82,6 @@ export function parsePartnerSignup(body: Record<string, unknown>): { ok: true; v
   const yearsRaw = typeof body.yearsInField === 'number' ? body.yearsInField : Number.parseInt(clean(body.yearsInField, 4), 10)
 
   if (fullName.length < 2) return { ok: false, error: 'Name is required.' }
-  if (!EMAIL_RE.test(email)) return { ok: false, error: 'A valid email is required.' }
-  const passwordError = validatePassword(password)
-  if (passwordError) return { ok: false, error: passwordError }
   if (phone.length < 7) return { ok: false, error: 'Phone is required.' }
   if (companyName.length < 2) return { ok: false, error: 'Company is required.' }
   if (serviceArea.length < 2) return { ok: false, error: 'Service area is required.' }
@@ -66,8 +96,6 @@ export function parsePartnerSignup(body: Record<string, unknown>): { ok: true; v
     ok: true,
     value: {
       fullName,
-      email,
-      password,
       phone,
       companyName,
       serviceArea,
@@ -75,4 +103,22 @@ export function parsePartnerSignup(body: Record<string, unknown>): { ok: true; v
       profession: profession as PartnerProfession,
     },
   }
+}
+
+export function parsePartnerProfileUpdate(
+  body: Record<string, unknown>
+): { ok: true; value: PartnerProfileUpdateInput } | { ok: false; error: string } {
+  return parsePartnerProfileFields(body)
+}
+
+export function parsePartnerPasswordChange(
+  body: Record<string, unknown>
+): { ok: true; value: { currentPassword: string; newPassword: string } } | { ok: false; error: string } {
+  const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
+  const newPassword = typeof body.newPassword === 'string' ? body.newPassword : ''
+  if (!currentPassword) return { ok: false, error: 'Current password is required.' }
+  const passwordError = validatePassword(newPassword)
+  if (passwordError) return { ok: false, error: passwordError }
+  if (currentPassword === newPassword) return { ok: false, error: 'Choose a different new password.' }
+  return { ok: true, value: { currentPassword, newPassword } }
 }

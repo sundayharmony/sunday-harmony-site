@@ -112,7 +112,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
-  if (role === 'partner' && (path === '/login' || path === '/')) {
+  if (role === 'partner' && (path === '/login' || path === '/' || path === '/partners/signup')) {
     return NextResponse.redirect(new URL('/partner', req.url))
   }
 
@@ -200,5 +200,6 @@ export const config = {
     '/dashboard/:path*',
     '/partner',
     '/partner/:path*',
+    '/partners/signup',
   ],
 }

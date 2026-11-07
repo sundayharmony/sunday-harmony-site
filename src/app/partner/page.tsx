@@ -58,6 +58,7 @@ type DashboardPayload = {
     submitted: number
     inProgress: number
     completed: number
+    closed: number
   }
   referrals: ReferralRow[]
 }
@@ -137,16 +138,17 @@ export default function PartnerDashboardPage() {
                 link={data.profile.link}
                 code={data.profile.code}
                 active={data.profile.linkActive}
-                inactiveHint="Your QR code is ready, but the link stays inactive until Sunday Harmony approves your account."
+                inactiveHint="Copy, QR, and scans stay off until Sunday Harmony approves this account. Sharing the code will not count a referral."
                 hint="People who open this link choose Build or Fund, then start that intake at the top of the page. Clicks and applications still show here."
                 downloadLabelPrefix={data.profile.companyName || 'partner'}
               />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
               <StatCard label="Link clicks" value={data.summary.clicks} />
               <StatCard label="Applications" value={data.summary.submitted} />
               <StatCard label="In progress" value={data.summary.inProgress} />
               <StatCard label="Completed" value={data.summary.completed} color="gold" />
+              <StatCard label="Closed" value={data.summary.closed} />
             </div>
             <div className="bg-white border border-brand-border rounded-xl overflow-hidden min-w-0">
               <div className="p-5 border-b border-brand-border">

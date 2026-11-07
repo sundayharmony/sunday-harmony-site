@@ -3,7 +3,12 @@ import { logApiRouteError } from '@/lib/api-route-log'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { CREDIT_INTAKE_PATH } from '@/lib/credit-intake-routes'
-import { appendReferralChooser, normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
+import {
+  appendReferralChooser,
+  FUND_CHOOSER_PATH,
+  normalizeReferralCode,
+  safeReferralLandingPath,
+} from '@/lib/referrals'
 import { trackReferralClick } from '@/lib/referral-service'
 
 export const dynamic = 'force-dynamic'
@@ -21,15 +26,19 @@ export async function GET(req: NextRequest) {
     if (blocked) return blocked
 
     const code = normalizeReferralCode(req.nextUrl.searchParams.get('code') || req.nextUrl.searchParams.get('ref'))
-    let nextPath = safeReferralLandingPath(req.nextUrl.searchParams.get('next') || CREDIT_INTAKE_PATH)
-    if (code) nextPath = appendReferralChooser(nextPath)
-    const res = NextResponse.redirect(new URL(nextPath, req.url))
-    if (!code) return res
-    await trackReferralClick(req, res, code, nextPath)
+    const nextPath = safeReferralLandingPath(req.nextUrl.searchParams.get('next') || FUND_CHOOSER_PATH)
+    if (!code) return NextResponse.redirect(new URL(nextPath, req.url))
+
+    const landing = appendReferralChooser(nextPath)
+    const res = NextResponse.redirect(new URL(landing, req.url))
+    const tracked = await trackReferralClick(req, res, code, landing)
+    if (!tracked.ok) {
+      return NextResponse.redirect(new URL(FUND_CHOOSER_PATH, req.url))
+    }
     return res
   } catch (error) {
     logApiRouteError(req, 'referrals/track', error)
-    return NextResponse.redirect(new URL(CREDIT_INTAKE_PATH, req.url))
+    return NextResponse.redirect(new URL(FUND_CHOOSER_PATH, req.url))
   }
 }
 

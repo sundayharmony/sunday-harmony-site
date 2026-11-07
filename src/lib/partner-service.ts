@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import { createUser, getUserByEmail, getUserById } from '@/lib/db'
+import { createUser, deleteUser, getUserByEmail, getUserById, updateUser, verifyPassword } from '@/lib/db'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import { getSupabase } from '@/lib/supabase'
 import { buildPartnerReferralUrl } from '@/lib/referral-qr'
@@ -18,19 +18,21 @@ import {
   getPartnerProfileByUserId,
   insertPartnerProfile,
   listPartnerProfiles,
+  updatePartnerProfile,
   updatePartnerProfileStatus,
   type PartnerProfileRow,
   type PartnerStatus,
 } from '@/lib/partner-db'
 import {
   partnerCurrentScores,
+  partnerReferralSummary,
   referralStatusForPartnerProfile,
   toPartnerReferralProgress,
 } from '@/lib/partner-progress'
 import { buildCreditProgressDiff } from '@/lib/dispute-letters/credit-progress'
 import { listDisputeSessionsForApplication } from '@/lib/dispute-letters/db'
-import type { PartnerSignupInput } from '@/lib/partner-signup'
-import { partnerProfessionLabel } from '@/lib/partner-signup'
+import type { PartnerProfileUpdateInput, PartnerSignupInput } from '@/lib/partner-signup'
+import { partnerProfessionLabel, planPartnerSignupUser } from '@/lib/partner-signup'
 
 async function currentScoresForApplication(applicationUuid: string) {
   const sessions = await listDisputeSessionsForApplication(applicationUuid)
@@ -95,16 +97,31 @@ export async function createPartnerAccount(input: PartnerSignupInput): Promise<
   { ok: true } | { ok: false; error: string; status: number }
 > {
   const existing = await getUserByEmail(input.email)
-  if (existing) {
+  const existingProfile = existing ? await getPartnerProfileByUserId(existing.id) : null
+  const plan = planPartnerSignupUser(existing, Boolean(existingProfile))
+  if (plan === 'conflict') {
     return { ok: false, error: 'An account with that email already exists.', status: 409 }
   }
 
-  const user = await createUser({
-    email: input.email,
-    password: input.password,
-    name: input.fullName,
-    role: 'partner',
-  })
+  let user = existing || null
+  let createdUser = false
+  if (plan === 'create') {
+    user = await createUser({
+      email: input.email,
+      password: input.password,
+      name: input.fullName,
+      role: 'partner',
+    })
+    if (!user) {
+      return { ok: false, error: 'Could not create the partner account.', status: 500 }
+    }
+    createdUser = true
+  } else if (!user || !verifyPassword(input.password, user.password)) {
+    return { ok: false, error: 'An account with that email already exists.', status: 409 }
+  } else if (user.name !== input.fullName) {
+    await updateUser(user.id, { name: input.fullName })
+  }
+
   if (!user) {
     return { ok: false, error: 'Could not create the partner account.', status: 500 }
   }
@@ -118,11 +135,47 @@ export async function createPartnerAccount(input: PartnerSignupInput): Promise<
     profession: input.profession,
   })
   if (!profile) {
+    if (createdUser) {
+      const removed = await deleteUser(user.id)
+      if (!removed) console.error('createPartnerAccount leftover user:', user.id)
+    }
     return { ok: false, error: 'Could not save the partner profile.', status: 500 }
   }
 
-  const referral = await ensurePartnerReferralCode(profile.id, 'disabled')
-  if (!referral) return { ok: false, error: 'Could not create a referral link.', status: 500 }
+  await ensurePartnerReferralCode(profile.id, 'disabled')
+  return { ok: true }
+}
+
+export async function updatePartnerAccount(
+  userId: string,
+  input: PartnerProfileUpdateInput
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const profile = await getPartnerProfileByUserId(userId)
+  if (!profile) return { ok: false, error: 'Partner profile not found.', status: 404 }
+  const user = await updateUser(userId, { name: input.fullName })
+  if (!user) return { ok: false, error: 'Could not update your name.', status: 500 }
+  const updated = await updatePartnerProfile(profile.id, {
+    phone: input.phone,
+    company_name: input.companyName,
+    service_area: input.serviceArea,
+    years_in_field: input.yearsInField,
+    profession: input.profession,
+  })
+  if (!updated) return { ok: false, error: 'Could not save your account.', status: 500 }
+  return { ok: true }
+}
+
+export async function changePartnerPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const user = await getUserById(userId)
+  if (!user || !verifyPassword(currentPassword, user.password)) {
+    return { ok: false, error: 'Current password is incorrect.', status: 400 }
+  }
+  const updated = await updateUser(userId, { password: newPassword })
+  if (!updated) return { ok: false, error: 'Could not update your password.', status: 500 }
   return { ok: true }
 }
 
@@ -164,21 +217,19 @@ export async function getPartnerDashboard(userId: string) {
   return {
     profile: {
       name: user?.name || '',
+      email: user?.email || '',
       companyName: profile.company_name,
       serviceArea: profile.service_area,
+      phone: profile.phone,
       profession: partnerProfessionLabel(profile.profession),
+      professionValue: profile.profession,
       yearsInField: profile.years_in_field,
       status: profile.status,
       code: referral?.referral_code || '',
       link: referral ? buildPartnerReferralUrl(referral.referral_code) : '',
       linkActive: profile.status === 'active' && referral?.status === 'active',
     },
-    summary: {
-      clicks,
-      submitted: rows.length,
-      inProgress: rows.filter(row => row.bucket === 'in_progress').length,
-      completed: rows.filter(row => row.bucket === 'completed').length,
-    },
+    summary: partnerReferralSummary(rows, clicks),
     referrals: rows,
   }
 }
@@ -216,12 +267,7 @@ async function partnerReferralActivity(partnerProfileId: string) {
     referral,
     clicks,
     rows,
-    summary: {
-      clicks,
-      submitted: rows.length,
-      inProgress: rows.filter(row => row.bucket === 'in_progress').length,
-      completed: rows.filter(row => row.bucket === 'completed').length,
-    },
+    summary: partnerReferralSummary(rows, clicks),
   }
 }
 

@@ -64,7 +64,7 @@ export function partnerSignupInviteEmailHtml(opts: { firstName?: string }): stri
             <td style="padding:16px 32px 0;font-size:15px;line-height:1.6;color:${MUTED}">
               <p style="margin:0 0 12px">${greeting}</p>
               <p style="margin:0">
-                Sunday Harmony is inviting you to a partner account. Mortgage, auto, and real estate professionals use it to share a personal credit link and follow the people they refer. You are not signing up as a credit client.
+                Sunday Harmony is inviting you to a partner account. Mortgage, auto, and real estate professionals use it to share a personal referral link. People who open it choose Build or Fund, then start that intake. You are not signing up as a credit client.
               </p>
             </td>
           </tr>

@@ -21,7 +21,7 @@ export function buildPartnerReferralUrl(code: string): string {
   return `${getPublicSiteUrl()}${buildReferralPath(normalized)}`
 }
 
-/** Referral links we allow encoded in QR (same-site credit intake with ref). */
+/** Referral links we allow encoded in QR (same-site chooser or intake with ref). */
 export function isAllowedReferralQrPayload(data: string): boolean {
   const trimmed = data.trim()
   if (!trimmed) return false

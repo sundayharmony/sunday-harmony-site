@@ -24,17 +24,17 @@ export default function ReferralLinkQrPanel({
 }) {
   const [copied, setCopied] = useState(false)
   const qrSrc = useMemo(() => {
-    if (!link.trim()) return ''
+    if (!active || !link.trim()) return ''
     return `/api/referral-qr?data=${encodeURIComponent(link.trim())}&size=500`
-  }, [link])
+  }, [active, link])
   const downloadHref = useMemo(() => {
-    if (!link.trim()) return ''
+    if (!active || !link.trim()) return ''
     return `/api/referral-qr?data=${encodeURIComponent(link.trim())}&size=500&download=1`
-  }, [link])
+  }, [active, link])
   const filename = referralQrDownloadFilename(downloadLabelPrefix, code)
 
   const copyLink = async () => {
-    if (!link) return
+    if (!active || !link) return
     try {
       await navigator.clipboard.writeText(link)
       setCopied(true)
@@ -67,26 +67,30 @@ export default function ReferralLinkQrPanel({
           <div className="mt-3 flex flex-col sm:flex-row gap-2">
             <input
               readOnly
-              value={link}
+              value={active ? link : 'Available after Sunday Harmony approves this account'}
+              aria-label={active ? `${title} URL` : `${title} is inactive`}
               className="flex-1 py-2.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-xs text-brand-text"
             />
             <button
               type="button"
               onClick={() => void copyLink()}
-              className="shrink-0 px-3 py-2.5 bg-brand-text text-white text-xs font-semibold rounded-lg"
+              disabled={!active}
+              className="shrink-0 px-3 py-2.5 bg-brand-text text-white text-xs font-semibold rounded-lg disabled:opacity-50 disabled:pointer-events-none"
             >
               {copied ? 'Copied' : 'Copy link'}
             </button>
           </div>
-          <a
-            href={downloadHref}
-            download={filename}
-            className={`mt-3 inline-flex px-3 py-2 text-xs font-semibold rounded-lg border border-brand-border hover:bg-neutral-50 ${
-              active ? '' : 'pointer-events-none opacity-50'
-            }`}
-          >
-            Download QR code
-          </a>
+          {active ? (
+            <a
+              href={downloadHref}
+              download={filename}
+              className="mt-3 inline-flex px-3 py-2 text-xs font-semibold rounded-lg border border-brand-border hover:bg-neutral-50"
+            >
+              Download QR code
+            </a>
+          ) : (
+            <p className="mt-3 text-xs text-brand-dim">QR download turns on after approval.</p>
+          )}
         </div>
         <div className="shrink-0 flex flex-col items-center gap-2">
           {qrSrc ? (
@@ -98,9 +102,16 @@ export default function ReferralLinkQrPanel({
               height={200}
               className="rounded-lg border border-brand-border bg-white p-2"
             />
-          ) : null}
+          ) : (
+            <div
+              className="flex h-[200px] w-[200px] items-center justify-center rounded-lg border border-dashed border-brand-border bg-neutral-50 p-4 text-center text-xs text-brand-dim"
+              aria-hidden
+            >
+              QR code stays off until this link is approved.
+            </div>
+          )}
           <span className="text-[10px] text-brand-dim text-center max-w-[200px]">
-            {scanHint}
+            {active ? scanHint : 'Not scannable until approved'}
           </span>
         </div>
       </div>

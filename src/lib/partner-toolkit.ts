@@ -5,7 +5,7 @@
  * - src/app/credit/page.tsx — personal credit education, intake → analysis → action → track
  * - src/app/funding/page.tsx — business funding education, lender factors, intake steps
  * - src/app/build-fund/page.tsx — two public paths (credit vs funding)
- * - src/lib/referral-qr.ts / CREDIT_INTAKE_PATH — tracked partner links open /credit
+ * - src/lib/referral-qr.ts — tracked partner links open the Build or Fund chooser
  * - src/lib/partner-invite-email.ts — referral link, progress, approval before the link turns on
  * - src/lib/partner-progress.ts — partners are not paid through the client-referrer commission path
  */
@@ -227,7 +227,7 @@ export const TALKING_POINTS = [
   {
     id: 'how-to-refer',
     label: 'How to refer',
-    text: 'If someone wants help, share your QR code or intake link. They complete their own form.',
+    text: 'If someone wants help, share your QR code or referral link. They choose Build or Fund and complete their own form.',
   },
 ] as const
 
@@ -277,18 +277,18 @@ export const TOOLKIT_FAQS = [
   },
   {
     q: 'What do I send people?',
-    a: 'Share your QR code or intake link. After Sunday Harmony approves your account, that starts the personal credit intake. The person submits their own form.',
+    a: 'Share your QR code or referral link after Sunday Harmony approves your account. That opens the Build or Fund chooser. The person submits their own form.',
   },
   {
     q: 'Is the funding form the same as credit repair?',
-    a: 'No. Funding is a different public page. Your tracked partner link is for the credit intake.',
+    a: 'No. Funding is a different public page. Your tracked partner link opens the chooser so they pick Build or Fund first.',
   },
 ] as const
 
 export const TOOLKIT_NEXT_STEP = {
-  title: 'Share your QR code or intake link.',
-  lead: 'That is how a client gets started. They fill out their own form.',
-  loadError: 'Open the Dashboard tab to copy your intake link or QR code.',
+  title: 'Share your QR code or referral link.',
+  lead: 'That is how a client gets started. They choose Build or Fund, then fill out their own form.',
+  loadError: 'Open the Dashboard tab to copy your referral link or QR code.',
 } as const
 
 export const TOOLKIT_UNAVAILABLE_FACTS = [
