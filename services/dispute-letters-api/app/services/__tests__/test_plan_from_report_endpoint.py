@@ -1,64 +1,70 @@
-"""Isolated live-testability: plan-from-report needs no session DB."""
+"""plan-from-report live-test hook without loading the FastAPI app.
+
+CI installs only requirements-test.txt (no fastapi/supabase). Exercise the same
+enrich → build_plan path the endpoint uses, and assert the route stays
+secret-gated in source.
+"""
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
-
-from app.models import ParsedReport, Tradeline, TradelineSelection
+from app.models import DisputePlanFromReportRequest, DisputePlanRequest, ParsedReport, Tradeline, TradelineSelection
 from app.services.credit_health import enrich_tradeline
+from app.services.letter_router import build_plan
 
 
-@pytest.fixture()
-def client(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("DISPUTE_LETTERS_API_SECRET", "live-test-secret")
-    # Import after env so verify_internal_secret sees the secret at request time.
-    from app.main import app
-
-    return TestClient(app)
-
-
-def test_plan_from_report_round1_inconsistency_requires_auth(client: TestClient):
-    tl = enrich_tradeline(
-        Tradeline(
-            id="tl-a",
-            creditor="BANK",
-            account_tu="****1111",
-            account_exp="****1111",
-            account_eqf="****1111",
-            status="Open",
-            bureaus=["EQF", "EXP", "TUC"],
-            payment_history="EQF:30:2020-01;EXP:OK;TUC:OK",
-            selected=True,
-        )
+def _synthetic_inconsistent() -> Tradeline:
+    return Tradeline(
+        id="tl-a",
+        creditor="BANK",
+        account_tu="****1111",
+        account_exp="****1111",
+        account_eqf="****1111",
+        status="Open",
+        bureaus=["EQF", "EXP", "TUC"],
+        payment_history="EQF:30:2020-01;EXP:OK;TUC:OK",
+        selected=True,
     )
-    body = {
-        "session_id": "inline-live",
-        "round_number": 1,
-        "report": ParsedReport(tradelines=[tl]).model_dump(),
-        "selections": [TradelineSelection(id=tl.id, selected=True).model_dump()],
-    }
-    denied = client.post("/internal/disputes/plan-from-report", json=body)
-    assert denied.status_code == 401
 
-    ok = client.post(
-        "/internal/disputes/plan-from-report",
-        json=body,
-        headers={"Authorization": "Bearer live-test-secret"},
+
+def test_plan_from_report_enrich_then_round1_inconsistency():
+    """Mirrors dispute_plan_from_report: enrich inline report, then build_plan."""
+    body = DisputePlanFromReportRequest(
+        session_id="inline-live",
+        round_number=1,
+        report=ParsedReport(tradelines=[_synthetic_inconsistent()]),
+        selections=[TradelineSelection(id="tl-a", selected=True)],
     )
-    assert ok.status_code == 200
-    data = ok.json()
-    assert data["session_id"] == "inline-live"
-    plans = data["plans"]
-    bureau_types = {p["letter_type"] for p in plans if p["letter_type"].startswith("bureau_")}
+    enriched = body.report.model_copy(deep=True)
+    enriched.tradelines = [enrich_tradeline(tl) for tl in enriched.tradelines]
+    request = DisputePlanRequest(
+        session_id=body.session_id,
+        selections=body.selections,
+        furnisher_address_overrides=body.furnisher_address_overrides,
+        round_number=body.round_number,
+        force_one_item_per_bureau=body.force_one_item_per_bureau,
+    )
+    data = build_plan(body.session_id, enriched, request)
+    assert data.session_id == "inline-live"
+    bureau_types = {p.letter_type for p in data.plans if p.letter_type.startswith("bureau_")}
     assert bureau_types == {"bureau_equifax", "bureau_experian", "bureau_transunion"}
     reasons = [
-        item["dispute_reason"].lower()
-        for p in plans
-        if p["letter_type"].startswith("bureau_")
-        for item in p["items"]
+        item.dispute_reason.lower()
+        for p in data.plans
+        if p.letter_type.startswith("bureau_")
+        for item in p.items
     ]
     assert reasons
     assert all("inconsistent" in r for r in reasons)
+
+
+def test_plan_from_report_route_remains_secret_gated():
+    main_src = (Path(__file__).resolve().parents[2] / "main.py").read_text(encoding="utf-8")
+    assert '@app.post("/internal/disputes/plan-from-report"' in main_src
+    assert "def dispute_plan_from_report(" in main_src
+    assert "verify_internal_secret" in main_src
+    # Endpoint must depend on the same Bearer gate as other /internal routes.
+    gate_idx = main_src.index("def dispute_plan_from_report(")
+    snippet = main_src[gate_idx : gate_idx + 400]
+    assert "Depends(verify_internal_secret)" in snippet
