@@ -1,0 +1,33 @@
+{
+  "A_inconsistent_late": {
+    "id": "fix-a-coast",
+    "creditor": "COASTCOMBNK",
+    "account_tu": "****1111",
+    "account_exp": "****1111",
+    "account_eqf": "****1111",
+    "status": "Open",
+    "bureaus": ["EQF", "EXP", "TUC"],
+    "payment_history": "EQF:30:2020-02;EXP:OK;TUC:OK",
+    "expect_kind": "cross_bureau_inconsistent"
+  },
+  "B_consistent_late": {
+    "id": "fix-b-retail",
+    "creditor": "RETAILCARD",
+    "account_tu": "****2222",
+    "account_exp": "****2222",
+    "account_eqf": "****2222",
+    "status": "Open / was 30 days late",
+    "bureaus": ["EQF", "EXP", "TUC"],
+    "payment_history": "EQF:30:2021-06;EXP:30:2021-06;TUC:30:2021-06",
+    "expect_kind": "consistent_inaccuracy"
+  },
+  "C_single_bureau_not_mismatch": {
+    "id": "fix-c-solo",
+    "creditor": "SOLOBANK",
+    "account_eqf": "****3333",
+    "status": "Open / 30 days late",
+    "bureaus": ["EQF"],
+    "payment_history": "EQF:30:2019-11",
+    "expect_kind": "other"
+  }
+}

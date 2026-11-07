@@ -275,6 +275,14 @@ export default function TrainingPage() {
           <div className="bg-accent-soft border border-accent rounded-xl p-5">
             <div className="text-sm font-bold text-accent mb-2">{disputeOpsTraining.title}</div>
             <p className="text-sm text-brand-muted leading-relaxed">{disputeOpsTraining.overview}</p>
+            {role === 'admin' && disputeOpsTraining.staffPdfHref ? (
+              <a
+                href={disputeOpsTraining.staffPdfHref}
+                className="mt-4 inline-flex items-center rounded-lg bg-brand-text px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Download staff ops playbooks PDF (admin only)
+              </a>
+            ) : null}
           </div>
 
           <div>

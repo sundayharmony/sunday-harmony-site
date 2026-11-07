@@ -156,6 +156,8 @@ See **Section 4** — this is the operational checklist for humans.
 
 ### 3.4 Recommended hybrid workflow (video method + our product)
 
+**Sunday Harmony Round 1 rule (locked):** generate letters for **all three bureaus**, ≤7 items each, with **evidence-grounded inconsistencies first**. Stephen’s “one month / flip after correction” stays in the **reason + screenshots**, not “mail only one bureau.” Absent reporting alone is not an error.
+
 ```
 A. Prep (manual)
    Pull ACR.com and/or Rising → find mismatched late months → circle screenshots
@@ -163,9 +165,10 @@ A. Prep (manual)
    Upload IdentityIQ or PDF into Sunday Harmony for the case
 
 B. In product
-   Run analyze / Credit Intelligence
-   Select ONLY the account(s) tied to the late month you are fighting now
-   Prefer Round 1 bureau letter OR use CFPB draft for portal filing
+   Run analyze / Credit Intelligence (tags cross_bureau_inconsistent vs consistent_inaccuracy)
+   Round 1: select inconsistencies first (all three bureau letters, ≤7 items each)
+   Staff may edit mismatch_summary / reason; optional Gemini Basis rewrite uses confirmed facts only
+   After mismatches clear: Round 2+ prefer consistent-across-reporting-bureaus inaccuracies
    Generate letters / ZIP when mailing; confirm package sent; track round
 
 C. CFPB path (manual portal)

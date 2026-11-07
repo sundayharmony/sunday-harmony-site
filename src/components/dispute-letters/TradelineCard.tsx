@@ -73,6 +73,22 @@ export function TradelineCard({
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold text-brand-text">{t.creditor || 'Unknown creditor'}</h3>
               <SeverityBadge priority={t.repair_priority || 'none'} />
+              {(t.legal_flags || []).includes('cross_bureau_inconsistent') && (
+                <span
+                  className="rounded bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-950"
+                  title={t.mismatch_summary || 'Cross-bureau inconsistency — prioritize in Round 1'}
+                >
+                  Inconsistent (R1)
+                </span>
+              )}
+              {(t.legal_flags || []).includes('consistent_inaccuracy') && (
+                <span
+                  className="rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-950"
+                  title={t.mismatch_summary || 'Consistent inaccuracy — Round 2+ after mismatches clear'}
+                >
+                  Consistent (R2+)
+                </span>
+              )}
               {priorDispute && (
                 <span
                   className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-950"

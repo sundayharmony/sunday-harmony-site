@@ -26,3 +26,6 @@ Staff-facing study notes that map external credit strategies onto the Sunday Har
 1. Use **Dispute Letters / Credit Intelligence** for report analysis, FCRA letter generation, rounds, MOV/CFPB drafts, and mail packages.
 2. Use each playbook’s **MANUAL checklist** for portal filing, Rising workflows, utilization tactics, and anything the site does not automate.
 3. Prefer product letters when mailing; prefer playbook CFPB/Rising steps when the video method is portal-first.
+4. **Round 1:** all three bureau letters, ≤7 items each, evidence-grounded **inconsistencies first**. **Round 2+:** consistent-across-reporting-bureaus inaccuracies after mismatches clear. Absent reporting alone is not an error.
+5. Admins can download the combined staff PDF from Training → Dispute ops (`/api/admin/ops-playbooks/pdf`). Never publish under `/public`.
+6. Machine digest for prompts/UI: [ops-digest.md](ops-digest.md).

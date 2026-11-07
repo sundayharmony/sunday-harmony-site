@@ -235,12 +235,12 @@ export const disputeOpsTraining = {
     {
       round: 'Round 1',
       summary:
-        'Select a focused set of tradelines (max 5 per bureau). Generate bureau + furnisher letters, print the packet with ID/address proof, mail certified/priority, log tracking, and set the 30-day response deadline from delivery (or mail date).',
+        'Generate letters for all three bureaus (≤7 items each). Prioritize evidence-grounded cross-bureau inconsistencies first. Absent reporting on another bureau is not an error. Print the packet with ID/address proof, mail certified/priority, log tracking, and set the 30-day response deadline from delivery (or mail date).',
     },
     {
       round: 'Round 2',
       summary:
-        'Log outcomes (deleted / verified / updated / no response). Route verified → method of verification, no response → warning/intent, collections → debt validation. Keep one primary item per bureau letter, then mail and refresh the deadline.',
+        'After mismatches are deleted or aligned, focus consistent-across-reporting-bureaus inaccuracies. Log outcomes (deleted / verified / updated / no response). Route verified → method of verification, no response → warning/intent, collections → debt validation. Keep follow-ups tight, then mail and refresh the deadline.',
     },
     {
       round: 'Round 3+',
@@ -253,7 +253,10 @@ export const disputeOpsTraining = {
     'Never store client consumerfinance.gov passwords — clients submit CFPB complaints themselves.',
     'Mark rounds mailed / awaiting response before opening the next round.',
     'Upload follow-up bureau reports in Report history. Those files are the round responses.',
+    'Download the admin-only Credit Ops Playbooks PDF from this tab for Stephen Smith method checklists (inconsistency-first Round 1).',
+    'Do not put DOB, full SSN, or street address into any AI prompt — letter templates already handle identity blocks.',
   ],
+  staffPdfHref: '/api/admin/ops-playbooks/pdf',
 }
 
 // ══════════ CLOSER SOP (interactive Training hub) ══════════

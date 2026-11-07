@@ -173,6 +173,8 @@ class Tradeline(BaseModel):
     legal_flags: list[str] = Field(default_factory=list)
     repair_priority: RepairPriority = "none"
     item_category: str = ""
+    # Evidence-grounded cross-bureau note (staff may edit/override).
+    mismatch_summary: str = ""
 
 
 class ParsedReport(BaseModel):

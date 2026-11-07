@@ -20,6 +20,7 @@ This directory contains ingested federal consumer credit statutes used as the au
 | [usc/15-usc-ch41-subch-iv-ecoa.md](usc/15-usc-ch41-subch-iv-ecoa.md) | 15 U.S.C. Subchapter IV (ECOA) |
 | [index.md](index.md) | Dispute-type routing guide |
 | [ops/README.md](ops/README.md) | Index of Stephen Smith credit-ops video playbooks |
+| [ops/ops-digest.md](ops/ops-digest.md) | Short machine/staff digest for Round 1/2 + AI prompts (no PII) |
 | [ops/late-payment-cross-bureau-playbook.md](ops/late-payment-cross-bureau-playbook.md) | Late-payment cross-bureau method: video study notes, system map, manual ops checklist |
 | [ops/delete-anything-rising-dispute-playbook.md](ops/delete-anything-rising-dispute-playbook.md) | Rising / e-OSCAR dispute method: why generic disputes fail, personalized letters |
 | [ops/overnight-100-point-strategies-playbook.md](ops/overnight-100-point-strategies-playbook.md) | Rent/utility back-report, 401(k) utilization move, same-issuer limit transplant |

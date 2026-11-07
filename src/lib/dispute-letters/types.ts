@@ -170,6 +170,8 @@ export interface Tradeline {
   legal_flags: string[]
   repair_priority: RepairPriority
   item_category: string
+  /** Evidence-grounded cross-bureau note; staff may edit/override. */
+  mismatch_summary?: string
 }
 
 export interface ParsedReport {
