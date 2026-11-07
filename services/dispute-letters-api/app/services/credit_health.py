@@ -179,6 +179,15 @@ def default_removal_dispute_reason(tl: Tradeline) -> str:
 
 
 def enrich_tradeline(tl: Tradeline) -> Tradeline:
+    from app.services.cross_bureau import (
+        FLAG_CONSISTENT,
+        FLAG_INCONSISTENT,
+        apply_cross_bureau_enrichment,
+        classify_mismatch_kind,
+        consistent_inaccuracy_reason,
+        inconsistent_reason,
+    )
+
     tl.item_category = classify_category(tl)
     tl.repair_priority = score_priority(tl)
 
@@ -191,14 +200,22 @@ def enrich_tradeline(tl: Tradeline) -> Tradeline:
         flags.append("closed_derogatory")
     tl.legal_flags = flags
 
-    if not (tl.suggested_dispute_reason or "").strip() and (
-        classify_category(tl) == "inquiry" or is_clean_profile_removal_target(tl)
-    ):
-        tl.suggested_dispute_reason = default_dispute_reason(tl)
-    if not (tl.dispute_reason or "").strip() and (
+    tl = apply_cross_bureau_enrichment(tl)
+    kind, _ = classify_mismatch_kind(tl)
+
+    if not (tl.suggested_dispute_reason or "").strip():
+        if kind == "cross_bureau_inconsistent" or FLAG_INCONSISTENT in (tl.legal_flags or []):
+            tl.suggested_dispute_reason = inconsistent_reason(tl)
+        elif kind == "consistent_inaccuracy" or FLAG_CONSISTENT in (tl.legal_flags or []):
+            tl.suggested_dispute_reason = consistent_inaccuracy_reason(tl)
+        elif classify_category(tl) == "inquiry" or is_clean_profile_removal_target(tl):
+            tl.suggested_dispute_reason = default_dispute_reason(tl)
+    if not (tl.dispute_reason or "").strip() and (tl.suggested_dispute_reason or "").strip():
+        tl.dispute_reason = tl.suggested_dispute_reason
+    elif not (tl.dispute_reason or "").strip() and (
         is_clean_profile_removal_target(tl) or classify_category(tl) == "inquiry"
     ):
-        tl.dispute_reason = tl.suggested_dispute_reason
+        tl.dispute_reason = tl.suggested_dispute_reason or default_dispute_reason(tl)
 
     return tl
 
@@ -242,7 +259,15 @@ def build_health_summary(report: ParsedReport, agent_health: dict | None = None)
 def _default_actions(
     tradelines: list[Tradeline], high: int, collections: int, removal: int
 ) -> list[str]:
+    from app.services.cross_bureau import FLAG_INCONSISTENT
+
     actions: list[str] = []
+    inconsistent = sum(1 for tl in tradelines if FLAG_INCONSISTENT in (tl.legal_flags or []))
+    if inconsistent:
+        actions.append(
+            f"Prioritize {inconsistent} cross-bureau inconsistency item(s) in Round 1 "
+            "(all three bureau letters, ≤7 items each). Absent reporting alone is not an error."
+        )
     if removal:
         actions.append(
             f"Prioritize deleting {removal} closed, paid, or obsolete negative item(s) that do not "
@@ -258,11 +283,15 @@ def _default_actions(
 
 
 def removal_sort_key(tl: Tradeline) -> tuple:
-    """Sort key: removal targets first, then by repair priority."""
+    """Sort key: cross-bureau inconsistencies first, then removal targets, then priority."""
+    from app.services.cross_bureau import mismatch_sort_key
+
+    mismatch_rank, creditor, _tid = mismatch_sort_key(tl)
     return (
+        mismatch_rank,
         0 if is_clean_profile_removal_target(tl) else 1,
         _PRIORITY_ORDER.get(tl.repair_priority, 9),
-        tl.creditor.lower(),
+        creditor,
     )
 
 

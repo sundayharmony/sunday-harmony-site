@@ -173,6 +173,8 @@ class Tradeline(BaseModel):
     legal_flags: list[str] = Field(default_factory=list)
     repair_priority: RepairPriority = "none"
     item_category: str = ""
+    # Evidence-grounded cross-bureau note (staff may edit/override).
+    mismatch_summary: str = ""
 
 
 class ParsedReport(BaseModel):
@@ -212,6 +214,17 @@ class TradelineSelection(BaseModel):
 
 class DisputePlanRequest(BaseModel):
     session_id: str
+    selections: list[TradelineSelection] = Field(default_factory=list)
+    furnisher_address_overrides: dict[str, list[str]] = Field(default_factory=dict)
+    round_number: int = 1
+    force_one_item_per_bureau: bool | None = None
+
+
+class DisputePlanFromReportRequest(BaseModel):
+    """Stateless plan for live/isolated verification without a persisted session row."""
+
+    session_id: str = "inline-live"
+    report: ParsedReport
     selections: list[TradelineSelection] = Field(default_factory=list)
     furnisher_address_overrides: dict[str, list[str]] = Field(default_factory=dict)
     round_number: int = 1

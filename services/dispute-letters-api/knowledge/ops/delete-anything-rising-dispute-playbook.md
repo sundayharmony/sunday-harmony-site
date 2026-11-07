@@ -116,5 +116,21 @@ Use **Rising** (if client/staff chooses) for tri-merge viewing, month grids, ren
 - Stronger “mark sent / log result” UX matching Rising’s loop.
 - Staff note field: “external tool = Rising” for dual-tracking.
 
+## 6. Visual study (SnapYT MP4 keyframes)
+
+Full MP4 studied locally (`TdyraLMRAEs.mp4`, ~26:18, 640×360). Confirmed on-screen (Ryezing / `member.ryezing.com`):
+
+| Beat | What appears on screen |
+|------|------------------------|
+| Why shops fail | Dark “WHY MOST PEOPLE FAIL AT CREDIT REPAIR” slide: $99–$150+/mo, basic templates → frivolous, no strategy, no transparency |
+| Goal modal | Welcome modal: TU score gauge (example 751), intent “Both repair and build”, slider goal (example 810), motivation + timeline dropdowns, **Update Your Goal** |
+| Sidebar | Dashboard · Credit Report Review · **Dispute Hub** · Rental Reporting · Utility Reporting · My Account |
+| Game Plan | “Stephen’s Game Plan” cards completed X/11; Next Step “Share your Score Goals”; **Review Your Report** |
+| Tri-merge account | Side-by-side TU / EXP / EF fields for one installment (e.g. CoastComBnk): mismatched date opened, Equifax monthly payment `$0` vs `$741`, impossible EXP “02/31/2026” last-reported |
+| Dispute wizard | Prompt: prior dispute attempts (enter count or `0`) → reason picker → draft |
+| Dispute Hub | Account draft list (e.g. `COASTCOMBNK - 15369**`, disputes count) → **Generate Dispute Letters** → “Please Wait… organizing… into letters for each bureau” |
+| Mail instructions | Packet: letter + photo ID + SSN proof + address proof (utility or two alts) + optional evidence; fill DOB/SSN in blue/black ink if blank; sign; prefer **Certified Mail**; hand-write envelope (example TU Chester PA P.O. Box); log results after response |
+| Sample letter | Plain letter to TransUnion; “self generated and created dispute” anti-template line; FCRA cite; item “This account is not closed”; round “1st time”; 30-day ask; attachments called out in narration (license, social, proof) |
+
 ## Source
 https://www.youtube.com/watch?v=TdyraLMRAEs

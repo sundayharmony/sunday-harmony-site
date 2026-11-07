@@ -151,8 +151,38 @@ export function parseGeminiReportPayload(raw: string, fileName = ''): GeminiRepo
   }
 }
 
+/** When local parse is empty OR weak/malformed nonempty, Gemini read may help. */
+export function needsGeminiReportFallback(report: ParsedReport | null | undefined): boolean {
+  if (!process.env.GEMINI_API_KEY?.trim()) return false
+  if (!report) return true
+  const tls = report.tradelines || []
+  if (tls.length === 0) return true
+  const quality = String(report.extraction_quality || '').toLowerCase()
+  if (quality === 'low' || quality === 'weak' || quality === 'ocr_poor' || quality === 'poor') {
+    return true
+  }
+  const named = tls.filter((t) => (t.creditor || '').trim().length > 1)
+  if (named.length === 0) return true
+  const thin = tls.filter(
+    (t) =>
+      !(t.account_tu || t.account_exp || t.account_eqf || t.balance || t.status || t.payment_history)
+  )
+  if (thin.length / tls.length >= 0.75) return true
+  return false
+}
+
+function namedCreditorCount(tradelines: Tradeline[]): number {
+  return tradelines.filter((t) => (t.creditor || '').trim().length > 1).length
+}
+
 export function applyGeminiRead(report: ParsedReport, read: GeminiReportRead): ParsedReport {
   if (!read.tradelines.length) return report
+  // For weak nonempty local parses, only replace when Gemini returns a richer named set.
+  if ((report.tradelines || []).length > 0) {
+    const localNamed = namedCreditorCount(report.tradelines || [])
+    const geminiNamed = namedCreditorCount(read.tradelines)
+    if (geminiNamed <= localNamed) return report
+  }
   const scores = {
     tuc: read.scores.tuc ?? report.credit_health?.scores?.tuc ?? null,
     exp: read.scores.exp ?? report.credit_health?.scores?.exp ?? null,

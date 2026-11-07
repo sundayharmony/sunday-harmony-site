@@ -115,7 +115,10 @@ export default function DisputeConfirmStep({
         <p className="mt-2 text-sm text-brand-dim">
           You are disputing <strong>{selectedCount}</strong> item(s) across{' '}
           <strong>{plans.length}</strong> letter(s) ({bureauPlans} bureau
-          {bureauPlans === 1 ? '' : 's'} + furnishers).
+          {bureauPlans === 1 ? '' : 's'} + furnishers). Round 1 keeps all three
+          bureaus (≤7 items each) with cross-bureau inconsistencies first; Round 2+
+          focuses consistent inaccuracies after mismatches clear. Absent reporting
+          alone is not an error — edit reasons on Review if needed.
         </p>
         {priorInPlanCount > 0 && (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">

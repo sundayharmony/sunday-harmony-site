@@ -826,6 +826,27 @@ def build_recommendations(
             )
         )
 
+    from app.services.cross_bureau import FLAG_INCONSISTENT
+
+    inconsistent = [tl for tl in tradelines if FLAG_INCONSISTENT in (tl.legal_flags or [])]
+    if inconsistent:
+        add(
+            "Prioritize cross-bureau mismatches this round",
+            "Evidence-grounded payment-history or status conflicts across bureaus that already "
+            "report the account should fill Round 1 first (all three bureau letters, ≤7 items each). "
+            "Absent reporting alone is not an error. After mismatches clear, move to consistent inaccuracies.",
+            category="payment_history",
+            impact=0.9,
+            confidence=0.75,
+            actions=[
+                "Confirm mismatch_summary on each tagged account",
+                "Keep Round 1 ≤7 items per bureau letter",
+                "Defer consistent-across-bureau defects to Round 2+",
+            ],
+            tradeline_ids=[tl.id for tl in inconsistent[:12]],
+            legal_basis="FCRA §611 (15 U.S.C. §1681i)",
+        )
+
     util_factor = factors.get("revolving_utilization")
     if util_factor:
         u = util_factor.metrics.get("aggregate_utilization")

@@ -1,3 +1,10 @@
+import {
+  FLAG_CONSISTENT,
+  FLAG_INCONSISTENT,
+  classifyMismatchKind,
+  consistentInaccuracyDisputeReason,
+  inconsistentDisputeReason,
+} from '@/lib/dispute-letters/cross-bureau'
 import type { Tradeline } from '@/lib/dispute-letters/types'
 
 export function isInquiryTradeline(t: Pick<Tradeline, 'item_category' | 'status' | 'remarks' | 'account_type'>): boolean {
@@ -18,6 +25,14 @@ export function defaultInquiryDisputeReason(creditor: string): string {
 export function resolvedDisputeReason(t: Tradeline): string {
   const existing = (t.dispute_reason || t.suggested_dispute_reason || '').trim()
   if (existing) return existing
+  const flags = new Set((t.legal_flags || []).map((f) => f.toLowerCase()))
+  const { kind } = classifyMismatchKind(t)
+  if (kind === 'cross_bureau_inconsistent' || flags.has(FLAG_INCONSISTENT)) {
+    return inconsistentDisputeReason(t)
+  }
+  if (kind === 'consistent_inaccuracy' || flags.has(FLAG_CONSISTENT)) {
+    return consistentInaccuracyDisputeReason(t)
+  }
   if (isInquiryTradeline(t)) return defaultInquiryDisputeReason(t.creditor || '')
   return (
     'I dispute this item as inaccurate and unverifiable and request deletion or correction ' +

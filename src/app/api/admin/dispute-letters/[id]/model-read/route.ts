@@ -6,6 +6,7 @@ import {
   applyGeminiRead,
   geminiReportMimeType,
   GEMINI_REPORT_MAX_BYTES,
+  needsGeminiReportFallback,
   readReportWithGemini,
 } from '@/lib/dispute-letters/gemini-report-read'
 import { downloadDisputeLetterBytes } from '@/lib/dispute-letters-storage'
@@ -29,7 +30,7 @@ export async function POST(_request: NextRequest, { params }: Params) {
   if (!report) {
     return NextResponse.json({ error: 'Report is not ready' }, { status: 409 })
   }
-  if ((report.tradelines || []).length > 0 || !process.env.GEMINI_API_KEY?.trim()) {
+  if (!needsGeminiReportFallback(report)) {
     return NextResponse.json({ session_id: id, report })
   }
 
