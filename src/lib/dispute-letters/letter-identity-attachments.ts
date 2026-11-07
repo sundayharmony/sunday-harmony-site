@@ -21,7 +21,44 @@ export type LetterIdentityDoc = {
 export type LetterIdentityPicks = {
   photoIds: LetterIdentityDoc[]
   proofOfAddress: LetterIdentityDoc | null
+  ssnCard: LetterIdentityDoc | null
 }
+
+export type LetterIdentityRequirementKey = 'photo_id' | 'proof_of_residence' | 'ssn_card'
+
+export type LetterIdentityRequirement = {
+  key: LetterIdentityRequirementKey
+  label: string
+  types: readonly string[]
+  uploadType: string
+  defaultRequestNote: string
+}
+
+export const LETTER_IDENTITY_REQUIREMENTS: readonly LetterIdentityRequirement[] = [
+  {
+    key: 'photo_id',
+    label: 'Government Photo ID',
+    types: ['photo_id'],
+    uploadType: 'photo_id',
+    defaultRequestNote:
+      'Please send a clear photo of the front of your government-issued ID (driver’s license, state ID, or passport). Crop out the background if you can.',
+  },
+  {
+    key: 'proof_of_residence',
+    label: 'Proof of Residence',
+    types: ['proof_of_address', 'mail_proof'],
+    uploadType: 'proof_of_address',
+    defaultRequestNote:
+      'Please send a utility bill, bank statement, or lease dated within the last 90 days that shows your name and current address.',
+  },
+  {
+    key: 'ssn_card',
+    label: 'Social Security Card',
+    types: ['ssn_card'],
+    uploadType: 'ssn_card',
+    defaultRequestNote: 'Please send a clear photo of the front of your Social Security card.',
+  },
+]
 
 export type LetterPacketAttachment = {
   zipName: string
@@ -31,6 +68,7 @@ export type LetterPacketAttachment = {
 
 const PHOTO_ID_STEM = 'Government Photo ID'
 const ADDRESS_STEM = 'Proof of Address'
+const SSN_STEM = 'Social Security Card'
 
 /** Concurrent letter DOCX builds against the Python API (ZIP package). */
 export const LETTER_DOCX_FETCH_CONCURRENCY = 4
@@ -79,12 +117,44 @@ export function pickLetterIdentityDocuments(docs: LetterIdentityDoc[]): LetterId
     resolveLetterIdentityDocs(usable, 'proof_of_address')[0] ||
     resolveLetterIdentityDocs(usable, 'mail_proof')[0] ||
     null
-  return { photoIds, proofOfAddress }
+  const ssnCard = resolveLetterIdentityDocs(usable, 'ssn_card')[0] || null
+  return { photoIds, proofOfAddress, ssnCard }
 }
 
 export function selectedLetterIdentityDocuments(docs: LetterIdentityDoc[]): LetterIdentityDoc[] {
   const picked = pickLetterIdentityDocuments(docs)
-  return [...picked.photoIds, ...(picked.proofOfAddress ? [picked.proofOfAddress] : [])]
+  return [
+    ...picked.photoIds,
+    ...(picked.proofOfAddress ? [picked.proofOfAddress] : []),
+    ...(picked.ssnCard ? [picked.ssnCard] : []),
+  ]
+}
+
+export function letterDocsForRequirement(
+  docs: LetterIdentityDoc[],
+  requirement: LetterIdentityRequirement
+): LetterIdentityDoc[] {
+  const usable = docs.filter(isUsableIdentityDoc)
+  if (requirement.key === 'proof_of_residence') {
+    const resolved = [
+      ...resolveLetterIdentityDocs(usable, 'proof_of_address'),
+      ...resolveLetterIdentityDocs(usable, 'mail_proof'),
+    ]
+    return resolved.slice(0, 1)
+  }
+  return resolveLetterIdentityDocs(usable, requirement.uploadType)
+}
+
+export function missingLetterIdentityRequirements(docs: LetterIdentityDoc[]): LetterIdentityRequirement[] {
+  return LETTER_IDENTITY_REQUIREMENTS.filter((requirement) => letterDocsForRequirement(docs, requirement).length === 0)
+}
+
+export async function findMissingLetterIdentityForApplication(
+  applicationUuid?: string | null
+): Promise<LetterIdentityRequirement[]> {
+  if (!applicationUuid) return []
+  const docs = await getDocumentsByApplicationUuid(applicationUuid)
+  return missingLetterIdentityRequirements(docs)
 }
 
 function extensionForIdentityDoc(doc: LetterIdentityDoc): string {
@@ -112,6 +182,7 @@ function mimeForIdentityDoc(doc: LetterIdentityDoc): string {
 function stemForIdentityDoc(doc: LetterIdentityDoc): string {
   if (doc.document_type === 'photo_id') return PHOTO_ID_STEM
   if (doc.document_type === 'proof_of_address' || doc.document_type === 'mail_proof') return ADDRESS_STEM
+  if (doc.document_type === 'ssn_card') return SSN_STEM
   return 'Identity Document'
 }
 

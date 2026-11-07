@@ -17,6 +17,7 @@ import { planSelectionsFromTradelines } from '@/lib/dispute-letters/dispute-reas
 import type { PriorDisputeMark } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
+import LetterIdentityPrepPanel from '@/components/dispute-letters/LetterIdentityPrepPanel'
 
 const SKIPPED_STORAGE_PREFIX = 'dispute-skipped:'
 
@@ -38,6 +39,7 @@ export default function DisputeConfirmStep({
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [identityReady, setIdentityReady] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!sessionId) return
@@ -64,6 +66,11 @@ export default function DisputeConfirmStep({
   )
 
   async function generate() {
+    if (identityReady !== true) {
+      setError('Add Government Photo ID, Proof of Residence, and Social Security Card — or email a request — before generating letters.')
+      document.getElementById('letter-identity-prep')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
     setLoading(true)
     setError('')
     setStatus('Starting letter generation…')
@@ -126,6 +133,10 @@ export default function DisputeConfirmStep({
             disputed in an earlier round. Re-dispute only if needed.
           </p>
         )}
+      </div>
+
+      <div id="letter-identity-prep">
+        <LetterIdentityPrepPanel sessionId={sessionId} onReadyChange={setIdentityReady} />
       </div>
 
       <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm space-y-3">
@@ -219,11 +230,16 @@ export default function DisputeConfirmStep({
         <button
           type="button"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          disabled={loading}
+          disabled={loading || identityReady !== true}
           onClick={() => void generate()}
         >
           Generate letters
         </button>
+        {identityReady === false && (
+          <p className="w-full text-sm text-amber-800">
+            Add Government Photo ID, Proof of Residence, and Social Security Card — or email a request — first.
+          </p>
+        )}
         {embedded && onStepChange ? (
           <button
             type="button"

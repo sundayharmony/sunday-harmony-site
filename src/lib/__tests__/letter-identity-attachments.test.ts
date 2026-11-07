@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   buildLetterZipFiles,
   identityAttachmentFileName,
+  missingLetterIdentityRequirements,
   namedLetterIdentityAttachments,
   pickLetterIdentityDocuments,
   selectedLetterIdentityDocuments,
@@ -33,6 +34,7 @@ describe('letter identity attachments', () => {
       ['id-front', 'id-back']
     )
     assert.equal(picked.proofOfAddress?.id, 'address')
+    assert.equal(picked.ssnCard, null)
   })
 
   it('falls back to mail proof when no dedicated proof of address exists', () => {
@@ -68,6 +70,41 @@ describe('letter identity attachments', () => {
     assert.equal(
       identityAttachmentFileName(doc({ id: 'mail', document_type: 'mail_proof', file_name: 'bill.pdf' }), used),
       'Proof of Address.pdf'
+    )
+    assert.equal(
+      identityAttachmentFileName(doc({ id: 'ssn', document_type: 'ssn_card', file_name: 'ssn.png' }), used),
+      'Social Security Card.png'
+    )
+  })
+
+  it('requires government ID, proof of residence, and social security card for letters', () => {
+    const missingAll = missingLetterIdentityRequirements([])
+    assert.deepEqual(
+      missingAll.map((row) => row.key),
+      ['photo_id', 'proof_of_residence', 'ssn_card']
+    )
+    const missingSsn = missingLetterIdentityRequirements([
+      doc({ id: 'id-1', document_type: 'photo_id' }),
+      doc({ id: 'mail', document_type: 'mail_proof' }),
+    ])
+    assert.deepEqual(
+      missingSsn.map((row) => row.key),
+      ['ssn_card']
+    )
+    const ready = missingLetterIdentityRequirements([
+      doc({ id: 'id-1', document_type: 'photo_id' }),
+      doc({ id: 'mail', document_type: 'mail_proof' }),
+      doc({ id: 'ssn', document_type: 'ssn_card' }),
+    ])
+    assert.deepEqual(ready, [])
+    const selected = selectedLetterIdentityDocuments([
+      doc({ id: 'id-1', document_type: 'photo_id' }),
+      doc({ id: 'mail', document_type: 'mail_proof' }),
+      doc({ id: 'ssn', document_type: 'ssn_card' }),
+    ])
+    assert.deepEqual(
+      selected.map((row) => row.id),
+      ['id-1', 'mail', 'ssn']
     )
   })
 

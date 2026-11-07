@@ -238,7 +238,7 @@ export default function DisputeLettersResultStep({
         </h2>
         <p className={`mt-2 text-sm ${letters.length ? 'text-green-800' : 'text-amber-900'}`}>
           {letters.length
-            ? 'Generate, download the ZIP, then confirm the package was mailed. Photo ID and proof of address are placed at the end of each Word letter. Downloading does not mark items Sent.'
+            ? 'Generate, download the ZIP, then confirm the package was mailed. Photo ID, proof of residence, and Social Security card are placed at the end of each Word letter. Downloading does not mark items Sent.'
             : 'Add missing furnisher addresses on Confirm and generate again.'}
         </p>
         {letters.length > 0 && (

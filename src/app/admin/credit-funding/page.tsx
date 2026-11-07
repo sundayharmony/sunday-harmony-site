@@ -12,6 +12,7 @@ import CreditIntelligencePanel from '@/components/credit-funding/CreditIntellige
 import CreditRepairBillingPanel from '@/components/billing/CreditRepairBillingPanel'
 import StaffFundingScoresEditor from '@/components/credit-funding/StaffFundingScoresEditor'
 import StaffDraftEditor from '@/components/credit-funding/StaffDraftEditor'
+import LetterIdentityCropModal from '@/components/credit-funding/LetterIdentityCropModal'
 import {
   APPLICATION_STATUSES,
   DOCUMENT_LABELS,
@@ -111,6 +112,8 @@ interface DocumentItem {
   scan_status: string
   signedUrl?: string
   storage_path?: string
+  mime_type?: string
+  file_type?: string
   created_at?: string
 }
 
@@ -256,6 +259,8 @@ function CreditFundingAdminContent() {
   const [fundingScores, setFundingScores] = useState<FundingScores>({})
   const [docReqType, setDocReqType] = useState('')
   const [docReqLabel, setDocReqLabel] = useState('')
+  const [docReqNotes, setDocReqNotes] = useState('')
+  const [cropDoc, setCropDoc] = useState<DocumentItem | null>(null)
   const [listPanelOpen, setListPanelOpen] = useState(true)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showDraftEditor, setShowDraftEditor] = useState(false)
@@ -691,11 +696,11 @@ function CreditFundingAdminContent() {
   }
 
   const replaceDocument = async (doc: DocumentItem, file: File) => {
-    if (!selected) return
+    if (!selected) return false
     const validation = getCreditFundingFileValidationError(file)
     if (validation) {
       setError(validation)
-      return
+      return false
     }
 
     setReplacingDocId(doc.id)
@@ -710,8 +715,10 @@ function CreditFundingAdminContent() {
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || 'Failed to set letter copy')
       await loadDetail(selected.id)
+      return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set letter copy')
+      return false
     } finally {
       setReplacingDocId(null)
     }
@@ -941,6 +948,18 @@ function CreditFundingAdminContent() {
                     View
                   </a>
                 )}
+                {canSetLetterCopy &&
+                  Boolean(doc.signedUrl) &&
+                  ((doc.mime_type || '').startsWith('image/') ||
+                    /\.(png|jpe?g|webp)$/i.test(doc.file_name)) && (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-accent hover:underline"
+                      onClick={() => setCropDoc(doc)}
+                    >
+                      Crop for letters
+                    </button>
+                  )}
                 {canSetLetterCopy && (
                   <label className="text-xs font-semibold text-accent hover:underline cursor-pointer">
                     {replacingDocId === doc.id
@@ -995,13 +1014,26 @@ function CreditFundingAdminContent() {
         </select>
         <input className={inputClass} placeholder="Label" value={docReqLabel} onChange={(e) => setDocReqLabel(e.target.value)} />
       </div>
+      <textarea
+        className={`${inputClass} min-h-[64px] mb-2`}
+        placeholder="Note for the client (optional)"
+        value={docReqNotes}
+        onChange={(e) => setDocReqNotes(e.target.value)}
+      />
       <button
         type="button"
         disabled={!docReqType || !docReqLabel || saving}
         onClick={() => {
-          patchApplication({ document_request: { document_type: docReqType, label: docReqLabel } })
+          patchApplication({
+            document_request: {
+              document_type: docReqType,
+              label: docReqLabel,
+              notes: docReqNotes.trim() || undefined,
+            },
+          })
           setDocReqType('')
           setDocReqLabel('')
+          setDocReqNotes('')
         }}
         className="text-xs font-semibold text-accent hover:underline disabled:opacity-50"
       >
@@ -1862,6 +1894,20 @@ function CreditFundingAdminContent() {
           )}
         </div>
       </div>
+      {cropDoc?.signedUrl && (
+        <LetterIdentityCropModal
+          title={documentDisplayLabel(cropDoc.document_type)}
+          imageUrl={cropDoc.signedUrl}
+          fileName={cropDoc.file_name}
+          saving={replacingDocId === cropDoc.id}
+          onCancel={() => setCropDoc(null)}
+          onSave={(file) => {
+            void replaceDocument(cropDoc, file).then((ok) => {
+              if (ok) setCropDoc(null)
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

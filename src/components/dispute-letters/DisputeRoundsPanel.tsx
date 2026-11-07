@@ -505,7 +505,7 @@ function LetterPackageCard({
               ? ' · ZIP Downloaded ✓'
               : ` · ${zipReadyLabel(pkg.zipStatus, pkg.zipReady)}`}
             {allSent ? ' · Sent confirmation recorded' : downloaded ? ' · Ready to Send' : ''}
-            {' · Photo ID and proof of address are in each letter'}
+            {' · Photo ID, proof of residence, and Social Security card are in each letter'}
           </p>
         </div>
         <div className="flex flex-wrap gap-1">

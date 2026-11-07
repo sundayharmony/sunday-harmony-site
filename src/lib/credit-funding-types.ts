@@ -58,6 +58,7 @@ export const IDENTITY_DOCUMENT_TYPES = [
   'proof_of_address',
   'selfie_with_id',
   'mail_proof',
+  'ssn_card',
   'credit_report',
 ] as const
 export const BUSINESS_DOCUMENT_TYPES = [
@@ -433,6 +434,7 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   proof_of_address: 'Proof of Address',
   selfie_with_id: 'Selfie with ID',
   mail_proof: 'Mail Proof',
+  ssn_card: 'Social Security Card',
   credit_report: '3-Bureau Credit Report',
   articles_of_organization: 'Articles of Organization / Incorporation',
   ein_letter: 'EIN Letter (IRS SS-4)',

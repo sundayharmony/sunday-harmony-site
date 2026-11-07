@@ -28,6 +28,13 @@ export const IDENTITY_DOCUMENTS: DocumentStepItem[] = [
     icon: '\u2709\uFE0F',
   },
   {
+    type: 'ssn_card',
+    label: DOCUMENT_LABELS.ssn_card,
+    description: 'Clear photo of the front of your Social Security card.',
+    required: false,
+    icon: '\u{1F4C3}',
+  },
+  {
     type: 'proof_of_address',
     label: DOCUMENT_LABELS.proof_of_address,
     description: 'Utility bill, bank statement, or lease dated within the last 90 days.',

@@ -266,21 +266,48 @@ export async function sendCreditFundingDocumentRequestEmail(params: {
   label: string
   notes?: string
 }): Promise<void> {
+  await sendLetterIdentityDocumentRequestEmail({
+    to: params.to,
+    applicationId: params.applicationId,
+    items: [{ label: params.label, notes: params.notes }],
+  })
+}
+
+export async function sendLetterIdentityDocumentRequestEmail(params: {
+  to: string
+  applicationId: string
+  items: { label: string; notes?: string }[]
+}): Promise<void> {
   if (!isEmailConfigured()) return
+  const items = params.items.filter((item) => item.label.trim())
+  if (!items.length) return
+
+  const heading = items.length === 1 ? 'Document Requested' : 'Documents Requested'
+  const subject =
+    items.length === 1
+      ? `Document Requested — ${items[0].label}`
+      : `Documents requested for your credit letters (${items.length})`
+
+  const bodyParagraphs = [
+    items.length === 1
+      ? `We need an additional document for application ${params.applicationId}: ${items[0].label}.`
+      : `We need these documents for your credit repair letters (application ${params.applicationId}):`,
+    ...items.flatMap((item) => {
+      if (items.length === 1) return item.notes ? [item.notes] : []
+      return item.notes ? [`${item.label}: ${item.notes}`] : [item.label]
+    }),
+    'Please upload the file in your client portal.',
+  ]
 
   await sendEmail({
     to: params.to,
-    subject: sanitizeEmailSubjectPart(`Document Requested — ${params.label}`, 200),
+    subject: sanitizeEmailSubjectPart(subject, 200),
     html: clientDashboardAlertEmailHtml({
-      heading: 'Document Requested',
+      heading,
       firstName: 'there',
-      bodyParagraphs: [
-        `We need an additional document for application ${params.applicationId}: ${params.label}.`,
-        ...(params.notes ? [params.notes] : []),
-        'Please upload the file in your client portal.',
-      ],
+      bodyParagraphs,
       dashboardPath: '/dashboard/credit-funding',
-      buttonLabel: 'Upload Document',
+      buttonLabel: items.length === 1 ? 'Upload Document' : 'Upload Documents',
     }),
   })
 }

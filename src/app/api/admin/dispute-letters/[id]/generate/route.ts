@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { checkDisputeLettersHealth, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { letterGenerateFailure, type LetterGenerateJob } from '@/lib/dispute-letters/generate-job'
+import { findMissingLetterIdentityForApplication } from '@/lib/dispute-letters/letter-identity-attachments'
 import { loadLetterConsumerIdentity } from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
@@ -23,6 +24,19 @@ export async function POST(request: NextRequest, { params }: Params) {
   const { id } = await params
   const access = await requireDisputeSessionAccess(id, session)
   if (!access.ok) return access.response
+
+  const missing = await findMissingLetterIdentityForApplication(access.session.application_uuid)
+  if (missing.length) {
+    return NextResponse.json(
+      {
+        error: `Add ${missing.map((item) => item.label).join(', ')} before generating letters.`,
+        code: 'missing_letter_identity',
+        missing: missing.map((item) => ({ key: item.key, label: item.label })),
+        applicationId: access.session.application_uuid,
+      },
+      { status: 409 }
+    )
+  }
 
   try {
     const body = await request.json().catch(() => ({}))
