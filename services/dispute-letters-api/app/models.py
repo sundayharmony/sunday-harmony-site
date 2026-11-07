@@ -220,6 +220,17 @@ class DisputePlanRequest(BaseModel):
     force_one_item_per_bureau: bool | None = None
 
 
+class DisputePlanFromReportRequest(BaseModel):
+    """Stateless plan for live/isolated verification without a persisted session row."""
+
+    session_id: str = "inline-live"
+    report: ParsedReport
+    selections: list[TradelineSelection] = Field(default_factory=list)
+    furnisher_address_overrides: dict[str, list[str]] = Field(default_factory=dict)
+    round_number: int = 1
+    force_one_item_per_bureau: bool | None = None
+
+
 class LetterItem(BaseModel):
     tradeline_id: str
     creditor: str

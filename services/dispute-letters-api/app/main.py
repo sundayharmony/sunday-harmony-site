@@ -29,6 +29,7 @@ from app.db import (
 from app.ingest.router import detect_file_type, ingest_file
 from app.models import (
     ConsumerUpdateRequest,
+    DisputePlanFromReportRequest,
     DisputePlanRequest,
     GenerateLettersRequest,
     IntelligenceRequest,
@@ -450,6 +451,26 @@ def dispute_plan(body: DisputePlanRequest, _: None = Depends(verify_internal_sec
     plan = build_plan(body.session_id, report, body)
     save_letter_plan(body.session_id, plan)
     return plan
+
+
+@app.post("/internal/disputes/plan-from-report", response_model=LetterPlanResponse)
+def dispute_plan_from_report(
+    body: DisputePlanFromReportRequest,
+    _: None = Depends(verify_internal_secret),
+) -> LetterPlanResponse:
+    """Build a letter plan from an inline synthetic report (no session DB write).
+
+    Used for isolated live verification when Supabase is not wired on a test service.
+    Does not persist plans or accept consumer SSN/DOB.
+    """
+    request = DisputePlanRequest(
+        session_id=body.session_id,
+        selections=body.selections,
+        furnisher_address_overrides=body.furnisher_address_overrides,
+        round_number=body.round_number,
+        force_one_item_per_bureau=body.force_one_item_per_bureau,
+    )
+    return build_plan(body.session_id, body.report, request)
 
 
 @app.post("/internal/letters/generate/start")
