@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import { OUTREACH_ATTACHMENT_FILENAME, OUTREACH_CAMPAIGN_SLUG, OUTREACH_MAX_ATTEMPTS } from './constants'
+import {
+  OUTREACH_ATTACHMENT_FILENAME,
+  OUTREACH_CAMPAIGN_SLUG,
+  OUTREACH_MAX_ATTEMPTS,
+  OUTREACH_READY_QUEUE_SIZE,
+} from './constants'
 import { payloadSha256, renderDraft } from './draft'
 import { evaluateEligibility } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
@@ -163,13 +168,62 @@ export async function enqueueLeadSnapshots(
   return result
 }
 
+function emptyEnqueueResult(): EnqueueResult {
+  return { enqueued: 0, blockedReview: 0, ineligible: 0, skipped: 0, reasons: {} }
+}
+
+function mergeEnqueueResults(into: EnqueueResult, from: EnqueueResult) {
+  into.enqueued += from.enqueued
+  into.blockedReview += from.blockedReview
+  into.ineligible += from.ineligible
+  into.skipped += from.skipped
+  for (const [reason, count] of Object.entries(from.reasons)) {
+    into.reasons[reason] = (into.reasons[reason] || 0) + count
+  }
+}
+
+export function compareQueueOrder(
+  a: Pick<QueueItem, 'id' | 'nextAttemptAt' | 'createdAt'>,
+  b: Pick<QueueItem, 'id' | 'nextAttemptAt' | 'createdAt'>
+): number {
+  const aKey = a.nextAttemptAt || a.createdAt
+  const bKey = b.nextAttemptAt || b.createdAt
+  return aKey.localeCompare(bKey) || a.id.localeCompare(b.id)
+}
+
+export function isSentQueueStatus(status: QueueItem['status']): boolean {
+  return status === 'accepted' || status === 'delivered' || status === 'bounced'
+}
+
+export async function pendingReadyCount(store: OutreachStore): Promise<number> {
+  const queue = await store.listQueueSummaries()
+  return queue.filter((item) => item.status === 'pending').length
+}
+
+export async function ensureReadyQueue(
+  store: OutreachStore,
+  options?: { mxResolver?: MxResolver; actor?: string; size?: number }
+): Promise<EnqueueResult> {
+  const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
+  await refreshReadyQueueCopy(store, size)
+  const result = emptyEnqueueResult()
+  let pending = await pendingReadyCount(store)
+  if (pending >= size) return result
+  const leads = await store.listEligibleLeadCandidates()
+  for (const lead of leads) {
+    if (pending >= size) break
+    const one = await enqueueLeadSnapshots(store, [lead], options)
+    mergeEnqueueResults(result, one)
+    pending += one.enqueued
+  }
+  return result
+}
+
 export async function enqueueFromStoreCandidates(
   store: OutreachStore,
   options?: { mxResolver?: MxResolver; actor?: string }
 ): Promise<EnqueueResult> {
-  await refreshUnsentQueueCopy(store)
-  const leads = await store.listEligibleLeadCandidates()
-  return enqueueLeadSnapshots(store, leads, options)
+  return ensureReadyQueue(store, options)
 }
 
 const COPY_REFRESH_STATUSES = new Set(['pending', 'needs_review', 'blocked_review'])
@@ -200,15 +254,36 @@ export function nextQueueStateAfterCopyRefresh(item: QueueItem): {
   return { status: item.status, eligibilityReason: item.eligibilityReason }
 }
 
-export async function refreshUnsentQueueCopy(store: OutreachStore): Promise<{
+export async function refreshReadyQueueCopy(
+  store: OutreachStore,
+  size = OUTREACH_READY_QUEUE_SIZE
+): Promise<{ refreshed: number; skipped: number }> {
+  const summaries = await store.listQueueSummaries()
+  const ids = summaries
+    .filter((item) => COPY_REFRESH_STATUSES.has(item.status))
+    .sort(compareQueueOrder)
+    .slice(0, size)
+    .map((item) => item.id)
+  const items: QueueItem[] = []
+  for (const id of ids) {
+    const item = await store.getQueueItem(id)
+    if (item) items.push(item)
+  }
+  return refreshUnsentQueueCopy(store, items)
+}
+
+export async function refreshUnsentQueueCopy(
+  store: OutreachStore,
+  items?: QueueItem[]
+): Promise<{
   refreshed: number
   skipped: number
 }> {
   const settings = await store.getSettings()
-  const items = await store.listQueue()
+  const list = items ?? (await store.listQueue())
   let refreshed = 0
   let skipped = 0
-  for (const item of items) {
+  for (const item of list) {
     if (!COPY_REFRESH_STATUSES.has(item.status)) {
       skipped += 1
       continue

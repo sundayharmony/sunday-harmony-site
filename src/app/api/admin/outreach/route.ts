@@ -10,9 +10,9 @@ import {
 import { buildOutreachConsole } from '@/lib/outreach/console'
 import { isSameOriginRequest } from '@/lib/outreach/csrf'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
-import { enqueueFromStoreCandidates } from '@/lib/outreach/enqueue'
+import { ensureReadyQueue } from '@/lib/outreach/enqueue'
 import { currentBlockers, resolveOutreachStore } from '@/lib/outreach/runtime'
-import { OUTREACH_BATCH_LIMIT } from '@/lib/outreach/scheduler'
+import { OUTREACH_SEND_LIMIT } from '@/lib/outreach/constants'
 import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -22,6 +22,9 @@ export async function GET() {
   if (session instanceof NextResponse) return session
   try {
     const store = resolveOutreachStore()
+    if (session.user.role === 'admin') {
+      await ensureReadyQueue(store, { actor: session.user.email || session.user.id })
+    }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)
     return NextResponse.json(payload)
   } catch (error) {
@@ -29,6 +32,9 @@ export async function GET() {
       {
         disabled: true,
         liveSend: false,
+        next: null,
+        sent: [],
+        readyCount: 0,
         error: 'Outreach store is unavailable. Migration may be unapplied.',
         blockers: currentBlockers(undefined, undefined, { schemaReady: false }),
         detail: error instanceof Error ? error.message : 'unknown',
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
     const session = await requireSalesSession()
     if (session instanceof NextResponse) return session
     const store = resolveOutreachStore()
-    const result = await enqueueFromStoreCandidates(store, { actor: session.user.email || session.user.id })
+    const result = await ensureReadyQueue(store, { actor: session.user.email || session.user.id })
     return NextResponse.json({ ok: true, enqueueOnly: true, sent: 0, liveSend: false, ...result })
   }
 
@@ -93,15 +99,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.body, { status: result.status })
   }
 
-  if (action === 'send-batch') {
+  if (action === 'send' || action === 'send-batch') {
     const result = await dispatchOutreachBatch({
       store,
-      workerId: `admin-send-batch:${actorId}`,
-      limit: OUTREACH_BATCH_LIMIT,
+      workerId: `admin-send:${actorId}`,
+      limit: OUTREACH_SEND_LIMIT,
     })
+    const refill = await ensureReadyQueue(store, { actor: actorId })
     return NextResponse.json({
       ok: true,
       sent: result.accepted,
+      refilled: refill.enqueued,
       liveSend: !result.skippedDisabled,
       ...result,
     })

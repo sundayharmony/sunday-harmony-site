@@ -4,30 +4,26 @@ import { useCallback, useEffect, useState } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 type Blocker = { code: string; message: string }
-type QueueRow = {
+
+type DeskRow = {
   id: string
   business: string
   email: string
   status: string
-  reason: string
+  reason?: string
   deliveryState: string
   deliveryLabel?: string
   acceptedAt: string | null
   contactedAt: string | null
   subject: string
-  attachment: string
+  attachment?: string
 }
 
-type Preview = {
-  id: string
-  subject: string
+type LetterPreview = DeskRow & {
   previewHtml?: string
   previewText?: string
-  deliveryLabel?: string
-  acceptedAt: string | null
   deliveredAt?: string | null
   bouncedAt?: string | null
-  contactedAt: string | null
   attachment: string
   phone: string | null
   booking: { status: string; startsAt: string | null }
@@ -41,7 +37,9 @@ type ConsolePayload = {
   canOperate?: boolean
   attachmentPresent?: boolean
   readyCount?: number
-  sentToday?: number
+  readyTarget?: number
+  next: LetterPreview | null
+  sent: DeskRow[]
   settings: {
     killSwitch: boolean
     activatedAt?: string | null
@@ -50,14 +48,12 @@ type ConsolePayload = {
     signerName: string
     companyName: string
     ctaUrl: string
-    dailySendLimit: number
     historyReconciliationStatus: string
     optOutVerifiedAt?: string | null
     settingsVersion?: number
   }
   template: { approved: boolean; version: number } | null
   blockers: Blocker[]
-  queue: QueueRow[]
   reconciliation: Array<{
     business: string
     email?: string | null
@@ -70,15 +66,27 @@ type ConsolePayload = {
   error?: string
 }
 
+function formatWhen(value: string | null | undefined) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date)
+}
+
 export default function OutreachConsole() {
   const [data, setData] = useState<ConsolePayload | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
-  const [openId, setOpenId] = useState<string | null>(null)
-  const [preview, setPreview] = useState<Preview | null>(null)
   const [address, setAddress] = useState('')
-  const [dailyCap, setDailyCap] = useState('0')
   const [lastSend, setLastSend] = useState('')
+  const [sentPreview, setSentPreview] = useState<LetterPreview | null>(null)
+  const [openSentId, setOpenSentId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const response = await fetch('/api/admin/outreach')
@@ -88,38 +96,34 @@ export default function OutreachConsole() {
     }
     const payload = (await response.json()) as ConsolePayload
     setData(payload)
-    setAddress(payload.settings.physicalMailingAddress || '')
-    setDailyCap(String(payload.settings.dailySendLimit ?? 0))
+    setAddress(payload.settings?.physicalMailingAddress || '')
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const selected = data?.queue.find((row) => row.id === openId) || data?.queue[0] || null
-  const selectedId = selected?.id ?? null
-
   useEffect(() => {
-    if (!selectedId) {
-      setPreview(null)
+    if (!openSentId) {
+      setSentPreview(null)
       return
     }
     let cancelled = false
-    void fetch(`/api/admin/outreach/${selectedId}`)
+    void fetch(`/api/admin/outreach/${openSentId}`)
       .then(async (response) => {
         if (!response.ok) return null
-        return (await response.json()) as Preview
+        return (await response.json()) as LetterPreview
       })
       .then((item) => {
-        if (!cancelled) setPreview(item)
+        if (!cancelled) setSentPreview(item)
       })
       .catch(() => {
-        if (!cancelled) setPreview(null)
+        if (!cancelled) setSentPreview(null)
       })
     return () => {
       cancelled = true
     }
-  }, [selectedId])
+  }, [openSentId])
 
   async function post(action: string, extra: Record<string, unknown> = {}) {
     setBusy(action)
@@ -136,16 +140,17 @@ export default function OutreachConsole() {
         blockers?: Array<{ code?: string; message?: string }>
       }
       if (!response.ok && payload.error) setError(payload.error)
-      if (action === 'send-batch' && response.ok) {
+      if ((action === 'send' || action === 'send-batch') && response.ok) {
         const sent = Number(payload.sent || 0)
         const blockers = payload.blockers || []
         setLastSend(
           sent > 0
-            ? `Gmail accepted ${sent} email${sent === 1 ? '' : 's'} from this batch. That is not delivered.`
+            ? 'Gmail accepted this email. That is not delivered. The next letter is now ready.'
             : blockers.length
-              ? `No emails sent. ${blockers.map((item) => item.message || item.code).filter(Boolean).join(' ')}`
-              : 'No emails sent. The pending queue may be empty or already at the daily cap.'
+              ? `Not sent. ${blockers.map((item) => item.message || item.code).filter(Boolean).join(' ')}`
+              : 'Not sent. There may be no ready letter.'
         )
+        setOpenSentId(null)
       }
       await load()
     } finally {
@@ -154,23 +159,23 @@ export default function OutreachConsole() {
   }
 
   if (!data) {
-    return <p className="text-sm text-brand-muted">{error || 'Loading outreach review…'}</p>
+    return <p className="text-sm text-brand-muted">{error || 'Loading outreach…'}</p>
   }
 
   const canOperate = Boolean(data.canOperate)
-  const readyCount = data.readyCount ?? data.queue.filter((row) => row.status === 'pending').length
-  const cap = data.settings.dailySendLimit ?? 0
-  const sentToday = data.sentToday ?? 0
+  const next = data.next ?? null
+  const sent = data.sent ?? []
+  const readyCount = data.readyCount ?? 0
+  const readyTarget = data.readyTarget ?? 10
+  const canSend = canOperate && Boolean(data.liveSend) && Boolean(next)
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Sales review</p>
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
-        <p className="text-sm text-brand-muted mt-2 max-w-2xl">
-          {data.liveSend
-            ? 'Prepare the queue, preview the branded letter, then send a batch. Gmail accepted is not delivered.'
-            : 'Disabled automation. Queue and previews only. Live Gmail send stays off until every server-side gate is satisfied.'}
+        <p className="text-sm text-brand-muted mt-2">
+          Send one letter at a time. {readyTarget} stay queued so the next preview is always ready.
         </p>
       </div>
 
@@ -178,8 +183,8 @@ export default function OutreachConsole() {
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <StatusBadge status={data.liveSend ? 'active' : 'paused'} />
           <span className="text-sm text-brand-text">
-            {readyCount} ready · {sentToday} Gmail accepted today
-            {cap > 0 ? ` / ${cap} cap` : ''}
+            {readyCount} ready
+            {sent.length ? ` · ${sent.length} sent` : ''}
           </span>
         </div>
         {!data.liveSend && data.blockers.length > 0 ? (
@@ -193,132 +198,122 @@ export default function OutreachConsole() {
         {lastSend ? <p className="text-sm text-brand-text mt-2">{lastSend}</p> : null}
       </div>
 
-      <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => void post('enqueue')}
-          disabled={Boolean(busy)}
-          className="px-4 py-2 rounded-lg bg-brand-text text-white text-sm font-semibold disabled:opacity-60"
-        >
-          {busy === 'enqueue' ? 'Queueing…' : 'Prepare queue (no send)'}
-        </button>
-        {canOperate ? (
-          <button
-            type="button"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  'Send up to 10 outreach emails from the pending queue now? Gmail accepted is not delivered. This uses the daily cap and cannot be undone.'
-                )
-              ) {
-                return
-              }
-              void post('send-batch')
-            }}
-            disabled={Boolean(busy)}
-            className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold disabled:opacity-60"
-          >
-            {busy === 'send-batch' ? 'Sending…' : 'Send batch'}
-          </button>
+      <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Next in line</p>
+            <h2 className="text-lg font-bold text-brand-text mt-1">
+              {next?.business || 'No letter ready'}
+            </h2>
+            {next ? (
+              <p className="text-sm text-brand-muted mt-1">
+                {next.email}
+                {readyCount > 1 ? ` · ${readyCount - 1} more after this` : ''}
+              </p>
+            ) : (
+              <p className="text-sm text-brand-muted mt-1">
+                Queue more eligible prospects, then refresh this page.
+              </p>
+            )}
+          </div>
+          {canOperate ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (!next) return
+                if (
+                  !window.confirm(
+                    `Send this email to ${next.business} now? Gmail accepted is not delivered.`
+                  )
+                ) {
+                  return
+                }
+                void post('send')
+              }}
+              disabled={Boolean(busy) || !canSend}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold disabled:opacity-60"
+            >
+              {busy === 'send' || busy === 'send-batch' ? 'Sending…' : 'Send'}
+            </button>
+          ) : null}
+        </div>
+
+        {next ? (
+          <>
+            <p className="text-sm text-brand-text font-medium">{next.subject}</p>
+            {next.previewHtml ? (
+              <iframe
+                title="Formatted email preview"
+                srcDoc={next.previewHtml}
+                sandbox=""
+                className="w-full h-[28rem] sm:h-[36rem] rounded-lg border border-brand-border bg-white"
+              />
+            ) : next.previewText ? (
+              <pre className="whitespace-pre-wrap text-sm text-brand-muted bg-neutral-50 border border-brand-border rounded-lg p-3">
+                {next.previewText}
+              </pre>
+            ) : (
+              <p className="text-sm text-brand-muted">Letter preview is empty.</p>
+            )}
+            <p className="text-xs text-brand-dim">Attachment: {next.attachment}</p>
+          </>
         ) : null}
-      </div>
+      </section>
 
       <section className="rounded-xl border border-brand-border bg-white overflow-hidden">
         <div className="px-4 sm:px-5 py-3 border-b border-brand-border">
-          <h2 className="text-sm font-bold text-brand-text">Queue</h2>
+          <h2 className="text-sm font-bold text-brand-text">Previously sent</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-brand-dim">
-              <tr>
-                <th className="px-4 py-2">Business</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Gmail</th>
-                <th className="px-4 py-2 hidden sm:table-cell">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.queue.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-6 text-brand-muted" colSpan={4}>
-                    No queued prospects yet. Prepare queue after the migration is applied, or review blockers.
-                  </td>
-                </tr>
-              ) : (
-                data.queue.map((row) => (
-                  <tr key={row.id} className="border-t border-brand-border">
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        className="text-left font-medium text-brand-text underline-offset-2 hover:underline"
-                        onClick={() => setOpenId(row.id)}
-                      >
-                        {row.business}
-                      </button>
-                      <div className="text-xs text-brand-muted">{row.email}</div>
-                    </td>
-                    <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
-                    <td className="px-4 py-3">{row.deliveryLabel || row.deliveryState}</td>
-                    <td className="px-4 py-3 hidden sm:table-cell text-xs text-brand-muted">{row.reason}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {sent.length === 0 ? (
+          <p className="px-4 sm:px-5 py-6 text-sm text-brand-muted">No emails have been accepted by Gmail yet.</p>
+        ) : (
+          <ul>
+            {sent.map((row) => (
+              <li key={row.id} className="border-t border-brand-border first:border-t-0">
+                <button
+                  type="button"
+                  className="w-full text-left px-4 sm:px-5 py-3 hover:bg-neutral-50"
+                  onClick={() => setOpenSentId((current) => (current === row.id ? null : row.id))}
+                >
+                  <span className="block font-medium text-brand-text">{row.business}</span>
+                  <span className="block text-xs text-brand-muted mt-0.5">
+                    {row.deliveryLabel || row.deliveryState}
+                    {row.acceptedAt ? ` · ${formatWhen(row.acceptedAt)} ET` : ''}
+                  </span>
+                  <span className="block text-xs text-brand-dim mt-0.5">{row.email}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {openSentId ? (
+          <div className="border-t border-brand-border p-4 sm:p-5 space-y-2">
+            <p className="text-sm font-medium text-brand-text">{sentPreview?.subject || 'Loading sent letter…'}</p>
+            {sentPreview?.previewHtml ? (
+              <iframe
+                title="Sent email preview"
+                srcDoc={sentPreview.previewHtml}
+                sandbox=""
+                className="w-full h-[22rem] sm:h-[28rem] rounded-lg border border-brand-border bg-white"
+              />
+            ) : sentPreview?.previewText ? (
+              <pre className="whitespace-pre-wrap text-sm text-brand-muted bg-neutral-50 border border-brand-border rounded-lg p-3">
+                {sentPreview.previewText}
+              </pre>
+            ) : (
+              <p className="text-sm text-brand-muted">Loading letter…</p>
+            )}
+          </div>
+        ) : null}
       </section>
-
-      {selected ? (
-        <section className="rounded-xl border border-brand-border bg-white p-4 sm:p-5 space-y-3">
-          <h2 className="text-sm font-bold text-brand-text">Preview and handoff</h2>
-          <p className="text-sm text-brand-text font-medium">{preview?.subject || selected.subject}</p>
-          <p className="text-xs text-brand-muted">
-            {preview?.deliveryLabel || selected.deliveryLabel || selected.deliveryState}
-            {preview?.acceptedAt ? ` · Gmail accepted ${preview.acceptedAt}` : ''}
-            {preview?.deliveredAt ? ` · Delivered ${preview.deliveredAt}` : ''}
-            {preview?.bouncedAt ? ` · Bounced ${preview.bouncedAt}` : ''}
-          </p>
-          {preview?.previewHtml ? (
-            <iframe
-              title="Formatted email preview"
-              srcDoc={preview.previewHtml}
-              sandbox=""
-              className="w-full h-[28rem] sm:h-[36rem] rounded-lg border border-brand-border bg-white"
-            />
-          ) : preview?.previewText ? (
-            <pre className="whitespace-pre-wrap text-sm text-brand-muted bg-neutral-50 border border-brand-border rounded-lg p-3">
-              {preview.previewText}
-            </pre>
-          ) : (
-            <p className="text-sm text-brand-muted">Loading letter…</p>
-          )}
-          <p className="text-xs text-brand-dim">Attachment: {preview?.attachment || selected.attachment}</p>
-          {preview ? (
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-brand-dim">Phone on file</dt>
-                <dd>{preview.phone || 'None stored'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-brand-dim">Booking</dt>
-                <dd>{preview.booking.status}{preview.booking.startsAt ? ` · ${preview.booking.startsAt}` : ''}</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-brand-dim">Lead contacted</dt>
-                <dd>{preview.contactedAt || 'Not contacted'}</dd>
-              </div>
-            </dl>
-          ) : null}
-        </section>
-      ) : null}
 
       {canOperate ? (
         <details className="rounded-xl border border-brand-border bg-white p-4 sm:p-5">
           <summary className="text-sm font-bold text-brand-text cursor-pointer">Admin settings</summary>
           <div className="mt-4 space-y-4">
             <p className="text-xs text-brand-muted">
-              Saving a mailing address invalidates template approval. Changing only the daily cap
-              does not. Client checkboxes cannot mark schema, sender, history, or opt-out as verified.
+              Saving a mailing address invalidates template approval. Client checkboxes cannot mark schema,
+              sender, history, or opt-out as verified.
             </p>
             {data.blockers.length > 0 ? (
               <ul className="space-y-2">
@@ -339,23 +334,11 @@ export default function OutreachConsole() {
                 onChange={(event) => setAddress(event.target.value)}
               />
             </label>
-            <label className="block text-sm">
-              <span className="text-xs uppercase tracking-wide text-brand-dim">Daily send cap</span>
-              <input
-                className="mt-1 w-full sm:w-40 rounded-lg border border-brand-border px-3 py-2 text-sm"
-                type="number"
-                min={0}
-                max={200}
-                value={dailyCap}
-                onChange={(event) => setDailyCap(event.target.value)}
-              />
-            </label>
             <div className="flex flex-col sm:flex-row flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => void post('update-settings', {
                   physicalMailingAddress: address,
-                  dailySendLimit: Number(dailyCap),
                   schemaReady: true,
                   senderConfigured: true,
                   historyReconciled: true,

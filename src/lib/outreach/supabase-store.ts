@@ -412,7 +412,7 @@ export function createSupabaseOutreachStore(): OutreachStore {
       const { data } = await db()
         .from('outreach_queue')
         .select(
-          'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
+          'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, next_attempt_at, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
         )
         .order('created_at', { ascending: false })
       return ((data || []) as Array<Record<string, unknown>>).map(mapQueue)

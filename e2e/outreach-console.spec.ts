@@ -14,11 +14,13 @@ const consolePayload = {
   senderConfigured: false,
   canOperate: true,
   attachmentPresent: true,
+  readyCount: 10,
+  readyTarget: 10,
   scheduler: {
     path: '/api/internal/outreach-dispatch',
     schedule: '0 20 * * 1-5',
     enabled: false,
-    note: 'Automatic send is off. Use Send batch on this page. Each click sends until 10 messages are accepted today. Kill switch and gates still fail closed.',
+    note: 'Automatic send is off. Use Send on this page. Each click sends one email, then queues the next so 10 stay ready.',
   },
   settings: {
     killSwitch: true,
@@ -29,7 +31,6 @@ const consolePayload = {
     companyName: 'Sunday Harmony Consulting',
     ctaUrl: 'https://www.sundayharmony.com/book',
     ctaLabel: 'Pick a time',
-    dailySendLimit: 0,
     historyReconciliationStatus: 'unverified_reports_loaded',
     optOutVerifiedAt: null,
     settingsVersion: 1,
@@ -40,26 +41,34 @@ const consolePayload = {
     { code: 'not_activated', message: 'Explicit activation has not been recorded.' },
     { code: 'template_unapproved', message: 'Template version is unapproved.' },
   ],
-  queue: [
+  next: {
+    id: 'q-1',
+    business: 'SwingStop Hammonton',
+    email: 'info@swingstopvineland.com',
+    status: 'pending',
+    reason: 'eligible',
+    deliveryState: 'not_sent',
+    deliveryLabel: 'Not sent',
+    acceptedAt: null,
+    contactedAt: null,
+    subject: 'SwingStop Hammonton: a note from Sunday Harmony',
+    previewText: 'Hi Christopher,\n\nI came across SwingStop Hammonton in Hammonton, NJ.',
+    previewHtml: '<p>Hi Christopher,</p>',
+    attachment: 'Sunday-Harmony-Consulting-company-presentation.pdf',
+    phone: '877-734-9145',
+    booking: { status: 'none', startsAt: null },
+  },
+  sent: [
     {
-      id: 'q-1',
-      business: 'SwingStop Hammonton',
-      email: 'info@swingstopvineland.com',
-      status: 'pending',
-      reason: 'eligible',
-      deliveryState: 'not_sent',
-      acceptedAt: null,
-      contactedAt: null,
-      subject: 'SwingStop Hammonton: a note from Sunday Harmony',
-      previewText: 'Hi Christopher,\n\nI came across SwingStop Hammonton in Hammonton, NJ. The website doesn\'t clearly say you\'re in Hammonton yet. Adding that would help local people recognize you.',
-      previewHtml: '<p>Hi Christopher,</p>',
-      attachment: 'Sunday-Harmony-Consulting-company-presentation.pdf',
-      facts: { business: 'SwingStop Hammonton', firstName: 'Christopher' },
-      handoff: {
-        phone: '877-734-9145',
-        booking: { status: 'none', startsAt: null },
-        customMessage: 'Queued preview only.',
-      },
+      id: 'q-sent',
+      business: 'Bean by Bardea',
+      email: 'hello@beanbybardea.test',
+      status: 'accepted',
+      deliveryState: 'accepted',
+      deliveryLabel: 'Gmail accepted',
+      acceptedAt: '2026-11-06T16:00:00.000Z',
+      contactedAt: '2026-11-06T16:00:00.000Z',
+      subject: 'Bean by Bardea: a note from Sunday Harmony',
     },
   ],
   reconciliation: [
@@ -71,11 +80,10 @@ const consolePayload = {
       notes: 'Reported Null MX. Unverified.',
     },
   ],
-  audit: [{ id: 'a1', action: 'dispatch_invoked', createdAt: '2026-11-05T12:00:00.000Z' }],
   provider: {
     intended: 'gmail',
     idempotencyRecovery: false,
-    note: 'Gmail is bound only when every activation gate is satisfied.',
+    note: 'Live Gmail send stays off until every server-side gate is satisfied.',
   },
 }
 
@@ -108,17 +116,17 @@ async function signInAndMockOutreach(page: Page) {
     if (url.includes('/api/admin/outreach/')) {
       await route.fulfill({
         json: {
-          id: 'q-1',
-          subject: 'SwingStop Hammonton: a note from Sunday Harmony',
-          previewHtml: '<p>Hi Christopher,</p>',
-          previewText: 'Hi Christopher',
-          deliveryLabel: 'Not sent',
-          acceptedAt: null,
+          id: 'q-sent',
+          subject: 'Bean by Bardea: a note from Sunday Harmony',
+          previewHtml: '<p>Hi from a sent letter.</p>',
+          previewText: 'Hi from a sent letter.',
+          deliveryLabel: 'Gmail accepted',
+          acceptedAt: '2026-11-06T16:00:00.000Z',
           deliveredAt: null,
           bouncedAt: null,
-          contactedAt: null,
+          contactedAt: '2026-11-06T16:00:00.000Z',
           attachment: 'Sunday-Harmony-Consulting-company-presentation.pdf',
-          phone: '877-734-9145',
+          phone: null,
           booking: { status: 'none', startsAt: null },
         },
       })
@@ -149,22 +157,29 @@ async function signInAndMockOutreach(page: Page) {
 }
 
 test.describe('outreach admin preview', () => {
-  test('shows disabled queue preview for an authenticated admin', async ({ page }) => {
+  test('shows the next letter, sent list, and one Send button on desktop', async ({ page }) => {
     await signInAndMockOutreach(page)
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.goto('/admin')
     await page.getByRole('link', { name: /Outreach/i }).click()
     await expect(page).toHaveURL(/\/admin\/outreach/)
     await expect(page.getByRole('heading', { name: 'Prospect outreach' })).toBeVisible()
-    await expect(page.getByText('Disabled automation')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
-    await page.getByRole('button', { name: 'SwingStop Hammonton' }).click()
+    await expect(page.getByText('Next in line')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'SwingStop Hammonton' })).toBeVisible()
+    await expect(page.getByText('10 ready')).toBeVisible()
     await expect(page.getByTitle('Formatted email preview')).toBeVisible()
     await expect(
       page.frameLocator('iframe[title="Formatted email preview"]').getByText('Hi Christopher')
     ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled()
+    await expect(page.getByRole('heading', { name: 'Previously sent' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Bean by Bardea/ })).toBeVisible()
+    await page.getByRole('button', { name: /Bean by Bardea/ }).click()
+    await expect(page.getByTitle('Sent email preview')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
+    await expect(page.getByText('Daily send cap')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send batch' })).toHaveCount(0)
     await page.getByText('Admin settings').click()
     await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
       'PO Box 1011, Jersey City, NJ 07304'
@@ -172,12 +187,12 @@ test.describe('outreach admin preview', () => {
     await expect(page.getByText('kill_switch')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Record activation (server gates only)' })).toBeVisible()
     await page.screenshot({
-      path: '/opt/cursor/artifacts/outreach-console-desktop.png',
+      path: '/opt/cursor/artifacts/outreach-send-desk-desktop.png',
       fullPage: true,
     })
   })
 
-  test('keeps the same preview usable at 390px', async ({ page }) => {
+  test('keeps the same send desk usable at 390px', async ({ page }) => {
     await signInAndMockOutreach(page)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/admin')
@@ -185,21 +200,23 @@ test.describe('outreach admin preview', () => {
     await page.getByRole('link', { name: /Outreach/i }).click()
     await expect(page).toHaveURL(/\/admin\/outreach/)
     await expect(page.getByRole('heading', { name: 'Prospect outreach' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
-    await page.getByRole('button', { name: 'SwingStop Hammonton' }).click()
+    await expect(page.getByText('Next in line')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'SwingStop Hammonton' })).toBeVisible()
     await expect(page.getByTitle('Formatted email preview')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Previously sent' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Bean by Bardea/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send batch' })).toHaveCount(0)
     await page.getByText('Admin settings').click()
     await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
       'PO Box 1011, Jersey City, NJ 07304'
     )
-    await page.getByRole('button', { name: 'Toggle menu' }).click()
-    await expect(page.getByRole('link', { name: /Outreach/i }).first()).toBeVisible()
     await page.screenshot({
-      path: '/opt/cursor/artifacts/outreach-console-390.png',
+      path: '/opt/cursor/artifacts/outreach-send-desk-390.png',
       fullPage: true,
     })
+    await page.getByRole('button', { name: 'Toggle menu' }).click()
+    await expect(page.getByRole('link', { name: /Outreach/i }).first()).toBeVisible()
   })
 })

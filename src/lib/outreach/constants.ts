@@ -17,6 +17,10 @@ export const OUTREACH_CREAM = '#f0ebe3'
 export const OUTREACH_LEASE_MS = 2 * 60 * 1000
 export const OUTREACH_MAX_ATTEMPTS = 5
 export const OUTREACH_BACKOFF_SECONDS = [60, 120, 240, 480, 960] as const
+/** Pending letters kept ready so sending one can immediately queue the next. */
+export const OUTREACH_READY_QUEUE_SIZE = 10
+/** Manual send always dispatches one letter. */
+export const OUTREACH_SEND_LIMIT = 1
 
 export const EMAIL_BOT_UNVERIFIED_REPORTS = [
   {

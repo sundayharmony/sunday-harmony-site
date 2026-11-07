@@ -6,7 +6,7 @@ import { evaluateActivationBlockers, mailingAddressIsValid, sendsPermitted } fro
 import { claimNextPending, recoverExpiredInFlight } from '../outreach/claims'
 import { confirmUnsubscribe } from '../outreach/confirm-unsubscribe'
 import { buildOutreachConsole, buildOutreachItem } from '../outreach/console'
-import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
+import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_MAILING_ADDRESS, OUTREACH_READY_QUEUE_SIZE, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
 import { copyIssues, escapeHtml } from '../outreach/copy-rules'
 import { isSameOriginRequest, verifyProviderWebhookSignature } from '../outreach/csrf'
 import { dispatchOutreachBatch } from '../outreach/dispatch'
@@ -14,7 +14,7 @@ import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility } from '../outreach/eligibility'
-import { enqueueFromStoreCandidates, enqueueLeadSnapshots, refreshUnsentQueueCopy } from '../outreach/enqueue'
+import { enqueueFromStoreCandidates, enqueueLeadSnapshots, ensureReadyQueue, pendingReadyCount, refreshUnsentQueueCopy } from '../outreach/enqueue'
 import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
 import { prospectGreetingIsUsable } from '../outreach/greeting'
 import { toProspectObservation } from '../outreach/observation'
@@ -45,6 +45,17 @@ function lead(partial: Partial<LeadSnapshot> = {}): LeadSnapshot {
     lastContactedAt: partial.lastContactedAt,
     gmailThreadId: partial.gmailThreadId,
   }
+}
+
+function manyLeads(count: number): LeadSnapshot[] {
+  return Array.from({ length: count }, (_, index) =>
+    lead({
+      id: `lead-${index + 1}`,
+      business: `Harbor Studio ${index + 1}`,
+      email: `owner${index + 1}@harbor-studio-${index + 1}.test`,
+      firstName: 'Alex',
+    })
+  )
 }
 
 const mxOk = async () => [{ priority: 10, exchange: 'mail.example.com' }]
@@ -285,6 +296,60 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.doesNotMatch(next.htmlBody, /Hi Not,/)
   })
 
+  it('keeps ten pending letters ready and refills after one send', async () => {
+    const leads = manyLeads(12)
+    const store = createMemoryOutreachStore({ leads })
+    const filled = await ensureReadyQueue(store, { mxResolver: mxOk })
+    assert.equal(filled.enqueued, OUTREACH_READY_QUEUE_SIZE)
+    assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
+    const again = await ensureReadyQueue(store, { mxResolver: mxOk })
+    assert.equal(again.enqueued, 0)
+    assert.equal((await store.listQueue()).length, OUTREACH_READY_QUEUE_SIZE)
+
+    await store.updateSettings({
+      killSwitch: false,
+      activatedAt: '2026-11-05T00:00:00.000Z',
+      physicalMailingAddress: '1 Example Street, City, ST 00000',
+      dailySendLimit: 0,
+      historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
+    })
+    const template = await store.getLatestTemplate('camp-prospect-intro')
+    assert.ok(template)
+    await store.approveTemplate(template.id, 'admin', draftContentSha256(), store.now())
+    const originalKill = process.env.OUTREACH_KILL_SWITCH
+    const originalAllow = process.env.OUTREACH_ACTIVATION_ALLOWED
+    process.env.OUTREACH_KILL_SWITCH = 'false'
+    process.env.OUTREACH_ACTIVATION_ALLOWED = 'true'
+    try {
+      const provider = createMockProvider()
+      const sent = await dispatchOutreachBatch({
+        store,
+        provider,
+        mxResolver: mxOk,
+        attachment: Buffer.from('%PDF-1.4 test'),
+        senderConfigured: true,
+        limit: 1,
+      })
+      assert.equal(sent.accepted, 1)
+      assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE - 1)
+      const refilled = await ensureReadyQueue(store, { mxResolver: mxOk })
+      assert.equal(refilled.enqueued, 1)
+      assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
+      assert.equal((await store.listQueue()).filter((row) => row.status === 'accepted').length, 1)
+      const desk = await buildOutreachConsole(store, 'admin')
+      assert.equal(desk.readyCount, OUTREACH_READY_QUEUE_SIZE)
+      assert.equal(desk.sent.length, 1)
+      assert.ok(desk.next?.previewHtml)
+      assert.notEqual(desk.next?.id, desk.sent[0]?.id)
+    } finally {
+      if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
+      else process.env.OUTREACH_KILL_SWITCH = originalKill
+      if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
+      else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
+    }
+  })
+
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
     const decision = evaluateEligibility({
       lead: lead({ email: 'owner+news@example.com' }),
@@ -331,7 +396,7 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
       killSwitch: false,
       activatedAt: '2026-11-05T00:00:00.000Z',
       physicalMailingAddress: '1 Example Street, City, ST 00000',
-      dailySendLimit: 10,
+      dailySendLimit: 0,
       historyReconciliationStatus: 'reconciled',
       optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
     })
@@ -673,15 +738,20 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /requireSalesSession/)
     assert.match(admin, /requireAdminSession/)
     assert.match(admin, /isSameOriginRequest/)
-    assert.match(admin, /send-batch/)
+    assert.match(admin, /action === 'send'/)
+    assert.match(admin, /OUTREACH_SEND_LIMIT/)
+    assert.match(admin, /ensureReadyQueue/)
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
-    assert.match(consoleUi, /Send batch/)
-    assert.match(consoleUi, /send-batch/)
+    assert.match(consoleUi, /post\('send'\)/)
+    assert.match(consoleUi, /Next in line/)
+    assert.match(consoleUi, /Previously sent/)
     assert.match(consoleUi, /Formatted email preview/)
     assert.match(consoleUi, /previewHtml/)
     assert.match(consoleUi, /Admin settings/)
+    assert.doesNotMatch(consoleUi, /Send batch/)
+    assert.doesNotMatch(consoleUi, /Daily send cap/)
     assert.doesNotMatch(consoleUi, />Audit</)
     const itemRoute = readFileSync('src/app/api/admin/outreach/[id]/route.ts', 'utf8')
     assert.match(itemRoute, /buildOutreachItem/)
@@ -691,10 +761,12 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(dispatch, /markLeadContacted/)
     assert.match(dispatch, /unsubscribe_token_unusable/)
     assert.doesNotMatch(dispatch, /unsubscribeUrlFor/)
+    assert.doesNotMatch(dispatch, /daily_cap/)
+    assert.doesNotMatch(readFileSync('src/lib/outreach/activation.ts', 'utf8'), /daily_limit_zero/)
     const vercel = readFileSync('vercel.json', 'utf8')
     assert.doesNotMatch(vercel, /outreach-dispatch/)
     assert.doesNotMatch(vercel, /0 20 \* \* 1-5/)
-    assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /Send batch/)
+    assert.match(readFileSync('vercel.outreach-cron.example.json', 'utf8'), /Outreach → Send/)
     const nextConfig = readFileSync('next.config.js', 'utf8')
     assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)
     assert.match(nextConfig, /outputFileTracingIncludes/)
@@ -737,9 +809,12 @@ describe('handoff and activation blockers', () => {
     assert.ok(blockers.some((item) => item.code === 'history_unreconciled'))
     const consolePayload = await buildOutreachConsole(store, 'sales_closer')
     assert.equal(consolePayload.disabled, true)
-    assert.equal('previewHtml' in consolePayload.queue[0], false)
-    assert.equal('handoff' in consolePayload.queue[0], false)
+    assert.equal(consolePayload.next?.id, item.id)
+    assert.equal(consolePayload.readyCount, 1)
+    assert.equal(consolePayload.sent.length, 0)
+    assert.equal('queue' in consolePayload, false)
     assert.equal('audit' in consolePayload, false)
+    assert.match(consolePayload.next?.previewHtml || '', /Hi Christopher/)
     const itemPreview = await buildOutreachItem(store, item.id, 'sales_closer')
     assert.equal(itemPreview?.phone, '877-734-9145')
     assert.equal(itemPreview?.previewHtml?.includes('Hi Christopher') || itemPreview?.previewText?.includes('Hi Christopher'), true)

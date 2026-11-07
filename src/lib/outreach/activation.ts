@@ -120,12 +120,6 @@ export function evaluateActivationBlockers(input: GateInput): ActivationBlocker[
           : 'Email Bot reports are loaded as unverified assertions. Provider history is not reconciled.',
     })
   }
-  if (input.settings.dailySendLimit <= 0) {
-    blockers.push({
-      code: 'daily_limit_zero',
-      message: 'Daily send limit is 0. No live send is permitted.',
-    })
-  }
   if (!input.settings.optOutVerifiedAt) {
     blockers.push({
       code: 'opt_out_unverified',

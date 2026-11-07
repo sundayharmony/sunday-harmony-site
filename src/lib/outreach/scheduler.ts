@@ -1,10 +1,12 @@
+import { OUTREACH_READY_QUEUE_SIZE, OUTREACH_SEND_LIMIT } from './constants'
+
 export const OUTREACH_CRON_PATH = '/api/internal/outreach-dispatch'
 /** Kept for docs only. Production does not register this schedule. */
 export const OUTREACH_CRON_SCHEDULE = '0 20 * * 1-5'
 export const OUTREACH_CRON_ENABLED = false
-/** Max provider-accepted sends per manual batch. Daily cap is enforced separately. */
-export const OUTREACH_BATCH_LIMIT = 10
-export const OUTREACH_CRON_BATCH_LIMIT = OUTREACH_BATCH_LIMIT
+/** Manual send dispatches one letter. Kept as an alias for older tests and docs. */
+export const OUTREACH_BATCH_LIMIT = OUTREACH_SEND_LIMIT
+export const OUTREACH_CRON_BATCH_LIMIT = OUTREACH_SEND_LIMIT
 
 export function outreachCron(): {
   path: string
@@ -16,6 +18,6 @@ export function outreachCron(): {
     path: OUTREACH_CRON_PATH,
     schedule: OUTREACH_CRON_SCHEDULE,
     enabled: false,
-    note: 'Automatic send is off. Use Send batch on this page. Each click sends until 10 messages are accepted today. Kill switch and gates still fail closed.',
+    note: `Automatic send is off. Use Send on this page. Each click sends one email, then queues the next so ${OUTREACH_READY_QUEUE_SIZE} stay ready.`,
   }
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { OUTREACH_BACKOFF_SECONDS, OUTREACH_SENDER_EMAIL } from './constants'
 import { workspaceGmailSendReady } from '@/lib/google-workspace'
-import { evaluateActivationBlockers, sendsPermitted, utcDayStartIso, type GateInput } from './activation'
+import { evaluateActivationBlockers, sendsPermitted, type GateInput } from './activation'
 import { resolveCompanyPresentationPdf } from './attachment'
 import { claimNextPending, recoverExpiredInFlight } from './claims'
 import { dispatchRecheck } from './eligibility'
@@ -127,12 +127,6 @@ export async function dispatchOutreachBatch(input: {
   let accepted = 0
 
   while (accepted < maxAccepted && dispatched < maxClaims) {
-    const acceptedToday = await store.acceptedCountSince(utcDayStartIso(at))
-    if (acceptedToday >= settings.dailySendLimit) {
-      details.push('daily_cap')
-      break
-    }
-
     const claimed = await claimNextPending(store, workerId, at)
     if (!claimed) break
     dispatched += 1
@@ -250,19 +244,6 @@ export async function dispatchOutreachBatch(input: {
       })
       details.push('suppressed_before_send')
       continue
-    }
-
-    const acceptedNow = await store.acceptedCountSince(utcDayStartIso(at))
-    if (acceptedNow >= settings.dailySendLimit) {
-      await store.compareAndSwap(inFlight.id, 'in_flight', {
-        status: 'pending',
-        eligibilityReason: 'daily_cap',
-        claimedBy: null,
-        claimedAt: null,
-        leaseExpiresAt: null,
-      })
-      details.push('daily_cap')
-      break
     }
 
     let result

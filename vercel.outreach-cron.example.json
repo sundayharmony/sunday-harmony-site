@@ -1,4 +1,4 @@
 {
-  "$comment": "Not registered in production. Outreach sends only from Admin → Outreach → Send batch. This file is a historical example of the old weekday cron.",
+  "$comment": "Not registered in production. Outreach sends only from Admin → Outreach → Send. This file is a historical example of the old weekday cron.",
   "crons": []
 }

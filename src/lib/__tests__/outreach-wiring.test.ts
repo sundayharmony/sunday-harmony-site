@@ -382,7 +382,7 @@ describe('dispatch safety: tokens, suppression, ambiguity, workers', () => {
       const cron = outreachCron()
       assert.equal(cron.enabled, false)
       assert.equal(cron.schedule, OUTREACH_CRON_SCHEDULE)
-      assert.equal(OUTREACH_CRON_BATCH_LIMIT, 10)
+      assert.equal(OUTREACH_CRON_BATCH_LIMIT, 1)
       const consolePayload = await buildOutreachConsole(store, 'admin')
       assert.equal(consolePayload.liveSend, true)
       assert.equal(consolePayload.disabled, false)

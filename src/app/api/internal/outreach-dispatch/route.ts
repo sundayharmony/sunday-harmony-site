@@ -25,7 +25,7 @@ function disabled() {
     liveSend: false,
     skippedDisabled: true,
     details: ['automatic_dispatch_disabled'],
-    note: 'Outreach sends only from Admin → Outreach → Send batch.',
+    note: 'Outreach sends only from Admin → Outreach → Send.',
   })
 }
 
