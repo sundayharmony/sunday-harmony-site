@@ -52,8 +52,10 @@ export type OutreachStore = {
   findReconciliationForLead(input: { emailNormalized: string | null; businessNormalized: string }): Promise<ReconciliationItem | null>
   getQueueItem(id: string): Promise<QueueItem | null>
   findQueueByLead(campaignId: string, leadId: string): Promise<QueueItem | null>
+  findLatestQueueForLead(leadId: string): Promise<QueueItem | null>
   findQueueByEmail(campaignId: string, emailNormalized: string): Promise<QueueItem | null>
   listQueue(): Promise<QueueItem[]>
+  listQueueSummaries(): Promise<QueueItem[]>
   insertQueue(item: QueueItem): Promise<{ ok: true; item: QueueItem } | { ok: false; reason: 'duplicate' }>
   compareAndSwap(
     id: string,
@@ -287,6 +289,12 @@ export function createMemoryOutreachStore(options?: {
       const item = queue.find((row) => row.campaignId === campaignId && row.leadId === leadId)
       return item ? clone(item) : null
     },
+    async findLatestQueueForLead(leadId) {
+      const matches = queue
+        .filter((row) => row.leadId === leadId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      return matches[0] ? clone(matches[0]) : null
+    },
     async findQueueByEmail(campaignId, emailNormalized) {
       const item = queue.find(
         (row) => row.campaignId === campaignId && row.emailNormalized === emailNormalized
@@ -295,6 +303,9 @@ export function createMemoryOutreachStore(options?: {
     },
     async listQueue() {
       return clone(queue)
+    },
+    async listQueueSummaries() {
+      return clone(queue).map((item) => ({ ...item, htmlBody: '', textBody: '', preheader: '' }))
     },
     async insertQueue(item) {
       if (

@@ -104,7 +104,27 @@ async function signInAndMockOutreach(page: Page) {
     },
   ])
   await page.route('**/api/admin/**', async (route) => {
-    if (route.request().url().includes('/api/admin/outreach')) {
+    const url = route.request().url()
+    if (url.includes('/api/admin/outreach/')) {
+      await route.fulfill({
+        json: {
+          id: 'q-1',
+          subject: 'SwingStop Hammonton: a note from Sunday Harmony',
+          previewHtml: '<p>Hi Christopher,</p>',
+          previewText: 'Hi Christopher',
+          deliveryLabel: 'Not sent',
+          acceptedAt: null,
+          deliveredAt: null,
+          bouncedAt: null,
+          contactedAt: null,
+          attachment: 'Sunday-Harmony-Consulting-company-presentation.pdf',
+          phone: '877-734-9145',
+          booking: { status: 'none', startsAt: null },
+        },
+      })
+      return
+    }
+    if (url.includes('/api/admin/outreach')) {
       if (route.request().method() === 'POST') {
         await route.fulfill({ json: { ok: false, activated: false, error: 'Blocked by server gates' } })
         return
@@ -137,9 +157,6 @@ test.describe('outreach admin preview', () => {
     await expect(page).toHaveURL(/\/admin\/outreach/)
     await expect(page.getByRole('heading', { name: 'Prospect outreach' })).toBeVisible()
     await expect(page.getByText('Disabled automation')).toBeVisible()
-    await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
-      'PO Box 1011, Jersey City, NJ 07304'
-    )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
     await page.getByRole('button', { name: 'SwingStop Hammonton' }).click()
     await expect(page.getByTitle('Formatted email preview')).toBeVisible()
@@ -147,8 +164,12 @@ test.describe('outreach admin preview', () => {
       page.frameLocator('iframe[title="Formatted email preview"]').getByText('Hi Christopher')
     ).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
-    await expect(page.getByText('kill_switch')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
+    await page.getByText('Admin settings').click()
+    await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
+      'PO Box 1011, Jersey City, NJ 07304'
+    )
+    await expect(page.getByText('kill_switch')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Record activation (server gates only)' })).toBeVisible()
     await page.screenshot({
       path: '/opt/cursor/artifacts/outreach-console-desktop.png',
@@ -164,15 +185,16 @@ test.describe('outreach admin preview', () => {
     await page.getByRole('link', { name: /Outreach/i }).click()
     await expect(page).toHaveURL(/\/admin\/outreach/)
     await expect(page.getByRole('heading', { name: 'Prospect outreach' })).toBeVisible()
-    await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
-      'PO Box 1011, Jersey City, NJ 07304'
-    )
     await expect(page.getByRole('button', { name: 'SwingStop Hammonton' })).toBeVisible()
     await page.getByRole('button', { name: 'SwingStop Hammonton' }).click()
     await expect(page.getByTitle('Formatted email preview')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send batch' })).toBeVisible()
+    await page.getByText('Admin settings').click()
+    await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
+      'PO Box 1011, Jersey City, NJ 07304'
+    )
     await page.getByRole('button', { name: 'Toggle menu' }).click()
     await expect(page.getByRole('link', { name: /Outreach/i }).first()).toBeVisible()
     await page.screenshot({

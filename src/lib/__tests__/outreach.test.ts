@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 import { evaluateActivationBlockers, mailingAddressIsValid, sendsPermitted } from '../outreach/activation'
 import { claimNextPending, recoverExpiredInFlight } from '../outreach/claims'
 import { confirmUnsubscribe } from '../outreach/confirm-unsubscribe'
-import { buildOutreachConsole } from '../outreach/console'
+import { buildOutreachConsole, buildOutreachItem } from '../outreach/console'
 import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
 import { copyIssues, escapeHtml } from '../outreach/copy-rules'
 import { isSameOriginRequest, verifyProviderWebhookSignature } from '../outreach/csrf'
@@ -14,7 +14,7 @@ import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility } from '../outreach/eligibility'
-import { enqueueLeadSnapshots, refreshUnsentQueueCopy } from '../outreach/enqueue'
+import { enqueueFromStoreCandidates, enqueueLeadSnapshots, refreshUnsentQueueCopy } from '../outreach/enqueue'
 import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
 import { prospectGreetingIsUsable } from '../outreach/greeting'
 import { toProspectObservation } from '../outreach/observation'
@@ -267,6 +267,22 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.doesNotMatch(next.htmlBody, /Hi Not,/)
     assert.match(next.textBody, /doesn't clearly say you're in Hammonton yet/)
     assert.doesNotMatch(next.textBody, /No Hammonton landing page/)
+  })
+
+  it('prepare queue refreshes unsent copy before looking for new leads', async () => {
+    const store = createMemoryOutreachStore({
+      leads: [lead({ id: 'lead-1', firstName: 'Not' })],
+    })
+    await enqueueLeadSnapshots(store, [lead({ id: 'lead-1', firstName: 'Not' })], { mxResolver: mxOk })
+    const [item] = await store.listQueue()
+    await store.compareAndSwap(item.id, 'pending', {
+      htmlBody: item.htmlBody.replace('Hi,', 'Hi Not,'),
+      textBody: item.textBody.replace('Hi,', 'Hi Not,'),
+    })
+    await enqueueFromStoreCandidates(store, { mxResolver: mxOk })
+    const next = (await store.listQueue())[0]
+    assert.match(next.htmlBody, />Hi,</)
+    assert.doesNotMatch(next.htmlBody, /Hi Not,/)
   })
 
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
@@ -665,7 +681,11 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(consoleUi, /send-batch/)
     assert.match(consoleUi, /Formatted email preview/)
     assert.match(consoleUi, /previewHtml/)
+    assert.match(consoleUi, /Admin settings/)
     assert.doesNotMatch(consoleUi, />Audit</)
+    const itemRoute = readFileSync('src/app/api/admin/outreach/[id]/route.ts', 'utf8')
+    assert.match(itemRoute, /buildOutreachItem/)
+    assert.match(itemRoute, /requireSalesSession/)
     const dispatch = readFileSync('src/lib/outreach/dispatch.ts', 'utf8')
     assert.match(dispatch, /skippedDisabled/)
     assert.match(dispatch, /markLeadContacted/)
@@ -678,6 +698,10 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     const nextConfig = readFileSync('next.config.js', 'utf8')
     assert.doesNotMatch(nextConfig, /source: '\/admin\/outreach'/)
     assert.match(nextConfig, /outputFileTracingIncludes/)
+    const shell = readFileSync('src/lib/outreach/draft-shell.ts', 'utf8')
+    assert.match(shell, /background:#0a0a0a/)
+    assert.match(shell, /#b8943f/)
+    assert.match(shell, />SH<\/div>/)
     assert.match(nextConfig, /company-presentation\.pdf/)
     const book = readFileSync('src/app/book/page.tsx', 'utf8')
     assert.match(book, /ConsultationBooker/)
@@ -713,8 +737,12 @@ describe('handoff and activation blockers', () => {
     assert.ok(blockers.some((item) => item.code === 'history_unreconciled'))
     const consolePayload = await buildOutreachConsole(store, 'sales_closer')
     assert.equal(consolePayload.disabled, true)
-    assert.equal(consolePayload.queue[0].handoff?.phone, '877-734-9145')
+    assert.equal('previewHtml' in consolePayload.queue[0], false)
+    assert.equal('handoff' in consolePayload.queue[0], false)
     assert.equal('audit' in consolePayload, false)
+    const itemPreview = await buildOutreachItem(store, item.id, 'sales_closer')
+    assert.equal(itemPreview?.phone, '877-734-9145')
+    assert.equal(itemPreview?.previewHtml?.includes('Hi Christopher') || itemPreview?.previewText?.includes('Hi Christopher'), true)
   })
 })
 

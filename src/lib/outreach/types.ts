@@ -183,3 +183,11 @@ export function deliveryStateFor(item: Pick<QueueItem, 'status' | 'acceptedAt' |
   if (item.status === 'accepted' || item.acceptedAt) return 'accepted'
   return 'not_sent'
 }
+
+export function gmailStatusLabel(state: DeliveryState): string {
+  if (state === 'delivered') return 'Delivered'
+  if (state === 'bounced') return 'Bounced'
+  if (state === 'accepted') return 'Gmail accepted'
+  if (state === 'uncertain') return 'Needs review'
+  return 'Not sent'
+}

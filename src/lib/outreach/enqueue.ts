@@ -167,6 +167,7 @@ export async function enqueueFromStoreCandidates(
   store: OutreachStore,
   options?: { mxResolver?: MxResolver; actor?: string }
 ): Promise<EnqueueResult> {
+  await refreshUnsentQueueCopy(store)
   const leads = await store.listEligibleLeadCandidates()
   return enqueueLeadSnapshots(store, leads, options)
 }
