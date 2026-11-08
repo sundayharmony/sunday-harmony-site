@@ -197,6 +197,9 @@ def parse_bureau_text(
     tradelines, consumer, report_date = parse_bureau_accounts(text, file_name=file_name)
     if not tradelines:
         return None
+    # Provisional "Unnamed · …" rows mean OCR lost furnishers — mark low so Gemini can upgrade.
+    if any((tl.creditor or "").lower().startswith("unnamed") for tl in tradelines):
+        quality = "low"
     return ParsedReport(
         source="fallback_parser",
         report_date=report_date,
@@ -298,9 +301,15 @@ def _hero_member_fields(part: str) -> dict[str, str]:
             payment_history = f"Times late 30/60/90: {bits[0]}/{bits[1]}/{bits[2]}"
             if any(bit != "0" for bit in bits):
                 payment_status = _join_remarks(payment_status, payment_history)
+    account_number = _first(r"Account Number\s+([A-Z0-9*#xX-]{4,})", part)
+    creditor = _hero_creditor(part)
+    # Keep rich OCR rows even when charge-off chrome ate the furnisher name.
+    # Gemini (or a later re-read) can replace "Unnamed · …" with the real creditor.
+    if not creditor:
+        creditor = _hero_provisional_creditor(account_type, account_number)
     return {
-        "creditor": _hero_creditor(part),
-        "account_number": _first(r"Account Number\s+([A-Z0-9*#xX-]{4,})", part),
+        "creditor": creditor,
+        "account_number": account_number,
         "status": _compose_status(status, payment_status),
         "balance": _first(r"Balance:\s*(\$[\d,]+(?:\.\d{2})?)", part),
         "credit_limit": _first(r"Credit limit:\s*(\$[\d,]+(?:\.\d{2})?)", part),
@@ -442,6 +451,15 @@ def _is_hero_creditor_junk(name: str) -> bool:
     if re.fullmatch(r"(?i)(?:high\s+balance|terms?\s+count|creditor\s+information)(?:\s+\S+){0,3}", cleaned):
         return True
     return False
+
+
+def _hero_provisional_creditor(account_type: str, account_number: str) -> str:
+    """Stable placeholder when OCR lost the furnisher but kept account facts."""
+    kind = (account_type or "").strip() or "Account"
+    number = (account_number or "").strip()
+    if number:
+        return f"Unnamed · {kind} {number}"
+    return f"Unnamed · {kind}"
 
 
 def _hero_creditor(part: str) -> str:

@@ -419,7 +419,15 @@ Times 30/60/90 Days Late 1/0/0
 """
     tradelines, _, _ = parse_bureau_accounts(text, file_name="transunion_10-7.pdf")
     names = {tl.creditor for tl in tradelines}
-    assert names == {"ALLY FINCL"}
+    assert "ALLY FINCL" in names
     assert "Creditor information" not in names
     assert "High Balance" not in names
     assert not any(name.lower().startswith("voluntary") for name in names)
+    # Chrome-only charge-off rows keep a provisional name so Health is not empty.
+    provisional = [name for name in names if name.lower().startswith("unnamed")]
+    assert provisional
+    from app.services.bureau_text_parser import parse_bureau_text
+
+    report = parse_bureau_text(text, file_name="transunion_10-7.pdf")
+    assert report is not None
+    assert report.extraction_quality == "low"

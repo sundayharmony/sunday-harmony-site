@@ -97,8 +97,11 @@ export async function analyzeReport(
     if (status === 'ready') {
       onProgress?.('Loading analysis results…')
       const loaded = await fetchDisputeReport(sessionId)
-      const { needsGeminiReportFallback } = await import('@/lib/dispute-letters/gemini-report-read')
-      if (!needsGeminiReportFallback(loaded.report)) return loaded
+      // Do not check GEMINI_API_KEY in the browser — it is server-only. Ask the
+      // model-read route whenever the local parse looks empty/weak; the route
+      // no-ops when the key is missing or the report is already rich.
+      const { reportNeedsModelRead } = await import('@/lib/dispute-letters/gemini-report-read')
+      if (!reportNeedsModelRead(loaded.report)) return loaded
       onProgress?.('Reading this scan…')
       const modelRes = await fetch(`/api/admin/dispute-letters/${sessionId}/model-read`, {
         method: 'POST',

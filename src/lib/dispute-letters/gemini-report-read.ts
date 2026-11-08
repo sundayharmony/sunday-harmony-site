@@ -151,9 +151,11 @@ export function parseGeminiReportPayload(raw: string, fileName = ''): GeminiRepo
   }
 }
 
-/** When local parse is empty OR weak/malformed nonempty, Gemini read may help. */
-export function needsGeminiReportFallback(report: ParsedReport | null | undefined): boolean {
-  if (!process.env.GEMINI_API_KEY?.trim()) return false
+/**
+ * Report shape that should try a Gemini scan-read.
+ * Safe to call from the browser — does not inspect GEMINI_API_KEY (server-only).
+ */
+export function reportNeedsModelRead(report: ParsedReport | null | undefined): boolean {
   if (!report) return true
   const tls = report.tradelines || []
   if (tls.length === 0) return true
@@ -163,12 +165,23 @@ export function needsGeminiReportFallback(report: ParsedReport | null | undefine
   }
   const named = tls.filter((t) => (t.creditor || '').trim().length > 1)
   if (named.length === 0) return true
+  // Credit Hero OCR sometimes keeps balances but labels creditors as "Unnamed · …"
+  const provisional = tls.filter((t) => /^unnamed\b/i.test((t.creditor || '').trim()))
+  if (provisional.length > 0 && provisional.length >= Math.ceil(tls.length / 2)) {
+    return true
+  }
   const thin = tls.filter(
     (t) =>
       !(t.account_tu || t.account_exp || t.account_eqf || t.balance || t.status || t.payment_history)
   )
   if (thin.length / tls.length >= 0.75) return true
   return false
+}
+
+/** Server-only: same as reportNeedsModelRead, but requires GEMINI_API_KEY. */
+export function needsGeminiReportFallback(report: ParsedReport | null | undefined): boolean {
+  if (!process.env.GEMINI_API_KEY?.trim()) return false
+  return reportNeedsModelRead(report)
 }
 
 function namedCreditorCount(tradelines: Tradeline[]): number {

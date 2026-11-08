@@ -6,6 +6,7 @@ import {
   needsGeminiReportFallback,
   parseGeminiReportPayload,
   readReportWithGemini,
+  reportNeedsModelRead,
 } from '../dispute-letters/gemini-report-read'
 import type { ParsedReport } from '../dispute-letters/types'
 
@@ -32,6 +33,51 @@ function emptyReport(): ParsedReport {
     extraction_quality: 'low',
   }
 }
+
+describe('reportNeedsModelRead', () => {
+  it('triggers on empty tradelines without requiring GEMINI_API_KEY', () => {
+    const previous = process.env.GEMINI_API_KEY
+    delete process.env.GEMINI_API_KEY
+    try {
+      assert.equal(reportNeedsModelRead(emptyReport()), true)
+      assert.equal(needsGeminiReportFallback(emptyReport()), false)
+    } finally {
+      if (previous === undefined) delete process.env.GEMINI_API_KEY
+      else process.env.GEMINI_API_KEY = previous
+    }
+  })
+
+  it('triggers when most creditors are provisional Unnamed placeholders', () => {
+    const report = emptyReport()
+    report.extraction_quality = 'medium'
+    report.tradelines = [
+      {
+        id: 'u1',
+        creditor: 'Unnamed · Auto Loan 228533XXXXXX',
+        account_tu: '228533XXXXXX',
+        account_exp: '',
+        account_eqf: '',
+        account_type: 'Auto Loan',
+        status: 'Open. Late 30 Days',
+        balance: '$18703.00',
+        past_due: '$250.00',
+        remarks: '',
+        bureaus: ['TUC'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: [],
+        dispute_furnisher: true,
+        legal_flags: [],
+        repair_priority: 'none',
+        item_category: '',
+      },
+    ]
+    assert.equal(reportNeedsModelRead(report), true)
+  })
+})
 
 describe('needsGeminiReportFallback', () => {
   it('triggers on empty tradelines when API key present', () => {
