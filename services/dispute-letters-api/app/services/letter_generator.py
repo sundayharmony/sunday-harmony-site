@@ -151,7 +151,7 @@ Disputed items:
 {intel_block}
 
 CLEAN-PROFILE PRIORITY:
-- Lead with (and emphasize deletion of) collections, charge-offs, and closed/paid accounts that still show late history or other negatives. These do not help a clean credit profile.
+- Lead with (and emphasize deletion of) collections, charge-offs, and closed/paid accounts that still show late history or other negatives. Ground deletion requests in FCRA accuracy/completeness verification — never argue that an account is "not useful to a clean credit profile."
 - For those accounts, the primary ask is DELETE the tradeline if unverifiable; correction is only the fallback.
 - Do not soft-pedal closed negatives as mere status tweaks.
 - Tailor Basis of Dispute language to each account's specific facts (dates, balances, status inconsistencies, possible obsolescence).
@@ -401,12 +401,12 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"believed to be inaccurate."
         )
         outcome = (
-            f"My priority is a clean credit profile. For each disputed tradeline identified above, "
-            f"especially collections, charge-offs, and closed or paid accounts that still show "
-            f"negative or unverifiable history, I request that {recipient} delete the account in full "
-            f"if it cannot be verified as accurate and complete. Only if the account is verified "
-            f"should inaccurate fields be corrected, including account status, balance, past-due "
-            f"amount, payment history, and delinquency ratings.\n\n"
+            f"For each disputed tradeline identified above, especially collections, charge-offs, "
+            f"and closed or paid accounts that still show late history or other negative reporting, "
+            f"I request that {recipient} delete the account in full if it cannot be verified as "
+            f"accurate and complete under FCRA §611. Only if the account is verified should "
+            f"inaccurate fields be corrected, including account status, balance, past-due amount, "
+            f"payment history, and delinquency ratings.\n\n"
             f"Please mail your written reinvestigation results and an updated copy of my consumer "
             f"report to the address listed above."
         )
@@ -426,11 +426,11 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"be verified, and cease furnishing such information."
         )
         outcome = (
-            f"My priority is a clean credit profile. For each disputed tradeline identified above, "
-            f"especially closed, paid, collection, or otherwise obsolete negatives, I request that "
-            f"you delete the account if it cannot be verified as accurate and complete or, "
-            f"alternatively, correct all inaccurate fields and update each consumer reporting "
-            f"agency accordingly.\n\n"
+            f"For each disputed tradeline identified above, especially closed, paid, collection, "
+            f"or other accounts still reporting negative or unverifiable information, I request "
+            f"that you delete the account if it cannot be verified as accurate and complete under "
+            f"FCRA §623, or alternatively correct all inaccurate fields and update each consumer "
+            f"reporting agency accordingly.\n\n"
             f"Please mail written confirmation of your investigation results to the address listed above."
         )
 

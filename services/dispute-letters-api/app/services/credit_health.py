@@ -181,26 +181,45 @@ def default_dispute_reason(tl: Tradeline) -> str:
     )
 
 
+_STALE_CLEAN_PROFILE_REASON = re.compile(
+    r"clean credit profile|no longer useful to a clean|does not belong on a clean|"
+    r"not useful to a clean credit profile",
+    re.I,
+)
+
+
 def default_removal_dispute_reason(tl: Tradeline) -> str:
-    """Deletion-focused reason for closed/obsolete negatives."""
+    """Deletion-focused reason for closed/obsolete negatives — FCRA grounds only."""
     status = (tl.status or "this account").strip()
     if tl.is_collection or classify_category(tl) == "collection":
         return (
-            f"This collection tradeline ({status}) does not belong on a clean credit profile. "
-            "I dispute it as inaccurate and unverifiable and request deletion if it cannot be "
-            "fully verified under FCRA §611 (15 U.S.C. §1681i)."
+            f"This collection tradeline is reported as {status}. I dispute the accuracy and "
+            "completeness of this collection reporting and request that it be deleted if the "
+            "furnisher cannot verify every reported field as accurate and complete under "
+            "FCRA §611 (15 U.S.C. §1681i) and §623 (15 U.S.C. §1681s-2)."
         )
     if is_closed_tradeline(tl):
+        late_bits: list[str] = []
+        if re.search(r"late|delinquent|past\s+due|times\s+late", f"{tl.status} {tl.payment_history}", re.I):
+            late_bits.append("reported late-payment / delinquency history")
+        if has_nonzero_past_due(tl):
+            late_bits.append(f"past-due amount of {tl.past_due.strip()}")
+        focus = ", including " + " and ".join(late_bits) if late_bits else ""
         return (
-            f"This account is reported as {status}. Because it is closed and no longer useful "
-            "to a clean credit profile, I dispute the remaining negative or unverifiable history "
-            "and request that the tradeline be deleted in full if the furnisher cannot verify "
-            "every reported field under FCRA §611 (15 U.S.C. §1681i) and §623 (15 U.S.C. §1681s-2)."
+            f"This account is reported as {status}. I dispute the accuracy and completeness of "
+            f"the remaining negative information on this closed account{focus}. Under FCRA §611 "
+            "(15 U.S.C. §1681i) and §623 (15 U.S.C. §1681s-2), please verify every reported field "
+            "with the furnisher. If the status, balance, past-due amount, payment history, or any "
+            "other field cannot be verified as accurate and complete, delete the tradeline in full."
         )
     return (
         "I dispute this tradeline as inaccurate and unverifiable and request deletion or "
         "correction of any information that cannot be verified under FCRA §611 (15 U.S.C. §1681i)."
     )
+
+
+def reason_uses_stale_clean_profile_language(text: str) -> bool:
+    return bool(_STALE_CLEAN_PROFILE_REASON.search(text or ""))
 
 
 def enrich_tradeline(tl: Tradeline) -> Tradeline:
@@ -235,11 +254,17 @@ def enrich_tradeline(tl: Tradeline) -> Tradeline:
             tl.suggested_dispute_reason = consistent_inaccuracy_reason(tl)
         elif classify_category(tl) == "inquiry" or is_clean_profile_removal_target(tl):
             tl.suggested_dispute_reason = default_dispute_reason(tl)
+    elif reason_uses_stale_clean_profile_language(tl.suggested_dispute_reason):
+        # Replace prior "clean credit profile" templates with FCRA verification language.
+        tl.suggested_dispute_reason = default_dispute_reason(tl)
+
     if not (tl.dispute_reason or "").strip() and (tl.suggested_dispute_reason or "").strip():
         tl.dispute_reason = tl.suggested_dispute_reason
     elif not (tl.dispute_reason or "").strip() and (
         is_clean_profile_removal_target(tl) or classify_category(tl) == "inquiry"
     ):
+        tl.dispute_reason = tl.suggested_dispute_reason or default_dispute_reason(tl)
+    elif reason_uses_stale_clean_profile_language(tl.dispute_reason or ""):
         tl.dispute_reason = tl.suggested_dispute_reason or default_dispute_reason(tl)
 
     return tl
@@ -295,8 +320,8 @@ def _default_actions(
         )
     if removal:
         actions.append(
-            f"Prioritize deleting {removal} closed, paid, or obsolete negative item(s) that do not "
-            "support a clean credit profile."
+            f"Prioritize deleting {removal} closed, paid, or obsolete item(s) that still report "
+            "negative or unverifiable history."
         )
     if high:
         actions.append(f"Dispute {high} high-priority item(s) with bureaus and furnishers first.")

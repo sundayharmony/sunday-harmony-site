@@ -8,7 +8,12 @@ from app.services.bureau_coverage import (
     bureau_health_counts,
     detect_bureau_coverage,
 )
-from app.services.credit_health import build_health_summary, is_negative_tradeline
+from app.services.credit_health import (
+    build_health_summary,
+    default_removal_dispute_reason,
+    enrich_tradeline,
+    is_negative_tradeline,
+)
 
 
 def _tl(**kwargs) -> Tradeline:
@@ -124,6 +129,43 @@ def test_never_late_is_not_negative():
         )
         is True
     )
+
+
+def test_closed_late_removal_reason_is_fcra_not_clean_profile():
+    tl = _tl(
+        id="closed-late",
+        status="Closed. Late 30 Days; Times late 30/60/90: 1/0/0",
+        past_due="$70.00",
+        payment_history="Times late 30/60/90: 1/0/0",
+        balance="$306.00",
+    )
+    reason = default_removal_dispute_reason(tl)
+    assert "clean credit profile" not in reason.lower()
+    assert "no longer useful" not in reason.lower()
+    assert "FCRA" in reason
+    assert "delet" in reason.lower()
+    assert "late" in reason.lower() or "past-due" in reason.lower()
+
+
+def test_enrich_rewrites_stale_clean_profile_dispute_reason():
+    tl = _tl(
+        id="stale",
+        status="Closed. Late 30 Days",
+        past_due="$70.00",
+        balance="$306.00",
+        suggested_dispute_reason=(
+            "This account is reported as Closed. Because it is closed and no longer useful "
+            "to a clean credit profile, I dispute the remaining negative history."
+        ),
+        dispute_reason=(
+            "This account is reported as Closed. Because it is closed and no longer useful "
+            "to a clean credit profile, I dispute the remaining negative history."
+        ),
+    )
+    enriched = enrich_tradeline(tl)
+    assert "clean credit profile" not in (enriched.suggested_dispute_reason or "").lower()
+    assert "clean credit profile" not in (enriched.dispute_reason or "").lower()
+    assert "FCRA" in (enriched.dispute_reason or "")
 
 
 def test_per_bureau_negative_counts():

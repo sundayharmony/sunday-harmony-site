@@ -402,9 +402,9 @@ def _prefer_deletion_reason(tl: Tradeline, reason: str) -> str:
     if "delet" in lower or "remov" in lower:
         return text
     suffix = (
-        " Because this account is closed, paid, or otherwise not useful to a clean credit profile, "
-        "I specifically request deletion of the entire tradeline if it cannot be verified as accurate "
-        "and complete."
+        " Because this account is closed or paid and still reports negative or unverifiable "
+        "information, I specifically request deletion of the entire tradeline if every reported "
+        "field cannot be verified as accurate and complete under FCRA §611 and §623."
     )
     return f"{text.rstrip('.')}." + suffix if text else suffix.strip()
 
