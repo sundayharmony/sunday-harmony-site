@@ -4,6 +4,8 @@ import {
   isInquiryTradeline,
   planSelectionsFromTradelines,
   resolvedDisputeReason,
+  sanitizeTradelineDisputeReasons,
+  usesStaleCleanProfileLanguage,
 } from '../dispute-letters/dispute-reasons'
 import type { Tradeline } from '../dispute-letters/types'
 
@@ -84,5 +86,32 @@ describe('inquiry dispute plan selections', () => {
       })
     )
     assert.equal(reason, 'Custom inquiry reason.')
+  })
+
+  it('rewrites stale clean-profile boilerplate without a re-upload', () => {
+    const stale =
+      'This account is reported as Closed. Late 30 Days. Because it is closed and no longer useful ' +
+      'to a clean credit profile, I dispute the remaining negative history.'
+    assert.equal(usesStaleCleanProfileLanguage(stale), true)
+    const [cleaned] = sanitizeTradelineDisputeReasons([
+      tl({
+        id: 'closed-late',
+        creditor: 'Unnamed · Credit Card 601100XXXXXX',
+        status: 'Closed. Late 30 Days; Times late 30/60/90: 1/0/0',
+        past_due: '$70.00',
+        payment_history: 'Times late 30/60/90: 1/0/0',
+        balance: '$306.00',
+        item_category: 'closed_derogatory',
+        legal_flags: ['closed_account', 'closed_derogatory', 'obsolete_negative'],
+        dispute_reason: stale,
+        suggested_dispute_reason: stale,
+        selected: true,
+      }),
+    ])
+    assert.ok(cleaned)
+    assert.equal(usesStaleCleanProfileLanguage(cleaned.dispute_reason), false)
+    assert.match(cleaned.dispute_reason, /FCRA/)
+    assert.match(cleaned.dispute_reason, /delet/i)
+    assert.doesNotMatch(cleaned.dispute_reason, /clean credit profile/i)
   })
 })

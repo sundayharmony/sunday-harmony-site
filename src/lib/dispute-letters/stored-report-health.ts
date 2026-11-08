@@ -1,3 +1,4 @@
+import { sanitizeTradelineDisputeReasons } from '@/lib/dispute-letters/dispute-reasons'
 import type { ParsedReport, RepairPriority, ReportHealth, Tradeline } from '@/lib/dispute-letters/types'
 
 const PRIORITY_RANK: Record<string, number> = {
@@ -25,11 +26,12 @@ export function healthFromStoredReport(
   report: ParsedReport | null | undefined
 ): ReportHealth | null {
   if (!report?.credit_health || !report.tradelines?.length) return null
+  const tradelines = sanitizeTradelineDisputeReasons(report.tradelines)
   return {
     session_id: sessionId,
     credit_health: report.credit_health,
     credit_intelligence: report.credit_intelligence || null,
-    tradelines_by_priority: tradelinesByPriority(report.tradelines),
+    tradelines_by_priority: tradelinesByPriority(tradelines),
     consumer_name: report.consumer?.name || '',
     report_date: report.report_date || '',
     source: report.source || '',

@@ -13,6 +13,7 @@ import {
   fetchPriorDisputeMarks,
   patchDisputeTradelines,
 } from '@/lib/dispute-letters/client-api'
+import { sanitizeTradelineDisputeReasons } from '@/lib/dispute-letters/dispute-reasons'
 import { applyRecommendedSelection } from '@/lib/dispute-letters/dispute-selection'
 import {
   unselectPreferSkippedPriorDisputes,
@@ -65,7 +66,7 @@ export default function DisputeHealthStep({
         setData(health)
         const marks = prior.marksByTradelineId || {}
         setPriorMarks(marks)
-        const mapped = (health.tradelines_by_priority || []).map((t) => ({
+        const mapped = sanitizeTradelineDisputeReasons(health.tradelines_by_priority || []).map((t) => ({
           ...t,
           dispute_reason: t.dispute_reason || t.suggested_dispute_reason || '',
           dispute_bureaus: t.dispute_bureaus?.length ? t.dispute_bureaus : t.bureaus || [],
