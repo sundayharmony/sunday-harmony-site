@@ -124,6 +124,7 @@ _CREDITOR_DENY = {
     "account information",
     "account name",
     "accounts",
+    "address",
     "amount past due",
     "balance",
     "closed",
@@ -270,14 +271,34 @@ def _parse_credit_hero(text: str, bureau: BureauCode | None) -> list[Tradeline]:
         return []
     tradelines: list[Tradeline] = []
     parts = re.split(r"(?i)overview\s+account\s+details", text)
-    for part in parts[1:]:
-        tradeline = _tradeline_from_fields(_hero_member_fields(part), bureau)
+    # Credit Hero prints "CAPITAL ONE $1,916.00 Reported:" in the segment *before*
+    # each Overview Account details block. Carry that header name into the part.
+    for index, part in enumerate(parts[1:], start=1):
+        header_creditor = _hero_header_creditor(parts[index - 1])
+        tradeline = _tradeline_from_fields(
+            _hero_member_fields(part, header_creditor=header_creditor),
+            bureau,
+        )
         if tradeline is not None:
             tradelines.append(tradeline)
     return tradelines
 
 
-def _hero_member_fields(part: str) -> dict[str, str]:
+def _hero_header_creditor(prev: str) -> str:
+    """Furnisher name from the card header that precedes Overview Account details."""
+    matches = list(
+        re.finditer(
+            r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,3})"
+            r"\s+\$[\d,]+\.\d{2}\s+Reported:",
+            prev or "",
+        )
+    )
+    if not matches:
+        return ""
+    return _hero_creditor_candidate(matches[-1].group(1))
+
+
+def _hero_member_fields(part: str, *, header_creditor: str = "") -> dict[str, str]:
     account_type = _hero_type(part)
     remarks = _hero_remarks(part)
     status = _first(r"Account Status\s+([A-Za-z]+)", part)
@@ -302,7 +323,7 @@ def _hero_member_fields(part: str) -> dict[str, str]:
             if any(bit != "0" for bit in bits):
                 payment_status = _join_remarks(payment_status, payment_history)
     account_number = _first(r"Account Number\s+([A-Z0-9*#xX-]{4,})", part)
-    creditor = _hero_creditor(part)
+    creditor = _hero_creditor(part) or _hero_creditor_candidate(header_creditor)
     # Keep rich OCR rows even when charge-off chrome ate the furnisher name.
     # Gemini (or a later re-read) can replace "Unnamed · …" with the real creditor.
     if not creditor:
@@ -464,6 +485,8 @@ def _hero_provisional_creditor(account_type: str, account_number: str) -> str:
 
 def _hero_creditor_candidate(raw: str) -> str:
     cleaned = re.sub(r"\s+", " ", raw or "").strip(" -")
+    # Address crumbs sometimes glue onto the furnisher ("ALLY FINCL P.O. BOX").
+    cleaned = re.sub(r"(?i)\s+P\.?O\.?\s*(?:BOX)?\s*$", "", cleaned).strip(" -")
     if not cleaned:
         return ""
     caps = re.match(
@@ -482,8 +505,39 @@ def _hero_creditor_candidate(raw: str) -> str:
     return candidate
 
 
+def _hero_creditor_from_info_block(part: str) -> str:
+    """Credit Hero address block: 'Creditor information' then the furnisher name."""
+    marker = re.search(r"(?i)Creditor information\s+", part or "")
+    if not marker:
+        return ""
+    rest = part[marker.end() :]
+    # OCR often inserts payment labels between the marker and the real name.
+    for _ in range(6):
+        stripped = re.sub(
+            r"(?i)^(?:Amount Past Due|Current Payment Status|High Balance|High Credit|"
+            r"Monthly Payment Amount|Account ID:\S+|Voluntary(?:\s+\w+){0,6}|"
+            r"Term Source Type(?:\s+Provided)?|As Agreed)\s*(?:\$[\d,]+(?:\.\d{2})?)?\s*",
+            "",
+            rest.lstrip(),
+        )
+        if stripped == rest.lstrip():
+            break
+        rest = stripped
+    name = re.match(
+        r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})",
+        rest.lstrip(),
+    )
+    if not name:
+        return ""
+    return _hero_creditor_candidate(name.group(1))
+
+
 def _hero_creditor(part: str) -> str:
-    """Creditor sits after Credit Hero's 'charge off' chrome; skip OCR-promoted labels."""
+    """Resolve furnisher name from Credit Hero member account text."""
+    from_info = _hero_creditor_from_info_block(part)
+    if from_info:
+        return from_info
+
     matches = list(re.finditer(r"(?i)charge\s+off\s+", part))
     for match in reversed(matches):
         rest = part[match.end() : match.end() + 140]
@@ -492,14 +546,15 @@ def _hero_creditor(part: str) -> str:
         candidate = _hero_creditor_candidate(rest)
         if candidate:
             return candidate
-    # Fallback: furnisher name often sits just before the mailing address / Account ID.
+
+    # ALL-CAPS tokens immediately before a mailing PO BOX (case-sensitive — re.I
+    # previously swallowed "CAPITAL ONE" into earlier lowercase chrome).
     for match in re.finditer(
-        r"([A-Z][A-Z0-9&/.' -]{2,80}?)\s+(?:PO BOX|P\.?O\.?\s*Box|Account ID:)",
-        part,
-        re.I,
+        r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})\s+"
+        r"(?:PO\s*BOX|P\.O\.\s*BOX)\b",
+        part or "",
     ):
-        raw = _HERO_CREDITOR_STRIP.sub(" ", match.group(1))
-        candidate = _hero_creditor_candidate(raw)
+        candidate = _hero_creditor_candidate(match.group(1))
         if candidate:
             return candidate
     return ""

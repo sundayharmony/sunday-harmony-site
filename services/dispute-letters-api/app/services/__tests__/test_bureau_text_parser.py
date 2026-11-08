@@ -408,6 +408,84 @@ Times 30/60/90 Days Late 1/0/0
     assert tradelines[0].past_due == "$250.00"
 
 
+def test_credit_hero_member_header_and_creditor_information_names():
+    """pdfplumber Credit Hero layout: name sits before Overview Account details."""
+    text = """
+We gathered all of the accounts listed on your TransUnion report for you.
+Credit cards CAPITAL ONE $1,916.00 Reported: Sep 3, 2026 In good standing
+Overview Account details
+Account Number 517805XXXXXX
+Account Status Open
+Balance: $1,916.00 Credit limit: $1,850.00
+Open Date Sep 13, 2018
+Type Credit Card
+Times 30/60/90 Days Late 3/1/0
+foreclosure charge off Creditor information Voluntary
+CAPITAL ONE PO BOX 31293
+Monthly Payment Amount $106.00
+Current Payment Status As Agreed
+Amount Past Due $0.00
+CURRENT $0.00 Reported: Aug 31, 2026 In good standing
+Overview Account details
+Account Number 7991C2XXXXXXXXXXXX
+Account Status Open
+Balance: $0.00 Credit limit: $0.00
+Open Date Oct 9, 2024
+Type Credit Card
+Creditor information CURRENT
+217 CENTRE ST
+Monthly Payment Amount $0.00
+Current Payment Status As Agreed
+Amount Past Due $0.00
+CHIMEFINAL $0.00 Reported: Jun 2, 2026 In good standing
+Overview Account details
+Account Number 727144XXXXXXXXX
+Account Status Open
+Balance: $0.00 Credit limit: $0.00
+Open Date Dec 7, 2025
+Type Credit Card
+Creditor information Amount Past Due $0.00 CHIMEFINAL
+101 CALIFORNIA STREET
+Current Payment Status As Agreed
+DISCOVERCARD $306.00 Reported: Jun 23, 2026 Closed
+Overview Account details
+Account Number 601100XXXXXX
+Account Status Closed
+Balance: $306.00 Credit limit: $500.00
+Open Date Dec 14, 2025
+Type Credit Card
+Times 30/60/90 Days Late 1/0/0
+Creditor information DISCOVERCARD
+PO BOX 30939
+Current Payment Status Late 30 Days
+Amount Past Due $70.00
+Auto loans ALLY FINCL $18,703.00 Reported: Aug 19, 2026 Past due
+Overview Account details
+Account Number 228533XXXXXX
+Account Status Open
+Balance: $18,703.00
+Open Date May 19, 2026
+Type Auto Loan
+Times 30/60/90 Days Late 1/0/0
+Creditor information ALLY FINCL P.O. BOX 380901
+Current Payment Status Late 30 Days
+Amount Past Due $250.00
+"""
+    tradelines, _, _ = parse_bureau_accounts(text, file_name="transunion_10-7.pdf")
+    by_name = {tl.creditor: tl for tl in tradelines}
+    assert set(by_name) == {
+        "CAPITAL ONE",
+        "CURRENT",
+        "CHIMEFINAL",
+        "DISCOVERCARD",
+        "ALLY FINCL",
+    }
+    assert by_name["DISCOVERCARD"].past_due == "$70.00"
+    assert "Late 30" in by_name["DISCOVERCARD"].status
+    assert by_name["ALLY FINCL"].past_due == "$250.00"
+    assert not any(name.lower().startswith("unnamed") for name in by_name)
+
+
 def test_credit_hero_rejects_label_chrome_as_creditor():
     text = """
 We gathered all of the accounts listed on your TransUnion report for you.
