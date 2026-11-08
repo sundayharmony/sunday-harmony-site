@@ -47,6 +47,151 @@ def _identity_header_lines(consumer: ConsumerInfo) -> str:
     )
 
 
+_DISPUTE_OPENER_RE = re.compile(
+    r"\bi\s+dispute(?:\s+this\s+tradeline)?\s+as\s+inaccurate\s+and\s+unverifiable\b",
+    re.I,
+)
+_STATUTE_611_RE = re.compile(
+    r"(?:pursuant\s+to|under)\s+(?:fcra\s*)?§?\s*611\b|15\s*u\.?\s*s\.?\s*c\.?\s*§?\s*1681i\b",
+    re.I,
+)
+_DELETE_ASK_RE = re.compile(r"\b(?:delet(?:e|ion|ing)|remov(?:e|al)|correct)\b", re.I)
+_FURNISHER_623_RE = re.compile(
+    r"§\s*623\b|1681s-2|obtain verification from the furnisher|furnisher investigation",
+    re.I,
+)
+_CLEAN_PROFILE_ASK_RE = re.compile(
+    r"[^.]*\bclean credit profile\b[^.]*\.",
+    re.I,
+)
+
+
+def _normalize_basis_whitespace(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _split_basis_sentences(text: str) -> list[str]:
+    """Split on sentence boundaries without breaking U.S.C. / FCRA § cites."""
+    protected: list[str] = []
+
+    def _stash(match: re.Match[str]) -> str:
+        protected.append(match.group(0))
+        return f"«{len(protected) - 1}»"
+
+    # Keep common legal abbreviations intact through the sentence splitter.
+    masked = re.sub(r"\bU\.S\.C\.", _stash, text, flags=re.I)
+    masked = re.sub(r"\bP\.O\.", _stash, masked, flags=re.I)
+    parts = re.split(r"(?<=[.!?])\s+", masked)
+    restored: list[str] = []
+    for part in parts:
+        sentence = part.strip()
+        if not sentence:
+            continue
+        for index, original in enumerate(protected):
+            sentence = sentence.replace(f"«{index}»", original)
+        restored.append(sentence)
+    return restored
+
+
+_LEADING_611_RE = re.compile(
+    r"^(?:pursuant\s+to|under)\s+(?:fcra\s*)?§?\s*611(?:\s*\([^)]*\))?\s*,?\s*",
+    re.I,
+)
+
+
+def _collapse_duplicate_sentences(text: str) -> str:
+    """Drop exact duplicates and repeated statute openers while keeping order."""
+    kept: list[str] = []
+    seen: set[str] = set()
+    saw_dispute_opener = False
+    saw_611 = False
+    saw_623 = False
+    for part in _split_basis_sentences(_normalize_basis_whitespace(text)):
+        sentence = part if part[-1:] in ".!?" else f"{part}."
+        lower = sentence.lower()
+        if _DISPUTE_OPENER_RE.search(lower):
+            if saw_dispute_opener:
+                continue
+            saw_dispute_opener = True
+        if _FURNISHER_623_RE.search(lower):
+            if saw_623:
+                continue
+            saw_623 = True
+        if _STATUTE_611_RE.search(lower):
+            if saw_611:
+                # Keep the substance; drop a second "Pursuant to/Under FCRA §611..." lead-in.
+                stripped = _LEADING_611_RE.sub("", sentence).strip()
+                if not stripped or len(stripped) < 8:
+                    continue
+                sentence = stripped[0].upper() + stripped[1:] if stripped[0].islower() else stripped
+                if sentence[-1:] not in ".!?":
+                    sentence += "."
+                lower = sentence.lower()
+            saw_611 = True
+        key = re.sub(r"\s+", " ", lower).strip()
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+def compose_basis_of_dispute(
+    *,
+    recipient: str,
+    statute: str,
+    status: str,
+    reason: str,
+) -> str:
+    """One concise Basis of Dispute paragraph — no stacked openers or duplicate FCRA asks."""
+    body = _CLEAN_PROFILE_ASK_RE.sub(" ", reason or "")
+    body = _normalize_basis_whitespace(body)
+    body = _collapse_duplicate_sentences(body)
+
+    if not body:
+        body = (
+            f"I dispute this tradeline as inaccurate and unverifiable under {statute} "
+            f"and request that {recipient} delete or correct any information that cannot be verified."
+        )
+
+    lower = body.lower()
+    has_dispute = bool(_DISPUTE_OPENER_RE.search(lower) or re.search(r"\bi dispute\b", lower))
+    has_611 = bool(_STATUTE_611_RE.search(lower) or (statute and statute.lower() in lower))
+    has_delete = bool(_DELETE_ASK_RE.search(lower))
+    has_623 = bool(_FURNISHER_623_RE.search(lower))
+
+    pieces: list[str] = []
+    if not has_dispute and not has_611:
+        pieces.append(
+            f"Pursuant to {statute}, I dispute this tradeline as inaccurate and unverifiable."
+        )
+    elif not has_dispute and has_611:
+        pieces.append("I dispute this tradeline as inaccurate and unverifiable.")
+
+    pieces.append(body.rstrip(". ") + ".")
+
+    if not has_delete:
+        closed_like = bool(
+            re.search(r"closed|collection|charge.?off|paid\s*/?\s*closed", status or "", re.I)
+        )
+        if closed_like:
+            pieces.append(
+                f"I request that {recipient} delete the entire tradeline if the furnisher cannot "
+                f"verify every reported field as accurate and complete."
+            )
+        else:
+            pieces.append(
+                f"I request that {recipient} delete or correct any information that cannot be verified."
+            )
+
+    if not has_623:
+        pieces.append(
+            "Obtain verification from the furnisher pursuant to FCRA §623 (15 U.S.C. §1681s-2)."
+        )
+
+    return _collapse_duplicate_sentences(" ".join(pieces))
+
+
 def build_letter_prompt(
     plan: LetterPlan,
     consumer: ConsumerInfo,
@@ -192,7 +337,7 @@ Account Number: ...
 Reported Status: ...
 Reported Balance: ...
 Basis of Dispute:
-<one or two paragraphs citing {plan.statute} and the consumer's dispute reason. For closed/paid/collection accounts, explicitly request deletion of the entire tradeline if unverifiable. Wrap the creditor name on the first line in **double asterisks** for bold.>
+<ONE concise paragraph. Use the consumer's dispute reason as the core. Do NOT repeat the same opener (e.g. "I dispute this tradeline as inaccurate and unverifiable") or restack the same FCRA cite. Mention {plan.statute} at most once. For closed/paid/collection accounts, include one clear deletion ask if unverifiable. Wrap the creditor name on the first line in **double asterisks** for bold.>
 
 11) Section heading: Statutory Reinvestigation Requirements
     Short intro sentence, then ● bullet list of the recipient's statutory duties (bureau: 30-day reinvestigation, 5-business-day furnisher notice, review of evidence, delete/modify unverifiable data, written results). Cite {plan.statute} and related FCRA sections accurately.
@@ -341,32 +486,19 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
     for it in ordered_items:
         status = it.status or "Not Reported"
         balance = it.balance or "Not Reported"
-        reason = (it.dispute_reason or "").strip() or (
-            "I dispute this tradeline as inaccurate and unverifiable."
+        basis = compose_basis_of_dispute(
+            recipient=recipient,
+            statute=plan.statute,
+            status=status,
+            reason=(it.dispute_reason or "").strip(),
         )
-        closed_like = bool(
-            re.search(r"closed|collection|charge.?off|paid\s*/?\s*closed", status, re.I)
-        )
-        if closed_like:
-            ask = (
-                f"Because this account is reported as {status} and does not support a clean credit "
-                f"profile, I specifically request that {recipient} delete the entire tradeline if the "
-                f"furnisher cannot verify every reported field. "
-            )
-        else:
-            ask = (
-                f"I request that {recipient} delete or correct any information that cannot be verified. "
-            )
         item_blocks.append(
             f"**{it.creditor}**\n"
             f"Account Number: {it.account_number or 'Not Reported'}\n"
             f"Reported Status: {status}\n"
             f"Reported Balance: {balance}\n"
             f"Basis of Dispute:\n"
-            f"Pursuant to {plan.statute}, I dispute this tradeline as inaccurate and unverifiable. "
-            f"{reason} "
-            f"{ask}"
-            f"Obtain verification from the furnisher pursuant to FCRA §623 (15 U.S.C. §1681s-2)."
+            f"{basis}"
         )
     items = "\n\n".join(item_blocks)
 

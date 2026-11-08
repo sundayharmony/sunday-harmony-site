@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from app.models import ConsumerInfo, LetterItem, LetterPlan
 from app.services.letter_formatter import letter_layout, replace_letter_sentence_dashes
-from app.services.letter_generator import _template_fallback, build_letter_prompt
+from app.services.letter_generator import (
+    _template_fallback,
+    build_letter_prompt,
+    compose_basis_of_dispute,
+)
 
 
 def _plan() -> LetterPlan:
@@ -26,6 +30,40 @@ def _plan() -> LetterPlan:
             )
         ],
     )
+
+
+def test_compose_basis_does_not_stack_duplicate_dispute_openers():
+    reason = (
+        "Pursuant to FCRA §611 (15 U.S.C. §1681i), I dispute this tradeline as inaccurate "
+        "and unverifiable. Under FCRA §611 (15 U.S.C. §1681i), request Experian delete this "
+        "charge-off tradeline if the furnisher cannot verify complete and accurate reporting. "
+        "Request deletion of the entire tradeline rather than cosmetic correction. Direct "
+        "furnisher investigation under FCRA §623 (15 U.S.C. §1681s-2). Because this account "
+        "is reported as Charge Off; Closed and does not support a clean credit profile, I "
+        "specifically request that Experian delete the entire tradeline if the furnisher "
+        "cannot verify every reported field. Obtain verification from the furnisher pursuant "
+        "to FCRA §623 (15 U.S.C. §1681s-2)."
+    )
+    basis = compose_basis_of_dispute(
+        recipient="Experian",
+        statute="FCRA §611 (15 U.S.C. §1681i)",
+        status="Charge Off; Closed",
+        reason=reason,
+    )
+    assert basis.lower().count("i dispute this tradeline as inaccurate and unverifiable") == 1
+    assert "clean credit profile" not in basis.lower()
+    assert basis.lower().count("obtain verification from the furnisher") <= 1
+    assert "U.S.C." in basis
+    assert "U. S. C." not in basis
+    # Second §611 lead-in is stripped; substance of the delete ask remains once.
+    assert basis.lower().count("fcra §611") == 1
+    # Template must use the composed basis, not prepend another opener.
+    plan = _plan()
+    plan.items[0].dispute_reason = reason
+    plan.items[0].status = "Charge Off; Closed"
+    text = _template_fallback(plan, ConsumerInfo(name="Jane Consumer", addresses=["123 Main St"]))
+    assert text.lower().count("i dispute this tradeline as inaccurate and unverifiable") == 1
+    assert "does not support a clean credit profile" not in text.lower()
 
 
 def test_template_lists_photo_id_and_address_enclosures():

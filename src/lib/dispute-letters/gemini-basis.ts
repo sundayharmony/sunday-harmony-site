@@ -51,6 +51,8 @@ export function buildBasisPrompt(facts: BasisFact[]): string {
     'Use ONLY the facts provided. Do not invent bureaus, months, balances, or accounts.',
     'Do not include SSN, DOB, or street addresses.',
     'Keep each basis under 600 characters.',
+    'Write ONE concise paragraph per item. Do not repeat the same dispute opener or the same FCRA cite.',
+    'Do not say an account is "not useful to a clean credit profile."',
     'Facts:',
     JSON.stringify(safe),
   ].join('\n')
