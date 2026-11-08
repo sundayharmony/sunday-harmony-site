@@ -45,13 +45,27 @@ export default function DisputeConfirmStep({
     if (!sessionId) return
     setPlans([])
     setPriorMarks({})
-    Promise.all([fetchDisputeReport(sessionId), fetchPriorDisputeMarks(sessionId)])
-      .then(async ([data, prior]) => {
+    Promise.all([
+      fetchDisputeReport(sessionId),
+      fetchPriorDisputeMarks(sessionId),
+      fetch(`/api/admin/dispute-letters/${encodeURIComponent(sessionId)}/letter-identity`).then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as {
+          intake?: { name?: string | null; addresses?: string[] }
+        }
+        return data
+      }),
+    ])
+      .then(async ([data, prior, identity]) => {
         const selected = data.report.tradelines.filter((t: Tradeline) => t.selected)
         setSelectedCount(selected.length)
         setPriorMarks(prior.marksByTradelineId || {})
-        setConsumerName(data.report.consumer?.name || '')
-        setConsumerAddresses((data.report.consumer?.addresses || []).join('\n'))
+        // Name/address come from intake; report OCR is only a last resort.
+        const intakeName = identity.intake?.name?.trim() || ''
+        const intakeAddresses = (identity.intake?.addresses || []).map((line) => line.trim()).filter(Boolean)
+        setConsumerName(intakeName || data.report.consumer?.name || '')
+        setConsumerAddresses(
+          (intakeAddresses.length ? intakeAddresses : data.report.consumer?.addresses || []).join('\n')
+        )
         const plan = await buildDisputePlan(sessionId, planSelectionsFromTradelines(data.report.tradelines), {})
         setPlans(plan.plans)
       })
@@ -142,7 +156,8 @@ export default function DisputeConfirmStep({
       <div className="rounded-xl border border-brand-border bg-white p-6 shadow-sm space-y-3">
         <h3 className="font-semibold text-brand-text">Letter consumer identity</h3>
         <p className="text-sm text-brand-dim">
-          Used on the Word letters. Fix OCR garbage here without re-uploading the report.
+          Prefills from the credit-funding intake (same source as DOB/SSN). Edit here only if the
+          letter needs a different mailing name or address.
         </p>
         <label className="block text-sm">
           <span className="font-medium text-brand-text">Name</span>

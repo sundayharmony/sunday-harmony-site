@@ -17,6 +17,7 @@ import {
   letterDocsForRequirement,
   type LetterIdentityRequirementKey,
 } from '@/lib/dispute-letters/letter-identity-attachments'
+import { formatAddressForLetter } from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 
@@ -46,9 +47,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
         linked: false,
         applicationId: null,
         items: [],
+        intake: { name: null, addresses: [] as string[] },
       })
     }
 
+    const application = await getCreditFundingApplicationById(applicationUuid)
+    const intakeName = String(application?.full_name || '').trim() || null
+    const intakeAddress = application ? formatAddressForLetter(application) : ''
     const docs = await getDocumentsByApplicationUuid(applicationUuid)
     const items = await Promise.all(
       LETTER_IDENTITY_REQUIREMENTS.map(async (requirement) => {
@@ -88,6 +93,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
       linked: true,
       applicationId: applicationUuid,
       items,
+      intake: {
+        name: intakeName,
+        addresses: intakeAddress ? [intakeAddress] : [],
+      },
     })
   } catch (error) {
     logApiRouteError(_req, 'admin/dispute-letters/[id]/letter-identity GET', error)

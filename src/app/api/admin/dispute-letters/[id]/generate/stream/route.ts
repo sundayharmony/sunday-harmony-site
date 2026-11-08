@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { proxyDisputeLettersStream } from '@/lib/dispute-letters/api-client'
 import { findMissingLetterIdentityForApplication } from '@/lib/dispute-letters/letter-identity-attachments'
-import { loadLetterConsumerIdentity } from '@/lib/dispute-letters/letter-consumer-identity'
+import {
+  loadLetterConsumerIdentity,
+  resolveLetterConsumerFields,
+} from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
@@ -35,13 +38,14 @@ export async function POST(request: NextRequest, { params }: Params) {
   try {
     const body = await request.json().catch(() => ({}))
     const identity = await loadLetterConsumerIdentity(id)
+    const consumer = resolveLetterConsumerFields(body, identity)
     return proxyDisputeLettersStream('/internal/letters/generate/stream', {
       session_id: id,
       plan_ids: body.plan_ids ?? null,
-      consumer_name: body.consumer_name ?? null,
-      consumer_addresses: body.consumer_addresses ?? null,
-      consumer_ssn: identity.ssn,
-      consumer_dob: identity.dob,
+      consumer_name: consumer.consumer_name,
+      consumer_addresses: consumer.consumer_addresses,
+      consumer_ssn: consumer.consumer_ssn,
+      consumer_dob: consumer.consumer_dob,
     })
   } catch (err) {
     console.error('POST generate/stream error:', err)

@@ -3,7 +3,10 @@ import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { checkDisputeLettersHealth, disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { letterGenerateFailure, type LetterGenerateJob } from '@/lib/dispute-letters/generate-job'
 import { findMissingLetterIdentityForApplication } from '@/lib/dispute-letters/letter-identity-attachments'
-import { loadLetterConsumerIdentity } from '@/lib/dispute-letters/letter-consumer-identity'
+import {
+  loadLetterConsumerIdentity,
+  resolveLetterConsumerFields,
+} from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
@@ -41,13 +44,14 @@ export async function POST(request: NextRequest, { params }: Params) {
   try {
     const body = await request.json().catch(() => ({}))
     const identity = await loadLetterConsumerIdentity(id)
+    const consumer = resolveLetterConsumerFields(body, identity)
     const payload = JSON.stringify({
       session_id: id,
       plan_ids: body.plan_ids ?? null,
-      consumer_name: body.consumer_name ?? null,
-      consumer_addresses: body.consumer_addresses ?? null,
-      consumer_ssn: identity.ssn,
-      consumer_dob: identity.dob,
+      consumer_name: consumer.consumer_name,
+      consumer_addresses: consumer.consumer_addresses,
+      consumer_ssn: consumer.consumer_ssn,
+      consumer_dob: consumer.consumer_dob,
     })
 
     await checkDisputeLettersHealth(45_000).catch(() => false)
