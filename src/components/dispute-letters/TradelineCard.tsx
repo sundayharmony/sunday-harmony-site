@@ -2,9 +2,21 @@
 
 import type { MouseEvent } from 'react'
 import type { PriorDisputeMark } from '@/lib/dispute-letters/dispute-lifecycle'
+import { isProvisionalCreditor } from '@/lib/dispute-letters/gemini-report-read'
 import type { BureauCode, Tradeline } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { SeverityBadge } from '@/components/dispute-letters/SeverityBadge'
+
+function displayCreditor(t: Tradeline): string {
+  const raw = (t.creditor || '').trim()
+  if (!isProvisionalCreditor(raw)) return raw || 'Unknown creditor'
+  const number = t.account_tu || t.account_exp || t.account_eqf || ''
+  const kind = (t.account_type || '').trim()
+  if (kind && number) return `${kind} · ${number}`
+  if (kind) return kind
+  if (number) return number
+  return raw.replace(/^unnamed\s*[·•-]?\s*/i, '').trim() || 'Name pending'
+}
 
 export const TRADELINE_CARD_GRID =
   'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-stretch'
@@ -64,14 +76,22 @@ export function TradelineCard({
               type="checkbox"
               className="mt-1 h-4 w-4 accent-accent"
               checked={!!selected}
-              aria-label={`Select ${t.creditor || 'account'}`}
+              aria-label={`Select ${displayCreditor(t)}`}
               onClick={(event) => event.stopPropagation()}
               onChange={(e) => onSelect(e.target.checked)}
             />
           )}
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-brand-text">{t.creditor || 'Unknown creditor'}</h3>
+              <h3 className="font-semibold text-brand-text">{displayCreditor(t)}</h3>
+              {isProvisionalCreditor(t.creditor || '') && (
+                <span
+                  className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-950"
+                  title="Furnisher name was not read from this scan yet"
+                >
+                  Name pending
+                </span>
+              )}
               <SeverityBadge priority={t.repair_priority || 'none'} />
               {(t.legal_flags || []).includes('cross_bureau_inconsistent') && (
                 <span

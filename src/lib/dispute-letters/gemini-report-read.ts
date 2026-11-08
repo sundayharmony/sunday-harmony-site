@@ -184,18 +184,90 @@ export function needsGeminiReportFallback(report: ParsedReport | null | undefine
   return reportNeedsModelRead(report)
 }
 
-function namedCreditorCount(tradelines: Tradeline[]): number {
-  return tradelines.filter((t) => (t.creditor || '').trim().length > 1).length
+export function isProvisionalCreditor(name: string): boolean {
+  const cleaned = (name || '').trim()
+  if (!cleaned) return true
+  if (/^unnamed\b/i.test(cleaned)) return true
+  return /^(unknown|n\/a|none|creditor)$/i.test(cleaned)
+}
+
+/** Real furnisher names only — provisional "Unnamed · …" placeholders do not count. */
+export function namedCreditorCount(tradelines: Tradeline[]): number {
+  return tradelines.filter((t) => {
+    const creditor = (t.creditor || '').trim()
+    return creditor.length > 1 && !isProvisionalCreditor(creditor)
+  }).length
+}
+
+function accountNumberKeys(tl: Tradeline): string[] {
+  const raw = [tl.account_tu, tl.account_exp, tl.account_eqf]
+  const keys: string[] = []
+  for (const value of raw) {
+    const digits = String(value || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+    if (digits.length >= 4) keys.push(digits)
+  }
+  return [...new Set(keys)]
+}
+
+/**
+ * Keep local late/past-due facts; stamp real Gemini creditor names onto matching rows.
+ * Falls back to Gemini's full list when local had no usable rows to merge onto.
+ */
+export function mergeGeminiNamesOntoLocal(local: Tradeline[], gemini: Tradeline[]): Tradeline[] {
+  if (!local.length) return gemini
+  if (!gemini.length) return local
+
+  const byKey = new Map<string, Tradeline>()
+  for (const row of gemini) {
+    if (isProvisionalCreditor(row.creditor || '')) continue
+    for (const key of accountNumberKeys(row)) {
+      if (!byKey.has(key)) byKey.set(key, row)
+    }
+  }
+
+  let renamed = 0
+  const usedGemini = new Set<Tradeline>()
+  const merged = local.map((row) => {
+    let match: Tradeline | undefined
+    for (const key of accountNumberKeys(row)) {
+      match = byKey.get(key)
+      if (match) break
+    }
+    if (!match) return row
+    usedGemini.add(match)
+    const gemCreditor = (match.creditor || '').trim()
+    if (!gemCreditor || isProvisionalCreditor(gemCreditor)) return row
+    if ((row.creditor || '').trim() === gemCreditor) return row
+    renamed += 1
+    return {
+      ...row,
+      creditor: gemCreditor,
+      // Prefer Gemini account type only when local never captured one.
+      account_type: row.account_type?.trim() ? row.account_type : match.account_type || row.account_type,
+    }
+  })
+
+  if (renamed > 0) return merged
+  // No account-number overlap — if Gemini has more real names, take its rows wholesale.
+  if (namedCreditorCount(gemini) > namedCreditorCount(local)) return gemini
+  return local
 }
 
 export function applyGeminiRead(report: ParsedReport, read: GeminiReportRead): ParsedReport {
   if (!read.tradelines.length) return report
-  // For weak nonempty local parses, only replace when Gemini returns a richer named set.
-  if ((report.tradelines || []).length > 0) {
-    const localNamed = namedCreditorCount(report.tradelines || [])
+  const local = report.tradelines || []
+  // For weak nonempty local parses, only replace/merge when Gemini returns a richer named set.
+  if (local.length > 0) {
+    const localNamed = namedCreditorCount(local)
     const geminiNamed = namedCreditorCount(read.tradelines)
     if (geminiNamed <= localNamed) return report
   }
+
+  const tradelines =
+    local.length > 0 ? mergeGeminiNamesOntoLocal(local, read.tradelines) : read.tradelines
+
   const scores = {
     tuc: read.scores.tuc ?? report.credit_health?.scores?.tuc ?? null,
     exp: read.scores.exp ?? report.credit_health?.scores?.exp ?? null,
@@ -204,15 +276,15 @@ export function applyGeminiRead(report: ParsedReport, read: GeminiReportRead): P
   const next: ParsedReport = {
     ...report,
     source: 'gemini',
-    analysis_summary: `Read ${read.tradelines.length} account(s) from the scan.`,
-    tradelines: read.tradelines,
+    analysis_summary: `Read ${tradelines.length} account(s) from the scan.`,
+    tradelines,
     credit_health: {
       ...report.credit_health,
       scores,
-      total_accounts: read.tradelines.length,
-      negative_count: read.tradelines.filter(isNegativeTradeline).length,
-      collection_count: read.tradelines.filter((tl) => tl.is_collection).length,
-      high_priority_count: read.tradelines.filter((tl) => tl.repair_priority === 'high').length,
+      total_accounts: tradelines.length,
+      negative_count: tradelines.filter(isNegativeTradeline).length,
+      collection_count: tradelines.filter((tl) => tl.is_collection).length,
+      high_priority_count: tradelines.filter((tl) => tl.repair_priority === 'high').length,
       repair_summary: report.credit_health?.repair_summary || 'Accounts were read from the uploaded scan.',
       recommended_actions: report.credit_health?.recommended_actions || [],
     },

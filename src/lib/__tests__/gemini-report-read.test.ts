@@ -238,6 +238,155 @@ describe('applyGeminiRead', () => {
     assert.equal(next.credit_health.scores.exp, 610)
     assert.match(next.analysis_summary, /1 account/)
   })
+
+  it('merges real Gemini names onto Unnamed local rows and keeps late facts', () => {
+    const local = emptyReport()
+    local.extraction_quality = 'low'
+    local.tradelines = [
+      {
+        id: 'local-ally',
+        creditor: 'Unnamed · Auto Loan 228533XXXXXX',
+        account_tu: '228533XXXXXX',
+        account_exp: '',
+        account_eqf: '',
+        account_type: 'Auto Loan',
+        status: 'Open. Late 30 Days; Times late 30/60/90: 1/0/0',
+        balance: '$18703.00',
+        past_due: '$250.00',
+        remarks: '',
+        credit_limit: '',
+        high_credit: '',
+        date_opened: '',
+        date_of_first_delinquency: '',
+        last_reported: '',
+        payment_history: 'Times late 30/60/90: 1/0/0',
+        monthly_payment: '',
+        bureaus: ['TUC'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: ['TUC'],
+        dispute_furnisher: true,
+        legal_flags: [],
+        repair_priority: 'medium',
+        item_category: 'late_payment',
+      },
+    ]
+    const next = applyGeminiRead(local, {
+      scores: { tuc: 627 },
+      tradelines: [
+        {
+          id: 'gem-ally',
+          creditor: 'ALLY FINCL',
+          account_tu: '228533XXXXXX',
+          account_exp: '',
+          account_eqf: '',
+          account_type: 'Auto Loan',
+          status: 'Open',
+          balance: '$18703.00',
+          past_due: '$250.00',
+          remarks: '',
+          credit_limit: '',
+          high_credit: '',
+          date_opened: '',
+          date_of_first_delinquency: '',
+          last_reported: '',
+          payment_history: '',
+          monthly_payment: '',
+          bureaus: ['TUC'],
+          is_collection: false,
+          selected: false,
+          dispute_reason: '',
+          analysis_notes: '',
+          suggested_dispute_reason: '',
+          dispute_bureaus: ['TUC'],
+          dispute_furnisher: true,
+          legal_flags: [],
+          repair_priority: 'none',
+          item_category: '',
+        },
+      ],
+    })
+    assert.equal(next.source, 'gemini')
+    assert.equal(next.tradelines[0]?.creditor, 'ALLY FINCL')
+    assert.match(next.tradelines[0]?.status || '', /Late 30/)
+    assert.equal(next.tradelines[0]?.past_due, '$250.00')
+    assert.equal(next.tradelines[0]?.payment_history, 'Times late 30/60/90: 1/0/0')
+  })
+
+  it('does not keep Unnamed locals when Gemini has equal count of real names', () => {
+    const local = emptyReport()
+    local.tradelines = [
+      {
+        id: 'u1',
+        creditor: 'Unnamed · Credit Card 1111',
+        account_tu: '1111XXXX',
+        account_exp: '',
+        account_eqf: '',
+        account_type: 'Credit Card',
+        status: 'Open',
+        balance: '$10',
+        past_due: '',
+        remarks: '',
+        credit_limit: '',
+        high_credit: '',
+        date_opened: '',
+        date_of_first_delinquency: '',
+        last_reported: '',
+        payment_history: '',
+        monthly_payment: '',
+        bureaus: ['TUC'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: [],
+        dispute_furnisher: true,
+        legal_flags: [],
+        repair_priority: 'none',
+        item_category: '',
+      },
+    ]
+    const next = applyGeminiRead(local, {
+      scores: {},
+      tradelines: [
+        {
+          id: 'g1',
+          creditor: 'CAPITAL ONE',
+          account_tu: '1111XXXX',
+          account_exp: '',
+          account_eqf: '',
+          account_type: 'Credit Card',
+          status: 'Open',
+          balance: '$10',
+          past_due: '',
+          remarks: '',
+          credit_limit: '',
+          high_credit: '',
+          date_opened: '',
+          date_of_first_delinquency: '',
+          last_reported: '',
+          payment_history: '',
+          monthly_payment: '',
+          bureaus: ['TUC'],
+          is_collection: false,
+          selected: false,
+          dispute_reason: '',
+          analysis_notes: '',
+          suggested_dispute_reason: '',
+          dispute_bureaus: [],
+          dispute_furnisher: true,
+          legal_flags: [],
+          repair_priority: 'none',
+          item_category: '',
+        },
+      ],
+    })
+    assert.equal(next.tradelines[0]?.creditor, 'CAPITAL ONE')
+  })
 })
 
 describe('readReportWithGemini', () => {

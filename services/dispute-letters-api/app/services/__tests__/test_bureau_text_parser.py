@@ -381,6 +381,33 @@ def test_credit_hero_ally_late_keeps_real_creditor_and_late_status():
     assert classify_category(ally) == "late_payment"
 
 
+def test_credit_hero_creditor_from_po_box_when_charge_off_is_chrome():
+    text = """
+We gathered all of the accounts listed on your TransUnion report for you.
+Overview Account details
+Account Number 228533XXXXXX
+Account Status Open
+Balance: $18703.00 Credit limit: $0.00
+Open Date May 19, 2022
+Type Auto Loan
+High Balance $18169.00
+Repossession or Collection or Creditor information
+foreclosure charge off Creditor information
+Voluntary Term Source Type Provided
+ALLY FINCL
+PO BOX 380901 BLOOMINGTON MN
+Account ID:7338b164
+Monthly Payment Amount $550.00
+Current Payment Status Late 30 Days
+Amount Past Due $250.00
+Times 30/60/90 Days Late 1/0/0
+"""
+    tradelines, _, _ = parse_bureau_accounts(text, file_name="transunion_10-7.pdf")
+    assert len(tradelines) == 1
+    assert tradelines[0].creditor == "ALLY FINCL"
+    assert tradelines[0].past_due == "$250.00"
+
+
 def test_credit_hero_rejects_label_chrome_as_creditor():
     text = """
 We gathered all of the accounts listed on your TransUnion report for you.

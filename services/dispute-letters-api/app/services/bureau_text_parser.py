@@ -462,6 +462,26 @@ def _hero_provisional_creditor(account_type: str, account_number: str) -> str:
     return f"Unnamed · {kind}"
 
 
+def _hero_creditor_candidate(raw: str) -> str:
+    cleaned = re.sub(r"\s+", " ", raw or "").strip(" -")
+    if not cleaned:
+        return ""
+    caps = re.match(
+        r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})",
+        cleaned,
+    )
+    candidate = caps.group(1).strip(" -") if caps else cleaned
+    if _is_hero_creditor_junk(candidate) or not _valid_creditor(candidate):
+        return ""
+    if re.fullmatch(
+        r"(?:bankruptcy|foreclosure|repossession|collection|voluntary surrender|no data available)",
+        candidate,
+        re.I,
+    ):
+        return ""
+    return candidate
+
+
 def _hero_creditor(part: str) -> str:
     """Creditor sits after Credit Hero's 'charge off' chrome; skip OCR-promoted labels."""
     matches = list(re.finditer(r"(?i)charge\s+off\s+", part))
@@ -469,21 +489,19 @@ def _hero_creditor(part: str) -> str:
         rest = part[match.end() : match.end() + 140]
         rest = _HERO_CREDITOR_CUT.split(rest, maxsplit=1)[0]
         rest = _HERO_CREDITOR_STRIP.sub(" ", rest)
-        rest = re.sub(r"\s+", " ", rest).strip(" -")
-        # Prefer the leading ALL-CAPS furnisher token(s), not trailing address crumbs.
-        candidate = rest
-        caps = re.match(r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})", rest)
-        if caps:
-            candidate = caps.group(1).strip(" -")
-        if _is_hero_creditor_junk(candidate) or not _valid_creditor(candidate):
-            continue
-        if re.fullmatch(
-            r"(?:bankruptcy|foreclosure|repossession|collection|voluntary surrender|no data available)",
-            candidate,
-            re.I,
-        ):
-            continue
-        return candidate
+        candidate = _hero_creditor_candidate(rest)
+        if candidate:
+            return candidate
+    # Fallback: furnisher name often sits just before the mailing address / Account ID.
+    for match in re.finditer(
+        r"([A-Z][A-Z0-9&/.' -]{2,80}?)\s+(?:PO BOX|P\.?O\.?\s*Box|Account ID:)",
+        part,
+        re.I,
+    ):
+        raw = _HERO_CREDITOR_STRIP.sub(" ", match.group(1))
+        candidate = _hero_creditor_candidate(raw)
+        if candidate:
+            return candidate
     return ""
 
 
