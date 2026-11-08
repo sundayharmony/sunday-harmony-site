@@ -231,6 +231,7 @@ def parse_bureau_accounts(
 
 _HERO_TYPE = (
     "Credit Card",
+    "Credit Line Secured",
     "Auto Loan",
     "Automobile",
     "Mortgage",
@@ -362,34 +363,159 @@ def _hero_member_fields(part: str, *, header_creditor: str = "") -> dict[str, st
     }
 
 
+_HERO_STANDING = (
+    r"(?:In good standing|Past due|Closed(?:\s*[—\-]\s*past due)?|Open|Late(?:\s+\d+\s+Days)?)"
+)
+_HERO_CARD_HEADER = re.compile(
+    rf"([A-Z][A-Z0-9&/.'/-]{{1,40}}"
+    rf"(?:\s+[A-Z][A-Z0-9&/.'/-]{{1,40}}){{0,4}})"
+    r"(?:\s+[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})?"
+    rf"((?:\s+{_HERO_STANDING})+)"
+    rf"((?:\s+[A-Z][A-Z0-9&/.'/-]{{1,40}}){{0,4}})"
+    r"\s+Overview\b",
+)
+
+
+def _hero_all_bureau_header(text: str) -> tuple[str, str]:
+    """Last All-bureaus card title + standing flags before Overview."""
+    matches = list(_HERO_CARD_HEADER.finditer(text or ""))
+    if not matches:
+        return "", ""
+    match = matches[-1]
+    name = f"{match.group(1)} {match.group(3) or ''}".strip()
+    return _hero_creditor_candidate(name), match.group(2) or ""
+
+
+def _hero_all_bureau_header_creditor(text: str) -> str:
+    return _hero_all_bureau_header(text)[0]
+
+
+def _hero_tri_truncate_card(text: str) -> str:
+    """Keep one account body — drop the next card header and later report sections."""
+    body = text or ""
+    stop = re.search(
+        r"(?i)\b(?:Inquiries|Collections|Public Records|Creditors)\b",
+        body,
+    )
+    if stop:
+        body = body[: stop.start()]
+    nxt = _HERO_CARD_HEADER.search(body)
+    if nxt and nxt.start() > 40:
+        body = body[: nxt.start()]
+    return body
+
+
+def _hero_tri_overview_leadin(prev: str) -> str:
+    """Overview/Balance block for this card lives after its header in the previous split."""
+    matches = list(_HERO_CARD_HEADER.finditer(prev or ""))
+    if not matches:
+        return ""
+    return (prev or "")[matches[-1].start() :]
+
+
+def _hero_tri_balance_limit(card: str) -> tuple[str, str]:
+    """All-bureaus Overview puts labels and dollar amounts on separate lines."""
+    block = re.search(
+        r"(?i)Balance:(.*?)(?=Account details|Account Status|Account\s+Account|Open Date|$)",
+        card or "",
+        re.S,
+    )
+    if not block:
+        return "", ""
+    monies = re.findall(r"\$[\d,]+\.\d{2}", block.group(1))
+    if not monies:
+        return "", ""
+    return monies[0], (monies[1] if len(monies) > 1 else "")
+
+
+def _hero_tri_payment_fields(chunk: str) -> tuple[str, str, str]:
+    """Return (status_suffix, past_due, payment_history) for All-bureaus columns."""
+    past_dues = re.findall(r"(?i)Amount Past Due\s+(\$[\d,]+(?:\.\d{2})?)", chunk or "")
+    past_due = next((value for value in past_dues if _money_amount(value) > 0), "")
+    if not past_due and past_dues:
+        past_due = past_dues[0]
+    times_list = re.findall(
+        r"(?i)Times\s+30/60/90\s+Days\s+Late\s+(\d+\s*/\s*\d+\s*/\s*\d+)",
+        chunk or "",
+    )
+    payment_history = ""
+    late_bits: list[str] = []
+    for times_late in times_list:
+        bits = [bit.strip() for bit in times_late.split("/")]
+        if len(bits) != 3:
+            continue
+        # Only keep non-zero late grids — "Times late 0/0/0" falsely trips Health.
+        if any(bit != "0" for bit in bits):
+            payment_history = f"Times late 30/60/90: {bits[0]}/{bits[1]}/{bits[2]}"
+            late_bits.append(payment_history)
+    payment_hits = re.findall(
+        r"(?i)Current Payment\s+(?:Status\s+)?(Late\s+\d+\s+Days|As\s+Agreed|Collection|Charge\s*Off)",
+        chunk or "",
+    )
+    status_extra = ""
+    for hit in payment_hits:
+        cleaned = _clean_payment_status(hit)
+        if re.search(r"(?i)late|collection|charge", cleaned):
+            status_extra = cleaned
+            break
+    if not status_extra and late_bits:
+        status_extra = late_bits[0]
+    return status_extra, past_due, payment_history
+
+
+def _money_amount(value: str) -> float:
+    cleaned = re.sub(r"[^\d.]", "", value or "")
+    try:
+        return float(cleaned) if cleaned else 0.0
+    except ValueError:
+        return 0.0
+
+
 def _parse_credit_hero_tri_merge(text: str) -> list[Tradeline]:
     """One tradeline per account. Columns follow TransUnion, Equifax, Experian."""
     if re.search(r"(?i)account details", text):
+        parts = re.split(r"(?i)account details(?:\s+account details){0,2}", text)
         chunks = [
-            part
-            for part in re.split(r"(?i)account details(?:\s+account details){0,2}", text)
-            if re.search(r"(?i)account status|account\s+account\s+account", part)
+            (parts[index - 1] if index else "", part)
+            for index, part in enumerate(parts)
+            if re.search(r"(?i)account status|account\s+account(?:\s+account)?", part)
         ]
     else:
-        chunks = re.split(
-            r"(?i)(?=account\s+number\s+\S+\s+account\s+number\s+\S+\s+account\s+number)",
-            text,
-        )
+        chunks = [
+            ("", part)
+            for part in re.split(
+                r"(?i)(?=account\s+number\s+\S+\s+account\s+number\s+\S+\s+account\s+number)",
+                text,
+            )
+        ]
     tradelines: list[Tradeline] = []
     seen: set[tuple[str, str, str]] = set()
-    for chunk in chunks:
-        accounts = _hero_column_numbers(chunk)
-        creditor = _hero_creditor(chunk)
-        if not _valid_creditor(creditor):
+    for prev, chunk in chunks:
+        leadin = _hero_tri_overview_leadin(prev)
+        body = _hero_tri_truncate_card(chunk)
+        card = f"{leadin}\n{body}"
+        accounts = _hero_column_numbers(body)
+        from_header, standing = _hero_all_bureau_header(prev)
+        from_part = _hero_creditor(body)
+        if _hero_creditor_quality(from_header) > _hero_creditor_quality(from_part):
+            creditor = from_header
+        else:
+            creditor = from_part or from_header
+        if not _valid_creditor(creditor) or _is_hero_creditor_junk(creditor):
             continue
-        balances = re.findall(r"(?i)balance:\s*(\$[\d,]+(?:\.\d{2})?)", chunk)
-        limits = re.findall(r"(?i)credit\s+limit:\s*(\$[\d,]+(?:\.\d{2})?)", chunk)
-        opened = _first(r"Open Date\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})", chunk)
-        account_type = _hero_type(chunk)
-        status = _first(r"Account Status\s+([A-Za-z]+)", chunk)
+        balance, limit = _hero_tri_balance_limit(card)
+        balances = [balance] if balance else []
+        limits = [limit] if limit else []
+        opened = _first(r"Open Date\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})", body)
+        account_type = _hero_type(body) or _hero_type(card)
+        status = _first(r"Account Status\s+([A-Za-z]+)", body)
         if status.lower() == "charge":
             status = "Charge Off"
-        remarks = _hero_remarks(chunk)
+        status_extra, past_due, payment_history = _hero_tri_payment_fields(body)
+        if re.search(r"(?i)\bPast due\b", standing or "") and not status_extra:
+            status_extra = "Past due"
+        status = _compose_status(status, status_extra)
+        remarks = _hero_remarks(body)
         if re.search(r"collection|charge\s*off", remarks, re.I):
             status = _join_remarks(status, "Collection")
         filled = [value for value in accounts if value]
@@ -413,33 +539,121 @@ def _parse_credit_hero_tri_merge(text: str) -> list[Tradeline]:
                 account_type=account_type,
                 status=status,
                 balance=balances[0] if balances else "",
+                past_due=past_due,
                 credit_limit=limits[0] if limits else "",
                 date_opened=_date(opened),
+                payment_history=payment_history,
                 remarks=remarks,
                 bureaus=["TUC", "EQF", "EXP"],
                 is_collection=bool(re.search(r"collection|charge\s*off", f"{status} {remarks}", re.I)),
             )
         )
+    tradelines.extend(_parse_credit_hero_collections(text, seen))
     return tradelines
 
 
+def _parse_credit_hero_collections(
+    text: str, seen: set[tuple[str, str, str]]
+) -> list[Tradeline]:
+    """All-bureaus Collections block: SEQUIUM / original creditor TMOBILE, etc."""
+    # Prefer the dedicated Collections section — not the Account summary "Collections 0 1 1".
+    marker = re.search(
+        r"(?i)\bCollections\b(?!\s+\d)(?:\s+It.?s important|\s+Bureau|\s*$)",
+        text or "",
+    )
+    if not marker:
+        marker = re.search(
+            r"(?i)fall behind on payments so your account doesn.?t get passed on to a collections agency",
+            text or "",
+        )
+    if not marker:
+        return []
+    section = text[marker.end() :]
+    public = re.search(r"(?i)\bPublic Records\b|\bCreditors\b", section)
+    if public:
+        section = section[: public.start()]
+    rows: list[Tradeline] = []
+    for match in re.finditer(r"(?i)Collection agency\s+", section):
+        rest = re.sub(r"\s+", " ", section[match.end() : match.end() + 240]).strip()
+        name = re.match(
+            r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,4})",
+            rest,
+        )
+        creditor = _hero_creditor_candidate(name.group(1)) if name else ""
+        if not creditor or re.search(r"(?i)no history|not available|account id", creditor):
+            continue
+        # Look back for account facts printed above the agency address.
+        window = section[max(0, match.start() - 900) : match.end() + 240]
+        account = _account_number(
+            _first(r"(?i)Account Number\s+([A-Z0-9*#xX-]{4,})", window)
+        )
+        balance = _first(r"(?i)Unpaid Balance\s+(\$[\d,]+(?:\.\d{2})?)", window)
+        opened = _first(
+            r"(?i)Date Opened\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})",
+            window,
+        )
+        original = _first(
+            r"(?i)Original Creditor\s+([A-Za-z0-9&/.'/-]{2,40})",
+            window,
+        )
+        key = (creditor.upper(), _date(opened), account)
+        if key in seen:
+            continue
+        if not account and not balance:
+            continue
+        seen.add(key)
+        rows.append(
+            Tradeline(
+                id=str(uuid.uuid4()),
+                creditor=creditor,
+                account_tu=account,
+                account_eqf=account,
+                account_exp=account,
+                account_type="Collection",
+                status="Collection",
+                balance=balance,
+                past_due=balance,
+                date_opened=_date(opened),
+                remarks=_join_remarks("", f"Original Creditor {original}" if original else ""),
+                bureaus=["EQF", "EXP"],
+                is_collection=True,
+            )
+        )
+    return rows
+
+
 def _hero_column_numbers(part: str) -> list[str]:
-    """Credit Hero prints TransUnion, then Equifax, then Experian."""
-    inline = re.search(
+    """Credit Hero prints TransUnion, then Equifax, then Experian (1–3 columns)."""
+    inline3 = re.search(
         r"(?i)account\s+number\s+(\S+)\s+account\s+number\s+(\S+)\s+account\s+number\s+(\S+)",
         part,
     )
-    stacked = re.search(
+    stacked3 = re.search(
         r"(?i)account\s+account\s+account\s+(\S+)\s+(\S+)\s+(\S+)\s+number\s+number\s+number",
         part,
     )
-    match = inline or stacked
+    match = inline3 or stacked3
     if match:
         return [_account_number(match.group(i)) for i in (1, 2, 3)]
-    one = re.search(r"(?i)account\s+number\s+([A-Z0-9*#xX-]{4,})", part)
-    if one:
-        number = _account_number(one.group(1))
-        return [number, "", ""] if number else ["", "", ""]
+    stacked2 = re.search(
+        r"(?i)account\s+account\s+(\S+)\s+(\S+)\s+number\s+number",
+        part,
+    )
+    if stacked2:
+        left = _account_number(stacked2.group(1))
+        right = _account_number(stacked2.group(2))
+        return [left, right, right] if left or right else ["", "", ""]
+    stacked1 = re.search(
+        r"(?i)(?<!account\s)account\s+([A-Z0-9*#xX-]{4,})\s+number\b",
+        part,
+    )
+    if stacked1:
+        number = _account_number(stacked1.group(1))
+        return [number, number, number] if number else ["", "", ""]
+    inline1 = re.search(r"(?i)account\s+number\s+([A-Z0-9*#xX-]{4,})", part)
+    if inline1:
+        number = _account_number(inline1.group(1))
+        return [number, number, number] if number else ["", "", ""]
     return ["", "", ""]
 
 
@@ -486,6 +700,13 @@ def _is_hero_creditor_junk(name: str) -> bool:
     lowered = cleaned.lower()
     if lowered in _CREDITOR_DENY:
         return True
+    # Payment-history legend text often lands in Creditor information OCR.
+    if re.search(r"(?i)\bdays?\s+past\s+due\b", cleaned):
+        return True
+    if re.match(r"(?i)n/a\b", cleaned):
+        return True
+    if re.fullmatch(r"(?i)\d+(?:\s+\d+)?(?:\s+days?)?", cleaned):
+        return True
     # "Voluntary Terms Count 66" and similar label+number chrome.
     if re.fullmatch(r"(?i)voluntary(?:\s+\w+){0,6}(?:\s+\d+)?", cleaned):
         return True
@@ -522,13 +743,17 @@ def _hero_creditor_candidate(raw: str) -> str:
     cleaned = re.sub(r"\s+", " ", raw or "").strip(" -")
     # Address crumbs sometimes glue onto the furnisher ("ALLY FINCL P.O. BOX").
     cleaned = re.sub(r"(?i)\s+P\.?O\.?\s*(?:BOX)?\s*$", "", cleaned).strip(" -")
+    # All-bureaus columns glue legend chrome onto the name ("CAPITAL ONE N/A No data…").
+    # Keep bare "NA" company suffixes; only strip the slash form used in the legend.
+    cleaned = re.sub(r"(?i)\s+N/A\b(?:\s+No data available)?", "", cleaned).strip(" -")
     if not cleaned:
         return ""
     caps = re.match(
-        r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3}(?:\s+[A-Z])?)",
+        r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,4}(?:\s+[A-Z])?)",
         cleaned,
     )
     candidate = caps.group(1).strip(" -") if caps else cleaned
+    candidate = re.sub(r"(?i)\s+N/A\b.*$", "", candidate).strip(" -")
     # Drop a trailing single letter on long/multi-token bases ("DISCOVERCARD A",
     # "ALLY FINCL V" from Voluntary…), but keep short truncated headers like
     # "DISCOVER C" / "CURRENT C".
@@ -554,29 +779,37 @@ def _hero_creditor_candidate(raw: str) -> str:
 
 def _hero_creditor_from_info_block(part: str) -> str:
     """Credit Hero address block: 'Creditor information' then the furnisher name."""
-    marker = re.search(r"(?i)Creditor information\s+", part or "")
-    if not marker:
-        return ""
-    rest = part[marker.end() :]
-    # OCR often inserts payment labels between the marker and the real name.
-    for _ in range(6):
-        stripped = re.sub(
-            r"(?i)^(?:Amount Past Due|Current Payment Status|High Balance|High Credit|"
-            r"Monthly Payment Amount|Account ID:\S+|Voluntary(?:\s+\w+){0,6}|"
-            r"Term Source Type(?:\s+Provided)?|As Agreed)\s*(?:\$[\d,]+(?:\.\d{2})?)?\s*",
-            "",
+    # Prefer the last non-junk Creditor information hit — All-bureaus PDFs repeat
+    # "Creditor information N/A No data available" beside each column.
+    best = ""
+    for marker in re.finditer(r"(?i)Creditor information\s+", part or ""):
+        rest = part[marker.end() :]
+        # OCR often inserts payment labels / N/A legend between marker and name.
+        for _ in range(8):
+            stripped = re.sub(
+                r"(?i)^(?:Amount Past Due|Current Payment Status|High Balance|High Credit|"
+                r"Monthly Payment Amount|Account ID:\S+|Voluntary(?:\s+\w+){0,6}|"
+                r"Term Source Type(?:\s+Provided)?|As Agreed|"
+                r"N/?A(?:\s+No data available)?|"
+                r"\d+\s+\d+\s+days?\s+past\s+due|"
+                r"BR\s+Bankruptcy|RF\s+Repossession|CC\s+Collection|"
+                r"VS\s+Voluntary surrender)\s*(?:\$[\d,]+(?:\.\d{2})?)?\s*",
+                "",
+                rest.lstrip(),
+            )
+            if stripped == rest.lstrip():
+                break
+            rest = stripped
+        name = re.match(
+            r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3}(?:\s+[A-Z])?)",
             rest.lstrip(),
         )
-        if stripped == rest.lstrip():
-            break
-        rest = stripped
-    name = re.match(
-        r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3}(?:\s+[A-Z])?)",
-        rest.lstrip(),
-    )
-    if not name:
-        return ""
-    return _hero_creditor_candidate(name.group(1))
+        if not name:
+            continue
+        candidate = _hero_creditor_candidate(name.group(1))
+        if _hero_creditor_quality(candidate) > _hero_creditor_quality(best):
+            best = candidate
+    return best
 
 
 def _hero_creditor(part: str) -> str:

@@ -319,6 +319,115 @@ def test_credit_hero_tri_merge_keeps_one_row_per_account():
     assert row.balance == "$100.00"
 
 
+CREDIT_HERO_ALL_BUREAUS = """
+My Credit Reports View Report: September 20, 2026
+Credit report All bureaus
+Collections 0 1 1
+CAPITAL ONE In good standing In good standing
+Overview Overview
+You’re currently using 104% of your account's limit.
+Balance: Credit limit: Balance: Credit limit:
+$1,916.00 $1,850.00 $1,916.00 $1,850.00
+Account details Account details
+Account Account
+517805XXXXXX 517805XXXXXX
+Number Number
+Account Status Open Account Status Open
+Open Date Sep 13, 2018 Open Date Sep 13, 2018
+Type Credit Card Type Credit Card
+Times 30/60/90 Days Late 3/1/0 Times 30/60/90 Days Late 3/1/0
+Current Payment As Current Payment As
+Status Agreed Status Agreed
+Amount Past Due $0.00 Amount Past Due $0.00
+30 30 days past due
+150 150 days past due
+N/A No data available
+Creditor information
+CAPITAL ONE N/A No data available
+PO BOX 31293
+DISCOVERCARD Closed In good standing Closed — past due
+Overview Overview Overview
+Balance: Credit limit: Balance: Credit limit: Balance: Credit limit:
+$306.00 $500.00 $306.00 $500.00 $306.00 $500.00
+Account details Account details Account details
+Account Account Account
+601100XXXXXX 601100XXXXXX 601100XXXXXX
+Number Number Number
+Account Status Closed Account Status Open Account Status Closed
+Open Date Dec 14, 2025 Open Date Dec 14, 2025 Open Date Dec 14, 2025
+Type Credit Card Type Credit Card Type Credit Card
+Times 30/60/90 Days Late 1/0/0 Times 30/60/90 Days Late 1/0/0 Times 30/60/90 Days Late 2/0/0
+Current Payment Late 30 Current Payment Late 30 Current Payment Late 30
+Status Days Status Days Status Days
+Amount Past Due $70.00 Amount Past Due $70.00 Amount Past Due $70.00
+150 150 days past due 150 150 days past due
+N/A No data available N/A No data available
+Creditor information
+DISCOVERCARD Creditor information
+ALLY FINANCIAL Past due Past due Past due
+Overview Overview Overview
+Balance: Highest balance: Balance: Highest balance: Balance: Highest balance:
+$18,703.00 $18,169.00 $18,703.00 $18,169.00 $18,703.00 $18,169.00
+Account details Account details Account details
+Account Account Account
+228533XXXXXX 228533XXXXXX 228533XXXXXX
+Number Number Number
+Account Status Open Account Status Open Account Status Open
+Open Date May 19, 2026 Open Date May 19, 2026 Open Date May 19, 2026
+Type Auto Loan Type Automobile Type Automobile
+Times 30/60/90 Days Late 1/0/0 Times 30/60/90 Days Late 1/0/0 Times 30/60/90 Days Late 2/0/0
+Amount Past Due $250.00 Amount Past Due $250.00 Amount Past Due $250.00
+Creditor information
+ALLY FINCL
+Collections
+It’s important that you try your best not to fall behind on payments so your account doesn’t get passed on to a collections agency.
+Account Number 745515XX
+Date Opened Jun 1, 2026
+Original Creditor TMOBILE
+Unpaid Balance $1,834.00
+Current Rating Collection/Charge-off
+Collection agency
+SEQUIUM ASSET SOLUTION
+1130 NORTHCHASE PKWY SE
+Public Records
+"""
+
+
+def test_credit_hero_all_bureaus_rejects_legend_junk_and_keeps_lates():
+    from app.services.credit_health import enrich_tradeline, is_negative_tradeline
+
+    tradelines, _, _ = parse_bureau_accounts(
+        CREDIT_HERO_ALL_BUREAUS, file_name="CR- Nasir Mahmoud.pdf"
+    )
+    by_name = {tl.creditor: enrich_tradeline(tl) for tl in tradelines}
+    assert "CAPITAL ONE" in by_name
+    assert "DISCOVERCARD" in by_name
+    assert "ALLY FINANCIAL" in by_name
+    assert "SEQUIUM ASSET SOLUTION" in by_name
+    assert "150 150 days past due" not in by_name
+    assert "N/A N" not in by_name
+    assert not any(name.startswith("N/A") for name in by_name)
+
+    capital = by_name["CAPITAL ONE"]
+    assert capital.balance == "$1,916.00"
+    assert capital.credit_limit == "$1,850.00"
+    assert "3/1/0" in capital.payment_history
+    assert is_negative_tradeline(capital) is True
+
+    discover = by_name["DISCOVERCARD"]
+    assert discover.past_due == "$70.00"
+    assert is_negative_tradeline(discover) is True
+
+    ally = by_name["ALLY FINANCIAL"]
+    assert ally.balance == "$18,703.00"
+    assert ally.past_due == "$250.00"
+    assert is_negative_tradeline(ally) is True
+
+    sequium = by_name["SEQUIUM ASSET SOLUTION"]
+    assert sequium.is_collection is True
+    assert sequium.balance == "$1,834.00"
+
+
 def test_credit_hero_stacked_columns_still_extract():
     text = """
     Account details Account details Account details
