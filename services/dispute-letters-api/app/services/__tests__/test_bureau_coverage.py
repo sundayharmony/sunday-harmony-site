@@ -108,6 +108,22 @@ def test_never_late_is_not_negative():
     assert is_negative_tradeline(_tl(id="c", is_collection=True, status="Collection")) is True
     assert is_negative_tradeline(_tl(id="pd", status="Closed: Paid, was past due 150 days")) is True
     assert is_negative_tradeline(_tl(id="late", remarks="30 days late")) is True
+    # Credit Hero often stores past-due as "$250.00" with status still "Open".
+    assert (
+        is_negative_tradeline(_tl(id="amt", status="Open", past_due="$250.00", remarks=""))
+        is True
+    )
+    assert is_negative_tradeline(_tl(id="zero", status="Open", past_due="$0.00")) is False
+    assert (
+        is_negative_tradeline(
+            _tl(
+                id="times",
+                status="Open",
+                payment_history="Times late 30/60/90: 1/0/0",
+            )
+        )
+        is True
+    )
 
 
 def test_per_bureau_negative_counts():

@@ -121,8 +121,10 @@ _COLON_LABELS = {
 _CREDITOR_DENY = {
     "account",
     "account info",
+    "account information",
     "account name",
     "accounts",
+    "amount past due",
     "balance",
     "closed",
     "closed accounts",
@@ -130,17 +132,46 @@ _CREDITOR_DENY = {
     "collection accounts",
     "comments",
     "contact info",
+    "creditor information",
+    "credit limit",
     "credit score",
     "credit scores",
+    "current payment status",
+    "foreclosure",
+    "high balance",
+    "high credit",
     "inquiries",
+    "monthly payment",
+    "monthly payment amount",
     "open",
     "open accounts",
+    "open date",
     "payment history",
     "personal information",
     "public records",
+    "repossession",
+    "responsibility",
     "status",
+    "terms count",
     "unknown",
+    "voluntary",
+    "voluntary term source type",
+    "voluntary term source type provided",
+    "voluntary terms count",
 }
+
+# Credit Hero member PDFs print chrome like "Creditor information" / "Voluntary Term..."
+# next to the real furnisher name after "charge off". OCR often promotes that chrome.
+_HERO_CREDITOR_JUNK = re.compile(
+    r"(?i)^(?:"
+    r"creditor\s+information|high\s+balance|high\s+credit|"
+    r"voluntary(?:\s+term(?:s)?(?:\s+source(?:\s+type(?:\s+provided)?)?)?)?(?:\s+\d+)?|"
+    r"terms?(?:\s+count)?(?:\s+\d+)?|repossession|collection|foreclosure|"
+    r"account\s+information|amount\s+past\s+due|monthly\s+payment(?:\s+amount)?|"
+    r"current\s+payment(?:\s+status)?|open\s+date|account\s+status|account\s+number|"
+    r"credit\s+limit|type|responsibility|remarks|po\s+box|as\s+agreed"
+    r")(?:\s|$)"
+)
 
 _DETAIL_KEYS = (
     "account_number",
@@ -208,8 +239,17 @@ _HERO_TYPE = (
     "Unsecured",
 )
 _HERO_CREDITOR_CUT = re.compile(
-    r"\s+(?:Voluntary|PO BOX|N/A|No data|Account ID|VS\b)\b",
+    r"\s+(?:Voluntary|PO BOX|N/A|No data|Account ID|VS\b|Monthly Payment|"
+    r"Current Payment|Amount Past|Terms Count|Times 30|Overview)\b",
     re.I,
+)
+_HERO_CREDITOR_STRIP = re.compile(
+    r"(?i)\b(?:"
+    r"creditor\s+information|foreclosure|repossession|collection|"
+    r"voluntary\s+term(?:s)?(?:\s+source(?:\s+type(?:\s+provided)?)?)?|"
+    r"high\s+balance\s*\$?[\d,.]*(?:\.\d{2})?|terms?\s+count\s*\d*|"
+    r"\bor\b"
+    r")\b"
 )
 
 
@@ -238,12 +278,26 @@ def _hero_member_fields(part: str) -> dict[str, str]:
     account_type = _hero_type(part)
     remarks = _hero_remarks(part)
     status = _first(r"Account Status\s+([A-Za-z]+)", part)
-    payment_status = _first(
-        r"Current Payment Status\s+([A-Za-z][A-Za-z ]{1,40}?)(?=\s+Amount Past Due|\s+Reported:|\s+Overview|$)",
-        part,
+    # Digits are required for values like "Late 30 Days". Stop before Credit Hero chrome
+    # so OCR does not glue "As Agreed Creditor information" into the payment status.
+    payment_status = _clean_payment_status(
+        _first(
+            r"Current Payment Status\s+(.+?)(?=\s+Amount Past Due|\s+Reported:|"
+            r"\s+Overview|\s+Terms(?:\s+Count)?\b|\s+Times\s+30|\s+Creditor information|"
+            r"\s+Repossession|\s+High Balance|\s+Voluntary|\s+PO BOX|\s+Account ID|$)",
+            part,
+        )
     )
     if re.search(r"collection|charge\s*off", remarks, re.I):
         status = _join_remarks(status, "Collection")
+    times_late = _first(r"Times\s+30/60/90\s+Days\s+Late\s+(\d+\s*/\s*\d+\s*/\s*\d+)", part)
+    payment_history = ""
+    if times_late:
+        bits = [bit.strip() for bit in times_late.split("/")]
+        if len(bits) == 3:
+            payment_history = f"Times late 30/60/90: {bits[0]}/{bits[1]}/{bits[2]}"
+            if any(bit != "0" for bit in bits):
+                payment_status = _join_remarks(payment_status, payment_history)
     return {
         "creditor": _hero_creditor(part),
         "account_number": _first(r"Account Number\s+([A-Z0-9*#xX-]{4,})", part),
@@ -259,6 +313,7 @@ def _hero_member_fields(part: str) -> dict[str, str]:
         "highest_balance": _first(r"High Balance\s+(\$[\d,]+(?:\.\d{2})?)", part),
         "monthly_payment": _first(r"Monthly Payment Amount\s+(\$[\d,]+(?:\.\d{2})?)", part),
         "past_due": _first(r"Amount Past Due\s+(\$[\d,]+(?:\.\d{2})?)", part),
+        "payment_history": payment_history,
         "remarks": remarks,
     }
 
@@ -359,20 +414,58 @@ def _hero_remarks(part: str) -> str:
     return re.sub(r"\s+", " ", match.group(1)).strip()
 
 
+def _clean_payment_status(value: str) -> str:
+    cleaned = re.sub(r"\s+", " ", value or "").strip(" -")
+    if not cleaned:
+        return ""
+    # Keep short status phrases; drop trailing OCR chrome if any slipped through.
+    cleaned = re.split(
+        r"(?i)\s+(?:creditor information|repossession|voluntary|high balance|po box)\b",
+        cleaned,
+        maxsplit=1,
+    )[0].strip(" -")
+    return cleaned[:60]
+
+
+def _is_hero_creditor_junk(name: str) -> bool:
+    cleaned = re.sub(r"\s+", " ", name or "").strip(" -")
+    if not cleaned:
+        return True
+    if _HERO_CREDITOR_JUNK.search(cleaned):
+        return True
+    lowered = cleaned.lower()
+    if lowered in _CREDITOR_DENY:
+        return True
+    # "Voluntary Terms Count 66" and similar label+number chrome.
+    if re.fullmatch(r"(?i)voluntary(?:\s+\w+){0,6}(?:\s+\d+)?", cleaned):
+        return True
+    if re.fullmatch(r"(?i)(?:high\s+balance|terms?\s+count|creditor\s+information)(?:\s+\S+){0,3}", cleaned):
+        return True
+    return False
+
+
 def _hero_creditor(part: str) -> str:
-    matches = list(re.finditer(r"(?i)charge\s+off\s+([A-Z][A-Z0-9&/.' -]{2,60})", part))
+    """Creditor sits after Credit Hero's 'charge off' chrome; skip OCR-promoted labels."""
+    matches = list(re.finditer(r"(?i)charge\s+off\s+", part))
     for match in reversed(matches):
-        raw = _HERO_CREDITOR_CUT.split(match.group(1), maxsplit=1)[0]
-        raw = re.sub(r"\s+", " ", raw).strip(" -")
-        if not _valid_creditor(raw):
+        rest = part[match.end() : match.end() + 140]
+        rest = _HERO_CREDITOR_CUT.split(rest, maxsplit=1)[0]
+        rest = _HERO_CREDITOR_STRIP.sub(" ", rest)
+        rest = re.sub(r"\s+", " ", rest).strip(" -")
+        # Prefer the leading ALL-CAPS furnisher token(s), not trailing address crumbs.
+        candidate = rest
+        caps = re.match(r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})", rest)
+        if caps:
+            candidate = caps.group(1).strip(" -")
+        if _is_hero_creditor_junk(candidate) or not _valid_creditor(candidate):
             continue
         if re.fullmatch(
             r"(?:bankruptcy|foreclosure|repossession|collection|voluntary surrender|no data available)",
-            raw,
+            candidate,
             re.I,
         ):
             continue
-        return raw
+        return candidate
     return ""
 
 
@@ -524,7 +617,7 @@ def _labeled_records(text: str) -> list[dict[str, str]]:
 
 def _tradeline_from_fields(fields: dict[str, str], bureau: BureauCode | None) -> Tradeline | None:
     creditor = _blankish(fields.get("creditor", ""))
-    if not _valid_creditor(creditor):
+    if not _valid_creditor(creditor) or _is_hero_creditor_junk(creditor):
         return None
     account_number = _account_number(fields.get("account_number", ""))
     balance = _money(fields.get("balance", ""))
@@ -540,6 +633,7 @@ def _tradeline_from_fields(fields: dict[str, str], bureau: BureauCode | None) ->
         last_reported = _date(fields.get("status_updated", ""))
     account_type = _blankish(fields.get("account_type", ""))
     status = _compose_status(fields.get("open_closed", ""), fields.get("status", ""))
+    payment_history = _blankish(fields.get("payment_history", ""))
     if _detail_count(
         {
             "account_number": account_number,
@@ -579,6 +673,7 @@ def _tradeline_from_fields(fields: dict[str, str], bureau: BureauCode | None) ->
         date_opened=date_opened,
         date_of_first_delinquency=dofd,
         last_reported=last_reported,
+        payment_history=payment_history,
         monthly_payment=_money(fields.get("monthly_payment", "")),
         bureaus=bureaus,
         is_collection=is_collection,
@@ -626,11 +721,15 @@ def _detail_count(fields: dict[str, str]) -> int:
 
 
 def _valid_creditor(name: str) -> bool:
-    if len(name) < 3 or len(name) > 120:
+    cleaned = re.sub(r"\s+", " ", name or "").strip(" -")
+    if len(cleaned) < 3 or len(cleaned) > 120:
         return False
-    if not re.search(r"[A-Za-z]", name):
+    if not re.search(r"[A-Za-z]", cleaned):
         return False
-    if name.lower() in _CREDITOR_DENY:
+    lowered = cleaned.lower()
+    if lowered in _CREDITOR_DENY:
+        return False
+    if _is_hero_creditor_junk(cleaned):
         return False
     return True
 

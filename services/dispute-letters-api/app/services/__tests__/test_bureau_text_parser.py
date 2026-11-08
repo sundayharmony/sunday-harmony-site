@@ -337,3 +337,89 @@ def test_credit_hero_stacked_columns_still_extract():
     assert tradelines[0].account_tu == "1111XXXX"
     assert tradelines[0].account_eqf == "2222XXXX"
     assert tradelines[0].account_exp == "3333XXXX"
+
+
+CREDIT_HERO_ALLY_LATE = """
+We gathered all of the accounts listed on your TransUnion report for you.
+Overview Account details
+Account Number 228533XXXXXX
+Account Status Open
+Balance: $18703.00 Credit limit: $0.00
+Open Date May 19, 2022
+Type Auto Loan
+Responsibility Individual
+Remarks Account Information Disputed By Consumer
+High Balance $18169.00
+Repossession or Collection or Creditor information
+foreclosure charge off ALLY FINCL
+Voluntary Term Source Type Provided
+PO BOX 380901 BLOOMINGTON MN
+Account ID:7338b164c40647403b744ff4f161c70a
+Monthly Payment Amount $550.00
+Current Payment Status Late 30 Days
+Amount Past Due $250.00
+Terms Count 66
+Times 30/60/90 Days Late 1/0/0
+"""
+
+
+def test_credit_hero_ally_late_keeps_real_creditor_and_late_status():
+    from app.services.credit_health import classify_category, enrich_tradeline, is_negative_tradeline
+
+    tradelines, _, _ = parse_bureau_accounts(
+        CREDIT_HERO_ALLY_LATE, file_name="transunion_10-7.pdf"
+    )
+    assert len(tradelines) == 1
+    ally = enrich_tradeline(tradelines[0])
+    assert ally.creditor == "ALLY FINCL"
+    assert ally.bureaus == ["TUC"]
+    assert ally.balance == "$18703.00"
+    assert ally.past_due == "$250.00"
+    assert "Late 30" in ally.status
+    assert "1/0/0" in ally.payment_history
+    assert is_negative_tradeline(ally) is True
+    assert classify_category(ally) == "late_payment"
+
+
+def test_credit_hero_rejects_label_chrome_as_creditor():
+    text = """
+We gathered all of the accounts listed on your TransUnion report for you.
+Overview Account details
+Account Number 111XXXX
+Account Status Open
+Balance: $1916.00 Credit limit: $2000.00
+Open Date Jan 1, 2020
+Type Credit Card
+foreclosure charge off Creditor information
+Voluntary Term Source Type
+PO BOX 1
+Current Payment Status As Agreed
+Amount Past Due $0.00
+Overview Account details
+Account Number 222XXXX
+Account Status Open
+Balance: $0.00 Credit limit: $0.00
+Open Date Jan 1, 2020
+Type Auto Loan
+foreclosure charge off High Balance
+Voluntary Term Source Type Provided
+Current Payment Status As Agreed
+Amount Past Due $0.00
+Overview Account details
+Account Number 555XXXX
+Account Status Open
+Balance: $18703.00 Credit limit: $0.00
+Open Date Jan 1, 2020
+Type Auto Loan
+foreclosure charge off Creditor information ALLY FINCL
+Voluntary Term Source Type Provided
+Current Payment Status Late 30 Days
+Amount Past Due $250.00
+Times 30/60/90 Days Late 1/0/0
+"""
+    tradelines, _, _ = parse_bureau_accounts(text, file_name="transunion_10-7.pdf")
+    names = {tl.creditor for tl in tradelines}
+    assert names == {"ALLY FINCL"}
+    assert "Creditor information" not in names
+    assert "High Balance" not in names
+    assert not any(name.lower().startswith("voluntary") for name in names)

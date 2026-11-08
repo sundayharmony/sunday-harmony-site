@@ -44,7 +44,28 @@ _ZERO_BALANCE_PATTERN = re.compile(
 
 
 def _blob(tl: Tradeline) -> str:
-    return f"{tl.status} {tl.remarks} {tl.account_type} {tl.past_due} {' '.join(tl.legal_flags)}"
+    return (
+        f"{tl.status} {tl.remarks} {tl.account_type} {tl.past_due} "
+        f"{tl.payment_history} {' '.join(tl.legal_flags)}"
+    )
+
+
+def _money_amount(value: str) -> float:
+    """Parse a currency-ish string to a float; blank/unparseable → 0."""
+    raw = (value or "").strip()
+    if not raw:
+        return 0.0
+    match = re.search(r"-?\d{1,3}(?:,\d{3})*(?:\.\d+)?|-?\d+(?:\.\d+)?", raw)
+    if not match:
+        return 0.0
+    try:
+        return float(match.group(0).replace(",", ""))
+    except ValueError:
+        return 0.0
+
+
+def has_nonzero_past_due(tl: Tradeline) -> bool:
+    return _money_amount(tl.past_due) > 0
 
 
 def is_closed_tradeline(tl: Tradeline) -> bool:
@@ -62,6 +83,10 @@ def is_negative_tradeline(tl: Tradeline) -> bool:
     if tl.is_collection or (tl.item_category or "") == "collection":
         return True
     if any(f in tl.legal_flags for f in ("collection", "charge_off", "late_payment_error")):
+        return True
+    # Past-due amount alone (e.g. "$250.00" with status "Open") is derogatory even
+    # when the words "past due" never appear in the status/remarks blob.
+    if has_nonzero_past_due(tl):
         return True
     blob = _POSITIVE_LATE_PATTERN.sub(" ", _blob(tl))
     blob = _RESOLVED_DISPUTE_PATTERN.sub(" ", blob)
