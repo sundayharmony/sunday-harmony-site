@@ -7,6 +7,7 @@ import {
   listDisputeSessionsForApplication,
 } from '@/lib/dispute-letters/db'
 import { resolveBureauScoresAcrossReports } from '@/lib/dispute-letters/bureau-score-history'
+import { enrichTradelinesAcrossReports } from '@/lib/dispute-letters/cross-report-tradelines'
 import { healthFromStoredReport } from '@/lib/dispute-letters/stored-report-health'
 import type { ReportHealth } from '@/lib/dispute-letters/types'
 
@@ -40,8 +41,15 @@ async function withScoresAcrossReports(
       selectedScores: health.credit_health?.scores,
     })
 
+    const tradelines = enrichTradelinesAcrossReports(
+      health.tradelines_by_priority || [],
+      sessions,
+      sessionId
+    )
+
     return {
       ...health,
+      tradelines_by_priority: tradelines,
       credit_health: {
         ...health.credit_health,
         scores: resolved.scores,

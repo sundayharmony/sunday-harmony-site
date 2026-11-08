@@ -285,10 +285,17 @@ def _parse_credit_hero(text: str, bureau: BureauCode | None) -> list[Tradeline]:
 
 
 def _hero_header_creditor(prev: str) -> str:
-    """Furnisher name from the card header that precedes Overview Account details."""
+    """Furnisher name from the card header that precedes Overview Account details.
+
+    Equifax Credit Hero often truncates names (`DISCOVER C`, `CAP ONE`, `CHIMEFIN/S`).
+    Allow one trailing single-letter token only here — the `$balance Reported:` delimiter
+    prevents grabbing `A` from `Account` the way open-ended name scans do.
+    """
     matches = list(
         re.finditer(
-            r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,3})"
+            r"([A-Z][A-Z0-9&/.'/-]{1,40}"
+            r"(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3}"
+            r"(?:\s+[A-Z])?)"
             r"\s+\$[\d,]+\.\d{2}\s+Reported:",
             prev or "",
         )
@@ -323,7 +330,14 @@ def _hero_member_fields(part: str, *, header_creditor: str = "") -> dict[str, st
             if any(bit != "0" for bit in bits):
                 payment_status = _join_remarks(payment_status, payment_history)
     account_number = _first(r"Account Number\s+([A-Z0-9*#xX-]{4,})", part)
-    creditor = _hero_creditor(part) or _hero_creditor_candidate(header_creditor)
+    from_part = _hero_creditor(part)
+    from_header = _hero_creditor_candidate(header_creditor)
+    # Prefer the clearer name when Creditor information OCR returns grid chrome (BR B)
+    # but the card header still has CAP ONE / DISCOVER C / ALLY.
+    if _hero_creditor_quality(from_header) > _hero_creditor_quality(from_part):
+        creditor = from_header
+    else:
+        creditor = from_part or from_header
     # Keep rich OCR rows even when charge-off chrome ate the furnisher name.
     # Gemini (or a later re-read) can replace "Unnamed · …" with the real creditor.
     if not creditor:
@@ -454,6 +468,12 @@ def _clean_payment_status(value: str) -> str:
         cleaned,
         maxsplit=1,
     )[0].strip(" -")
+    # Equifax often glues the next header name onto status: "Late 30 Days DISCOVER C".
+    cleaned = re.sub(
+        r"(?i)((?:late|as agreed|collection|charge\s*off)(?:\s+\d+\s+days)?)\s+[A-Z]{2,}.*$",
+        r"\1",
+        cleaned,
+    ).strip(" -")
     return cleaned[:60]
 
 
@@ -483,6 +503,21 @@ def _hero_provisional_creditor(account_type: str, account_number: str) -> str:
     return f"Unnamed · {kind}"
 
 
+def _hero_creditor_quality(name: str) -> int:
+    cleaned = (name or "").strip()
+    if not cleaned or _is_hero_creditor_junk(cleaned):
+        return 0
+    if re.fullmatch(r"[A-Z]{1,2}(?:\s+[A-Z]{1,2})?", cleaned):
+        return 0
+    letters = len(re.sub(r"[^A-Za-z]", "", cleaned))
+    # Trailing single letters are usually OCR crumbs ("CURRENT C", "ALLY A").
+    if re.search(r"\s+[A-Z]$", cleaned):
+        letters -= 5
+    if cleaned.upper().endswith(" PO"):
+        letters -= 4
+    return max(0, letters)
+
+
 def _hero_creditor_candidate(raw: str) -> str:
     cleaned = re.sub(r"\s+", " ", raw or "").strip(" -")
     # Address crumbs sometimes glue onto the furnisher ("ALLY FINCL P.O. BOX").
@@ -490,14 +525,26 @@ def _hero_creditor_candidate(raw: str) -> str:
     if not cleaned:
         return ""
     caps = re.match(
-        r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})",
+        r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3}(?:\s+[A-Z])?)",
         cleaned,
     )
     candidate = caps.group(1).strip(" -") if caps else cleaned
+    # Drop a trailing single letter on long/multi-token bases ("DISCOVERCARD A",
+    # "ALLY FINCL V" from Voluntary…), but keep short truncated headers like
+    # "DISCOVER C" / "CURRENT C".
+    trailing = re.fullmatch(r"(.+?)\s+([A-Z])", candidate)
+    if trailing:
+        base = trailing.group(1).strip()
+        base_letters = len(re.sub(r"[^A-Za-z]", "", base))
+        if base_letters >= 10 or (
+            base_letters >= 8 and (" " in base or "/" in base)
+        ):
+            candidate = base
     if _is_hero_creditor_junk(candidate) or not _valid_creditor(candidate):
         return ""
     if re.fullmatch(
-        r"(?:bankruptcy|foreclosure|repossession|collection|voluntary surrender|no data available)",
+        r"(?:bankruptcy|foreclosure|repossession|collection|voluntary surrender|no data available|"
+        r"BR|RF|CC|VS|N/?A|[A-Z]{1,2}(?:\s+[A-Z]{1,2})?)",
         candidate,
         re.I,
     ):
@@ -524,7 +571,7 @@ def _hero_creditor_from_info_block(part: str) -> str:
             break
         rest = stripped
     name = re.match(
-        r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})",
+        r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3}(?:\s+[A-Z])?)",
         rest.lstrip(),
     )
     if not name:
@@ -550,7 +597,7 @@ def _hero_creditor(part: str) -> str:
     # ALL-CAPS tokens immediately before a mailing PO BOX (case-sensitive — re.I
     # previously swallowed "CAPITAL ONE" into earlier lowercase chrome).
     for match in re.finditer(
-        r"([A-Z][A-Z0-9&/.'-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'-]{1,40}){0,4})\s+"
+        r"([A-Z][A-Z0-9&/.'/-]{1,40}(?:\s+[A-Z][A-Z0-9&/.'/-]{1,40}){0,3})\s+"
         r"(?:PO\s*BOX|P\.O\.\s*BOX)\b",
         part or "",
     ):

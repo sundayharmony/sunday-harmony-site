@@ -486,6 +486,39 @@ Amount Past Due $250.00
     assert not any(name.lower().startswith("unnamed") for name in by_name)
 
 
+def test_equifax_discover_c_header_and_prefers_cap_one_over_grid_chrome():
+    text = """
+We gathered all of the accounts listed on your Equifax report for you.
+Credit cards CAP ONE $1,916.00 Reported: Sep 1, 2026 In good standing
+Overview Account details
+Account Number 517805XXXXXX
+Account Status Open
+Balance: $1,916.00 Credit limit: $1,850.00
+Type Credit Card
+Creditor information BR B Bankruptcy RF CC foreclosure charge off CAP ONE
+Voluntary VS surrender
+Current Payment Status As Agreed
+Amount Past Due $0.00
+DISCOVER C $306.00 Reported: Jun 1, 2026 In good standing
+Overview Account details
+Account Number 601100XXXXXX
+Account Status Open
+Balance: $306.00 Credit limit: $500.00
+Type Credit Card
+Times 30/60/90 Days Late 1/0/0
+Creditor information Unavailable
+Current Payment Status Late 30 Days
+Amount Past Due $70.00
+"""
+    tradelines, _, _ = parse_bureau_accounts(text, file_name="Equifax_10-7.pdf")
+    by_acct = {
+        (tl.account_eqf or tl.account_tu or ""): tl.creditor for tl in tradelines
+    }
+    assert by_acct["517805XXXXXX"] == "CAP ONE"
+    assert by_acct["601100XXXXXX"] == "DISCOVER C"
+    assert "Unnamed" not in by_acct["601100XXXXXX"]
+
+
 def test_credit_hero_rejects_label_chrome_as_creditor():
     text = """
 We gathered all of the accounts listed on your TransUnion report for you.
