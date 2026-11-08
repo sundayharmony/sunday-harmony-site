@@ -56,6 +56,7 @@ from app.services.letter_formatter import (
     letters_zip_bytes,
 )
 from app.services.letter_identity import load_application_enclosure_files
+from app.services.report_screenshots import load_report_account_screenshot_files
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
 from app.services.report_refresh import recover_scores_from_storage, refresh_report_health
@@ -640,6 +641,7 @@ def download_letter(
     if format == "docx":
         row = get_session_row(session_id) or {}
         files = load_application_enclosure_files(row.get("application_uuid"))
+        files.extend(load_report_account_screenshot_files(session_id, letter))
         return _letter_docx_response(letter, files)
     raise HTTPException(400, "Unsupported format")
 
@@ -665,6 +667,8 @@ async def download_letter_with_enclosures(
     if not files:
         row = get_session_row(session_id) or {}
         files = load_application_enclosure_files(row.get("application_uuid"))
+    # Always append disputed-account pages from the uploaded report PDF.
+    files.extend(load_report_account_screenshot_files(session_id, letter))
     return _letter_docx_response(letter, files)
 
 
