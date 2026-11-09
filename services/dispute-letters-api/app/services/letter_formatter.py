@@ -201,6 +201,28 @@ def _inline_html(text: str) -> str:
     return "".join(out)
 
 
+def _inline_pdf(text: str) -> str:
+    """Render **bold** spans for ReportLab Paragraph XML (no literal asterisks)."""
+    parts = re.split(r"(\*\*.+?\*\*)", text or "")
+    out: list[str] = []
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith("**") and part.endswith("**") and len(part) >= 4:
+            inner = (
+                part[2:-2]
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+            out.append(f"<b>{inner}</b>")
+        else:
+            out.append(
+                part.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            )
+    return "".join(out)
+
+
 def _is_tight_line(
     display: str,
     *,
@@ -1033,10 +1055,10 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
             story.append(Spacer(1, 8))
             continue
         if kind == "bullet":
-            story.append(Paragraph(f"● {escape_xml(block['text'])}", bullet))
+            story.append(Paragraph(f"● {_inline_pdf(block['text'])}", bullet))
             continue
         variant = block.get("variant") or "body"
-        text_line = escape_xml(block.get("text") or "")
+        text_line = _inline_pdf(block.get("text") or "")
         if variant == "signature":
             name = block.get("text") or ""
             left = Paragraph(escape_xml(name), name_style)

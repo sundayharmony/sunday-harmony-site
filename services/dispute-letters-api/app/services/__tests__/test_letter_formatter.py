@@ -7,6 +7,7 @@ from io import BytesIO
 
 from app.services.letter_formatter import (
     _blocks_for_enclosures,
+    _inline_pdf,
     letter_layout,
     letter_to_docx,
     letter_to_html,
@@ -104,6 +105,13 @@ def test_zip_contains_only_pdf():
     assert all(body.startswith(b"%PDF") for body in bodies)
     assert not any(name.endswith(".txt") for name in names)
     assert not any("/" in name for name in names)
+
+
+def test_inline_pdf_renders_bold_without_asterisks():
+    assert _inline_pdf("**GREAT EASTERN RESORT C**") == "<b>GREAT EASTERN RESORT C</b>"
+    assert "**" not in _inline_pdf("**MERRICK BANK CORP**")
+    assert _inline_pdf("Account Number: 123") == "Account Number: 123"
+    assert "&amp;" in _inline_pdf("A & B")
 
 
 def test_pdf_contains_date_and_enclosures():
