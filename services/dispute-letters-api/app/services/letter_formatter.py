@@ -1050,7 +1050,18 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
             except Exception:
                 png = None
             if png:
-                sig_buf = BytesIO(png)
+                # ReportLab embeds RGB more reliably than transparent RGBA PNGs.
+                try:
+                    from PIL import Image as PilImage
+
+                    rgba = PilImage.open(BytesIO(png)).convert("RGBA")
+                    canvas_img = PilImage.new("RGB", rgba.size, (255, 255, 255))
+                    canvas_img.paste(rgba, mask=rgba.split()[3])
+                    rgb_buf = BytesIO()
+                    canvas_img.save(rgb_buf, format="PNG")
+                    sig_buf = BytesIO(rgb_buf.getvalue())
+                except Exception:
+                    sig_buf = BytesIO(png)
                 width = min(3.2, max(1.6, 0.2 * max(len(name), 8))) * inch
                 iw, ih = ImageReader(sig_buf).getSize()
                 sig_buf.seek(0)

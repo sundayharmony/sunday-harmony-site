@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY knowledge ./knowledge
+COPY assets ./assets
 COPY .cursor ./.cursor
 COPY data ./data
 
