@@ -55,8 +55,6 @@ from app.services.letter_formatter import (
     letter_to_html,
     letters_zip_bytes,
 )
-from app.services.letter_identity import load_application_enclosure_files
-from app.services.report_screenshots import load_report_account_screenshot_files
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
 from app.services.report_refresh import recover_scores_from_storage, refresh_report_health
@@ -609,14 +607,26 @@ def get_letters(session_id: str, _: None = Depends(verify_internal_secret)) -> d
     return {"session_id": session_id, "letters": cleaned}
 
 
-def _letter_files_for_download(session_id: str, letter, uploaded: list[tuple[str, bytes]] | None = None):
-    files: list[tuple[str, bytes]] = list(uploaded or [])
-    if not files:
+def _letter_files_for_download(
+    session_id: str,
+    letter,
+    uploaded: list[tuple[str, bytes]] | None = None,
+    *,
+    include_evidence: bool = True,
+):
+    from app.services.letter_download import letter_files_for_download
+
+    application_uuid = None
+    if not uploaded:
         row = get_session_row(session_id) or {}
-        files = load_application_enclosure_files(row.get("application_uuid"))
-    # Attach disputed-account pages only (never score/summary dashboard pages).
-    files.extend(load_report_account_screenshot_files(session_id, letter))
-    return files
+        application_uuid = row.get("application_uuid")
+    return letter_files_for_download(
+        session_id,
+        letter,
+        uploaded,
+        include_evidence=include_evidence,
+        application_uuid=application_uuid,
+    )
 
 
 def _letter_pdf_response(letter, enclosure_files: list[tuple[str, bytes]] | None = None):
@@ -642,7 +652,14 @@ def _letter_docx_response(letter, enclosure_files: list[tuple[str, bytes]] | Non
     )
 
 
-def _build_letter_download(session_id: str, letter, format: str, uploaded: list[tuple[str, bytes]] | None = None):
+def _build_letter_download(
+    session_id: str,
+    letter,
+    format: str,
+    uploaded: list[tuple[str, bytes]] | None = None,
+    *,
+    include_evidence: bool = True,
+):
     """CPU/memory-heavy PDF build — keep off the asyncio event loop."""
     body = finalize_letter(letter.markdown)
     if format in ("md", "txt"):
@@ -651,7 +668,9 @@ def _build_letter_download(session_id: str, letter, format: str, uploaded: list[
             media_type="text/plain",
             headers={"Content-Disposition": f'attachment; filename="letter_{letter.id}.txt"'},
         )
-    files = _letter_files_for_download(session_id, letter, uploaded)
+    files = _letter_files_for_download(
+        session_id, letter, uploaded, include_evidence=include_evidence
+    )
     if format == "pdf":
         return _letter_pdf_response(letter, files)
     if format == "docx":
@@ -664,12 +683,20 @@ async def download_letter(
     session_id: str,
     letter_id: str,
     format: str = "pdf",
+    include_evidence: bool = True,
     _: None = Depends(verify_internal_secret),
 ):
     letter = await asyncio.to_thread(get_letter, session_id, letter_id)
     if not letter:
         raise HTTPException(404, "Letter not found")
-    return await asyncio.to_thread(_build_letter_download, session_id, letter, format)
+    return await asyncio.to_thread(
+        _build_letter_download,
+        session_id,
+        letter,
+        format,
+        None,
+        include_evidence=include_evidence,
+    )
 
 
 @app.post("/internal/letters/{session_id}/{letter_id}/download")
@@ -677,6 +704,7 @@ async def download_letter_with_enclosures(
     session_id: str,
     letter_id: str,
     format: str = "pdf",
+    include_evidence: bool = True,
     enclosures: list[UploadFile] = File(default_factory=list),
     _: None = Depends(verify_internal_secret),
 ):
@@ -690,7 +718,14 @@ async def download_letter_with_enclosures(
         data = await upload.read()
         if data:
             uploaded.append((upload.filename or "enclosure.bin", data))
-    return await asyncio.to_thread(_build_letter_download, session_id, letter, format, uploaded)
+    return await asyncio.to_thread(
+        _build_letter_download,
+        session_id,
+        letter,
+        format,
+        uploaded,
+        include_evidence=include_evidence,
+    )
 
 
 @app.get("/internal/letters/{session_id}/download.zip")

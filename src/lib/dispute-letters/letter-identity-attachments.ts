@@ -259,9 +259,14 @@ async function fetchEnclosedLetterDocx(
   return data
 }
 
-async function fetchPlainLetterDocx(sessionId: string, letterId: string): Promise<Uint8Array> {
+async function fetchPlainLetterDocx(
+  sessionId: string,
+  letterId: string,
+  opts?: { includeEvidence?: boolean }
+): Promise<Uint8Array> {
+  const evidence = opts?.includeEvidence === false ? 'false' : 'true'
   const res = await disputeLettersFetch(
-    `/internal/letters/${sessionId}/${letterId}/download?format=pdf`
+    `/internal/letters/${sessionId}/${letterId}/download?format=pdf&include_evidence=${evidence}`
   )
   if (!res.ok) {
     const text = await res.text()
@@ -300,6 +305,21 @@ export async function fetchLetterDocxWithEnclosures(
   }
 
   return withRetries(() => fetchPlainLetterDocx(sessionId, letterId), 4, 1_500)
+}
+
+/**
+ * Interactive single-letter download: letter + identity docs, no account screenshots.
+ * Keeps the Vercel download route under the function timeout. Full evidence stays in the ZIP.
+ */
+export async function fetchLetterPdfForInteractiveDownload(
+  sessionId: string,
+  letterId: string
+): Promise<Uint8Array> {
+  return withRetries(
+    () => fetchPlainLetterDocx(sessionId, letterId, { includeEvidence: false }),
+    2,
+    1_000
+  )
 }
 
 /** Build DOCX letter files for a ZIP in parallel (bounded concurrency). */

@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
-import {
-  fetchLetterDocxWithEnclosures,
-  loadLetterIdentityAttachments,
-} from '@/lib/dispute-letters/letter-identity-attachments'
-import {
-  readStoredLetterDocxForSession,
-  storeGeneratedLetterDocx,
-} from '@/lib/dispute-letters/letter-docx-store'
+import { fetchLetterPdfForInteractiveDownload } from '@/lib/dispute-letters/letter-identity-attachments'
+import { readStoredLetterDocxForSession } from '@/lib/dispute-letters/letter-docx-store'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 60
+/** Account screenshots are ZIP-only; interactive PDF still needs headroom for identity pages. */
+export const maxDuration = 120
 
 type Params = { params: Promise<{ id: string; letterId: string }> }
 
@@ -29,11 +24,11 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   try {
     if (format === 'pdf') {
+      // Prefer a package PDF already built for the ZIP (includes account evidence).
       let data = await readStoredLetterDocxForSession(id, letterId)
       if (!data) {
-        const attachments = await loadLetterIdentityAttachments(access.session.application_uuid)
-        data = await fetchLetterDocxWithEnclosures(id, letterId, attachments)
-        await storeGeneratedLetterDocx({ sessionId: id, letterId, data })
+        // Fast path: letter + ID/SSN only. Do not cache — ZIP must regenerate with evidence.
+        data = await fetchLetterPdfForInteractiveDownload(id, letterId)
       }
       return new Response(new Uint8Array(data), {
         status: 200,
@@ -45,7 +40,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     }
 
     const res = await disputeLettersFetch(
-      `/internal/letters/${id}/${letterId}/download?format=${encodeURIComponent(format)}`
+      `/internal/letters/${id}/${letterId}/download?format=${encodeURIComponent(format)}&include_evidence=false`
     )
     if (!res.ok) {
       const text = await res.text()
