@@ -1,4 +1,4 @@
-import { isCreditFundingStaffRole } from '@/lib/stripe-admin-auth'
+import { isCreditFundingStaffRole } from '@/lib/staff-roles'
 
 /** Body flag staff can send to generate letters without every identity enclosure. */
 export const LETTER_IDENTITY_BYPASS_FLAG = 'bypass_missing_identity'

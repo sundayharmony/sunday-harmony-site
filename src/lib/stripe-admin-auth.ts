@@ -2,9 +2,22 @@ import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { NextResponse } from 'next/server'
 import { authOptions } from '@/lib/auth'
-import { isMarketingStaffRole, isStaffRole as isAnyStaffRole, isSalesRole, isContentRole } from '@/lib/staff-roles'
+import {
+  isAdminRole,
+  isCreditFundingStaffRole,
+  isMarketingStaffRole,
+  isStaffRole as isAnyStaffRole,
+  isSalesRole,
+  isContentRole,
+} from '@/lib/staff-roles'
 
-export { isStaffRole, isSalesRole, isContentRole } from '@/lib/staff-roles'
+export {
+  isAdminRole,
+  isCreditFundingStaffRole,
+  isStaffRole,
+  isSalesRole,
+  isContentRole,
+} from '@/lib/staff-roles'
 
 export type UserRole =
   | 'admin'
@@ -14,14 +27,6 @@ export type UserRole =
   | 'lead_procurement'
   | 'sales_closer'
   | 'client_relations'
-
-export function isAdminRole(role?: string | null): boolean {
-  return role === 'admin'
-}
-
-export function isCreditFundingStaffRole(role?: string | null): boolean {
-  return role === 'admin' || role === 'credit_manager'
-}
 
 type AccessResult =
   | { ok: true }

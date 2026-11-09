@@ -10,6 +10,15 @@ export function isStaffRole(role?: string | null): boolean {
   return Boolean(role && STAFF_ROLES.has(role))
 }
 
+export function isAdminRole(role?: string | null): boolean {
+  return role === 'admin'
+}
+
+/** Admin or credit manager — Credit & Funding / dispute-letter staff. */
+export function isCreditFundingStaffRole(role?: string | null): boolean {
+  return role === 'admin' || role === 'credit_manager'
+}
+
 export function isMarketingStaffRole(role?: string | null): boolean {
   return role === 'lead_procurement' || role === 'sales_closer' || role === 'client_relations'
 }
