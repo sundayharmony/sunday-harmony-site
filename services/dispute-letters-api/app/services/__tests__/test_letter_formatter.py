@@ -5,7 +5,14 @@ from __future__ import annotations
 import zipfile
 from io import BytesIO
 
-from app.services.letter_formatter import letter_layout, letter_to_docx, letter_to_html, letters_zip_bytes
+from app.services.letter_formatter import (
+    letter_layout,
+    letter_to_docx,
+    letter_to_html,
+    letter_to_pdf,
+    letters_zip_bytes,
+    normalize_enclosure_to_jpeg,
+)
 
 SAMPLE = """\
 September 12, 2026
@@ -78,7 +85,7 @@ def test_docx_header_contains_date_and_page_fields():
     assert "WIDJI SELPHIN" in body_text
 
 
-def test_zip_contains_only_docx():
+def test_zip_contains_only_pdf():
     payload = letters_zip_bytes(
         [
             ("Experian — 4 item(s)", SAMPLE),
@@ -87,13 +94,39 @@ def test_zip_contains_only_docx():
     )
     with zipfile.ZipFile(BytesIO(payload)) as zf:
         names = zf.namelist()
+        bodies = [zf.read(name) for name in names]
     assert names == [
-        "Experian — 4 item(s).docx",
-        "KIKOFF LENDING LLC — 1 item(s).docx",
+        "Experian — 4 item(s).pdf",
+        "KIKOFF LENDING LLC — 1 item(s).pdf",
     ]
-    assert all(name.endswith(".docx") for name in names)
+    assert all(name.endswith(".pdf") for name in names)
+    assert all(body.startswith(b"%PDF") for body in bodies)
     assert not any(name.endswith(".txt") for name in names)
     assert not any("/" in name for name in names)
+
+
+def test_pdf_contains_date_and_enclosures():
+    sample = (
+        SAMPLE
+        + "\n\nRespectfully,\n\nJane Consumer\n\nEnclosures\n"
+        + "● Copy of government-issued photo identification\n"
+        + "● Proof of current residential address\n"
+        + "● Screenshots of the disputed account(s) from my consumer credit report\n"
+    )
+    payload = letter_to_pdf(
+        sample,
+        enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Proof of Address.png", MINI_PNG)],
+    )
+    assert payload.startswith(b"%PDF")
+    assert len(payload) > 2000
+    # Enclosure images are re-encoded as JPEG and embedded as XObjects.
+    assert b"/XObject" in payload
+    assert b"/DCTDecode" in payload
+
+
+def test_normalize_enclosure_rejects_garbage():
+    assert normalize_enclosure_to_jpeg(b"not-an-image") is None
+    assert normalize_enclosure_to_jpeg(MINI_PNG)[:2] == b"\xff\xd8"
 
 
 MINI_PNG = (

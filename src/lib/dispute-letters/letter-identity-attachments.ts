@@ -6,7 +6,7 @@ import {
 import { downloadCreditFundingDocument } from '@/lib/credit-funding-storage'
 import { disputeLettersFetch, disputeLettersFetchForm } from '@/lib/dispute-letters/api-client'
 import { mapWithConcurrency, withRetries } from '@/lib/dispute-letters/async-pool'
-import { isDocxBytes, uniqueDocxFilename, uniqueZipFilename } from '@/lib/dispute-letters/letter-zip'
+import { isPdfBytes, uniquePdfFilename, uniqueZipFilename } from '@/lib/dispute-letters/letter-zip'
 
 export type LetterIdentityDoc = {
   id: string
@@ -204,7 +204,7 @@ export function namedLetterIdentityAttachments(
 export function buildLetterZipFiles(letters: { title: string; data: Uint8Array }[]): { name: string; data: Uint8Array }[] {
   const used = new Set<string>()
   return letters.map((letter) => ({
-    name: uniqueDocxFilename(letter.title || 'letter', used),
+    name: uniquePdfFilename(letter.title || 'letter', used),
     data: letter.data,
   }))
 }
@@ -246,37 +246,37 @@ async function fetchEnclosedLetterDocx(
     form.append('enclosures', blob, attachment.zipName)
   }
   const posted = await disputeLettersFetchForm(
-    `/internal/letters/${sessionId}/${letterId}/download?format=docx`,
+    `/internal/letters/${sessionId}/${letterId}/download?format=pdf`,
     form
   )
   if (!posted.ok) {
     throw new Error(`Enclosure merge failed (HTTP ${posted.status})`)
   }
   const data = new Uint8Array(await posted.arrayBuffer())
-  if (!isDocxBytes(data)) {
-    throw new Error('Enclosure merge returned a non-DOCX payload')
+  if (!isPdfBytes(data)) {
+    throw new Error('Enclosure merge returned a non-PDF payload')
   }
   return data
 }
 
 async function fetchPlainLetterDocx(sessionId: string, letterId: string): Promise<Uint8Array> {
   const res = await disputeLettersFetch(
-    `/internal/letters/${sessionId}/${letterId}/download?format=docx`
+    `/internal/letters/${sessionId}/${letterId}/download?format=pdf`
   )
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(text || 'DOCX download failed')
+    throw new Error(text || 'PDF download failed')
   }
   const data = new Uint8Array(await res.arrayBuffer())
-  if (!isDocxBytes(data)) {
-    throw new Error('Letter download was not a Word document. Redeploy the dispute-letters API.')
+  if (!isPdfBytes(data)) {
+    throw new Error('Letter download was not a PDF. Redeploy the dispute-letters API.')
   }
   return data
 }
 
 /**
- * Download letter DOCX, optionally merging identity enclosures via the Python API.
- * Retries transient upstream failures; falls back to plain DOCX if enclosure merge fails.
+ * Download letter PDF, optionally merging identity enclosures via the Python API.
+ * Retries transient upstream failures; falls back to plain PDF if enclosure merge fails.
  */
 export async function fetchLetterDocxWithEnclosures(
   sessionId: string,
@@ -292,7 +292,7 @@ export async function fetchLetterDocxWithEnclosures(
       )
     } catch (error) {
       console.warn(
-        '[letter-identity] enclosure merge failed after retries; falling back to plain DOCX',
+        '[letter-identity] enclosure merge failed after retries; falling back to plain PDF',
         letterId,
         error instanceof Error ? error.message : error
       )

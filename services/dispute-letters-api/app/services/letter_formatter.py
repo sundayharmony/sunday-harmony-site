@@ -650,6 +650,47 @@ def _picture_dimensions(data: bytes):
     return Inches(width), Inches(height)
 
 
+def normalize_enclosure_to_jpeg(data: bytes, *, max_edge: int = 2200) -> bytes | None:
+    """Re-encode enclosure bytes to a Word/PDF-safe RGB JPEG.
+
+    Phone photos (HEIC/WebP), truncated screenshots, and odd PNG modes often
+    embed into .docx as broken placeholders. Always round-trip through Pillow.
+    """
+    if not data or len(data) < 32:
+        return None
+    try:
+        from PIL import Image, ImageOps
+    except Exception:
+        return None
+    try:
+        image = Image.open(BytesIO(data))
+        image.load()
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in {"RGB", "L"}:
+            image = image.convert("RGB")
+        elif image.mode == "L":
+            image = image.convert("RGB")
+        width, height = image.size
+        longest = max(width, height)
+        if longest > max_edge:
+            scale = max_edge / float(longest)
+            image = image.resize(
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+                Image.Resampling.LANCZOS,
+            )
+        buf = BytesIO()
+        image.save(buf, format="JPEG", quality=85, optimize=True)
+        out = buf.getvalue()
+        if len(out) < 64 or out[:2] != b"\xff\xd8":
+            return None
+        # Verify the JPEG can be reopened (rejects truncated payloads).
+        check = Image.open(BytesIO(out))
+        check.load()
+        return out
+    except Exception:
+        return None
+
+
 def enclosure_image_streams(files: list[tuple[str, bytes]]) -> list[BytesIO]:
     streams: list[BytesIO] = []
     for _name, data in files:
@@ -663,19 +704,27 @@ def enclosure_image_streams(files: list[tuple[str, bytes]]) -> list[BytesIO]:
                 for page in pages:
                     buf = BytesIO()
                     page.convert("RGB").save(buf, format="JPEG", quality=85)
-                    buf.seek(0)
-                    streams.append(buf)
+                    jpeg = normalize_enclosure_to_jpeg(buf.getvalue())
+                    if jpeg:
+                        streams.append(BytesIO(jpeg))
             except Exception:
                 continue
             continue
-        if data[:8] == b"\x89PNG\r\n\x1a\n" or data[:2] == b"\xff\xd8":
-            streams.append(BytesIO(data))
+        jpeg = normalize_enclosure_to_jpeg(data)
+        if jpeg:
+            streams.append(BytesIO(jpeg))
     return streams
 
 
 def _is_enclosure_bullet(text: str) -> bool:
     lowered = text.lower()
-    return "photo identification" in lowered or "residential address" in lowered or "proof of current" in lowered
+    return (
+        "photo identification" in lowered
+        or "residential address" in lowered
+        or "proof of current" in lowered
+        or "screenshot" in lowered
+        or "disputed account" in lowered
+    )
 
 
 def _blocks_for_enclosures(blocks: list[dict], has_images: bool) -> list[dict]:
@@ -794,28 +843,6 @@ def _add_header_page_counter(document, letter_date: str) -> None:
             tc_pr.append(tc_w)
 
 
-def _add_enclosure_pictures(document, files: list[tuple[str, bytes]]) -> None:
-    from docx.enum.text import WD_LINE_SPACING
-    from docx.shared import Pt
-
-    streams = enclosure_image_streams(files)
-    for stream in streams:
-        data = stream.getvalue()
-        stream.seek(0)
-        para = document.add_paragraph()
-        fmt = para.paragraph_format
-        fmt.space_before = Pt(6)
-        fmt.space_after = Pt(8)
-        fmt.line_spacing = 1.0
-        fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
-        run = para.add_run()
-        width, height = _picture_dimensions(data)
-        if height is None:
-            run.add_picture(stream, width=width)
-        else:
-            run.add_picture(stream, width=width, height=height)
-
-
 def letter_to_docx(text: str, enclosure_files: list[tuple[str, bytes]] | None = None):
     from docx import Document
     from docx.enum.text import WD_LINE_SPACING
@@ -824,7 +851,8 @@ def letter_to_docx(text: str, enclosure_files: list[tuple[str, bytes]] | None = 
 
     layout = letter_layout(text)
     files = enclosure_files or []
-    blocks = _blocks_for_enclosures(layout["blocks"], has_images=bool(files))
+    image_streams = enclosure_image_streams(files)
+    blocks = _blocks_for_enclosures(layout["blocks"], has_images=bool(image_streams))
     document = Document()
 
     style = document.styles["Normal"]
@@ -862,14 +890,207 @@ def letter_to_docx(text: str, enclosure_files: list[tuple[str, bytes]] | None = 
             closing=variant == "closing",
         )
 
-    if files:
-        _add_enclosure_pictures(document, files)
+    if image_streams:
+        _add_enclosure_picture_streams(document, image_streams)
 
     return document
 
 
+def _add_enclosure_picture_streams(document, streams: list[BytesIO]) -> None:
+    from docx.enum.text import WD_LINE_SPACING
+    from docx.shared import Pt
+
+    for stream in streams:
+        data = stream.getvalue()
+        stream.seek(0)
+        para = document.add_paragraph()
+        fmt = para.paragraph_format
+        fmt.space_before = Pt(6)
+        fmt.space_after = Pt(8)
+        fmt.line_spacing = 1.0
+        fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        run = para.add_run()
+        width, height = _picture_dimensions(data)
+        if height is None:
+            run.add_picture(stream, width=width)
+        else:
+            run.add_picture(stream, width=width, height=height)
+
+
+def _picture_size_inches(data: bytes) -> tuple[float, float]:
+    max_w, max_h = 6.0, 4.2
+    size = _png_size(data) or _jpeg_size(data)
+    if not size:
+        return max_w, max_h * 0.75
+    width_px, height_px = size
+    aspect = height_px / max(width_px, 1)
+    width = max_w
+    height = width * aspect
+    if height > max_h:
+        height = max_h
+        width = height / max(aspect, 0.01)
+    return width, height
+
+
+def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = None) -> bytes:
+    """Build a print-ready PDF letter with optional enclosure images."""
+    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.pagesizes import letter as letter_page
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as pdf_canvas
+    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    layout = letter_layout(text)
+    files = enclosure_files or []
+    image_streams = enclosure_image_streams(files)
+    blocks = _blocks_for_enclosures(layout["blocks"], has_images=bool(image_streams))
+
+    buf = BytesIO()
+    letter_date = layout["date"] or ""
+
+    class NumberedCanvas(pdf_canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_page_states: list[dict] = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self.setFont("Times-Roman", 10)
+                self.drawString(inch, letter_page[1] - 0.55 * inch, letter_date)
+                self.drawRightString(
+                    letter_page[0] - inch,
+                    letter_page[1] - 0.55 * inch,
+                    f"Page {self._pageNumber} of {total}",
+                )
+                pdf_canvas.Canvas.showPage(self)
+            pdf_canvas.Canvas.save(self)
+
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter_page,
+        leftMargin=inch,
+        rightMargin=inch,
+        topMargin=0.85 * inch,
+        bottomMargin=0.75 * inch,
+    )
+
+    body = ParagraphStyle(
+        "LetterBody",
+        fontName="Times-Roman",
+        fontSize=11,
+        leading=14,
+        spaceBefore=0,
+        spaceAfter=6,
+        alignment=TA_LEFT,
+    )
+    heading = ParagraphStyle(
+        "LetterHeading",
+        parent=body,
+        fontName="Times-Bold",
+        fontSize=11,
+        spaceBefore=10,
+        spaceAfter=4,
+    )
+    name_style = ParagraphStyle("LetterName", parent=body, fontName="Times-Bold", spaceAfter=0)
+    field = ParagraphStyle("LetterField", parent=body, spaceAfter=0)
+    tight = ParagraphStyle("LetterTight", parent=body, spaceAfter=0)
+    closing = ParagraphStyle("LetterClosing", parent=body, spaceAfter=8)
+    bullet = ParagraphStyle(
+        "LetterBullet",
+        parent=body,
+        leftIndent=18,
+        firstLineIndent=-12,
+        spaceAfter=2,
+    )
+
+    def escape_xml(value: str) -> str:
+        return (
+            (value or "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+    story: list = []
+    for block in blocks:
+        kind = block["kind"]
+        if kind == "spacer":
+            story.append(Spacer(1, 8))
+            continue
+        if kind == "bullet":
+            story.append(Paragraph(f"● {escape_xml(block['text'])}", bullet))
+            continue
+        variant = block.get("variant") or "body"
+        text_line = escape_xml(block.get("text") or "")
+        if variant == "signature":
+            name = block.get("text") or ""
+            left = Paragraph(escape_xml(name), name_style)
+            right_flowable = Paragraph(f"<i>{escape_xml(name)}</i>", body)
+            try:
+                from app.services.letter_signature import render_signature_png
+
+                png = render_signature_png(name)
+            except Exception:
+                png = None
+            if png:
+                sig_buf = BytesIO(png)
+                width = min(3.2, max(1.6, 0.2 * max(len(name), 8))) * inch
+                iw, ih = ImageReader(sig_buf).getSize()
+                sig_buf.seek(0)
+                height = width * (ih / max(iw, 1))
+                right_flowable = Image(sig_buf, width=width, height=height)
+            table = Table([[left, right_flowable]], colWidths=[3.0 * inch, 3.5 * inch])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                    ]
+                )
+            )
+            story.append(table)
+            continue
+        style = {
+            "heading": heading,
+            "name": name_style,
+            "field": field,
+            "tight": tight,
+            "closing": closing,
+        }.get(variant, body)
+        indent = int(block.get("indent") or 0)
+        if indent:
+            style = ParagraphStyle(
+                f"Indented{variant}{indent}",
+                parent=style,
+                leftIndent=0.35 * inch * indent,
+            )
+        story.append(Paragraph(text_line, style))
+
+    for stream in image_streams:
+        data = stream.getvalue()
+        width_in, height_in = _picture_size_inches(data)
+        story.append(Spacer(1, 6))
+        story.append(Image(BytesIO(data), width=width_in * inch, height=height_in * inch))
+        story.append(Spacer(1, 4))
+
+    doc.build(story, canvasmaker=NumberedCanvas)
+    return buf.getvalue()
+
+
 def letters_zip_bytes(letters: list[tuple[str, str]]) -> bytes:
-    """Build a ZIP of print-ready .docx files. Each item is (filename_stem, markdown)."""
+    """Build a ZIP of print-ready .pdf files. Each item is (filename_stem, markdown)."""
     import zipfile
 
     buf = BytesIO()
@@ -883,9 +1104,6 @@ def letters_zip_bytes(letters: list[tuple[str, str]]) -> bytes:
                 name = f"{safe} ({n})"
                 n += 1
             used.add(name.lower())
-            document = letter_to_docx(markdown)
-            doc_buf = BytesIO()
-            document.save(doc_buf)
-            zf.writestr(f"{name}.docx", doc_buf.getvalue())
+            zf.writestr(f"{name}.pdf", letter_to_pdf(markdown))
     buf.seek(0)
     return buf.getvalue()

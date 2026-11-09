@@ -479,7 +479,7 @@ export async function confirmLetterPackageSent(params: { packageId?: string; ses
   }>
 }
 
-export function disputeLetterDownloadUrl(sessionId: string, letterId: string, format = 'docx') {
+export function disputeLetterDownloadUrl(sessionId: string, letterId: string, format = 'pdf') {
   return `/api/admin/dispute-letters/${sessionId}/letters/${letterId}/download?format=${format}`
 }
 

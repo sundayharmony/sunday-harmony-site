@@ -173,7 +173,7 @@ export async function buildLetterPackageZipBytes(
       }
     },
   })
-  const files = buildLetterZipFiles(letterFiles).filter((file) => file.name.toLowerCase().endsWith('.docx'))
+  const files = buildLetterZipFiles(letterFiles).filter((file) => file.name.toLowerCase().endsWith('.pdf'))
   if (files.length !== rows.length) {
     throw new Error('ZIP is missing a letter file')
   }

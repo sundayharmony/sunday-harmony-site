@@ -6,10 +6,10 @@ import {
   isStoredLetterDocxPath,
   type LetterDocxSource,
 } from '@/lib/dispute-letters/letter-docx-cache'
-import { isDocxBytes } from '@/lib/dispute-letters/letter-zip'
+import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import { DISPUTE_LETTERS_BUCKET, downloadDisputeLetterBytes } from '@/lib/dispute-letters-storage'
 
-const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const PDF_MIME = 'application/pdf'
 
 export type StoredZipLetter = LetterDocxSource & {
   plan_id?: string
@@ -50,7 +50,7 @@ export async function readStoredLetterBytes(storagePath: string): Promise<Uint8A
   const buf = await downloadDisputeLetterBytes(storagePath)
   if (!buf?.length) return null
   const data = new Uint8Array(buf)
-  return isDocxBytes(data) ? data : null
+  return isPdfBytes(data) ? data : null
 }
 
 export async function readStoredLetterDocxForSession(
@@ -69,20 +69,20 @@ export async function readStoredLetterDocxForSession(
   return readStoredLetterBytes(storagePath)
 }
 
-/** Upload a generated Word file and point the letter row at it so the next ZIP skips the generator. */
+/** Upload a generated PDF letter and point the letter row at it so the next ZIP skips the generator. */
 export async function storeGeneratedLetterDocx(params: {
   sessionId: string
   letterId: string
   data: Uint8Array
 }): Promise<string | null> {
-  if (!isDocxBytes(params.data)) return null
+  if (!isPdfBytes(params.data)) return null
   const storagePath = buildStoredLetterDocxPath(params.sessionId, params.letterId)
   if (!isStoredLetterDocxPath(params.sessionId, storagePath)) return null
 
   const { error } = await getSupabase()
     .storage.from(DISPUTE_LETTERS_BUCKET)
     .upload(storagePath, Buffer.from(params.data), {
-      contentType: DOCX_MIME,
+      contentType: PDF_MIME,
       upsert: true,
     })
   if (error) {

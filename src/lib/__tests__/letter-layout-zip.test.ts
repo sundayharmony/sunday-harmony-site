@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { inflateRawSync } from 'node:zlib'
 import { describe, it } from 'node:test'
 import { letterLayout, replaceLetterSentenceDashes } from '../dispute-letters/letter-layout'
-import { isDocxBytes, uniqueDocxFilename, zipFiles } from '../dispute-letters/letter-zip'
+import { isPdfBytes, uniquePdfFilename, zipFiles } from '../dispute-letters/letter-zip'
 
 const SAMPLE = `September 12, 2026
 
@@ -114,24 +114,24 @@ Enclosures
 })
 
 describe('letter zip packaging', () => {
-  it('names files uniquely as .docx', () => {
+  it('names files uniquely as .pdf', () => {
     const used = new Set<string>()
-    assert.equal(uniqueDocxFilename('Experian — 4 item(s)', used), 'Experian — 4 item(s).docx')
-    assert.equal(uniqueDocxFilename('Experian — 4 item(s)', used), 'Experian — 4 item(s) (2).docx')
+    assert.equal(uniquePdfFilename('Experian — 4 item(s)', used), 'Experian — 4 item(s).pdf')
+    assert.equal(uniquePdfFilename('Experian — 4 item(s)', used), 'Experian — 4 item(s) (2).pdf')
   })
 
   it('zips payloads that inflate back to the original bytes', () => {
-    const payload = Buffer.from('PK\x03\x04fake-docx-body')
+    const payload = Buffer.from('%PDFfake-pdf-body')
     const zip = zipFiles([
-      { name: 'Experian — 4 item(s).docx', data: payload },
-      { name: 'Kikoff.docx', data: payload },
+      { name: 'Experian — 4 item(s).pdf', data: payload },
+      { name: 'Kikoff.pdf', data: payload },
     ])
-    assert.equal(isDocxBytes(payload), true)
+    assert.equal(isPdfBytes(payload), true)
     assert.equal(zip.subarray(0, 2).toString(), 'PK')
-    assert.match(zip.toString('binary'), /Kikoff\.docx/)
+    assert.match(zip.toString('binary'), /Kikoff\.pdf/)
     assert.equal(zip.includes(Buffer.from('.txt')), false)
 
-    const name = Buffer.from('Experian — 4 item(s).docx')
+    const name = Buffer.from('Experian — 4 item(s).pdf')
     const nameStart = zip.indexOf(name)
     const headerStart = nameStart - 30
     const compSize = zip.readUInt32LE(headerStart + 18)

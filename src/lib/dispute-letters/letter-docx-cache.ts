@@ -1,6 +1,6 @@
 import { mapWithConcurrency } from '@/lib/dispute-letters/async-pool'
 import { letterIdsSignature } from '@/lib/dispute-letters/dispute-lifecycle'
-import { isDocxBytes } from '@/lib/dispute-letters/letter-zip'
+import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import { hasSafeStoragePathSegments } from '@/lib/storage-utils'
 
 /** Parallel storage reads when zipping letters that are already built. */
@@ -32,15 +32,15 @@ export type ZipBuildClaimRow = {
 
 export function buildStoredLetterDocxPath(sessionId: string, letterId: string): string {
   const safeLetter = (letterId || '').replace(/[^a-zA-Z0-9-]/g, '')
-  return `sessions/${sessionId}/letters/${safeLetter}.docx`
+  return `sessions/${sessionId}/letters/${safeLetter}.pdf`
 }
 
-/** True when this path is a Word file we stored for the session, not a local generator path or a .txt copy. */
+/** True when this path is a PDF letter we stored for the session, not a local generator path or a .txt copy. */
 export function isStoredLetterDocxPath(sessionId: string, storagePath: string | null | undefined): boolean {
   if (!storagePath || !SESSION_ID.test(sessionId)) return false
   if (!hasSafeStoragePathSegments(storagePath)) return false
   if (!storagePath.startsWith(`sessions/${sessionId}/letters/`)) return false
-  if (!storagePath.toLowerCase().endsWith('.docx')) return false
+  if (!storagePath.toLowerCase().endsWith('.pdf')) return false
   return storagePath.split('/').length === 4
 }
 
@@ -58,7 +58,7 @@ export function isZipBuildInFlight(
 }
 
 /**
- * Zip inputs from stored Word files. Letters that already have a DOCX in storage
+ * Zip inputs from stored PDF letters. Letters that already have a PDF in storage
  * are read with bounded concurrency and never passed to `generateMissing`.
  */
 export async function assembleLetterDocxFiles(
@@ -84,7 +84,7 @@ export async function assembleLetterDocxFiles(
   await mapWithConcurrency(storedIndexes, readConcurrency, async (index) => {
     const letter = params.letters[index]
     const data = await params.readStored(letter.storage_path || '')
-    if (data?.length && isDocxBytes(data)) {
+    if (data?.length && isPdfBytes(data)) {
       results[index] = { title: letter.title || letter.id, data }
       return
     }
@@ -95,8 +95,8 @@ export async function assembleLetterDocxFiles(
   await mapWithConcurrency(toGenerate, LETTER_DOCX_GENERATE_CONCURRENCY, async (index) => {
     const letter = params.letters[index]
     const data = await params.generateMissing(letter)
-    if (!isDocxBytes(data)) {
-      throw new Error(`Letter "${letter.title || letter.id}" was not a Word document`)
+    if (!isPdfBytes(data)) {
+      throw new Error(`Letter "${letter.title || letter.id}" was not a PDF`)
     }
     results[index] = { title: letter.title || letter.id, data }
   })

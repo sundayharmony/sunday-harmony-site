@@ -344,8 +344,8 @@ export default function DisputeLettersResultStep({
                 {l.title}
               </button>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <a href={disputeLetterDownloadUrl(sessionId, l.id, 'docx')} className="text-accent hover:underline">
-                  Download .docx
+                <a href={disputeLetterDownloadUrl(sessionId, l.id, 'pdf')} className="text-accent hover:underline">
+                  Download .pdf
                 </a>
                 {l.sent_at || pkg?.members.some((member) => member.letter_id === l.id && member.sent_at) ? (
                   <span className="font-medium text-green-800">

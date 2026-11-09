@@ -8,12 +8,12 @@ function source(path: string) {
 }
 
 describe('dispute letter downloads and preview', () => {
-  it('defaults individual downloads to docx', () => {
-    assert.match(disputeLetterDownloadUrl('sess', 'letter-1'), /format=docx/)
+  it('defaults individual downloads to pdf', () => {
+    assert.match(disputeLetterDownloadUrl('sess', 'letter-1'), /format=pdf/)
     assert.doesNotMatch(disputeLetterDownloadUrl('sess', 'letter-1'), /format=txt/)
   })
 
-  it('omits txt downloads and keeps a docx ZIP on the result step', () => {
+  it('omits txt downloads and keeps a pdf ZIP on the result step', () => {
     const ui = source('src/components/dispute-letters/DisputeLettersResultStep.tsx')
     const downloadRoute = source(
       'src/app/api/admin/dispute-letters/[id]/letters/[letterId]/download/route.ts'
@@ -26,13 +26,13 @@ describe('dispute letter downloads and preview', () => {
     assert.match(ui, /Confirm All Letters Sent/)
     assert.match(ui, /confirmLetterPackageSent/)
     assert.doesNotMatch(ui, /Mark sent/)
-    assert.match(ui, /Download \.docx/)
-    assert.match(ui, /format = 'docx'|format === 'docx'|['"]docx['"]/)
+    assert.match(ui, /Download \.pdf/)
+    assert.match(ui, /format = 'pdf'|format === 'pdf'|['"]pdf['"]/)
     assert.match(ui, /letter-page/)
     assert.match(ui, /letter-header/)
     assert.match(ui, /letterLayout/)
     assert.match(ui, /Page 1\/1/)
-    assert.match(downloadRoute, /searchParams\.get\('format'\) \|\| 'docx'/)
+    assert.match(downloadRoute, /searchParams\.get\('format'\) \|\| 'pdf'/)
     assert.doesNotMatch(zipRoute, /download\.zip/)
     assert.match(zipRoute, /openReadyLetterPackageZip/)
     assert.match(zipRoute, /getOrBuildLetterPackageZip/)
@@ -64,6 +64,7 @@ describe('dispute letter downloads and preview', () => {
     assert.match(packageZip, /isStoredLetterDocxPath/)
     assert.match(packageZip, /buildLetterZipFiles/)
     assert.match(packageZip, /recordLetterPackageDownload/)
+    assert.match(packageZip, /\.pdf/)
     const prepareRoute = source('src/app/api/admin/dispute-letters/[id]/letters/prepare-zip/route.ts')
     assert.match(prepareRoute, /prepareLetterPackageZip/)
     assert.match(prepareRoute, /maxDuration = 120/)
@@ -77,7 +78,7 @@ describe('dispute letter downloads and preview', () => {
     assert.match(panel, /zipReadyLabel/)
   })
 
-  it('styles the preview like the Word page', () => {
+  it('styles the preview like the printed letter page', () => {
     const css = source('src/components/dispute-letters/letter-preview.css')
     assert.match(css, /width:\s*8\.5in/)
     assert.match(css, /min-height:\s*11in/)

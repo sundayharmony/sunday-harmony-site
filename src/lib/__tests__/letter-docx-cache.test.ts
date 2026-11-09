@@ -13,15 +13,17 @@ import { zipFiles } from '../dispute-letters/letter-zip'
 
 const SESSION = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
 
-function docxBytes(marker: number): Uint8Array {
-  return new Uint8Array([0x50, 0x4b, 0x03, 0x04, marker])
+function pdfBytes(marker: number): Uint8Array {
+  return new Uint8Array([0x25, 0x50, 0x44, 0x46, marker])
 }
 
-describe('stored letter docx paths', () => {
-  it('accepts only a docx object stored for this session', () => {
+describe('stored letter pdf paths', () => {
+  it('accepts only a pdf object stored for this session', () => {
     const path = buildStoredLetterDocxPath(SESSION, 'letter-1')
+    assert.match(path, /\.pdf$/)
     assert.equal(isStoredLetterDocxPath(SESSION, path), true)
     assert.equal(isStoredLetterDocxPath(SESSION, `${path}.txt`), false)
+    assert.equal(isStoredLetterDocxPath(SESSION, `sessions/${SESSION}/letters/letter-1.docx`), false)
     assert.equal(isStoredLetterDocxPath(SESSION, `sessions/${SESSION}/letters/letter-1.txt`), false)
     assert.equal(isStoredLetterDocxPath(SESSION, '/tmp/letters/session/plan.letter'), false)
     assert.equal(isStoredLetterDocxPath('other-session', path), false)
@@ -56,12 +58,12 @@ describe('assembleLetterDocxFiles', () => {
         maxInFlight = Math.max(maxInFlight, inFlight)
         await new Promise((resolve) => setTimeout(resolve, 30))
         inFlight -= 1
-        return docxBytes(readPaths.length)
+        return pdfBytes(readPaths.length)
       },
       generateMissing: async (letter) => {
         generateCalls += 1
         assert.ok(letter.id === 'letter-c' || letter.id === 'letter-d')
-        return docxBytes(9)
+        return pdfBytes(9)
       },
     })
 
@@ -83,16 +85,16 @@ describe('assembleLetterDocxFiles', () => {
     )
 
     const zipped = buildLetterZipFiles(files)
-    assert.ok(zipped.every((file) => file.name.endsWith('.docx')))
+    assert.ok(zipped.every((file) => file.name.endsWith('.pdf')))
     assert.equal(
       zipped.some((file) => file.name.toLowerCase().endsWith('.txt')),
       false
     )
     const archive = zipFiles(zipped)
     assert.equal(archive.includes(Buffer.from('.txt')), false)
-    assert.equal(archive.includes(Buffer.from('Experian — 4 item(s).docx')), true)
-    assert.equal(archive.includes(Buffer.from('Kikoff — 1 item(s).docx')), true)
-    const name = Buffer.from('Equifax — 2 item(s).docx')
+    assert.equal(archive.includes(Buffer.from('Experian — 4 item(s).pdf')), true)
+    assert.equal(archive.includes(Buffer.from('Kikoff — 1 item(s).pdf')), true)
+    const name = Buffer.from('Equifax — 2 item(s).pdf')
     const nameStart = archive.indexOf(name)
     assert.ok(nameStart > 30)
     const headerStart = nameStart - 30
@@ -110,10 +112,10 @@ describe('assembleLetterDocxFiles', () => {
         { id: 'letter-a', title: 'Experian', storage_path: buildStoredLetterDocxPath(SESSION, 'letter-a') },
         { id: 'letter-b', title: 'Equifax', storage_path: buildStoredLetterDocxPath(SESSION, 'letter-b') },
       ],
-      readStored: async () => docxBytes(1),
+      readStored: async () => pdfBytes(1),
       generateMissing: async () => {
         generateCalls += 1
-        return docxBytes(2)
+        return pdfBytes(2)
       },
     })
     assert.equal(generateCalls, 0)

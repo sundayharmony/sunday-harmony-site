@@ -609,6 +609,27 @@ def get_letters(session_id: str, _: None = Depends(verify_internal_secret)) -> d
     return {"session_id": session_id, "letters": cleaned}
 
 
+def _letter_files_for_download(session_id: str, letter, uploaded: list[tuple[str, bytes]] | None = None):
+    files: list[tuple[str, bytes]] = list(uploaded or [])
+    if not files:
+        row = get_session_row(session_id) or {}
+        files = load_application_enclosure_files(row.get("application_uuid"))
+    # Always append disputed-account pages from the uploaded report PDF.
+    files.extend(load_report_account_screenshot_files(session_id, letter))
+    return files
+
+
+def _letter_pdf_response(letter, enclosure_files: list[tuple[str, bytes]] | None = None):
+    from app.services.letter_formatter import letter_to_pdf
+
+    payload = letter_to_pdf(letter.markdown, enclosure_files=enclosure_files or [])
+    return StreamingResponse(
+        BytesIO(payload),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="letter_{letter.id}.pdf"'},
+    )
+
+
 def _letter_docx_response(letter, enclosure_files: list[tuple[str, bytes]] | None = None):
     document = letter_to_docx(letter.markdown, enclosure_files=enclosure_files or [])
     buf = BytesIO()
@@ -625,7 +646,7 @@ def _letter_docx_response(letter, enclosure_files: list[tuple[str, bytes]] | Non
 def download_letter(
     session_id: str,
     letter_id: str,
-    format: str = "docx",
+    format: str = "pdf",
     _: None = Depends(verify_internal_secret),
 ):
     letter = get_letter(session_id, letter_id)
@@ -638,10 +659,10 @@ def download_letter(
             media_type="text/plain",
             headers={"Content-Disposition": f'attachment; filename="letter_{letter_id}.txt"'},
         )
+    files = _letter_files_for_download(session_id, letter)
+    if format == "pdf":
+        return _letter_pdf_response(letter, files)
     if format == "docx":
-        row = get_session_row(session_id) or {}
-        files = load_application_enclosure_files(row.get("application_uuid"))
-        files.extend(load_report_account_screenshot_files(session_id, letter))
         return _letter_docx_response(letter, files)
     raise HTTPException(400, "Unsupported format")
 
@@ -650,25 +671,23 @@ def download_letter(
 async def download_letter_with_enclosures(
     session_id: str,
     letter_id: str,
-    format: str = "docx",
+    format: str = "pdf",
     enclosures: list[UploadFile] = File(default_factory=list),
     _: None = Depends(verify_internal_secret),
 ):
     letter = get_letter(session_id, letter_id)
     if not letter:
         raise HTTPException(404, "Letter not found")
-    if format != "docx":
+    if format not in {"pdf", "docx"}:
         raise HTTPException(400, "Unsupported format")
-    files: list[tuple[str, bytes]] = []
+    uploaded: list[tuple[str, bytes]] = []
     for upload in enclosures or []:
         data = await upload.read()
         if data:
-            files.append((upload.filename or "enclosure.bin", data))
-    if not files:
-        row = get_session_row(session_id) or {}
-        files = load_application_enclosure_files(row.get("application_uuid"))
-    # Always append disputed-account pages from the uploaded report PDF.
-    files.extend(load_report_account_screenshot_files(session_id, letter))
+            uploaded.append((upload.filename or "enclosure.bin", data))
+    files = _letter_files_for_download(session_id, letter, uploaded)
+    if format == "pdf":
+        return _letter_pdf_response(letter, files)
     return _letter_docx_response(letter, files)
 
 

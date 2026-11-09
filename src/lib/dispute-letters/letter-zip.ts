@@ -48,8 +48,23 @@ export function uniqueDocxFilename(stem: string, used: Set<string>): string {
   return uniqueZipFilename(stem || 'letter', 'docx', used)
 }
 
+export function uniquePdfFilename(stem: string, used: Set<string>): string {
+  return uniqueZipFilename(stem || 'letter', 'pdf', used)
+}
+
 export function isDocxBytes(data: Uint8Array): boolean {
   return data.length >= 4 && data[0] === 0x50 && data[1] === 0x4b
+}
+
+/** PDF files start with "%PDF". */
+export function isPdfBytes(data: Uint8Array): boolean {
+  return (
+    data.length >= 4 &&
+    data[0] === 0x25 &&
+    data[1] === 0x50 &&
+    data[2] === 0x44 &&
+    data[3] === 0x46
+  )
 }
 
 /** Build a ZIP of already-encoded files (deflate). */

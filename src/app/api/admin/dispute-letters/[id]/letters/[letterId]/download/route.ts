@@ -25,10 +25,10 @@ export async function GET(request: NextRequest, { params }: Params) {
   const access = await requireDisputeSessionAccess(id, session)
   if (!access.ok) return access.response
 
-  const format = request.nextUrl.searchParams.get('format') || 'docx'
+  const format = request.nextUrl.searchParams.get('format') || 'pdf'
 
   try {
-    if (format === 'docx') {
+    if (format === 'pdf') {
       let data = await readStoredLetterDocxForSession(id, letterId)
       if (!data) {
         const attachments = await loadLetterIdentityAttachments(access.session.application_uuid)
@@ -38,8 +38,8 @@ export async function GET(request: NextRequest, { params }: Params) {
       return new Response(new Uint8Array(data), {
         status: 200,
         headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'Content-Disposition': `attachment; filename="letter_${letterId}.docx"`,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="letter_${letterId}.pdf"`,
         },
       })
     }

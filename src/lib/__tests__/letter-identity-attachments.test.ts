@@ -109,14 +109,14 @@ describe('letter identity attachments', () => {
   })
 
   it('keeps every letter in one folder without separate ID files', () => {
-    const payload = new Uint8Array([0x50, 0x4b, 0x03, 0x04])
+    const payload = new Uint8Array([0x25, 0x50, 0x44, 0x46])
     const files = buildLetterZipFiles([
       { title: 'Experian — 4 item(s)', data: payload },
       { title: 'Equifax — 2 item(s)', data: payload },
     ])
     assert.deepEqual(
       files.map((file) => file.name),
-      ['Experian — 4 item(s).docx', 'Equifax — 2 item(s).docx']
+      ['Experian — 4 item(s).pdf', 'Equifax — 2 item(s).pdf']
     )
     assert.equal(
       files.some((file) => file.name.includes('/')),
@@ -174,11 +174,11 @@ describe('letter identity attachments', () => {
   })
 
   it('still packages letters when identity documents are missing', () => {
-    const payload = new Uint8Array([0x50, 0x4b, 0x03, 0x04])
+    const payload = new Uint8Array([0x25, 0x50, 0x44, 0x46])
     const files = buildLetterZipFiles([{ title: 'Experian — 1 item(s)', data: payload }])
     assert.deepEqual(
       files.map((file) => file.name),
-      ['Experian — 1 item(s).docx']
+      ['Experian — 1 item(s).pdf']
     )
   })
 })
