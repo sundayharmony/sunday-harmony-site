@@ -118,3 +118,47 @@ def test_screenshot_cache_round_trip():
     _cache_put(key, payload)
     assert _cache_get(key) == payload
     _SCREENSHOT_CACHE.clear()
+
+
+def test_report_text_cache_reused_across_letters(monkeypatch):
+    from app.services import report_screenshots as rs
+
+    rs._REPORT_TEXT_CACHE.clear()
+    rs._REPORT_PDF_CACHE.clear()
+    rs._PAGE_JPEG_CACHE.clear()
+    calls = {"extract": 0, "render": 0}
+
+    def fake_extract(pdf_bytes, *, storage_path=""):
+        if storage_path and storage_path in rs._REPORT_TEXT_CACHE:
+            return list(rs._REPORT_TEXT_CACHE[storage_path])
+        calls["extract"] += 1
+        texts = [
+            "CAPITAL ONE Account Number 517805XXXXXX Account Type Credit Card",
+            "ALLY FINANCIAL Account Number 228533XXXXXX Account Type Auto",
+        ]
+        if storage_path:
+            rs._REPORT_TEXT_CACHE[storage_path] = list(texts)
+        return texts
+
+    def fake_render(pdf_bytes, page_numbers, *, dpi=100, storage_path=""):
+        calls["render"] += 1
+        return [b"\xff\xd8\xff" for _ in page_numbers]
+
+    monkeypatch.setattr(rs, "extract_pdf_page_texts", fake_extract)
+    monkeypatch.setattr(rs, "render_pdf_pages_to_jpegs", fake_render)
+
+    pdf = b"%PDF-1.4"
+    path = "sessions/s1/report.pdf"
+    a = rs.screenshot_files_for_items(
+        pdf,
+        [LetterItem(tradeline_id="1", creditor="CAPITAL ONE", account_number="517805XXXXXX")],
+        storage_path=path,
+    )
+    b = rs.screenshot_files_for_items(
+        pdf,
+        [LetterItem(tradeline_id="2", creditor="ALLY FINANCIAL", account_number="228533XXXXXX")],
+        storage_path=path,
+    )
+    assert a and b
+    assert calls["extract"] == 1
+    assert calls["render"] == 2

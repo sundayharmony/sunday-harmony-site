@@ -897,7 +897,10 @@ describe('letter package workflow', () => {
     assert.equal(snapshot.pendingCount, 2)
     assert.equal(snapshot.zipReady, false)
     assert.equal(snapshot.zipStatus, 'pending')
-    assert.equal(zipReadyLabel('building', false), 'Building PDFs with ID + account pages…')
+    assert.equal(
+      zipReadyLabel('building', false),
+      'Building PDFs with ID + account pages (one letter at a time — often 1–3 min)…'
+    )
     assert.equal(zipReadyLabel('ready', true), 'ZIP ready')
     const readyPkg = {
       ...pkg,

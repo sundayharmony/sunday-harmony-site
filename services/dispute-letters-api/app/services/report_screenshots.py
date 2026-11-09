@@ -9,11 +9,18 @@ from io import BytesIO
 
 from app.models import GeneratedLetter, LetterItem
 
-# Process-local cache so a ZIP of N letters does not re-download/re-render the
-# same report pages N times (that pegs free-tier CPU and trips Render health checks).
+# Process-local caches so a ZIP of N letters does not re-download / re-OCR / re-render
+# the same report N times (that pegs free-tier CPU, OOMs the box, and stalls "Building ZIP").
 _SCREENSHOT_CACHE: dict[str, list[tuple[str, bytes]]] = {}
+_REPORT_PDF_CACHE: dict[str, bytes] = {}
+_REPORT_TEXT_CACHE: dict[str, list[str]] = {}
+_PAGE_JPEG_CACHE: dict[str, bytes] = {}
 _SCREENSHOT_CACHE_LOCK = threading.Lock()
 _SCREENSHOT_CACHE_MAX = 24
+_REPORT_PDF_CACHE_MAX = 4
+_REPORT_TEXT_CACHE_MAX = 8
+_PAGE_JPEG_CACHE_MAX = 64
+_DEFAULT_SCREENSHOT_DPI = 100
 
 
 def account_match_tokens(creditor: str, account_number: str) -> list[str]:
@@ -158,8 +165,21 @@ def select_report_pages_for_items(
     return selected
 
 
+def _cache_evict(cache: dict, max_size: int) -> None:
+    while len(cache) >= max_size and cache:
+        cache.pop(next(iter(cache)), None)
+
+
+def _page_jpeg_cache_key(storage_path: str, page_no: int, dpi: int) -> str:
+    return f"{storage_path}\0{page_no}\0{dpi}"
+
+
 def render_pdf_pages_to_jpegs(
-    pdf_bytes: bytes, page_numbers: list[int], *, dpi: int = 110
+    pdf_bytes: bytes,
+    page_numbers: list[int],
+    *,
+    dpi: int = _DEFAULT_SCREENSHOT_DPI,
+    storage_path: str = "",
 ) -> list[bytes]:
     """Render selected 1-based PDF pages to JPEG bytes."""
     if not pdf_bytes or not page_numbers:
@@ -172,6 +192,13 @@ def render_pdf_pages_to_jpegs(
     images: list[bytes] = []
     # One page at a time keeps peak memory lower on Render free tier.
     for page_no in page_numbers:
+        cache_key = _page_jpeg_cache_key(storage_path, page_no, dpi) if storage_path else ""
+        if cache_key:
+            with _SCREENSHOT_CACHE_LOCK:
+                cached = _PAGE_JPEG_CACHE.get(cache_key)
+            if cached is not None:
+                images.append(cached)
+                continue
         try:
             pages = convert_from_bytes(
                 pdf_bytes,
@@ -185,14 +212,24 @@ def render_pdf_pages_to_jpegs(
             continue
         for page in pages:
             buf = BytesIO()
-            page.convert("RGB").save(buf, format="JPEG", quality=80)
-            images.append(buf.getvalue())
+            page.convert("RGB").save(buf, format="JPEG", quality=75)
+            jpeg = buf.getvalue()
+            images.append(jpeg)
+            if cache_key:
+                with _SCREENSHOT_CACHE_LOCK:
+                    _cache_evict(_PAGE_JPEG_CACHE, _PAGE_JPEG_CACHE_MAX)
+                    _PAGE_JPEG_CACHE[cache_key] = jpeg
     return images
 
 
-def extract_pdf_page_texts(pdf_bytes: bytes) -> list[str]:
+def extract_pdf_page_texts(pdf_bytes: bytes, *, storage_path: str = "") -> list[str]:
     if not pdf_bytes:
         return []
+    if storage_path:
+        with _SCREENSHOT_CACHE_LOCK:
+            cached = _REPORT_TEXT_CACHE.get(storage_path)
+        if cached is not None:
+            return list(cached)
     try:
         import pdfplumber
     except Exception:
@@ -204,22 +241,30 @@ def extract_pdf_page_texts(pdf_bytes: bytes) -> list[str]:
                 texts.append(page.extract_text() or "")
     except Exception:
         return []
+    if storage_path and texts:
+        with _SCREENSHOT_CACHE_LOCK:
+            _cache_evict(_REPORT_TEXT_CACHE, _REPORT_TEXT_CACHE_MAX)
+            _REPORT_TEXT_CACHE[storage_path] = list(texts)
     return texts
 
 
 def screenshot_files_for_items(
-    pdf_bytes: bytes, items: list[LetterItem], *, max_pages: int = 6
+    pdf_bytes: bytes,
+    items: list[LetterItem],
+    *,
+    max_pages: int = 6,
+    storage_path: str = "",
 ) -> list[tuple[str, bytes]]:
     """Return enclosure tuples for disputed-account report pages."""
     if not pdf_bytes or not items:
         return []
-    page_texts = extract_pdf_page_texts(pdf_bytes)
+    page_texts = extract_pdf_page_texts(pdf_bytes, storage_path=storage_path)
     if not page_texts:
         return []
     pages = select_report_pages_for_items(page_texts, items, max_pages=max_pages)
     if not pages:
         return []
-    jpegs = render_pdf_pages_to_jpegs(pdf_bytes, pages)
+    jpegs = render_pdf_pages_to_jpegs(pdf_bytes, pages, storage_path=storage_path)
     files: list[tuple[str, bytes]] = []
     for index, data in enumerate(jpegs, start=1):
         files.append((f"Account Evidence {index}.jpg", data))
@@ -290,10 +335,17 @@ def load_report_account_screenshot_files(
         cached = _cache_get(cache_key)
         if cached is not None:
             return cached
-        pdf_bytes = download_storage_bytes(storage_path)
+        with _SCREENSHOT_CACHE_LOCK:
+            pdf_bytes = _REPORT_PDF_CACHE.get(storage_path)
+        if pdf_bytes is None:
+            pdf_bytes = download_storage_bytes(storage_path)
+            if pdf_bytes:
+                with _SCREENSHOT_CACHE_LOCK:
+                    _cache_evict(_REPORT_PDF_CACHE, _REPORT_PDF_CACHE_MAX)
+                    _REPORT_PDF_CACHE[storage_path] = pdf_bytes
         if not pdf_bytes:
             return []
-        files = screenshot_files_for_items(pdf_bytes, items)
+        files = screenshot_files_for_items(pdf_bytes, items, storage_path=storage_path)
         if files:
             _cache_put(cache_key, files)
         return files
