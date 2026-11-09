@@ -309,8 +309,8 @@ export async function fetchLetterDocxWithEnclosures(
 
 /**
  * Letter + identity docs PDF without account-report screenshots.
- * Used for interactive Download .pdf and for ZIP assembly — screenshot rendering on the
- * free-tier letters API routinely exceeds Vercel’s prepare-zip timeout and marks ZIP failed.
+ * Shared by Download .pdf and Download all (ZIP) so both paths return the same packet.
+ * Screenshot rendering on the free-tier API exceeds Vercel timeouts and is skipped.
  */
 export async function fetchLetterPdfForInteractiveDownload(
   sessionId: string,
@@ -323,7 +323,7 @@ export async function fetchLetterPdfForInteractiveDownload(
   )
 }
 
-/** Same payload as interactive download; stored so the next ZIP/download can reuse it. */
+/** Alias: ZIP packages the exact same PDFs as Download .pdf. */
 export async function fetchLetterPdfForPackageZip(
   sessionId: string,
   letterId: string

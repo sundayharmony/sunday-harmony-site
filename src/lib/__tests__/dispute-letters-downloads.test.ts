@@ -43,10 +43,10 @@ describe('dispute letter downloads and preview', () => {
     assert.match(ui, /Photo ID, proof of residence, and Social Security card/)
     assert.match(ui, /zipReadyLabel|zipReady/)
     assert.match(ui, /zipError/)
-    // Interactive + ZIP PDFs skip account screenshots so Vercel does not 504 / mark ZIP failed.
+    // Interactive + ZIP PDFs skip account screenshots; individual downloads are stored for ZIP reuse.
     assert.match(downloadRoute, /fetchLetterPdfForInteractiveDownload/)
     assert.match(downloadRoute, /maxDuration = 120/)
-    assert.doesNotMatch(downloadRoute, /storeGeneratedLetterDocx/)
+    assert.match(downloadRoute, /storeGeneratedLetterDocx/)
     const clientApi = source('src/lib/dispute-letters/client-api.ts')
     assert.match(clientApi, /downloadDisputeLettersZip/)
     assert.match(clientApi, /prepareDisputeLettersZip/)

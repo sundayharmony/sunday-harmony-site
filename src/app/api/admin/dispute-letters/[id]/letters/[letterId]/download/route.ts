@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
 import { fetchLetterPdfForInteractiveDownload } from '@/lib/dispute-letters/letter-identity-attachments'
-import { readStoredLetterDocxForSession } from '@/lib/dispute-letters/letter-docx-store'
+import {
+  readStoredLetterDocxForSession,
+  storeGeneratedLetterDocx,
+} from '@/lib/dispute-letters/letter-docx-store'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-/** Account screenshots are ZIP-only; interactive PDF still needs headroom for identity pages. */
+/** Letter + identity PDFs; same payload the ZIP packages. */
 export const maxDuration = 120
 
 type Params = { params: Promise<{ id: string; letterId: string }> }
@@ -24,11 +27,12 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   try {
     if (format === 'pdf') {
-      // Prefer a package PDF already built for the ZIP (includes account evidence).
+      // Same PDF the ZIP uses: letter body + identity docs (no account screenshots).
       let data = await readStoredLetterDocxForSession(id, letterId)
       if (!data) {
-        // Fast path: letter + ID/SSN only. Do not cache — ZIP must regenerate with evidence.
         data = await fetchLetterPdfForInteractiveDownload(id, letterId)
+        // Cache so Download all (ZIP) can zip these instantly instead of regenerating.
+        await storeGeneratedLetterDocx({ sessionId: id, letterId, data })
       }
       return new Response(new Uint8Array(data), {
         status: 200,
