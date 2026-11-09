@@ -36,7 +36,7 @@ def test_select_pages_for_multiple_disputed_accounts():
         "Cover page scores only Credit Score FICO Summary Your Scores",
         "CAPITAL ONE Account Number 517805XXXXXX Open Reported Status Charge Off",
         "DISCOVERCARD Account Number 601100XXXXXX Late 30 Payment History",
-        "ALLY FINANCIAL Account Number 228533XXXXXX Past due Balance: $100",
+        "ALLY FINANCIAL Account Number 228533XXXXXX Past due Balance: $100 Reported Status Open",
         "VantageScore Score Factor Score Range Bureau Scores",
     ]
     items = [
@@ -47,6 +47,31 @@ def test_select_pages_for_multiple_disputed_accounts():
     assert is_score_summary_page(pages[0])
     assert is_score_summary_page(pages[4])
     assert not is_score_summary_page(pages[2])
+
+
+def test_fico_whats_hurting_page_is_never_selected():
+    fico_page = (
+        "experian Prepared For MICHAEL WEBB Date generated: Nov 8, 2026 "
+        "FICO Bankcard Score 2 684 Good What's hurting "
+        "Serious delinquency You have a serious delinquency (60 days past due or greater) "
+        "High credit usage You've made heavy use of your available revolving credit "
+        "Many new accounts You've recently opened too many new credit accounts "
+        "Bad payment history You have one or more accounts showing missed payments"
+    )
+    assert is_score_summary_page(fico_page)
+    pages = [
+        fico_page,
+        "GREAT EASTERN RESORT C Account Number 771106XXXXXX Reported Status Collection Balance: $500",
+    ]
+    items = [
+        LetterItem(
+            tradeline_id="1",
+            creditor="GREAT EASTERN RESORT C",
+            account_number="771106XXXXXX",
+        )
+    ]
+    # Must not pick the FICO page even though it mentions past due / accounts.
+    assert select_report_pages_for_items(pages, items) == [2]
 
 
 def test_disputed_items_from_letter_markdown():

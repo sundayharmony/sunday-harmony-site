@@ -82,39 +82,60 @@ def page_matches_tokens(page_text: str, tokens: list[str]) -> bool:
 
 
 def is_score_summary_page(page_text: str) -> bool:
-    """True for score/dashboard pages that are not tradeline account detail."""
+    """True for score/dashboard pages that are not tradeline account detail.
+
+    FICO factor copy often says "past due" / "accounts" — those phrases must not
+    override hard score markers like "What's hurting" or "FICO Bankcard Score".
+    """
     blob = re.sub(r"\s+", " ", (page_text or "").upper())
+    # Normalize curly apostrophes so "WHAT'S HURTING" matches extracted PDF text.
+    blob = blob.replace("'", "'").replace("'", "'").replace("'", "'")
     if not blob.strip():
+        return True
+    hard_score_markers = (
+        "WHAT'S HURTING",
+        "WHATS HURTING",
+        "WHAT IS HURTING",
+        "WHAT'S HELPING",
+        "WHATS HELPING",
+        "FICO",
+        "VANTAGESCORE",
+        "BANKCARD SCORE",
+        "CREDIT SCORE",
+        "SCORE FACTOR",
+        "SCORE SUMMARY",
+        "YOUR SCORES",
+        "BUREAU SCORES",
+        "SCORE RANGE",
+        "SCORE GAUGE",
+    )
+    if any(marker in blob for marker in hard_score_markers):
         return True
     has_account_detail = bool(
         re.search(
             r"ACCOUNT\s*(NUMBER|#|NO\.?)|PAYMENT\s*HISTORY|DATE\s*OPENED|"
-            r"HIGH\s*BALANCE|PAST\s*DUE|CREDIT\s*LIMIT|REPORTED\s*STATUS|"
+            r"HIGH\s*BALANCE|CREDIT\s*LIMIT|REPORTED\s*STATUS|"
             r"BALANCE\s*:|ACCOUNT\s*TYPE",
             blob,
         )
     )
     if has_account_detail:
         return False
-    score_signals = 0
-    for needle in (
-        "CREDIT SCORE",
-        "FICO",
-        "VANTAGESCORE",
-        "SCORE FACTOR",
-        "SCORE SUMMARY",
-        "YOUR SCORES",
-        "BUREAU SCORES",
-        "SCORE RANGE",
-    ):
-        if needle in blob:
-            score_signals += 1
-    # Cover pages often say "scores only" with little else.
-    if score_signals >= 1:
-        return True
-    if "SCORE" in blob and len(blob) < 400 and "ACCOUNT" not in blob:
+    if "SCORE" in blob and len(blob) < 800 and not re.search(r"ACCOUNT\s*(NUMBER|#|NO\.?)", blob):
         return True
     return False
+
+
+def page_has_tradeline_detail(page_text: str) -> bool:
+    """Require real tradeline fields — not score-factor prose that mentions accounts."""
+    blob = re.sub(r"\s+", " ", (page_text or "").upper())
+    return bool(
+        re.search(
+            r"ACCOUNT\s*(NUMBER|#|NO\.?)|PAYMENT\s*HISTORY|DATE\s*OPENED|"
+            r"HIGH\s*BALANCE|CREDIT\s*LIMIT|REPORTED\s*STATUS|ACCOUNT\s*TYPE",
+            blob,
+        )
+    )
 
 
 def select_report_pages_for_items(
@@ -124,6 +145,8 @@ def select_report_pages_for_items(
     selected: list[int] = []
     for index, text in enumerate(page_texts, start=1):
         if is_score_summary_page(text):
+            continue
+        if not page_has_tradeline_detail(text):
             continue
         for item in items:
             tokens = account_match_tokens(item.creditor, item.account_number)
@@ -205,6 +228,8 @@ def screenshot_files_for_items(
 
 def _screenshot_cache_key(session_id: str, storage_path: str, items: list[LetterItem]) -> str:
     digest = hashlib.sha1()
+    # Bump when selection rules change so stale score-page caches are skipped.
+    digest.update(b"account-pages-v2")
     digest.update(session_id.encode("utf-8"))
     digest.update(b"\0")
     digest.update(storage_path.encode("utf-8"))
