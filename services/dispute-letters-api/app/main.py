@@ -642,29 +642,34 @@ def _letter_docx_response(letter, enclosure_files: list[tuple[str, bytes]] | Non
     )
 
 
-@app.get("/internal/letters/{session_id}/{letter_id}/download")
-def download_letter(
-    session_id: str,
-    letter_id: str,
-    format: str = "pdf",
-    _: None = Depends(verify_internal_secret),
-):
-    letter = get_letter(session_id, letter_id)
-    if not letter:
-        raise HTTPException(404, "Letter not found")
+def _build_letter_download(session_id: str, letter, format: str, uploaded: list[tuple[str, bytes]] | None = None):
+    """CPU/memory-heavy PDF build — keep off the asyncio event loop."""
     body = finalize_letter(letter.markdown)
     if format in ("md", "txt"):
         return StreamingResponse(
             BytesIO(body.encode("utf-8")),
             media_type="text/plain",
-            headers={"Content-Disposition": f'attachment; filename="letter_{letter_id}.txt"'},
+            headers={"Content-Disposition": f'attachment; filename="letter_{letter.id}.txt"'},
         )
-    files = _letter_files_for_download(session_id, letter)
+    files = _letter_files_for_download(session_id, letter, uploaded)
     if format == "pdf":
         return _letter_pdf_response(letter, files)
     if format == "docx":
         return _letter_docx_response(letter, files)
     raise HTTPException(400, "Unsupported format")
+
+
+@app.get("/internal/letters/{session_id}/{letter_id}/download")
+async def download_letter(
+    session_id: str,
+    letter_id: str,
+    format: str = "pdf",
+    _: None = Depends(verify_internal_secret),
+):
+    letter = await asyncio.to_thread(get_letter, session_id, letter_id)
+    if not letter:
+        raise HTTPException(404, "Letter not found")
+    return await asyncio.to_thread(_build_letter_download, session_id, letter, format)
 
 
 @app.post("/internal/letters/{session_id}/{letter_id}/download")
@@ -675,7 +680,7 @@ async def download_letter_with_enclosures(
     enclosures: list[UploadFile] = File(default_factory=list),
     _: None = Depends(verify_internal_secret),
 ):
-    letter = get_letter(session_id, letter_id)
+    letter = await asyncio.to_thread(get_letter, session_id, letter_id)
     if not letter:
         raise HTTPException(404, "Letter not found")
     if format not in {"pdf", "docx"}:
@@ -685,10 +690,7 @@ async def download_letter_with_enclosures(
         data = await upload.read()
         if data:
             uploaded.append((upload.filename or "enclosure.bin", data))
-    files = _letter_files_for_download(session_id, letter, uploaded)
-    if format == "pdf":
-        return _letter_pdf_response(letter, files)
-    return _letter_docx_response(letter, files)
+    return await asyncio.to_thread(_build_letter_download, session_id, letter, format, uploaded)
 
 
 @app.get("/internal/letters/{session_id}/download.zip")

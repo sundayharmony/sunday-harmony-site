@@ -700,10 +700,17 @@ def enclosure_image_streams(files: list[tuple[str, bytes]]) -> list[BytesIO]:
             try:
                 from pdf2image import convert_from_bytes
 
-                pages = convert_from_bytes(data, dpi=140, fmt="jpeg", first_page=1, last_page=2)
+                pages = convert_from_bytes(
+                    data,
+                    dpi=110,
+                    fmt="jpeg",
+                    first_page=1,
+                    last_page=2,
+                    thread_count=1,
+                )
                 for page in pages:
                     buf = BytesIO()
-                    page.convert("RGB").save(buf, format="JPEG", quality=85)
+                    page.convert("RGB").save(buf, format="JPEG", quality=80)
                     jpeg = normalize_enclosure_to_jpeg(buf.getvalue())
                     if jpeg:
                         streams.append(BytesIO(jpeg))

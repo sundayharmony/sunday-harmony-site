@@ -6,6 +6,10 @@ from pathlib import Path
 
 from app.models import LetterItem
 from app.services.report_screenshots import (
+    _SCREENSHOT_CACHE,
+    _cache_get,
+    _cache_put,
+    _screenshot_cache_key,
     account_match_tokens,
     disputed_items_from_letter_markdown,
     page_matches_tokens,
@@ -73,3 +77,14 @@ def test_screenshot_files_for_equifax_pdf_when_poppler_available():
     files = screenshot_files_for_items(pdf_path.read_bytes(), items, max_pages=4)
     assert files, "expected at least one account evidence JPEG from Equifax PDF"
     assert all(name.startswith("Account Evidence") and data[:2] == b"\xff\xd8" for name, data in files)
+
+
+def test_screenshot_cache_round_trip():
+    _SCREENSHOT_CACHE.clear()
+    items = [LetterItem(tradeline_id="1", creditor="ALLY", account_number="1234")]
+    key = _screenshot_cache_key("sess", "reports/a.pdf", items)
+    assert _cache_get(key) is None
+    payload = [("Account Evidence 1.jpg", b"\xff\xd8\xff")]
+    _cache_put(key, payload)
+    assert _cache_get(key) == payload
+    _SCREENSHOT_CACHE.clear()

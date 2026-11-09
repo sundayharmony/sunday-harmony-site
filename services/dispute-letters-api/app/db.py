@@ -13,6 +13,14 @@ def init_db() -> None:
     """No-op: schema managed by Supabase migration 022."""
 
 
+def _row_data(row) -> dict | None:
+    """Safe `.data` for supabase-py maybe_single (execute can return None)."""
+    if row is None:
+        return None
+    data = getattr(row, "data", None)
+    return data if isinstance(data, dict) else None
+
+
 def get_session(session_id: str) -> tuple[str, str, ParsedReport] | None:
     client = get_supabase()
     row = (
@@ -22,7 +30,7 @@ def get_session(session_id: str) -> tuple[str, str, ParsedReport] | None:
         .maybe_single()
         .execute()
     )
-    data = row.data
+    data = _row_data(row)
     if not data or not data.get("report_json"):
         return None
     report = ParsedReport.model_validate(data["report_json"])
@@ -32,7 +40,7 @@ def get_session(session_id: str) -> tuple[str, str, ParsedReport] | None:
 def get_session_row(session_id: str) -> dict | None:
     client = get_supabase()
     row = client.table("dispute_sessions").select("*").eq("id", session_id).maybe_single().execute()
-    return row.data
+    return _row_data(row)
 
 
 def set_session_status(session_id: str, status: str, *, error_message: str | None = None) -> None:
@@ -83,7 +91,7 @@ def get_letter_plan(session_id: str) -> LetterPlanResponse | None:
         .maybe_single()
         .execute()
     )
-    data = row.data
+    data = _row_data(row)
     if not data or not data.get("plans_json"):
         return None
     plans = [LetterPlan.model_validate(p) for p in data["plans_json"]]
@@ -164,15 +172,18 @@ def prepare_session_letters_for_generation(
 
 def get_letter(session_id: str, letter_id: str) -> GeneratedLetter | None:
     client = get_supabase()
-    row = (
-        client.table("dispute_letters")
-        .select("*")
-        .eq("session_id", session_id)
-        .eq("id", letter_id)
-        .maybe_single()
-        .execute()
-    )
-    data = row.data
+    try:
+        row = (
+            client.table("dispute_letters")
+            .select("*")
+            .eq("session_id", session_id)
+            .eq("id", letter_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception:
+        return None
+    data = _row_data(row)
     if not data:
         return None
     return _letter_from_row(data)

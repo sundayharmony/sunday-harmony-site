@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+import threading
 from io import BytesIO
 
 from app.models import GeneratedLetter, LetterItem
+
+# Process-local cache so a ZIP of N letters does not re-download/re-render the
+# same report pages N times (that pegs free-tier CPU and trips Render health checks).
+_SCREENSHOT_CACHE: dict[str, list[tuple[str, bytes]]] = {}
+_SCREENSHOT_CACHE_LOCK = threading.Lock()
+_SCREENSHOT_CACHE_MAX = 24
 
 
 def account_match_tokens(creditor: str, account_number: str) -> list[str]:
@@ -90,7 +98,7 @@ def select_report_pages_for_items(
 
 
 def render_pdf_pages_to_jpegs(
-    pdf_bytes: bytes, page_numbers: list[int], *, dpi: int = 140
+    pdf_bytes: bytes, page_numbers: list[int], *, dpi: int = 110
 ) -> list[bytes]:
     """Render selected 1-based PDF pages to JPEG bytes."""
     if not pdf_bytes or not page_numbers:
@@ -101,7 +109,7 @@ def render_pdf_pages_to_jpegs(
         return []
 
     images: list[bytes] = []
-    # Convert contiguous ranges when possible for speed.
+    # One page at a time keeps peak memory lower on Render free tier.
     for page_no in page_numbers:
         try:
             pages = convert_from_bytes(
@@ -110,12 +118,13 @@ def render_pdf_pages_to_jpegs(
                 fmt="jpeg",
                 first_page=page_no,
                 last_page=page_no,
+                thread_count=1,
             )
         except Exception:
             continue
         for page in pages:
             buf = BytesIO()
-            page.convert("RGB").save(buf, format="JPEG", quality=85)
+            page.convert("RGB").save(buf, format="JPEG", quality=80)
             images.append(buf.getvalue())
     return images
 
@@ -138,7 +147,7 @@ def extract_pdf_page_texts(pdf_bytes: bytes) -> list[str]:
 
 
 def screenshot_files_for_items(
-    pdf_bytes: bytes, items: list[LetterItem], *, max_pages: int = 8
+    pdf_bytes: bytes, items: list[LetterItem], *, max_pages: int = 6
 ) -> list[tuple[str, bytes]]:
     """Return enclosure tuples for disputed-account report pages."""
     if not pdf_bytes or not items:
@@ -154,6 +163,34 @@ def screenshot_files_for_items(
     for index, data in enumerate(jpegs, start=1):
         files.append((f"Account Evidence {index}.jpg", data))
     return files
+
+
+def _screenshot_cache_key(session_id: str, storage_path: str, items: list[LetterItem]) -> str:
+    digest = hashlib.sha1()
+    digest.update(session_id.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(storage_path.encode("utf-8"))
+    for item in items:
+        digest.update(b"\0")
+        digest.update((item.creditor or "").encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((item.account_number or "").encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _cache_get(key: str) -> list[tuple[str, bytes]] | None:
+    with _SCREENSHOT_CACHE_LOCK:
+        hit = _SCREENSHOT_CACHE.get(key)
+        return list(hit) if hit is not None else None
+
+
+def _cache_put(key: str, files: list[tuple[str, bytes]]) -> None:
+    with _SCREENSHOT_CACHE_LOCK:
+        if key not in _SCREENSHOT_CACHE and len(_SCREENSHOT_CACHE) >= _SCREENSHOT_CACHE_MAX:
+            # Drop an arbitrary oldest-inserted key (CPython dict order).
+            oldest = next(iter(_SCREENSHOT_CACHE))
+            _SCREENSHOT_CACHE.pop(oldest, None)
+        _SCREENSHOT_CACHE[key] = list(files)
 
 
 def letter_dispute_items(session_id: str, letter: GeneratedLetter) -> list[LetterItem]:
@@ -186,9 +223,16 @@ def load_report_account_screenshot_files(
         items = letter_dispute_items(session_id, letter)
         if not items:
             return []
+        cache_key = _screenshot_cache_key(session_id, storage_path, items)
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
         pdf_bytes = download_storage_bytes(storage_path)
         if not pdf_bytes:
             return []
-        return screenshot_files_for_items(pdf_bytes, items)
+        files = screenshot_files_for_items(pdf_bytes, items)
+        if files:
+            _cache_put(cache_key, files)
+        return files
     except Exception:
         return []
