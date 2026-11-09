@@ -77,6 +77,37 @@ describe('reportNeedsModelRead', () => {
     ]
     assert.equal(reportNeedsModelRead(report), true)
   })
+
+  it('triggers when creditors are SmartCredit field-label junk', () => {
+    const report = emptyReport()
+    report.extraction_quality = 'medium'
+    report.tradelines = [
+      {
+        id: 'bad1',
+        creditor: 'Payment Amount:',
+        account_tu: '',
+        account_exp: '74HO4M',
+        account_eqf: '',
+        account_type: 'Sales Contract',
+        status: 'Seriously past due date /',
+        balance: '$498',
+        past_due: '',
+        remarks: '',
+        bureaus: ['EXP'],
+        is_collection: false,
+        selected: false,
+        dispute_reason: '',
+        analysis_notes: '',
+        suggested_dispute_reason: '',
+        dispute_bureaus: [],
+        dispute_furnisher: true,
+        legal_flags: [],
+        repair_priority: 'none',
+        item_category: '',
+      },
+    ]
+    assert.equal(reportNeedsModelRead(report), true)
+  })
 })
 
 describe('needsGeminiReportFallback', () => {

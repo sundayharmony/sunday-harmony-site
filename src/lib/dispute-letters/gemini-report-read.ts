@@ -163,10 +163,10 @@ export function reportNeedsModelRead(report: ParsedReport | null | undefined): b
   if (quality === 'low' || quality === 'weak' || quality === 'ocr_poor' || quality === 'poor') {
     return true
   }
-  const named = tls.filter((t) => (t.creditor || '').trim().length > 1)
-  if (named.length === 0) return true
-  // Credit Hero OCR sometimes keeps balances but labels creditors as "Unnamed · …"
-  const provisional = tls.filter((t) => /^unnamed\b/i.test((t.creditor || '').trim()))
+  if (namedCreditorCount(tls) === 0) return true
+  // Credit Hero OCR / SmartCredit mis-parses often keep balances but label creditors
+  // as "Unnamed · …" or field chrome like "Payment Amount:".
+  const provisional = tls.filter((t) => isProvisionalCreditor(t.creditor || ''))
   if (provisional.length > 0 && provisional.length >= Math.ceil(tls.length / 2)) {
     return true
   }
@@ -188,7 +188,11 @@ export function isProvisionalCreditor(name: string): boolean {
   const cleaned = (name || '').trim()
   if (!cleaned) return true
   if (/^unnamed\b/i.test(cleaned)) return true
-  return /^(unknown|n\/a|none|creditor)$/i.test(cleaned)
+  if (/^(unknown|n\/a|none|creditor)$/i.test(cleaned)) return true
+  // SmartCredit/OCR sometimes promote row labels into the creditor slot.
+  return /^(?:payment amount|monthly payment|account #|account number|high balance|balance owed|past due(?: amount)?|credit limit|date opened|payment status|account status|account type|subscriber|creditor remarks)\s*:?\s*$/i.test(
+    cleaned
+  )
 }
 
 /** Real furnisher names only — provisional "Unnamed · …" placeholders do not count. */
