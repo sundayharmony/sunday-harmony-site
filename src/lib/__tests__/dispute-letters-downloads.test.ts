@@ -21,7 +21,7 @@ describe('dispute letter downloads and preview', () => {
     const zipRoute = source('src/app/api/admin/dispute-letters/[id]/letters/download-zip/route.ts')
     assert.doesNotMatch(ui, /Download \.txt/)
     assert.doesNotMatch(ui, /format.*txt/)
-    assert.match(ui, /Download all \(ZIP\)/)
+    assert.match(ui, /zipDownloadButtonLabel/)
     assert.match(ui, /downloadDisputeLettersZip/)
     assert.match(ui, /Confirm All Letters Sent/)
     assert.match(ui, /confirmLetterPackageSent/)
@@ -41,9 +41,9 @@ describe('dispute letter downloads and preview', () => {
     assert.doesNotMatch(zipRoute, /markLetterSent/)
     assert.doesNotMatch(zipRoute, /sent_at/)
     assert.match(ui, /Photo ID, proof of residence, and Social Security card/)
-    assert.match(ui, /Building ZIP|Preparing ZIP|Downloading/)
     assert.match(ui, /zipReadyLabel|zipReady/)
-    // Interactive PDF skips account screenshots so Vercel does not 504; ZIP keeps full evidence.
+    assert.match(ui, /zipError/)
+    // Interactive + ZIP PDFs skip account screenshots so Vercel does not 504 / mark ZIP failed.
     assert.match(downloadRoute, /fetchLetterPdfForInteractiveDownload/)
     assert.match(downloadRoute, /maxDuration = 120/)
     assert.doesNotMatch(downloadRoute, /storeGeneratedLetterDocx/)
@@ -66,8 +66,8 @@ describe('dispute letter downloads and preview', () => {
     assert.match(packageZip, /openReadyLetterPackageZip/)
     assert.match(packageZip, /getOrBuildLetterPackageZip/)
     assert.match(packageZip, /assembleLetterDocxFiles/)
-    // ZIP generate uses plain PDF GET so Python attaches enclosures (no FormData per letter).
-    assert.match(packageZip, /fetchLetterDocxWithEnclosures\(sessionId, letter\.id, \[\]\)/)
+    // ZIP generate uses letter+identity PDFs (no account screenshots) so prepare-zip finishes.
+    assert.match(packageZip, /fetchLetterPdfForPackageZip/)
     assert.match(packageZip, /isStoredLetterDocxPath/)
     assert.match(packageZip, /buildLetterZipFiles/)
     assert.match(packageZip, /recordLetterPackageDownload/)
@@ -83,7 +83,7 @@ describe('dispute letter downloads and preview', () => {
     assert.match(generateRoute, /bypass_missing_identity|canBypass/)
     const panel = source('src/components/dispute-letters/DisputeRoundsPanel.tsx')
     assert.match(panel, /downloadDisputeLettersZip/)
-    assert.match(panel, /Building ZIP|Preparing ZIP|Downloading/)
+    assert.match(panel, /zipDownloadButtonLabel|Building ZIP|Downloading/)
     assert.match(panel, /zipReadyLabel/)
   })
 
@@ -101,7 +101,7 @@ describe('dispute letter downloads and preview', () => {
     const lifecycle = source('src/app/api/admin/dispute-letters/lifecycle/route.ts')
     assert.match(panel, /Confirm All Letters Sent/)
     assert.match(panel, /Letter package/)
-    assert.match(panel, /Download again/)
+    assert.match(panel, /zipDownloadButtonLabel/)
     assert.match(panel, /Photo ID, proof of residence, and Social Security card are in each letter/)
     assert.doesNotMatch(panel, /ITEM_OUTCOMES/)
     assert.doesNotMatch(panel, /Mark sent/)

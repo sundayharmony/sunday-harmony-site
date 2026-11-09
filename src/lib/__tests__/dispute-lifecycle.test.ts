@@ -8,6 +8,7 @@ import {
   buildLetterPackageSnapshot,
   isLetterPackageZipReady,
   letterPackageZipStatus,
+  zipDownloadButtonLabel,
   zipReadyLabel,
   chunkItems,
   comparisonUpdatesForItems,
@@ -897,11 +898,22 @@ describe('letter package workflow', () => {
     assert.equal(snapshot.pendingCount, 2)
     assert.equal(snapshot.zipReady, false)
     assert.equal(snapshot.zipStatus, 'pending')
-    assert.equal(
-      zipReadyLabel('building', false),
-      'Building PDFs with ID + account pages (one letter at a time — often 1–3 min)…'
-    )
+    assert.equal(zipReadyLabel('building', false), 'Building letter PDFs for ZIP…')
+    assert.equal(zipReadyLabel('pending', false), 'ZIP not ready yet')
+    assert.equal(zipReadyLabel('failed', false), 'ZIP needs rebuild')
     assert.equal(zipReadyLabel('ready', true), 'ZIP ready')
+    assert.equal(
+      zipDownloadButtonLabel({ busy: false, zipReady: false, zipStatus: 'pending' }),
+      'Download all (ZIP)'
+    )
+    assert.equal(
+      zipDownloadButtonLabel({ busy: false, zipReady: false, zipStatus: 'failed' }),
+      'Retry ZIP'
+    )
+    assert.equal(
+      zipDownloadButtonLabel({ busy: true, zipReady: false, zipStatus: 'building' }),
+      'Building ZIP…'
+    )
     const readyPkg = {
       ...pkg,
       zip_status: 'ready' as const,

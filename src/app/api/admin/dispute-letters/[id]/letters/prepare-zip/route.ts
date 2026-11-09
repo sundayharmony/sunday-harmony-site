@@ -59,6 +59,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
       ok: true,
       status: pkg?.zipStatus || 'pending',
       zipReady: Boolean(pkg?.zipReady),
+      error: pkg?.zipError || pkg?.package.zip_error || null,
       packageId: pkg?.package.id || null,
       letterCount: pkg?.generatedCount || 0,
     })

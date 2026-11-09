@@ -7,6 +7,7 @@ import {
   formatStatusHistory,
   itemStatusLabel,
   letterPackageDisplayCode,
+  zipDownloadButtonLabel,
   zipReadyLabel,
   notYetDisputedFromItems,
   type DisputeCfpbEscalationRow,
@@ -505,6 +506,7 @@ function LetterPackageCard({
               ? ' · ZIP Downloaded ✓'
               : ` · ${zipReadyLabel(pkg.zipStatus, pkg.zipReady)}`}
             {allSent ? ' · Sent confirmation recorded' : downloaded ? ' · Ready to Send' : ''}
+            {pkg.zipStatus === 'failed' && pkg.zipError ? ` · ${pkg.zipError}` : ''}
             {' · Photo ID, proof of residence, and Social Security card are in each letter'}
           </p>
         </div>
@@ -512,19 +514,16 @@ function LetterPackageCard({
           {sessionId && (
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || pkg.zipStatus === 'building'}
               onClick={() => void downloadZip()}
               className="rounded px-2 py-1 text-xs font-semibold border border-brand-border bg-white hover:bg-neutral-50 disabled:opacity-50"
             >
-              {busy
-                ? pkg.zipReady
-                  ? 'Downloading…'
-                  : 'Building ZIP…'
-                : !pkg.zipReady
-                  ? 'Building ZIP…'
-                  : downloaded
-                    ? 'Download again'
-                    : 'Download ZIP'}
+              {zipDownloadButtonLabel({
+                busy,
+                zipReady: pkg.zipReady,
+                zipStatus: pkg.zipStatus,
+                downloaded,
+              })}
             </button>
           )}
           {!allSent && (

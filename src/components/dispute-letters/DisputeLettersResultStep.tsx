@@ -14,7 +14,11 @@ import {
   prepareDisputeLettersZip,
 } from '@/lib/dispute-letters/client-api'
 import type { LetterPackageSnapshot } from '@/lib/dispute-letters/dispute-lifecycle'
-import { letterPackageDisplayCode, zipReadyLabel } from '@/lib/dispute-letters/dispute-lifecycle'
+import {
+  letterPackageDisplayCode,
+  zipDownloadButtonLabel,
+  zipReadyLabel,
+} from '@/lib/dispute-letters/dispute-lifecycle'
 import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
@@ -255,8 +259,11 @@ export default function DisputeLettersResultStep({
                 ? 'ZIP Downloaded ✓'
                 : pkg
                   ? zipReadyLabel(pkg.zipStatus, pkg.zipReady)
-                  : 'Building PDFs with ID + account pages…'}
+                  : 'ZIP not ready yet'}
               {!downloaded && pkg?.zipReady ? ' · ready to download' : ''}
+              {!downloaded && pkg?.zipStatus === 'failed' && pkg.zipError
+                ? ` · ${pkg.zipError}`
+                : ''}
             </li>
             <li>
               {allSent
@@ -269,19 +276,16 @@ export default function DisputeLettersResultStep({
           {letters.length > 0 && (
             <button
               type="button"
-              disabled={busy === 'zip'}
+              disabled={busy === 'zip' || pkg?.zipStatus === 'building'}
               onClick={() => void downloadZip()}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {busy === 'zip'
-                ? pkg?.zipReady
-                  ? 'Downloading…'
-                  : 'Building ZIP…'
-                : !pkg?.zipReady && letters.length
-                  ? 'Building ZIP…'
-                  : downloaded
-                    ? 'Download again'
-                    : 'Download all (ZIP)'}
+              {zipDownloadButtonLabel({
+                busy: busy === 'zip',
+                zipReady: Boolean(pkg?.zipReady),
+                zipStatus: pkg?.zipStatus,
+                downloaded,
+              })}
             </button>
           )}
           {letters.length > 0 && !allSent && (

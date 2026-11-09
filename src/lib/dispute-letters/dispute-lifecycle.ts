@@ -212,6 +212,7 @@ export interface LetterPackageSnapshot {
   /** True when a matching prebuilt ZIP is stored and ready for fast download. */
   zipReady: boolean
   zipStatus: LetterPackageZipStatus
+  zipError: string | null
   workflow: RoundWorkflowView
 }
 
@@ -412,11 +413,27 @@ export function isLetterPackageZipReady(pkg: LetterPackageRow | null | undefined
 
 export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
   if (zipReady || status === 'ready') return 'ZIP ready'
-  if (status === 'building') {
-    return 'Building PDFs with ID + account pages (one letter at a time — often 1–3 min)…'
-  }
+  if (status === 'building') return 'Building letter PDFs for ZIP…'
   if (status === 'failed') return 'ZIP needs rebuild'
-  return 'Building PDFs with ID + account pages (one letter at a time — often 1–3 min)…'
+  return 'ZIP not ready yet'
+}
+
+/** Idle vs in-progress label for the Download ZIP control. */
+export function zipDownloadButtonLabel(params: {
+  busy: boolean
+  zipReady: boolean
+  zipStatus?: LetterPackageZipStatus | null
+  downloaded?: boolean
+}): string {
+  if (params.busy) {
+    return params.zipReady ? 'Downloading…' : 'Building ZIP…'
+  }
+  if (params.zipReady) {
+    return params.downloaded ? 'Download again' : 'Download all (ZIP)'
+  }
+  if (params.zipStatus === 'building') return 'Building ZIP…'
+  if (params.zipStatus === 'failed') return 'Retry ZIP'
+  return 'Download all (ZIP)'
 }
 
 export function buildLetterPackageSnapshot(params: {
@@ -446,6 +463,7 @@ export function buildLetterPackageSnapshot(params: {
     allSent: selectedCount > 0 && sentCount >= selectedCount,
     zipReady,
     zipStatus,
+    zipError: params.package.zip_error || null,
     workflow,
   }
 }

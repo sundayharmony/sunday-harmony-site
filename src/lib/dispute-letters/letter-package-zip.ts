@@ -32,7 +32,7 @@ import {
 } from '@/lib/dispute-letters/letter-docx-store'
 import {
   buildLetterZipFiles,
-  fetchLetterDocxWithEnclosures,
+  fetchLetterPdfForPackageZip,
 } from '@/lib/dispute-letters/letter-identity-attachments'
 import { zipFiles } from '@/lib/dispute-letters/letter-zip'
 import {
@@ -151,9 +151,9 @@ export async function buildLetterPackageZipBytes(
     generateMissing: async (letter) => {
       generatedCount += 1
       try {
-        // Plain GET: Python attaches ID + SSN + account screenshots itself.
-        // Avoids re-uploading enclosure FormData for every letter (was a major ZIP delay).
-        const data = await fetchLetterDocxWithEnclosures(sessionId, letter.id, [])
+        // Letter + identity only. Account screenshots OOM/timeout the free-tier API and
+        // cause Vercel prepare-zip to mark the package failed after a multi-minute wait.
+        const data = await fetchLetterPdfForPackageZip(sessionId, letter.id)
         await storeGeneratedLetterDocx({ sessionId, letterId: letter.id, data })
         return data
       } catch (error) {
@@ -444,5 +444,10 @@ export async function getOrBuildLetterPackageZip(sessionId: string): Promise<{
   }
 }
 
-export { letterPackageZipStatus, isLetterPackageZipReady, zipReadyLabel } from '@/lib/dispute-letters/dispute-lifecycle'
+export {
+  letterPackageZipStatus,
+  isLetterPackageZipReady,
+  zipDownloadButtonLabel,
+  zipReadyLabel,
+} from '@/lib/dispute-letters/dispute-lifecycle'
 export { isZipBuildInFlight, isStoredLetterDocxPath, assembleLetterDocxFiles } from '@/lib/dispute-letters/letter-docx-cache'
