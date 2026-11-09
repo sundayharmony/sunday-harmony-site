@@ -1,6 +1,8 @@
 import { revealApplicationSensitiveFieldResult } from '@/lib/credit-funding-admin'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
+import { decryptApplicationOperationalFields } from '@/lib/credit-funding-sensitive-fields'
 import { getDisputeSessionById } from '@/lib/dispute-letters/db'
+import { isEncryptedField } from '@/lib/field-encryption'
 import { formatSsnFull, normalizeSsnDigits } from '@/lib/ssn-utils'
 
 export type LetterConsumerIdentity = {
@@ -33,16 +35,23 @@ export function formatSsnForLetter(raw: string): string {
   return raw.trim()
 }
 
-/** Build one mailing line from intake address fields. */
+function cleanAddressPart(value: unknown): string {
+  const text = String(value || '').trim()
+  // Never surface ciphertext in letter identity fields.
+  if (!text || isEncryptedField(text) || text.startsWith('enc:v1:')) return ''
+  return text
+}
+
+/** Build one mailing line from intake address fields (already decrypted). */
 export function formatAddressForLetter(app: {
   address?: string | null
   city?: string | null
   state?: string | null
   zip_code?: string | null
 }): string {
-  const street = String(app.address || '').trim()
-  const region = [app.city, app.state].map((part) => String(part || '').trim()).filter(Boolean).join(', ')
-  const cityLine = [region, String(app.zip_code || '').trim()].filter(Boolean).join(' ')
+  const street = cleanAddressPart(app.address)
+  const region = [cleanAddressPart(app.city), cleanAddressPart(app.state)].filter(Boolean).join(', ')
+  const cityLine = [region, cleanAddressPart(app.zip_code)].filter(Boolean).join(' ')
   return [street, cityLine].filter(Boolean).join(', ')
 }
 
@@ -76,7 +85,9 @@ export async function loadLetterConsumerIdentity(
   const ssn = ssnResult.ok ? formatSsnForLetter(ssnResult.value) : null
   const dob = dobResult.ok ? formatDobForLetter(dobResult.value) : null
   const name = String(app.full_name || '').trim() || null
-  const address = formatAddressForLetter(app)
+  // Address/city/state/zip are stored encrypted on the application row.
+  const decrypted = decryptApplicationOperationalFields(app)
+  const address = formatAddressForLetter(decrypted)
 
   return {
     name,
@@ -101,11 +112,17 @@ export function resolveLetterConsumerFields(
 } {
   const bodyName = typeof body.consumer_name === 'string' ? body.consumer_name.trim() : ''
   const bodyAddresses = Array.isArray(body.consumer_addresses)
-    ? body.consumer_addresses.map((line) => String(line || '').trim()).filter(Boolean)
+    ? body.consumer_addresses
+        .map((line) => String(line || '').trim())
+        .filter((line) => line && !isEncryptedField(line) && !line.startsWith('enc:v1:'))
     : []
   return {
     consumer_name: bodyName || identity.name,
-    consumer_addresses: bodyAddresses.length ? bodyAddresses : identity.addresses.length ? identity.addresses : null,
+    consumer_addresses: bodyAddresses.length
+      ? bodyAddresses
+      : identity.addresses.length
+        ? identity.addresses
+        : null,
     consumer_ssn: identity.ssn,
     consumer_dob: identity.dob,
   }

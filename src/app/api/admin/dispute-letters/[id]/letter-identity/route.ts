@@ -18,6 +18,7 @@ import {
   type LetterIdentityRequirementKey,
 } from '@/lib/dispute-letters/letter-identity-attachments'
 import { formatAddressForLetter } from '@/lib/dispute-letters/letter-consumer-identity'
+import { decryptApplicationOperationalFields } from '@/lib/credit-funding-sensitive-fields'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 
@@ -53,7 +54,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const application = await getCreditFundingApplicationById(applicationUuid)
     const intakeName = String(application?.full_name || '').trim() || null
-    const intakeAddress = application ? formatAddressForLetter(application) : ''
+    const intakeAddress = application
+      ? formatAddressForLetter(decryptApplicationOperationalFields(application))
+      : ''
     const docs = await getDocumentsByApplicationUuid(applicationUuid)
     const items = await Promise.all(
       LETTER_IDENTITY_REQUIREMENTS.map(async (requirement) => {

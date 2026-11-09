@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, it } from 'node:test'
+import { decryptApplicationOperationalFields } from '../credit-funding-sensitive-fields'
+import { encryptField } from '../field-encryption'
 import {
   formatAddressForLetter,
   formatDobForLetter,
@@ -30,6 +32,37 @@ describe('letter consumer identity', () => {
       }),
       '4 Meadow Cir, Mays Landing, NJ 08330'
     )
+  })
+
+  it('does not format encrypted address ciphertext into letter fields', () => {
+    assert.equal(
+      formatAddressForLetter({
+        address: 'enc:v1:Tkp6lXzJrKrjr6qBhrOWydvpzjmGyWsKJFzKxfgLjHTCfXLgXB11ILOTUI23afYexpp9',
+        city: 'enc:v1:040/zmgp91stUbVgXg9zJtJekzO45POX5rOND/YjOec0PB0w',
+        state: 'enc:v1:xD3mZZK/zWwow0AEraAv1QAC9+zo3idUGZkZrU11',
+        zip_code: 'enc:v1:t/OlkpWZVAOWMQDsIihSRRqX7VX/HWCUCs+V+II8NUeL',
+      }),
+      ''
+    )
+  })
+
+  it('decrypts intake address fields before formatting for letters', () => {
+    const decrypted = decryptApplicationOperationalFields({
+      address: encryptField('123 Oak Ave'),
+      city: encryptField('Atlanta'),
+      state: encryptField('GA'),
+      zip_code: encryptField('30301'),
+    } as never)
+    assert.equal(formatAddressForLetter(decrypted), '123 Oak Ave, Atlanta, GA 30301')
+  })
+
+  it('letter-identity route decrypts intake address before prefill', () => {
+    const source = readFileSync(
+      path.join(process.cwd(), 'src/app/api/admin/dispute-letters/[id]/letter-identity/route.ts'),
+      'utf8'
+    )
+    assert.match(source, /decryptApplicationOperationalFields/)
+    assert.match(source, /formatAddressForLetter\(decryptApplicationOperationalFields/)
   })
 
   it('falls back to intake name and address when Confirm fields are blank', () => {
@@ -63,6 +96,24 @@ describe('letter consumer identity', () => {
     )
     assert.equal(resolved.consumer_name, 'NASIR M.')
     assert.deepEqual(resolved.consumer_addresses, ['PO Box 1, Atlantic City, NJ 08401'])
+  })
+
+  it('ignores ciphertext Confirm address lines and falls back to intake', () => {
+    const resolved = resolveLetterConsumerFields(
+      {
+        consumer_name: 'MICHAEL w WEBB',
+        consumer_addresses: [
+          'enc:v1:Tkp6lXzJrKrjr6qBhrOWydvpzjmGyWsKJFzKxfgLjHTCfXLgXB11ILOTUI23afYexpp9',
+        ],
+      },
+      {
+        name: 'MICHAEL w WEBB',
+        addresses: ['100 Main St, Miami, FL 33101'],
+        ssn: null,
+        dob: null,
+      }
+    )
+    assert.deepEqual(resolved.consumer_addresses, ['100 Main St, Miami, FL 33101'])
   })
 
   it('generate routes load intake identity and resolve name/address/ssn/dob', () => {
