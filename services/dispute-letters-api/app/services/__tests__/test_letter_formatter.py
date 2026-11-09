@@ -6,6 +6,7 @@ import zipfile
 from io import BytesIO
 
 from app.services.letter_formatter import (
+    _blocks_for_enclosures,
     letter_layout,
     letter_to_docx,
     letter_to_html,
@@ -122,6 +123,13 @@ def test_pdf_contains_date_and_enclosures():
     # Enclosure images are re-encoded as JPEG and embedded as XObjects.
     assert b"/XObject" in payload
     assert b"/DCTDecode" in payload
+    # Bullet list stays when images are attached (matches preview).
+    layout = letter_layout(sample)
+    kept = _blocks_for_enclosures(layout["blocks"], has_images=True)
+    bullets = [block.get("text", "") for block in kept if block.get("kind") == "bullet"]
+    assert any("photo identification" in b.lower() for b in bullets)
+    assert any("residential address" in b.lower() for b in bullets)
+    assert any("screenshots of the disputed account" in b.lower() for b in bullets)
 
 
 def test_normalize_enclosure_rejects_garbage():
@@ -151,7 +159,8 @@ def test_docx_embeds_identity_images_at_end():
     assert len(document.inline_shapes) == 3
     text = "\n".join(p.text for p in document.paragraphs)
     assert "Enclosures" in text
-    assert "photo identification" not in text.lower()
+    assert "photo identification" in text.lower()
+    assert "proof of current residential address" in text.lower()
     layout = letter_layout(sample)
     assert any(block.get("variant") == "closing" for block in layout["blocks"])
     assert any(block.get("variant") == "signature" for block in layout["blocks"])

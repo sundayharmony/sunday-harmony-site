@@ -735,23 +735,21 @@ def _is_enclosure_bullet(text: str) -> bool:
 
 
 def _blocks_for_enclosures(blocks: list[dict], has_images: bool) -> list[dict]:
+    """Keep the Enclosures heading + bullet list on the letter; images follow after.
+
+    Previously we stripped enclosure bullets when images were attached, which made
+    the PDF/DOCX disagree with the on-screen preview (list visible in preview,
+    missing on download).
+    """
     if not has_images:
         return blocks
-    cleaned: list[dict] = []
-    after_enclosures = False
-    for block in blocks:
-        text = str(block.get("text") or "")
-        if block.get("kind") == "line" and text.strip().lower() == "enclosures":
-            after_enclosures = True
-            cleaned.append(block)
-            continue
-        # Images replace the matching enclosure bullets in the printed letter.
-        if after_enclosures and block.get("kind") == "bullet" and _is_enclosure_bullet(text):
-            continue
-        cleaned.append(block)
-    if not after_enclosures:
-        cleaned.append({"kind": "line", "text": "Enclosures", "variant": "heading", "indent": 0})
-    return cleaned
+    has_heading = any(
+        block.get("kind") == "line" and str(block.get("text") or "").strip().lower() == "enclosures"
+        for block in blocks
+    )
+    if has_heading:
+        return blocks
+    return list(blocks) + [{"kind": "line", "text": "Enclosures", "variant": "heading", "indent": 0}]
 
 
 def _set_cell_borders_nil(cell) -> None:
