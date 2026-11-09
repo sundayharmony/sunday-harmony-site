@@ -735,6 +735,8 @@ def _is_enclosure_bullet(text: str) -> bool:
 
 
 def _blocks_for_enclosures(blocks: list[dict], has_images: bool) -> list[dict]:
+    if not has_images:
+        return blocks
     cleaned: list[dict] = []
     after_enclosures = False
     for block in blocks:
@@ -743,15 +745,11 @@ def _blocks_for_enclosures(blocks: list[dict], has_images: bool) -> list[dict]:
             after_enclosures = True
             cleaned.append(block)
             continue
-        # Never keep credit-report / score screenshot bullets in the mailed letter.
-        if after_enclosures and block.get("kind") == "bullet" and (
-            "screenshot" in text.lower() or "disputed account" in text.lower()
-        ):
-            continue
-        if has_images and after_enclosures and block.get("kind") == "bullet" and _is_enclosure_bullet(text):
+        # Images replace the matching enclosure bullets in the printed letter.
+        if after_enclosures and block.get("kind") == "bullet" and _is_enclosure_bullet(text):
             continue
         cleaned.append(block)
-    if has_images and not after_enclosures:
+    if not after_enclosures:
         cleaned.append({"kind": "line", "text": "Enclosures", "variant": "heading", "indent": 0})
     return cleaned
 

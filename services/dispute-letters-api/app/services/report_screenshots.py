@@ -81,12 +81,50 @@ def page_matches_tokens(page_text: str, tokens: list[str]) -> bool:
     return False
 
 
+def is_score_summary_page(page_text: str) -> bool:
+    """True for score/dashboard pages that are not tradeline account detail."""
+    blob = re.sub(r"\s+", " ", (page_text or "").upper())
+    if not blob.strip():
+        return True
+    has_account_detail = bool(
+        re.search(
+            r"ACCOUNT\s*(NUMBER|#|NO\.?)|PAYMENT\s*HISTORY|DATE\s*OPENED|"
+            r"HIGH\s*BALANCE|PAST\s*DUE|CREDIT\s*LIMIT|REPORTED\s*STATUS|"
+            r"BALANCE\s*:|ACCOUNT\s*TYPE",
+            blob,
+        )
+    )
+    if has_account_detail:
+        return False
+    score_signals = 0
+    for needle in (
+        "CREDIT SCORE",
+        "FICO",
+        "VANTAGESCORE",
+        "SCORE FACTOR",
+        "SCORE SUMMARY",
+        "YOUR SCORES",
+        "BUREAU SCORES",
+        "SCORE RANGE",
+    ):
+        if needle in blob:
+            score_signals += 1
+    # Cover pages often say "scores only" with little else.
+    if score_signals >= 1:
+        return True
+    if "SCORE" in blob and len(blob) < 400 and "ACCOUNT" not in blob:
+        return True
+    return False
+
+
 def select_report_pages_for_items(
     page_texts: list[str], items: list[LetterItem], *, max_pages: int = 8
 ) -> list[int]:
-    """1-based page numbers that mention at least one disputed account."""
+    """1-based page numbers with disputed-account detail (never score dashboards)."""
     selected: list[int] = []
     for index, text in enumerate(page_texts, start=1):
+        if is_score_summary_page(text):
+            continue
         for item in items:
             tokens = account_match_tokens(item.creditor, item.account_number)
             if tokens and page_matches_tokens(text, tokens):

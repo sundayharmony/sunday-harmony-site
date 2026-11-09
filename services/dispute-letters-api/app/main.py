@@ -56,6 +56,7 @@ from app.services.letter_formatter import (
     letters_zip_bytes,
 )
 from app.services.letter_identity import load_application_enclosure_files
+from app.services.report_screenshots import load_report_account_screenshot_files
 from app.services.letter_router import build_plan
 from app.services.report_analyzer import analyze_report_async, cursor_api_configured
 from app.services.report_refresh import recover_scores_from_storage, refresh_report_health
@@ -613,7 +614,8 @@ def _letter_files_for_download(session_id: str, letter, uploaded: list[tuple[str
     if not files:
         row = get_session_row(session_id) or {}
         files = load_application_enclosure_files(row.get("application_uuid"))
-    # Do not attach credit-report / score page screenshots — identity docs only.
+    # Attach disputed-account pages only (never score/summary dashboard pages).
+    files.extend(load_report_account_screenshot_files(session_id, letter))
     return files
 
 

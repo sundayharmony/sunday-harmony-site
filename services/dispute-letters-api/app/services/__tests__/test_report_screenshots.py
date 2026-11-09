@@ -12,6 +12,7 @@ from app.services.report_screenshots import (
     _screenshot_cache_key,
     account_match_tokens,
     disputed_items_from_letter_markdown,
+    is_score_summary_page,
     page_matches_tokens,
     screenshot_files_for_items,
     select_report_pages_for_items,
@@ -32,16 +33,20 @@ def test_page_match_finds_truncated_equifax_headers():
 
 def test_select_pages_for_multiple_disputed_accounts():
     pages = [
-        "Cover page scores only",
-        "CAPITAL ONE Account Number 517805XXXXXX Open",
-        "DISCOVERCARD Account Number 601100XXXXXX Late 30",
-        "ALLY FINANCIAL Account Number 228533XXXXXX Past due",
+        "Cover page scores only Credit Score FICO Summary Your Scores",
+        "CAPITAL ONE Account Number 517805XXXXXX Open Reported Status Charge Off",
+        "DISCOVERCARD Account Number 601100XXXXXX Late 30 Payment History",
+        "ALLY FINANCIAL Account Number 228533XXXXXX Past due Balance: $100",
+        "VantageScore Score Factor Score Range Bureau Scores",
     ]
     items = [
         LetterItem(tradeline_id="1", creditor="DISCOVERCARD", account_number="601100XXXXXX"),
         LetterItem(tradeline_id="2", creditor="ALLY FINANCIAL", account_number="228533XXXXXX"),
     ]
     assert select_report_pages_for_items(pages, items) == [3, 4]
+    assert is_score_summary_page(pages[0])
+    assert is_score_summary_page(pages[4])
+    assert not is_score_summary_page(pages[2])
 
 
 def test_disputed_items_from_letter_markdown():
