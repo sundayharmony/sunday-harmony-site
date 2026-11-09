@@ -33,8 +33,6 @@ import {
 import {
   buildLetterZipFiles,
   fetchLetterDocxWithEnclosures,
-  loadLetterIdentityAttachments,
-  type LetterPacketAttachment,
 } from '@/lib/dispute-letters/letter-identity-attachments'
 import { zipFiles } from '@/lib/dispute-letters/letter-zip'
 import {
@@ -145,16 +143,6 @@ export async function buildLetterPackageZipBytes(
   }
 
   let generatedCount = 0
-  let attachmentsPromise: Promise<LetterPacketAttachment[]> | null = null
-  const loadAttachments = () => {
-    if (!attachmentsPromise) {
-      attachmentsPromise = (async () => {
-        const row = await getDisputeSessionById(sessionId)
-        return loadLetterIdentityAttachments(row?.application_uuid)
-      })()
-    }
-    return attachmentsPromise
-  }
 
   const letterFiles = await assembleLetterDocxFiles({
     sessionId,
@@ -162,9 +150,10 @@ export async function buildLetterPackageZipBytes(
     readStored: (storagePath) => readStoredLetterBytes(storagePath),
     generateMissing: async (letter) => {
       generatedCount += 1
-      const attachments = await loadAttachments()
       try {
-        const data = await fetchLetterDocxWithEnclosures(sessionId, letter.id, attachments)
+        // Plain GET: Python attaches ID + SSN + account screenshots itself.
+        // Avoids re-uploading enclosure FormData for every letter (was a major ZIP delay).
+        const data = await fetchLetterDocxWithEnclosures(sessionId, letter.id, [])
         await storeGeneratedLetterDocx({ sessionId, letterId: letter.id, data })
         return data
       } catch (error) {

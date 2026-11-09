@@ -41,6 +41,9 @@ describe('assembleLetterDocxFiles', () => {
 
     const storedC = buildStoredLetterDocxPath(SESSION, 'letter-e')
     const storedD = buildStoredLetterDocxPath(SESSION, 'letter-f')
+    const canonicalC = buildStoredLetterDocxPath(SESSION, 'letter-c')
+    const canonicalD = buildStoredLetterDocxPath(SESSION, 'letter-d')
+    const present = new Set([storedA, storedB, storedC, storedD])
     const files = await assembleLetterDocxFiles({
       sessionId: SESSION,
       concurrency: 2,
@@ -58,7 +61,7 @@ describe('assembleLetterDocxFiles', () => {
         maxInFlight = Math.max(maxInFlight, inFlight)
         await new Promise((resolve) => setTimeout(resolve, 30))
         inFlight -= 1
-        return pdfBytes(readPaths.length)
+        return present.has(storagePath) ? pdfBytes(readPaths.length) : null
       },
       generateMissing: async (letter) => {
         generateCalls += 1
@@ -68,7 +71,7 @@ describe('assembleLetterDocxFiles', () => {
     })
 
     assert.equal(generateCalls, 2)
-    assert.deepEqual(readPaths.sort(), [storedA, storedB, storedC, storedD].sort())
+    assert.deepEqual(readPaths.sort(), [storedA, storedB, storedC, storedD, canonicalC, canonicalD].sort())
     assert.ok(maxInFlight <= 2)
     assert.ok(maxInFlight >= 2)
     assert.equal(files.length, 6)
@@ -146,6 +149,23 @@ describe('assembleLetterDocxFiles', () => {
     assert.equal(generateCalls, 3)
     assert.equal(maxInFlight, 1)
     assert.equal(files.length, 3)
+  })
+
+  it('reuses a canonical stored PDF even when the DB path is still a local generator path', async () => {
+    let generateCalls = 0
+    const canonical = buildStoredLetterDocxPath(SESSION, 'letter-a')
+    const files = await assembleLetterDocxFiles({
+      sessionId: SESSION,
+      letters: [{ id: 'letter-a', title: 'Experian', storage_path: '/tmp/letters/a.letter' }],
+      readStored: async (storagePath) => (storagePath === canonical ? pdfBytes(1) : null),
+      generateMissing: async () => {
+        generateCalls += 1
+        return pdfBytes(2)
+      },
+    })
+    assert.equal(generateCalls, 0)
+    assert.equal(files.length, 1)
+    assert.equal(files[0].data[4], 1)
   })
 })
 

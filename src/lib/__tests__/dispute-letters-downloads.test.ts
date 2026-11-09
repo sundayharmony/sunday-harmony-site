@@ -61,6 +61,8 @@ describe('dispute letter downloads and preview', () => {
     assert.match(packageZip, /openReadyLetterPackageZip/)
     assert.match(packageZip, /getOrBuildLetterPackageZip/)
     assert.match(packageZip, /assembleLetterDocxFiles/)
+    // ZIP generate uses plain PDF GET so Python attaches enclosures (no FormData per letter).
+    assert.match(packageZip, /fetchLetterDocxWithEnclosures\(sessionId, letter\.id, \[\]\)/)
     assert.match(packageZip, /isStoredLetterDocxPath/)
     assert.match(packageZip, /buildLetterZipFiles/)
     assert.match(packageZip, /recordLetterPackageDownload/)

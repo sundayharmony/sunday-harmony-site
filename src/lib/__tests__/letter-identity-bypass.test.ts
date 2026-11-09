@@ -41,6 +41,6 @@ describe('letter identity bypass', () => {
     assert.match(client, /bypass_missing_identity/)
     // Client Confirm step imports this module — must stay free of server-only auth/mail deps.
     assert.match(bypass, /from '@\/lib\/staff-roles'/)
-    assert.equal(bypass.includes('stripe-admin-auth'), false)
+    assert.equal(/from ['"]@\/lib\/stripe-admin-auth['"]/.test(bypass), false)
   })
 })

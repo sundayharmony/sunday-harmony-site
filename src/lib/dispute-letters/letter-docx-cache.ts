@@ -76,18 +76,21 @@ export async function assembleLetterDocxFiles(
 ): Promise<{ title: string; data: Uint8Array }[]> {
   const readConcurrency = Math.max(1, params.concurrency ?? LETTER_DOCX_READ_CONCURRENCY)
   const results = new Array<{ title: string; data: Uint8Array }>(params.letters.length)
-  const storedIndexes: number[] = []
-  const missingIndexes: number[] = []
 
-  params.letters.forEach((letter, index) => {
-    if (isStoredLetterDocxPath(params.sessionId, letter.storage_path)) storedIndexes.push(index)
-    else missingIndexes.push(index)
+  // Generate often leaves a local API path in storage_path. Always try the canonical
+  // sessions/.../letters/{id}.pdf object first so a prior download/ZIP can skip rebuild.
+  const readPaths = params.letters.map((letter) => {
+    if (isStoredLetterDocxPath(params.sessionId, letter.storage_path)) {
+      return letter.storage_path || ''
+    }
+    return buildStoredLetterDocxPath(params.sessionId, letter.id)
   })
+  const storedIndexes = params.letters.map((_, index) => index)
 
   const failedReads: number[] = []
   await mapWithConcurrency(storedIndexes, readConcurrency, async (index) => {
     const letter = params.letters[index]
-    const data = await params.readStored(letter.storage_path || '')
+    const data = await params.readStored(readPaths[index])
     if (data?.length && isPdfBytes(data)) {
       results[index] = { title: letter.title || letter.id, data }
       return
@@ -95,8 +98,7 @@ export async function assembleLetterDocxFiles(
     failedReads.push(index)
   })
 
-  const toGenerate = [...missingIndexes, ...failedReads]
-  await mapWithConcurrency(toGenerate, LETTER_DOCX_GENERATE_CONCURRENCY, async (index) => {
+  await mapWithConcurrency(failedReads, LETTER_DOCX_GENERATE_CONCURRENCY, async (index) => {
     const letter = params.letters[index]
     const data = await params.generateMissing(letter)
     if (!isPdfBytes(data)) {
