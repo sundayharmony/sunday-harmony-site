@@ -40,7 +40,7 @@ describe('dispute letter downloads and preview', () => {
     assert.doesNotMatch(zipRoute, /buildLetterPacketZipFiles/)
     assert.doesNotMatch(zipRoute, /markLetterSent/)
     assert.doesNotMatch(zipRoute, /sent_at/)
-    assert.match(ui, /Photo ID, proof of residence, and Social Security card/)
+    assert.match(ui, /same letter PDFs as Download \.pdf|photo ID, proof of residence, and Social Security card/i)
     assert.match(ui, /zipReadyLabel|zipReady/)
     assert.match(ui, /zipError/)
     // Interactive + ZIP PDFs skip account screenshots; individual downloads are stored for ZIP reuse.
