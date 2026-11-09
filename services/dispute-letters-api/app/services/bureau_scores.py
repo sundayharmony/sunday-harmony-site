@@ -38,6 +38,19 @@ _CREDIT_HERO_INLINE_RATINGS = re.compile(
     rf"\s+(\d{{3}})\s+{_CREDIT_HERO_RATING}\b",
     re.I,
 )
+# Any tri-bureau header order near three score+rating gauges.
+_SCORE_RATING_TRIPLET = re.compile(
+    rf"(\d{{3}})\s+{_CREDIT_HERO_RATING}\s+(\d{{3}})\s+{_CREDIT_HERO_RATING}\s+(\d{{3}})\s+{_CREDIT_HERO_RATING}\b",
+    re.I,
+)
+_BUREAU_HEADER_ORDERS: tuple[tuple[re.Pattern[str], tuple[str, str, str]], ...] = (
+    (re.compile(r"trans\s*union\s+equifax\s+experian", re.I), ("tuc", "eqf", "exp")),
+    (re.compile(r"trans\s*union\s+experian\s+equifax", re.I), ("tuc", "exp", "eqf")),
+    (re.compile(r"experian\s+equifax\s+trans\s*union", re.I), ("exp", "eqf", "tuc")),
+    (re.compile(r"experian\s+trans\s*union\s+equifax", re.I), ("exp", "tuc", "eqf")),
+    (re.compile(r"equifax\s+experian\s+trans\s*union", re.I), ("eqf", "exp", "tuc")),
+    (re.compile(r"equifax\s+trans\s*union\s+experian", re.I), ("eqf", "tuc", "exp")),
+)
 _VANTAGE_DISCLAIMER = re.compile(
     r"your\s+vantagescore.*?from\s+transunion,\s*equifax,\s*and\s+experian\s+indicates",
     re.I | re.S,
@@ -147,6 +160,50 @@ def _assign_hero_triplet(scores: BureauScores, tuc: int | None, eqf: int | None,
     return not scores_missing(scores)
 
 
+def _assign_by_attrs(scores: BureauScores, attrs: tuple[str, str, str], values: tuple[int | None, int | None, int | None]) -> bool:
+    for attr, value in zip(attrs, values):
+        if value is not None:
+            setattr(scores, attr, value)
+    return not scores_missing(scores)
+
+
+def scores_look_cloned(scores: BureauScores | None) -> bool:
+    """True when all three bureau scores are the same non-null value."""
+    if scores is None or scores.tuc is None or scores.exp is None or scores.eqf is None:
+        return False
+    return scores.tuc == scores.exp == scores.eqf
+
+
+def _tri_bureau_header_cluster(text: str, index: int, window: int = 80) -> bool:
+    """True when index sits inside a compact tri-bureau column header.
+
+    Separate lines like `TransUnion credit score 640` / `Experian credit score 655`
+    are not a shared header and must still use the per-bureau fallback.
+    """
+    start = max(0, index - window)
+    end = min(len(text), index + window)
+    region = text[start:end]
+    return any(pattern.search(region) for pattern, _ in _BUREAU_HEADER_ORDERS)
+
+
+def _scores_from_header_rating_triplet(text: str, scores: BureauScores) -> bool:
+    """Match NNN RATING ×3 near a labeled bureau header, in that header's column order."""
+    for header_re, attrs in _BUREAU_HEADER_ORDERS:
+        for header in header_re.finditer(text):
+            window = text[header.start() : header.start() + 500]
+            triplet = _SCORE_RATING_TRIPLET.search(window)
+            if not triplet:
+                continue
+            abs_start = header.start() + triplet.start(1)
+            if _in_score_scale(text, abs_start):
+                continue
+            values = tuple(parse_score_value(triplet.group(i)) for i in (1, 2, 3))
+            if any(v is None for v in values):
+                continue
+            return _assign_by_attrs(scores, attrs, values)  # type: ignore[arg-type]
+    return False
+
+
 def _scores_from_credit_hero_all_bureaus(text: str, scores: BureauScores) -> bool:
     gauges = _CREDIT_HERO_GAUGE_ROW.search(text)
     if gauges:
@@ -204,6 +261,65 @@ def _first_score_from_patterns(text: str, patterns: tuple[re.Pattern[str], ...] 
     return None
 
 
+def _find_score_near_bureau(
+    text: str,
+    match: re.Match[str],
+    *,
+    used_spans: set[tuple[int, int]],
+) -> tuple[int, tuple[int, int]] | None:
+    """Return (score, span) near a bureau label, skipping spans already claimed."""
+    after = text[match.end() : match.end() + 120]
+    before = text[max(0, match.start() - 120) : match.start()]
+    if not _SCORE_CONTEXT.search(f"{before}{after}"):
+        return None
+
+    def from_patterns(region: str, region_start: int) -> tuple[int, tuple[int, int]] | None:
+        for pattern in _SCORE_VALUE_PATTERNS:
+            found = pattern.search(region)
+            if not found:
+                continue
+            parsed = parse_score_value(found.group(1))
+            if parsed is None:
+                continue
+            # group(1) is the score digits inside the pattern match.
+            abs_start = region_start + found.start(1)
+            abs_end = abs_start + len(found.group(1))
+            span = (abs_start, abs_end)
+            if span in used_spans or _in_score_scale(text, abs_start):
+                continue
+            if not _token_is_plausible_score(text, abs_start, abs_end):
+                continue
+            return parsed, span
+        return None
+
+    for region, region_start in (
+        (after, match.end()),
+        (before, max(0, match.start() - 120)),
+    ):
+        hit = from_patterns(region, region_start)
+        if hit is not None:
+            return hit
+
+    for region, region_start in (
+        (after, match.end()),
+        (before, max(0, match.start() - 120)),
+    ):
+        for token in _SCORE_TOKEN.finditer(region):
+            abs_start = region_start + token.start()
+            abs_end = abs_start + len(token.group(1))
+            span = (abs_start, abs_end)
+            if span in used_spans:
+                continue
+            if not _token_is_plausible_score(text, abs_start, abs_end):
+                continue
+            if _in_score_scale(text, abs_start):
+                continue
+            parsed = parse_score_value(token.group(1))
+            if parsed is not None:
+                return parsed, span
+    return None
+
+
 def scores_from_text(text: str) -> BureauScores:
     scores = BureauScores()
     if not text:
@@ -217,44 +333,39 @@ def scores_from_text(text: str) -> BureauScores:
             return sc_scores
     if _scores_from_credit_hero_all_bureaus(text, scores):
         return scores
+    if _scores_from_header_rating_triplet(text, scores):
+        return scores
     if _scores_from_based_on_bureau(text, scores):
         return scores
+
+    used_spans: set[tuple[int, int]] = set()
     for attr, pattern in _BUREAU_PATTERNS:
         for match in pattern.finditer(text):
             if _in_vantage_disclaimer(text, match.start()):
                 continue
-            after = text[match.end() : match.end() + 120]
-            before = text[max(0, match.start() - 120) : match.start()]
-            if not _SCORE_CONTEXT.search(f"{before}{after}"):
+            # Shared "TransUnion Equifax Experian" headers must use triplet extractors,
+            # not stamp the first nearby gauge onto every bureau.
+            if _tri_bureau_header_cluster(text, match.start()):
                 continue
-            parsed = _first_score_from_patterns(after)
-            if parsed is None:
-                parsed = _first_score_from_patterns(before)
-            if parsed is None:
-                for region in (after, before):
-                    token = _SCORE_TOKEN.search(region)
-                    if not token:
-                        continue
-                    abs_start = (
-                        match.end() + token.start()
-                        if region is after
-                        else max(0, match.start() - 120) + token.start()
-                    )
-                    abs_end = abs_start + len(token.group(1))
-                    if not _token_is_plausible_score(text, abs_start, abs_end):
-                        continue
-                    if _in_score_scale(text, abs_start):
-                        continue
-                    parsed = parse_score_value(token.group(1))
-                    if parsed is not None:
-                        break
-                else:
-                    parsed = None
-            if parsed is not None:
-                setattr(scores, attr, parsed)
-                break
+            hit = _find_score_near_bureau(text, match, used_spans=used_spans)
+            if hit is None:
+                continue
+            parsed, span = hit
+            setattr(scores, attr, parsed)
+            used_spans.add(span)
+            break
+
     if scores_missing(scores):
         _scores_from_header_row(text, scores)
+
+    # Last resort: if we somehow still cloned from a broken path, prefer a distinct
+    # header rating triplet when the PDF actually has three different gauges.
+    if scores_look_cloned(scores):
+        repaired = BureauScores()
+        if _scores_from_header_rating_triplet(text, repaired) and not scores_look_cloned(repaired):
+            return repaired
+        if _scores_from_credit_hero_all_bureaus(text, repaired) and not scores_look_cloned(repaired):
+            return repaired
     return scores
 
 

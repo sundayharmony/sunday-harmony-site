@@ -12,6 +12,7 @@ from app.services.report_refresh import (
     recover_scores_from_storage,
     refresh_report_health,
 )
+from app.services.bureau_scores import scores_look_cloned
 
 
 def _tl(**kwargs) -> Tradeline:
@@ -47,6 +48,15 @@ def test_needs_score_recovery_credit_hero_when_scores_are_cloned():
         credit_health=CreditHealthSummary(scores=BureauScores(tuc=621, exp=621, eqf=621)),
     )
     assert needs_score_recovery(report, "Charles Credit Hero Score 11-6-2026.pdf") is True
+    assert scores_look_cloned(report.credit_health.scores) is True
+
+
+def test_needs_score_recovery_cloned_scores_any_filename():
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="A"),
+        credit_health=CreditHealthSummary(scores=BureauScores(tuc=700, exp=700, eqf=700)),
+    )
+    assert needs_score_recovery(report, "client-upload.pdf") is True
 
 
 def test_recover_returns_early_when_credit_hero_scores_complete():

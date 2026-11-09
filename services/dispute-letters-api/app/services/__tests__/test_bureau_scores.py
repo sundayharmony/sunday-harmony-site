@@ -219,6 +219,47 @@ def test_credit_hero_inline_fair_triplet_is_transunion_equifax_experian():
     assert scores.exp == 625
 
 
+def test_shared_header_never_clones_first_gauge_onto_all_bureaus():
+    """Regression: compact TU/EQF/EXP headers must not stamp 621 onto every bureau."""
+    text = """
+    Credit report TransUnion Equifax Experian All bureaus
+    Bureau
+    621 FAIR 631 FAIR 625 FAIR
+    VantageScore 3.0
+    """
+    scores = scores_from_text(text)
+    assert scores.tuc == 621
+    assert scores.eqf == 631
+    assert scores.exp == 625
+    assert not (scores.tuc == scores.exp == scores.eqf)
+
+
+def test_true_identical_triplet_is_preserved():
+    """If the PDF really shows three equal gauges, keep them."""
+    text = """
+    TransUnion Equifax Experian All bureaus
+    Bureau
+    500 FAIR 500 FAIR 500 FAIR
+    VantageScore 3.0
+    """
+    scores = scores_from_text(text)
+    assert scores.tuc == 500
+    assert scores.eqf == 500
+    assert scores.exp == 500
+
+
+def test_experian_transunion_equifax_header_order():
+    text = """
+    Experian TransUnion Equifax summary
+    701 GOOD 688 FAIR 695 GOOD
+    VantageScore credit score gauges
+    """
+    scores = scores_from_text(text)
+    assert scores.exp == 701
+    assert scores.tuc == 688
+    assert scores.eqf == 695
+
+
 def test_credit_hero_member_score_stays_on_the_named_bureau():
     text = """
     TransUnion Equifax Experian All bureaus
