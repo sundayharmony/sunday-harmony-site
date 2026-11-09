@@ -41,6 +41,14 @@ def test_needs_score_recovery_credit_hero_when_any_bureau_missing():
     assert needs_score_recovery(report, "Jamal George Credit Hero.pdf") is True
 
 
+def test_needs_score_recovery_credit_hero_when_scores_are_cloned():
+    report = ParsedReport(
+        consumer=ConsumerInfo(name="A"),
+        credit_health=CreditHealthSummary(scores=BureauScores(tuc=621, exp=621, eqf=621)),
+    )
+    assert needs_score_recovery(report, "Charles Credit Hero Score 11-6-2026.pdf") is True
+
+
 def test_recover_returns_early_when_credit_hero_scores_complete():
     """Must not reach storage download — storage_path is intentionally invalid."""
     report = ParsedReport(

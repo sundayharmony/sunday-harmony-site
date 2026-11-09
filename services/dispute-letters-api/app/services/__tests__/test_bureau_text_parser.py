@@ -517,6 +517,36 @@ Times 30/60/90 Days Late 1/0/0
     assert tradelines[0].past_due == "$250.00"
 
 
+def test_credit_hero_reported_names_and_report_date():
+    text = """
+Credit report TransUnion Equifax Experian All bureaus
+Bureau
+621 FAIR 631 FAIR 625 FAIR
+Report date Nov 6, 2026 Nov 6, 2026 Nov 6, 2026
+Personal info
+Reported names Charles C Mcnichol Charles C Mcnichol Charles Mcnichol
+DOB 1975-02-16 1975-02-16 1975-02-16
+Accounts
+We gathered all of the accounts listed on your report for you.
+Credit cards SYNCB/HFT $0.00 Reported: Oct 28, 2026 In good standing
+Overview Account details
+Account Number 604420XXXXXXXXXX
+Account Status Open
+Balance: $0.00 Credit limit: $1,024.00
+Open Date Jul 3, 2025
+Type Charge Account
+Times 30/60/90 Days Late 0/0/0
+Creditor information SYNCB/HFT
+Monthly Payment Amount $0.00
+Current Payment Status As Agreed
+Amount Past Due $0.00
+"""
+    tradelines, consumer, report_date = parse_bureau_accounts(text, file_name="Charles Credit Hero Score 11-6-2026.pdf")
+    assert consumer.name == "Charles C Mcnichol"
+    assert report_date == "Nov 6, 2026"
+    assert any(tl.creditor == "SYNCB/HFT" for tl in tradelines)
+
+
 def test_credit_hero_member_header_and_creditor_information_names():
     """pdfplumber Credit Hero layout: name sits before Overview Account details."""
     text = """

@@ -1195,12 +1195,65 @@ def _consumer_from_text(text: str) -> ConsumerInfo:
         text,
         re.I,
     )
-    if not match:
-        return ConsumerInfo()
-    name = re.sub(r"\s+", " ", match.group(1)).strip()
-    if any(ch.isdigit() for ch in name) or len(name.split()) > 6:
-        return ConsumerInfo()
-    return ConsumerInfo(name=name)
+    if match:
+        name = re.sub(r"\s+", " ", match.group(1)).strip()
+        if not any(ch.isdigit() for ch in name) and len(name.split()) <= 6:
+            return ConsumerInfo(name=name)
+
+    # Credit Hero "All bureaus" personal info: three bureau name columns.
+    reported = re.search(
+        r"reported\s+names\s+([A-Za-z][A-Za-z .'-]{2,120})",
+        text,
+        re.I,
+    )
+    if reported:
+        raw = re.sub(r"\s+", " ", reported.group(1)).strip()
+        # Stop before the next personal-info label if pdfplumber smashed the line.
+        raw = re.split(r"\b(?:DOB|SSN|Employment|Addresses|Current Address)\b", raw, maxsplit=1)[0].strip()
+        name = _best_reported_name(raw)
+        if name:
+            return ConsumerInfo(name=name)
+    return ConsumerInfo()
+
+
+def _best_reported_name(raw: str) -> str:
+    """Pick one consumer name from repeated Credit Hero bureau columns."""
+    tokens = [t for t in raw.split() if t]
+    if not tokens or any(ch.isdigit() for ch in raw):
+        return ""
+    if len(tokens) <= 4:
+        return " ".join(tokens)[:80]
+    from collections import Counter
+
+    counts = Counter(token.lower() for token in tokens)
+    candidates = [
+        token
+        for token, count in counts.items()
+        if count >= 2 and token.isalpha() and len(token) >= 3
+    ]
+    # Try surname terminators; prefer candidates that appear later in the line.
+    best_groups: list[str] = []
+    for surname in sorted(
+        candidates,
+        key=lambda s: max(i for i, tok in enumerate(tokens) if tok.lower() == s),
+        reverse=True,
+    ):
+        groups: list[str] = []
+        current: list[str] = []
+        for token in tokens:
+            current.append(token)
+            if token.lower() == surname:
+                if len(current) > 4:
+                    break
+                groups.append(" ".join(current))
+                current = []
+        if current or len(groups) < 2:
+            continue
+        best_groups = groups
+        break
+    if best_groups:
+        return max(best_groups, key=len)[:80]
+    return " ".join(tokens[:4])[:80]
 
 
 def _report_date(text: str) -> str:
@@ -1209,7 +1262,15 @@ def _report_date(text: str) -> str:
         text,
         re.I,
     )
-    return match.group(1).strip() if match else ""
+    if match:
+        return match.group(1).strip()
+    # Credit Hero summary: "Report date Nov 6, 2026 Nov 6, 2026 Nov 6, 2026"
+    hero = re.search(
+        r"report\s+date\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})",
+        text,
+        re.I,
+    )
+    return hero.group(1).strip() if hero else ""
 
 
 def _normalize(text: str) -> str:

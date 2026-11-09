@@ -33,16 +33,28 @@ def _tri_merge_scores_incomplete(scores: BureauScores | None) -> bool:
     return scores is None or scores.tuc is None or scores.exp is None or scores.eqf is None
 
 
+def _tri_merge_scores_look_cloned(scores: BureauScores | None) -> bool:
+    """True when all three bureau scores are the same non-null value.
+
+    Credit Hero All-bureaus PDFs almost never show three identical gauges; that
+    pattern usually means the parser stamped the first score onto every bureau.
+    """
+    if scores is None or scores.tuc is None or scores.exp is None or scores.eqf is None:
+        return False
+    return scores.tuc == scores.exp == scores.eqf
+
+
 def needs_score_recovery(report: ParsedReport, file_name: str) -> bool:
     """True when opening health should re-read the stored upload for bureau scores.
 
-    Credit Hero / tri-merge PDFs only re-download when any bureau score is still
-    missing. Re-parsing every health open (download + pdfplumber/OCR) was freezing
-    the Dispute Letters Health step on large reports.
+    Credit Hero / tri-merge PDFs re-download when any bureau score is missing or
+    when all three scores are identical (cloned first-gauge bug). Re-parsing every
+    health open was freezing Dispute Letters Health on large reports, so complete
+    and distinct triplets still skip recovery.
     """
     scores = report.credit_health.scores if report.credit_health else None
     if _CREDIT_HERO_FILE.search(file_name or ""):
-        return _tri_merge_scores_incomplete(scores)
+        return _tri_merge_scores_incomplete(scores) or _tri_merge_scores_look_cloned(scores)
     return scores_missing(scores)
 
 

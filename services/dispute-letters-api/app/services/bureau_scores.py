@@ -17,14 +17,25 @@ _SCORE_CONTEXT = re.compile(
     re.I,
 )
 # FICO Score 8 / VantageScore 3.0 put a model digit between "score" and the 3-digit value.
+_CREDIT_HERO_RATING = r"(?:very\s+poor|poor|fair|good|excellent|great)"
 # Credit Hero member PDF: three VantageScore gauges after "All bureaus" (TUC, EXP, EQF).
 _CREDIT_HERO_ALL_BUREAUS = re.compile(
-    r"all\s+bureaus\s+"
-    r"(\d{3})\s+(?:very\s+poor|poor|fair|good|excellent|great)\b"
-    r"[\s\S]{0,120}?"
-    r"(\d{3})\s+(?:very\s+poor|poor|fair|good|excellent|great)\b"
-    r"[\s\S]{0,120}?"
-    r"(\d{3})\s+(?:very\s+poor|poor|fair|good|excellent|great)\b",
+    rf"all\s+bureaus\s+(?:bureau\s+)?"
+    rf"(\d{{3}})\s+{_CREDIT_HERO_RATING}\b"
+    rf"[\s\S]{{0,120}}?"
+    rf"(\d{{3}})\s+{_CREDIT_HERO_RATING}\b"
+    rf"[\s\S]{{0,120}}?"
+    rf"(\d{{3}})\s+{_CREDIT_HERO_RATING}\b",
+    re.I,
+)
+# Newer Credit Hero "All bureaus" PDF: header TransUnion Equifax Experian, then
+# "621 FAIR 631 FAIR 625 FAIR" (optional "Bureau" chrome between header and scores).
+_CREDIT_HERO_INLINE_RATINGS = re.compile(
+    rf"trans\s*union\s+equifax\s+experian\s+all\s+bureaus"
+    rf"(?:\s+bureau)?"
+    rf"\s+(\d{{3}})\s+{_CREDIT_HERO_RATING}"
+    rf"\s+(\d{{3}})\s+{_CREDIT_HERO_RATING}"
+    rf"\s+(\d{{3}})\s+{_CREDIT_HERO_RATING}\b",
     re.I,
 )
 _VANTAGE_DISCLAIMER = re.compile(
@@ -142,10 +153,27 @@ def _scores_from_credit_hero_all_bureaus(text: str, scores: BureauScores) -> boo
         tuc, eqf, exp = (parse_score_value(gauges.group(i)) for i in (1, 2, 3))
         if not _in_score_scale(text, gauges.start(1)):
             return _assign_hero_triplet(scores, tuc, eqf, exp)
+    # Prefer the labeled TransUnion / Equifax / Experian row when present.
+    inline = _CREDIT_HERO_INLINE_RATINGS.search(text)
+    if inline:
+        tuc, eqf, exp = (parse_score_value(inline.group(i)) for i in (1, 2, 3))
+        if not _in_score_scale(text, inline.start(1)):
+            return _assign_hero_triplet(scores, tuc, eqf, exp)
     match = _CREDIT_HERO_ALL_BUREAUS.search(text)
     if not match:
         return False
-    # Older export: each gauge is score then rating, in TransUnion, Experian, Equifax order.
+    # Older export without a bureau header: score+rating gauges in TUC, EXP, EQF order.
+    # When the TU/EQF/EXP header is nearby, treat the triplet as that column order instead.
+    header_nearby = bool(
+        re.search(
+            r"trans\s*union\s+equifax\s+experian\s+all\s+bureaus",
+            text[max(0, match.start() - 80) : match.start() + 40],
+            re.I,
+        )
+    )
+    if header_nearby:
+        tuc, eqf, exp = (parse_score_value(match.group(i)) for i in (1, 2, 3))
+        return _assign_hero_triplet(scores, tuc, eqf, exp)
     tuc, exp, eqf = (parse_score_value(match.group(i)) for i in (1, 2, 3))
     return _assign_hero_triplet(scores, tuc, eqf, exp)
 

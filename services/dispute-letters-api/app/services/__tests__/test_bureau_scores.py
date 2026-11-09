@@ -202,6 +202,23 @@ def test_credit_hero_gauge_row_is_transunion_equifax_experian():
     assert scores.exp == 657
 
 
+def test_credit_hero_inline_fair_triplet_is_transunion_equifax_experian():
+    """pdfplumber layout from Credit Hero All-bureaus score PDF (Nov 2026)."""
+    text = """
+    My Credit Reports View Report: November 6, 2026
+    Credit report TransUnion Equifax Experian All bureaus
+    Bureau
+    621 FAIR 631 FAIR 625 FAIR
+    VantageScore® 3.0 8 8 8
+    300 500 600 660 850 300 500 600 660 850 300 500 600 660 850
+    Report date Nov 6, 2026 Nov 6, 2026 Nov 6, 2026
+    """
+    scores = scores_from_text(text)
+    assert scores.tuc == 621
+    assert scores.eqf == 631
+    assert scores.exp == 625
+
+
 def test_credit_hero_member_score_stays_on_the_named_bureau():
     text = """
     TransUnion Equifax Experian All bureaus
