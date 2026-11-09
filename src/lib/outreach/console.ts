@@ -1,5 +1,5 @@
 import { resolveCompanyPresentationPdf } from './attachment'
-import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_READY_QUEUE_SIZE } from './constants'
+import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_MANUAL_SEND_MAX, OUTREACH_READY_QUEUE_SIZE } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { compareQueueOrder, isSentQueueStatus } from './enqueue'
 import { buildHandoff, canViewHandoff } from './handoff'
@@ -72,6 +72,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     attachmentPresent,
     readyCount: pending.length,
     readyTarget: OUTREACH_READY_QUEUE_SIZE,
+    manualSendMax: OUTREACH_MANUAL_SEND_MAX,
     next: nextItem,
     sent: sent.map((item) => deskRow(item, includeHandoff)),
     scheduler: outreachCron(),

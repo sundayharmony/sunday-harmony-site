@@ -16,11 +16,12 @@ const consolePayload = {
   attachmentPresent: true,
   readyCount: 10,
   readyTarget: 10,
+  manualSendMax: 50,
   scheduler: {
     path: '/api/internal/outreach-dispatch',
     schedule: '0 20 * * 1-5',
     enabled: false,
-    note: 'Automatic send is off. Use Send on this page. Each click sends one email, then queues the next so 10 stay ready.',
+    note: 'Automatic send is off. Use Send on this page. Choose how many to send per action; the queue refills so 10 stay ready.',
   },
   settings: {
     killSwitch: true,
@@ -171,6 +172,8 @@ test.describe('outreach admin preview', () => {
     await expect(
       page.frameLocator('iframe[title="Formatted email preview"]').getByText('Hi Christopher')
     ).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'How many emails to send' })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'How many emails to send' })).toHaveValue('1')
     await expect(page.getByRole('button', { name: 'Send' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled()
     await expect(page.getByRole('heading', { name: 'Previously sent' })).toBeVisible()
@@ -179,7 +182,8 @@ test.describe('outreach admin preview', () => {
     await expect(page.getByTitle('Sent email preview')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Audit' })).toHaveCount(0)
     await expect(page.getByText('Daily send cap')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Send batch' })).toHaveCount(0)
+    await page.getByRole('spinbutton', { name: 'How many emails to send' }).fill('3')
+    await expect(page.getByRole('button', { name: 'Send 3' })).toBeVisible()
     await page.getByText('Admin settings').click()
     await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
       'PO Box 1011, Jersey City, NJ 07304'
@@ -205,9 +209,9 @@ test.describe('outreach admin preview', () => {
     await expect(page.getByTitle('Formatted email preview')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Previously sent' })).toBeVisible()
     await expect(page.getByRole('button', { name: /Bean by Bardea/ })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'How many emails to send' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Send' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Prepare queue (no send)' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Send batch' })).toHaveCount(0)
     await page.getByText('Admin settings').click()
     await expect(page.getByRole('textbox', { name: 'Physical mailing address' })).toHaveValue(
       'PO Box 1011, Jersey City, NJ 07304'

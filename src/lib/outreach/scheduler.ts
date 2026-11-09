@@ -18,6 +18,6 @@ export function outreachCron(): {
     path: OUTREACH_CRON_PATH,
     schedule: OUTREACH_CRON_SCHEDULE,
     enabled: false,
-    note: `Automatic send is off. Use Send on this page. Each click sends one email, then queues the next so ${OUTREACH_READY_QUEUE_SIZE} stay ready.`,
+    note: `Automatic send is off. Use Send on this page. Choose how many to send per action; the queue refills so ${OUTREACH_READY_QUEUE_SIZE} stay ready.`,
   }
 }

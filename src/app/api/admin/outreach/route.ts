@@ -12,7 +12,20 @@ import { isSameOriginRequest } from '@/lib/outreach/csrf'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
 import { ensureReadyQueue } from '@/lib/outreach/enqueue'
 import { currentBlockers, resolveOutreachStore } from '@/lib/outreach/runtime'
-import { OUTREACH_SEND_LIMIT } from '@/lib/outreach/constants'
+import { OUTREACH_MANUAL_SEND_MAX, OUTREACH_SEND_LIMIT } from '@/lib/outreach/constants'
+
+function manualSendLimitFromBody(body: Record<string, unknown>, action: string) {
+  const defaultLimit = action === 'send' ? 1 : OUTREACH_SEND_LIMIT
+  const raw = body.count ?? body.limit ?? defaultLimit
+  const parsed =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? Number.parseInt(raw, 10)
+        : defaultLimit
+  if (!Number.isFinite(parsed) || parsed < 1) return defaultLimit
+  return Math.min(Math.floor(parsed), OUTREACH_MANUAL_SEND_MAX)
+}
 import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -100,10 +113,11 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'send' || action === 'send-batch') {
+    const limit = manualSendLimitFromBody(body, action)
     const result = await dispatchOutreachBatch({
       store,
       workerId: `admin-send:${actorId}`,
-      limit: OUTREACH_SEND_LIMIT,
+      limit,
     })
     const refill = await ensureReadyQueue(store, { actor: actorId })
     return NextResponse.json({

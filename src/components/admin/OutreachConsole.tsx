@@ -38,6 +38,7 @@ type ConsolePayload = {
   attachmentPresent?: boolean
   readyCount?: number
   readyTarget?: number
+  manualSendMax?: number
   next: LetterPreview | null
   sent: DeskRow[]
   settings: {
@@ -87,6 +88,7 @@ export default function OutreachConsole() {
   const [lastSend, setLastSend] = useState('')
   const [sentPreview, setSentPreview] = useState<LetterPreview | null>(null)
   const [openSentId, setOpenSentId] = useState<string | null>(null)
+  const [sendCount, setSendCount] = useState(1)
 
   const load = useCallback(async () => {
     const response = await fetch('/api/admin/outreach')
@@ -145,7 +147,9 @@ export default function OutreachConsole() {
         const blockers = payload.blockers || []
         setLastSend(
           sent > 0
-            ? 'Gmail accepted this email. That is not delivered. The next letter is now ready.'
+            ? sent === 1
+              ? 'Gmail accepted this email. That is not delivered. The next letter is now ready.'
+              : `Gmail accepted ${sent} emails. That is not delivered. The queue has been refilled where possible.`
             : blockers.length
               ? `Not sent. ${blockers.map((item) => item.message || item.code).filter(Boolean).join(' ')}`
               : 'Not sent. There may be no ready letter.'
@@ -167,7 +171,10 @@ export default function OutreachConsole() {
   const sent = data.sent ?? []
   const readyCount = data.readyCount ?? 0
   const readyTarget = data.readyTarget ?? 10
-  const canSend = canOperate && Boolean(data.liveSend) && Boolean(next)
+  const manualSendMax = data.manualSendMax ?? 50
+  const maxSendCount = Math.max(1, Math.min(readyCount, manualSendMax))
+  const effectiveSendCount = Math.min(Math.max(1, sendCount), maxSendCount)
+  const canSend = canOperate && Boolean(data.liveSend) && Boolean(next) && readyCount > 0
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -175,7 +182,8 @@ export default function OutreachConsole() {
         <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Sales review</p>
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
         <p className="text-sm text-brand-muted mt-2">
-          Send one letter at a time. {readyTarget} stay queued so the next preview is always ready.
+          Enter how many emails to send from the queue. {readyTarget} stay queued so the next preview is
+          always ready.
         </p>
       </div>
 
@@ -217,24 +225,45 @@ export default function OutreachConsole() {
             )}
           </div>
           {canOperate ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (!next) return
-                if (
-                  !window.confirm(
-                    `Send this email to ${next.business} now? Gmail accepted is not delivered.`
-                  )
-                ) {
-                  return
-                }
-                void post('send')
-              }}
-              disabled={Boolean(busy) || !canSend}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold disabled:opacity-60"
-            >
-              {busy === 'send' || busy === 'send-batch' ? 'Sending…' : 'Send'}
-            </button>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full sm:w-auto">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Count</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxSendCount}
+                  value={effectiveSendCount}
+                  onChange={(event) => {
+                    const nextValue = Number.parseInt(event.target.value, 10)
+                    if (Number.isFinite(nextValue)) setSendCount(nextValue)
+                  }}
+                  disabled={Boolean(busy)}
+                  aria-label="How many emails to send"
+                  className="w-full sm:w-20 rounded-lg border border-brand-border px-3 py-2.5 text-sm text-brand-text"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!next) return
+                  const count = effectiveSendCount
+                  const prompt =
+                    count === 1
+                      ? `Send this email to ${next.business} now? Gmail accepted is not delivered.`
+                      : `Send ${count} emails from the queue now, starting with ${next.business}? Gmail accepted is not delivered.`
+                  if (!window.confirm(prompt)) return
+                  void post('send', { count })
+                }}
+                disabled={Boolean(busy) || !canSend}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-semibold disabled:opacity-60"
+              >
+                {busy === 'send' || busy === 'send-batch'
+                  ? 'Sending…'
+                  : effectiveSendCount === 1
+                    ? 'Send'
+                    : `Send ${effectiveSendCount}`}
+              </button>
+            </div>
           ) : null}
         </div>
 
