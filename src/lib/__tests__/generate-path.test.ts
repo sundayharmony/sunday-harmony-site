@@ -17,20 +17,31 @@ describe('letter generate client uses start+poll', () => {
 })
 
 describe('application dispute work reset', () => {
-  it('wires a full wipe of reports, letters, and rounds', () => {
+  it('keeps reports on letters reset and still supports full wipe from Credit Intelligence', () => {
     const db = readFileSync('src/lib/dispute-letters/dispute-lifecycle-db.ts', 'utf8')
-    const route = readFileSync(
+    const fullWipeRoute = readFileSync(
       'src/app/api/admin/credit-funding/[id]/reset-dispute-work/route.ts',
+      'utf8'
+    )
+    const lettersRoute = readFileSync(
+      'src/app/api/admin/credit-funding/[id]/reset-dispute-letters/route.ts',
       'utf8'
     )
     const panel = readFileSync('src/components/credit-funding/CreditIntelligencePanel.tsx', 'utf8')
     const rounds = readFileSync('src/components/dispute-letters/DisputeRoundsPanel.tsx', 'utf8')
+    const client = readFileSync('src/lib/dispute-letters/client-api.ts', 'utf8')
     assert.match(db, /export async function resetDisputeWorkForApplication/)
+    assert.match(db, /export async function resetDisputeLettersAndRoundsForApplication/)
     assert.match(db, /export async function backfillHistoricalRound1ForApplication/)
     assert.match(db, /from\('dispute_cases'\)\.delete\(\)/)
-    assert.match(route, /resetDisputeWorkForApplication/)
+    assert.match(fullWipeRoute, /resetDisputeWorkForApplication/)
+    assert.match(lettersRoute, /resetDisputeLettersAndRoundsForApplication/)
     assert.match(panel, /resetApplicationDisputeWork/)
-    assert.match(rounds, /Reset to before first report/)
+    assert.match(client, /resetApplicationDisputeLetters/)
+    assert.match(rounds, /resetApplicationDisputeLetters/)
+    assert.match(rounds, /Reset letters & rounds/)
+    assert.doesNotMatch(rounds, /Reset to before first report/)
+    assert.doesNotMatch(rounds, /resetApplicationDisputeWork/)
     assert.match(rounds, /Record prior Round 1/)
     assert.doesNotMatch(rounds, /Save mail details/)
     assert.doesNotMatch(rounds, /Response upload/)

@@ -17,7 +17,7 @@ import {
   type LetterPackageSnapshot,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
-import { backfillHistoricalRound1, confirmLetterPackageSent, downloadDisputeLettersZip, resetApplicationDisputeWork } from '@/lib/dispute-letters/client-api'
+import { backfillHistoricalRound1, confirmLetterPackageSent, downloadDisputeLettersZip, resetApplicationDisputeLetters } from '@/lib/dispute-letters/client-api'
 
 export default function DisputeRoundsPanel({ applicationId }: { applicationId: string }) {
   const [snapshot, setSnapshot] = useState<DisputeLifecycleSnapshot | null>(null)
@@ -213,7 +213,7 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
             onClick={() => {
               if (
                 !window.confirm(
-                  'Delete all uploaded reports, generated letters, and dispute round history for this client? This returns to before the first report was uploaded.'
+                  'Clear generated letters, plans, and dispute round history for this client? Uploaded reports and Health analysis stay.'
                 )
               ) {
                 return
@@ -222,10 +222,10 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
                 setBusy(true)
                 setError('')
                 try {
-                  await resetApplicationDisputeWork(applicationId)
+                  await resetApplicationDisputeLetters(applicationId)
                   await load()
                 } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Failed to reset dispute work')
+                  setError(e instanceof Error ? e.message : 'Failed to reset letters and rounds')
                 } finally {
                   setBusy(false)
                 }
@@ -233,7 +233,7 @@ export default function DisputeRoundsPanel({ applicationId }: { applicationId: s
             }}
             className="text-xs font-semibold text-brand-red hover:underline disabled:opacity-50"
           >
-            Reset to before first report
+            Reset letters & rounds
           </button>
         </div>
       </div>

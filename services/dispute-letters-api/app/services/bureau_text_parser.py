@@ -147,12 +147,16 @@ _CREDITOR_DENY = {
     "open",
     "open accounts",
     "open date",
+    "payment amount",
+    "payment amount:",
     "payment history",
+    "payment status",
     "personal information",
     "public records",
     "repossession",
     "responsibility",
     "status",
+    "subscriber",
     "terms count",
     "unknown",
     "voluntary",
@@ -218,6 +222,15 @@ def parse_bureau_accounts(
     cleaned = _normalize(text)
     if not cleaned.strip():
         return [], ConsumerInfo(), ""
+
+    # SmartCredit / ConsumerDirect 3-bureau PDFs before Credit Hero heuristics.
+    from app.parsers import smartcredit
+
+    if smartcredit.can_parse_text(cleaned, file_name):
+        sc = smartcredit.parse_text(cleaned, file_name=file_name)
+        if sc.tradelines:
+            return sc.tradelines, sc.consumer, sc.report_date or ""
+
     bureau = detect_primary_bureau(cleaned, file_name)
     tradelines = _parse_credit_hero(cleaned, bureau)
     if not tradelines:
@@ -1097,8 +1110,18 @@ def _valid_creditor(name: str) -> bool:
         return False
     if not re.search(r"[A-Za-z]", cleaned):
         return False
-    lowered = cleaned.lower()
-    if lowered in _CREDITOR_DENY:
+    lowered = cleaned.lower().rstrip(":")
+    if lowered in _CREDITOR_DENY or f"{lowered}:" in _CREDITOR_DENY:
+        return False
+    # Field labels leaking in as furnishers (SmartCredit / OCR).
+    if re.match(
+        r"(?i)^(?:"
+        r"payment amount|monthly payment|account #|account number|high balance|"
+        r"balance owed|past due(?: amount)?|credit limit|date opened|"
+        r"payment status|account status|account type|subscriber|creditor remarks"
+        r")$",
+        lowered,
+    ):
         return False
     if _is_hero_creditor_junk(cleaned):
         return False

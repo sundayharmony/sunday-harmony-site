@@ -14,13 +14,23 @@ def parse_document_fallback(doc: ExtractedDocument, file_name: str = "") -> Pars
             _enrich_tradelines_from_fallback(report)
             return report
         if smartcredit.can_parse(doc.html):
-            try:
-                report = smartcredit.parse(doc.html, doc.file_type, doc.ocr_used, doc.extraction_quality)
-                report.source = "fallback_parser"
-                _enrich_tradelines_from_fallback(report)
-                return report
-            except NotImplementedError:
-                pass
+            report = smartcredit.parse(doc.html, doc.file_type, doc.ocr_used, doc.extraction_quality)
+            report.source = "fallback_parser"
+            _enrich_tradelines_from_fallback(report)
+            return report
+    text_blob = doc.text or ""
+    if smartcredit.can_parse_text(text_blob, file_name) or smartcredit.can_parse(file_name):
+        report = smartcredit.parse_text(
+            text_blob,
+            file_type=doc.file_type,
+            ocr_used=doc.ocr_used,
+            quality=doc.extraction_quality,
+            file_name=file_name,
+        )
+        if report.tradelines:
+            report.source = "fallback_parser"
+            _enrich_tradelines_from_fallback(report)
+            return report
     report = report_extractor.extract_from_text(
         doc.text,
         doc.file_type,

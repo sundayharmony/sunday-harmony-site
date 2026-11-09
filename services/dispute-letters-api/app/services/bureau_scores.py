@@ -180,6 +180,13 @@ def scores_from_text(text: str) -> BureauScores:
     scores = BureauScores()
     if not text:
         return scores
+    # SmartCredit 3B header: TransUnion / Experian / Equifax then three scores.
+    from app.parsers import smartcredit
+
+    if smartcredit.can_parse_text(text):
+        sc_scores = smartcredit.parse_scores(text)
+        if not scores_missing(sc_scores):
+            return sc_scores
     if _scores_from_credit_hero_all_bureaus(text, scores):
         return scores
     if _scores_from_based_on_bureau(text, scores):

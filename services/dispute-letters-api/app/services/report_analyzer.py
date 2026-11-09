@@ -112,9 +112,20 @@ def prefer_richer_report(
     return agent, agent_health
 
 
+_FIELD_LABEL_CREDITOR = re.compile(
+    r"(?i)^(?:"
+    r"payment amount|monthly payment|account #|account number|high balance|"
+    r"balance owed|past due|credit limit|date opened|payment status|"
+    r"account status|account type|subscriber|creditor remarks"
+    r")\s*:?\s*$"
+)
+
+
 def _is_real_account(tl: Tradeline) -> bool:
     creditor = (tl.creditor or "").strip()
     if len(creditor) < 2 or creditor.lower() in {"unknown", "n/a", "none"}:
+        return False
+    if _FIELD_LABEL_CREDITOR.match(creditor):
         return False
     kind = f"{tl.account_type} {tl.item_category} {tl.status}".lower()
     if "inquir" in kind:

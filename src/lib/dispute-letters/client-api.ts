@@ -157,6 +157,25 @@ export async function resetApplicationDisputeWork(applicationUuid: string): Prom
   return res.json() as Promise<{ sessionsDeleted: number; caseDeleted: boolean }>
 }
 
+/** Clear letters/plans/rounds only — keeps uploaded reports and Health analysis. */
+export async function resetApplicationDisputeLetters(applicationUuid: string): Promise<{
+  sessionsPreserved: number
+  lettersDeleted: number
+  plansDeleted: number
+  caseDeleted: boolean
+}> {
+  const res = await fetch(`/api/admin/credit-funding/${applicationUuid}/reset-dispute-letters`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(await parseError(res))
+  return res.json() as Promise<{
+    sessionsPreserved: number
+    lettersDeleted: number
+    plansDeleted: number
+    caseDeleted: boolean
+  }>
+}
+
 export async function backfillHistoricalRound1(params: {
   applicationUuid?: string
   consumerName?: string

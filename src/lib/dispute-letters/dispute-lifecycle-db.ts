@@ -2384,8 +2384,88 @@ export async function backfillHistoricalRound1ForApplication(params: {
 }
 
 /**
+ * Clear generated letters, plans, and dispute round/case history for an
+ * application while keeping uploaded reports and analysis intact.
+ */
+export async function resetDisputeLettersAndRoundsForApplication(applicationUuid: string): Promise<{
+  ok: true
+  sessionsPreserved: number
+  lettersDeleted: number
+  plansDeleted: number
+  caseDeleted: boolean
+} | { ok: false; error: string }> {
+  if (!applicationUuid.trim()) return { ok: false, error: 'applicationUuid is required' }
+
+  const db = getSupabase()
+  const { data: sessionRows, error: sessionErr } = await db
+    .from('dispute_sessions')
+    .select('id')
+    .eq('application_uuid', applicationUuid)
+    .limit(100)
+
+  if (sessionErr && !isMissingRelation(sessionErr)) {
+    return { ok: false, error: sessionErr.message }
+  }
+
+  const sessionIds = (sessionRows || []).map((row) => String(row.id)).filter(Boolean)
+  let lettersDeleted = 0
+  let plansDeleted = 0
+
+  if (sessionIds.length) {
+    const { data: letterRows, error: letterErr } = await db
+      .from('dispute_letters')
+      .delete()
+      .in('session_id', sessionIds)
+      .select('id')
+    if (letterErr && !isMissingRelation(letterErr)) {
+      return { ok: false, error: letterErr.message }
+    }
+    lettersDeleted = letterRows?.length || 0
+
+    const { data: planRows, error: planErr } = await db
+      .from('dispute_letter_plans')
+      .delete()
+      .in('session_id', sessionIds)
+      .select('session_id')
+    if (planErr && !isMissingRelation(planErr)) {
+      return { ok: false, error: planErr.message }
+    }
+    plansDeleted = planRows?.length || 0
+  }
+
+  const { data: caseRow, error: caseErr } = await db
+    .from('dispute_cases')
+    .select('id')
+    .eq('application_uuid', applicationUuid)
+    .maybeSingle()
+
+  if (caseErr && !isMissingRelation(caseErr)) {
+    return { ok: false, error: caseErr.message }
+  }
+
+  let caseDeleted = false
+  if (caseRow?.id) {
+    const { error: delErr } = await db.from('dispute_cases').delete().eq('id', caseRow.id)
+    if (delErr && !isMissingRelation(delErr)) {
+      return { ok: false, error: delErr.message }
+    }
+    caseDeleted = !delErr
+  }
+
+  return {
+    ok: true,
+    sessionsPreserved: sessionIds.length,
+    lettersDeleted,
+    plansDeleted,
+    caseDeleted,
+  }
+}
+
+/**
  * Wipe reports, generated letters, rounds, and item history for an application
  * so staff can start over as if the first report was never uploaded.
+ * Prefer resetDisputeLettersAndRoundsForApplication when only letters/rounds
+ * should clear — that path keeps report uploads and Health analysis.
  */
 export async function resetDisputeWorkForApplication(applicationUuid: string): Promise<{
   ok: true
