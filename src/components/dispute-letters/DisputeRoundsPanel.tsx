@@ -521,7 +521,7 @@ function LetterPackageCard({
                   ? 'Downloading…'
                   : 'Building ZIP…'
                 : !pkg.zipReady
-                  ? 'Preparing ZIP…'
+                  ? 'Building ZIP…'
                   : downloaded
                     ? 'Download again'
                     : 'Download ZIP'}

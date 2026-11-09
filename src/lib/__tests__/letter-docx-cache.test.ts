@@ -121,6 +121,32 @@ describe('assembleLetterDocxFiles', () => {
     assert.equal(generateCalls, 0)
     assert.equal(files.length, 2)
   })
+
+  it('generates missing letter PDFs one at a time', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    let generateCalls = 0
+    const files = await assembleLetterDocxFiles({
+      sessionId: SESSION,
+      letters: [
+        { id: 'letter-a', title: 'Experian', storage_path: '/tmp/a.letter' },
+        { id: 'letter-b', title: 'Equifax', storage_path: '/tmp/b.letter' },
+        { id: 'letter-c', title: 'TransUnion', storage_path: '/tmp/c.letter' },
+      ],
+      readStored: async () => null,
+      generateMissing: async () => {
+        generateCalls += 1
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        inFlight -= 1
+        return pdfBytes(generateCalls)
+      },
+    })
+    assert.equal(generateCalls, 3)
+    assert.equal(maxInFlight, 1)
+    assert.equal(files.length, 3)
+  })
 })
 
 describe('zip build in-flight claim', () => {

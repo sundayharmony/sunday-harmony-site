@@ -412,9 +412,9 @@ export function isLetterPackageZipReady(pkg: LetterPackageRow | null | undefined
 
 export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
   if (zipReady || status === 'ready') return 'ZIP ready'
-  if (status === 'building') return 'Preparing ZIP…'
+  if (status === 'building') return 'Building PDFs with ID + account pages…'
   if (status === 'failed') return 'ZIP needs rebuild'
-  return 'Preparing ZIP…'
+  return 'Building PDFs with ID + account pages…'
 }
 
 export function buildLetterPackageSnapshot(params: {

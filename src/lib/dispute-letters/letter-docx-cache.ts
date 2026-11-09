@@ -6,8 +6,12 @@ import { hasSafeStoragePathSegments } from '@/lib/storage-utils'
 /** Parallel storage reads when zipping letters that are already built. */
 export const LETTER_DOCX_READ_CONCURRENCY = 6
 
-/** Parallel generator calls for letters that have no stored Word file yet. */
-export const LETTER_DOCX_GENERATE_CONCURRENCY = 4
+/**
+ * Parallel generator calls for letters that have no stored PDF yet.
+ * Keep this at 1: each PDF pulls identity docs + report account screenshots through
+ * the free-tier letters API, and concurrent builds OOM / stall "Preparing ZIP".
+ */
+export const LETTER_DOCX_GENERATE_CONCURRENCY = 1
 
 /**
  * How long a ZIP build may stay quiet before another request takes over.

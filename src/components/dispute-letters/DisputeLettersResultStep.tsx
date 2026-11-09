@@ -196,12 +196,16 @@ export default function DisputeLettersResultStep({
     if (!sessionId || !letters.length) return
     if (pkg?.zipReady) return
     let cancelled = false
-    let kicked = false
+    let lastKickAt = 0
     const tick = async () => {
       const status = pkg?.zipStatus
-      const needsKick = !pkg || status === 'pending' || status === 'failed'
-      if (needsKick && !kicked) {
-        kicked = true
+      const now = Date.now()
+      // Re-kick stale "building" after the server heartbeat window (~30s) so a
+      // killed background prepare cannot leave the button stuck forever.
+      const staleBuilding = status === 'building' && now - lastKickAt >= 35_000
+      const needsKick = !pkg || status === 'pending' || status === 'failed' || lastKickAt === 0 || staleBuilding
+      if (needsKick) {
+        lastKickAt = now
         try {
           await prepareDisputeLettersZip(sessionId, { wait: false })
         } catch {
@@ -251,7 +255,7 @@ export default function DisputeLettersResultStep({
                 ? 'ZIP Downloaded ✓'
                 : pkg
                   ? zipReadyLabel(pkg.zipStatus, pkg.zipReady)
-                  : 'Preparing ZIP…'}
+                  : 'Building PDFs with ID + account pages…'}
               {!downloaded && pkg?.zipReady ? ' · ready to download' : ''}
             </li>
             <li>
@@ -274,7 +278,7 @@ export default function DisputeLettersResultStep({
                   ? 'Downloading…'
                   : 'Building ZIP…'
                 : !pkg?.zipReady && letters.length
-                  ? 'Preparing ZIP…'
+                  ? 'Building ZIP…'
                   : downloaded
                     ? 'Download again'
                     : 'Download all (ZIP)'}
