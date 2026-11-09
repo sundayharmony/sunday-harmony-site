@@ -333,6 +333,8 @@ export type GenerateDisputeLettersOptions = {
   planIds?: string[] | null
   consumerName?: string
   consumerAddresses?: string[]
+  /** Staff-only: generate even if ID / residence / SSN card is missing. */
+  bypassMissingIdentity?: boolean
 }
 
 export async function generateDisputeLetters(
@@ -350,6 +352,7 @@ export async function generateDisputeLetters(
       plan_ids: options?.planIds ?? null,
       consumer_name: options?.consumerName ?? null,
       consumer_addresses: options?.consumerAddresses ?? null,
+      bypass_missing_identity: options?.bypassMissingIdentity === true,
     }),
   })
   if (!startRes.ok) {

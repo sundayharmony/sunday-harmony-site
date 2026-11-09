@@ -72,6 +72,8 @@ describe('dispute letter downloads and preview', () => {
     assert.match(generateRoute, /prepareLetterPackageZip/)
     assert.match(generateRoute, /after\(/)
     assert.match(generateRoute, /missing_letter_identity/)
+    assert.match(generateRoute, /letterIdentityBypassAllowed/)
+    assert.match(generateRoute, /bypass_missing_identity|canBypass/)
     const panel = source('src/components/dispute-letters/DisputeRoundsPanel.tsx')
     assert.match(panel, /downloadDisputeLettersZip/)
     assert.match(panel, /Building ZIP|Preparing ZIP|Downloading/)

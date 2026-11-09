@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { DisputeLettersStepStrip } from '@/components/dispute-letters/DisputeLettersStepStrip'
 import { ProgressPanel } from '@/components/dispute-letters/ProgressPanel'
 import type { LetterPlan, Tradeline } from '@/lib/dispute-letters/types'
@@ -18,6 +19,7 @@ import type { PriorDisputeMark } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import { disputeLettersStandaloneHref } from '@/lib/dispute-letters/workflow'
 import LetterIdentityPrepPanel from '@/components/dispute-letters/LetterIdentityPrepPanel'
+import { canBypassLetterIdentityRequirements } from '@/lib/dispute-letters/letter-identity-bypass'
 
 const SKIPPED_STORAGE_PREFIX = 'dispute-skipped:'
 
@@ -40,6 +42,13 @@ export default function DisputeConfirmStep({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [identityReady, setIdentityReady] = useState<boolean | null>(null)
+  const [bypassMissingIdentity, setBypassMissingIdentity] = useState(false)
+  const { data: session } = useSession()
+  const canBypassIdentity = canBypassLetterIdentityRequirements(session?.user?.role)
+
+  useEffect(() => {
+    if (identityReady === true) setBypassMissingIdentity(false)
+  }, [identityReady])
 
   useEffect(() => {
     if (!sessionId) return
@@ -80,10 +89,17 @@ export default function DisputeConfirmStep({
   )
 
   async function generate() {
-    if (identityReady !== true) {
+    const usingBypass = identityReady !== true && bypassMissingIdentity && canBypassIdentity
+    if (identityReady !== true && !usingBypass) {
       setError('Add Government Photo ID, Proof of Residence, and Social Security Card — or email a request — before generating letters.')
       document.getElementById('letter-identity-prep')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       return
+    }
+    if (usingBypass) {
+      const ok = window.confirm(
+        'Generate letters without every required document? Missing ID, residence proof, or Social Security card will not be attached to the letter packet.'
+      )
+      if (!ok) return
     }
     setLoading(true)
     setError('')
@@ -103,7 +119,11 @@ export default function DisputeConfirmStep({
       await buildDisputePlan(sessionId, selections, overrideMap)
       const job = await generateDisputeLetters(
         sessionId,
-        { consumerName, consumerAddresses: addresses },
+        {
+          consumerName,
+          consumerAddresses: addresses,
+          bypassMissingIdentity: usingBypass,
+        },
         (ev) => {
           if (ev.status === 'progress' || ev.status === 'generating') {
             const current = ev.current && ev.total ? `${ev.current}/${ev.total}` : ''
@@ -242,17 +262,32 @@ export default function DisputeConfirmStep({
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex flex-wrap gap-3">
+        {identityReady === false && canBypassIdentity ? (
+          <label className="w-full flex items-start gap-2 text-sm text-brand-text">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={bypassMissingIdentity}
+              onChange={(event) => setBypassMissingIdentity(event.target.checked)}
+            />
+            <span>
+              <span className="font-medium">Bypass required documents:</span> generate without the
+              missing file(s). Letters will omit any enclosure that is still missing.
+            </span>
+          </label>
+        ) : null}
         <button
           type="button"
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          disabled={loading || identityReady !== true}
+          disabled={loading || (identityReady !== true && !(bypassMissingIdentity && canBypassIdentity))}
           onClick={() => void generate()}
         >
           Generate letters
         </button>
-        {identityReady === false && (
+        {identityReady === false && !bypassMissingIdentity && (
           <p className="w-full text-sm text-amber-800">
             Add Government Photo ID, Proof of Residence, and Social Security Card — or email a request — first.
+            {canBypassIdentity ? ' Or enable the bypass above.' : ''}
           </p>
         )}
         {embedded && onStepChange ? (
