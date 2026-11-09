@@ -9,6 +9,10 @@ export function wantsLetterIdentityBypass(body: unknown): boolean {
   return value === true || value === 'true' || value === 1
 }
 
+/**
+ * Keep this module free of server-only imports — Confirm is a client component.
+ * Role check lives in staff-roles (no stripe-admin-auth / nodemailer).
+ */
 export function canBypassLetterIdentityRequirements(role?: string | null): boolean {
   return isCreditFundingStaffRole(role)
 }
