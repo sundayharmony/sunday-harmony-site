@@ -137,7 +137,7 @@ def parse_consumer(text: str) -> ConsumerInfo:
     consumer = ConsumerInfo()
     match = _NAME_ROW.search(text)
     if match:
-        names = [n for n in _split_three(_strip_label_value(match.group(1))) if n]
+        names = [n for n in _split_three_names(_strip_label_value(match.group(1))) if n]
         if names:
             # Prefer the longest bureau spelling (often includes middle initial).
             consumer.name = max(names, key=len)
@@ -151,7 +151,11 @@ def parse_consumer(text: str) -> ConsumerInfo:
             if raw.strip():
                 next_line = raw.strip()
                 break
-        line2 = _split_three(next_line) if next_line and not re.match(r"(?i)^[A-Za-z ]+:", next_line) else ["", "", ""]
+        line2 = (
+            _split_three(next_line)
+            if next_line and not re.match(r"(?i)^[A-Za-z ]+:", next_line)
+            else ["", "", ""]
+        )
         addresses: list[str] = []
         for street, city in zip(line1, line2):
             combined = ", ".join(part for part in (street, city) if part)
@@ -239,6 +243,12 @@ def _tradeline_from_block(creditor: str, block: str) -> Tradeline | None:
     for raw in block.splitlines():
         line = raw.rstrip()
         if not line.strip():
+            continue
+        # SmartCredit often prints "Account #" without a colon.
+        account_row = re.match(r"(?i)^account\s*#\s*(.*)$", line.strip())
+        if account_row:
+            fields["account"] = _split_three(account_row.group(1))
+            pending_key = "account"
             continue
         label_match = re.match(r"^([^:]{2,40}):\s*(.*)$", line.strip())
         if label_match:
@@ -335,19 +345,142 @@ def _strip_label_value(value: str) -> str:
     return value.strip()
 
 
+_MONEY_TOKEN = re.compile(r"\$[\d,]+(?:\.\d{2})?")
+_DATE_TOKEN = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")
+# Include mask stars; do not use \b after digits (Python treats * as a boundary).
+_ACCOUNT_TOKEN = re.compile(r"(?<![A-Z0-9*])[A-Z0-9*]{4,}(?![A-Z0-9*])")
+_STATUS_PHRASES = tuple(
+    sorted(
+        (
+            "seriously past due date /",
+            "paid, was past due 150 days",
+            "paid, was past due 120 days",
+            "paid, was past due 90 days",
+            "paid, was past due 60 days",
+            "paid, was past due 30 days",
+            "paid or paying as agreed",
+            "pays account as agreed",
+            "paid satisfactorily",
+            "individual account",
+            "joint account",
+            "current",
+            "closed",
+            "open",
+            "individual",
+            "mortgage",
+            "revolving account",
+            "revolving",
+            "installment account",
+            "installment",
+            "sales contract",
+            "charge card",
+            "credit card",
+            "unsecured loan",
+        ),
+        key=len,
+        reverse=True,
+    )
+)
+
+
 def _split_three(value: str) -> list[str]:
-    """Split a bureau value row into TransUnion / Experian / Equifax cells."""
+    """Split a bureau value row into TransUnion / Experian / Equifax cells.
+
+    pdfplumber collapses the 3-column layout to single spaces, while pdftotext
+    -layout keeps wide gaps. Handle both.
+    """
     text = value.strip()
     if not text:
         return ["", "", ""]
-    parts = [p.strip() for p in re.split(r"\s{2,}", text) if p.strip()]
-    # Collapse wrapped leftovers into three cells.
-    while len(parts) > 3:
-        parts[2] = f"{parts[2]} {parts[3]}".strip()
-        del parts[3]
-    while len(parts) < 3:
-        parts.append("")
-    return [_normalize_cell(p) for p in parts[:3]]
+
+    wide = [p.strip() for p in re.split(r"\s{2,}", text)]
+    if len([p for p in wide if p]) >= 2 or len(wide) >= 3:
+        parts = list(wide)
+        while len(parts) > 3:
+            parts[2] = f"{parts[2]} {parts[3]}".strip()
+            del parts[3]
+        while len(parts) < 3:
+            parts.append("")
+        return [_normalize_cell(p) for p in parts[:3]]
+
+    # `--` markers are empty bureau cells in SmartCredit exports.
+    if re.search(r"(?:^|\s)--(?:\s|$)", text) or text in {"--", "—"}:
+        raw = re.split(r"\s*--\s*", text)
+        # "-- $448 --" -> ['', '$448', '']; "-- -- --" -> ['', '', '', '']
+        parts = [p.strip() for p in raw]
+        while len(parts) > 3 and parts[-1] == "":
+            parts.pop()
+        if len(parts) == 4 and parts[0] == "" and parts[-1] == "":
+            # degenerate "-- -- --" split can yield 4 empties
+            parts = parts[:3]
+        while len(parts) < 3:
+            parts.append("")
+        return [_normalize_cell(p) for p in parts[:3]]
+
+    for pattern in (_MONEY_TOKEN, _DATE_TOKEN, _ACCOUNT_TOKEN):
+        matches = pattern.findall(text)
+        if len(matches) == 3:
+            return [_normalize_cell(m) for m in matches]
+
+    words = text.split()
+    if len(words) == 3 and len(set(words)) == 1:
+        return [_normalize_cell(w) for w in words]
+
+    phrases = _split_known_phrases(text)
+    if len(phrases) == 3:
+        return [_normalize_cell(p) for p in phrases]
+
+    # Last resort: keep smashed text out of a single bureau by leaving all empty
+    # when it clearly looks like three unknown free-text cells.
+    return [_normalize_cell(text), "", ""]
+
+
+def _split_three_names(value: str) -> list[str]:
+    """Split `MIKE WEBB MICHAEL WEBB MICHAEL W WEBB` into three bureau names."""
+    text = value.strip()
+    if not text:
+        return ["", "", ""]
+    wide = _split_three(text)
+    if sum(1 for part in wide if part) >= 2:
+        return wide
+    tokens = text.split()
+    if len(tokens) < 4:
+        return [_normalize_cell(text), "", ""]
+    from collections import Counter
+
+    counts = Counter(tokens)
+    for surname, count in counts.most_common():
+        if count != 3:
+            continue
+        groups: list[str] = []
+        current: list[str] = []
+        for token in tokens:
+            current.append(token)
+            if token == surname:
+                groups.append(" ".join(current))
+                current = []
+        if len(groups) == 3 and not current:
+            return [_normalize_cell(g) for g in groups]
+    return [_normalize_cell(text), "", ""]
+
+
+def _split_known_phrases(text: str) -> list[str]:
+    remaining = text.strip()
+    found: list[str] = []
+    while remaining and len(found) < 3:
+        lower = remaining.lower()
+        matched = False
+        for phrase in _STATUS_PHRASES:
+            if lower.startswith(phrase):
+                found.append(remaining[: len(phrase)].strip())
+                remaining = remaining[len(phrase) :].strip()
+                matched = True
+                break
+        if not matched:
+            break
+    if remaining:
+        return []
+    return found
 
 
 def _normalize_cell(value: str) -> str:
@@ -356,3 +489,4 @@ def _normalize_cell(value: str) -> str:
         return ""
     text = text.replace("&apos;", "'")
     return text
+

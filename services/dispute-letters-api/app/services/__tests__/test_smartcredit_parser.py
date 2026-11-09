@@ -11,9 +11,11 @@ from app.services.report_analyzer import _is_real_account, real_account_count
 from app.services.report_extractor import extract_from_text
 from app.models import Tradeline
 
-FIXTURE = (
-    Path(__file__).resolve().parent / "fixtures" / "smartcredit_mike_webb_sample.txt"
-).read_text(encoding="utf-8")
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+FIXTURE = (FIXTURE_DIR / "smartcredit_mike_webb_sample.txt").read_text(encoding="utf-8")
+PDFPLUMBER_FIXTURE = (FIXTURE_DIR / "smartcredit_mike_webb_pdfplumber.txt").read_text(
+    encoding="utf-8"
+)
 FILE_NAME = "Mike_Webb_3-Bureau_Credit_Report___Scores___SmartCredit.pdf"
 
 
@@ -64,3 +66,24 @@ def test_extract_from_text_returns_smartcredit_accounts():
 def test_field_label_creditors_are_not_real_accounts():
     junk = Tradeline(id="1", creditor="Payment Amount:", status="Seriously past due", account_type="Sales Contract")
     assert _is_real_account(junk) is False
+
+
+def test_pdfplumber_collapsed_columns_keep_all_bureaus():
+    """Production extract_pdf uses pdfplumber, which collapses 3-column spacing."""
+    from app.services.bureau_coverage import apply_bureau_coverage
+    from app.services.bureau_scores import fill_missing_scores
+
+    report = smartcredit.parse_text(PDFPLUMBER_FIXTURE, file_name=FILE_NAME)
+    fill_missing_scores(report, text=PDFPLUMBER_FIXTURE, file_name=FILE_NAME)
+    report = apply_bureau_coverage(report, file_name=FILE_NAME)
+    assert report.credit_health.scores.tuc == 649
+    assert report.credit_health.scores.exp == 627
+    assert report.credit_health.scores.eqf == 661
+    assert report.bureau_coverage is not None
+    assert report.bureau_coverage.coverage == "tri_merge"
+    assert set(report.bureau_coverage.bureaus) == {"TUC", "EXP", "EQF"}
+    by_name = {tl.creditor: tl for tl in report.tradelines}
+    assert by_name["SYNCB/PPMC"].bureaus == ["TUC", "EXP", "EQF"]
+    assert by_name["KLARNA INC"].bureaus == ["EXP"]
+    assert by_name["GREAT EASTERN RESORT C"].bureaus == ["EXP"]
+    assert report.consumer.name == "MICHAEL W WEBB"
