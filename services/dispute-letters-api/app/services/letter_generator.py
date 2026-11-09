@@ -351,7 +351,7 @@ Basis of Dispute:
     Then always include these bullets (the mailing packet attaches the copies/images):
     ● Copy of government-issued photo identification
     ● Proof of current residential address
-    ● Screenshots of the disputed account(s) from my consumer credit report
+    Do NOT list credit-report screenshots, score pages, or account evidence images.
 
 Rules:
 - Professional tone suitable for certified mail. No legal-advice disclaimer in the letter body.
@@ -613,7 +613,6 @@ Respectfully,
 Enclosures
 ● Copy of government-issued photo identification
 ● Proof of current residential address
-● Screenshots of the disputed account(s) from my consumer credit report
 """
 
 
