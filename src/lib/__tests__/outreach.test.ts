@@ -6,7 +6,7 @@ import { evaluateActivationBlockers, mailingAddressIsValid, sendsPermitted } fro
 import { claimNextPending, recoverExpiredInFlight } from '../outreach/claims'
 import { confirmUnsubscribe } from '../outreach/confirm-unsubscribe'
 import { buildOutreachConsole, buildOutreachItem } from '../outreach/console'
-import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_MAILING_ADDRESS, OUTREACH_READY_QUEUE_SIZE, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
+import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_CTA_URL, OUTREACH_MAILING_ADDRESS, OUTREACH_PAGE_ENQUEUE_CAP, OUTREACH_READY_QUEUE_SIZE, OUTREACH_SENDER_EMAIL, OUTREACH_SENT_DESK_LIMIT } from '../outreach/constants'
 import { copyIssues, escapeHtml } from '../outreach/copy-rules'
 import { isSameOriginRequest, verifyProviderWebhookSignature } from '../outreach/csrf'
 import { dispatchOutreachBatch } from '../outreach/dispatch'
@@ -348,6 +348,51 @@ describe('eligibility, suppression, and unverified reports', () => {
       if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
       else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
     }
+  })
+
+  it('stops drafting once the examine cap is hit instead of walking the whole book', async () => {
+    const store = createMemoryOutreachStore({ leads: manyLeads(25) })
+    const filled = await ensureReadyQueue(store, { mxResolver: mxOk, maxCandidates: 3 })
+    assert.equal(filled.enqueued, 3)
+    assert.equal(await pendingReadyCount(store), 3)
+    assert.equal((await store.listQueue()).length, 3)
+  })
+
+  it('skips contacted and already queued leads and still fills from later prospects', async () => {
+    const contacted = manyLeads(20).map((row) => ({
+      ...row,
+      lastContactedAt: '2026-11-01T00:00:00.000Z',
+    }))
+    const fresh = manyLeads(2).map((row) => ({
+      ...row,
+      id: `fresh-${row.id}`,
+      email: `fresh-${row.email}`,
+    }))
+    const leads = [...contacted, ...fresh]
+    const store = createMemoryOutreachStore({ leads })
+    await enqueueLeadSnapshots(store, fresh.slice(0, 1), { mxResolver: mxOk })
+    const filled = await ensureReadyQueue(store, { mxResolver: mxOk, maxCandidates: 5 })
+    assert.equal(filled.enqueued, 1)
+    assert.equal(await pendingReadyCount(store), 2)
+    assert.equal((await store.listQueue()).some((row) => row.leadId === 'fresh-lead-2'), true)
+    assert.equal((await store.listQueue()).some((row) => row.leadId === 'lead-1'), false)
+  })
+
+  it('shows a short sent history and the full pending count on the desk', async () => {
+    const leads = manyLeads(OUTREACH_SENT_DESK_LIMIT + 1)
+    const store = createMemoryOutreachStore({ leads })
+    await enqueueLeadSnapshots(store, leads, { mxResolver: mxOk })
+    const items = await store.listQueue()
+    for (const item of items) {
+      await store.compareAndSwap(item.id, 'pending', {
+        status: 'accepted',
+        acceptedAt: `2026-11-05T12:00:${String(items.indexOf(item) % 60).padStart(2, '0')}.000Z`,
+      })
+    }
+    const desk = await buildOutreachConsole(store, 'sales_closer')
+    assert.equal(desk.sent.length, OUTREACH_SENT_DESK_LIMIT)
+    assert.equal(desk.readyCount, 0)
+    assert.equal(desk.next, null)
   })
 
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
@@ -743,9 +788,14 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /OUTREACH_MANUAL_SEND_MAX/)
     assert.match(admin, /manualSendLimitFromBody/)
     assert.match(admin, /ensureReadyQueue/)
+    assert.match(admin, /OUTREACH_PAGE_ENQUEUE_CAP/)
+    assert.match(admin, /refreshLimit: 1/)
+    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP < 40, true)
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
+    assert.match(consoleUi, /AbortSignal\.timeout/)
+    assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)
     assert.match(consoleUi, /How many emails to send/)
     assert.match(consoleUi, /Next in line/)

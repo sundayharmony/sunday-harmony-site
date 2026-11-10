@@ -90,15 +90,32 @@ export default function OutreachConsole() {
   const [openSentId, setOpenSentId] = useState<string | null>(null)
   const [sendCount, setSendCount] = useState(1)
 
-  const load = useCallback(async () => {
-    const response = await fetch('/api/admin/outreach')
-    if (response.status === 401 || response.status === 403) {
-      setError('You do not have access to outreach review.')
-      return
+  const load = useCallback(async (preserveError = false) => {
+    if (!preserveError) setError('')
+    try {
+      const response = await fetch('/api/admin/outreach', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(12000),
+      })
+      if (response.status === 401 || response.status === 403) {
+        setError('You do not have access to outreach review.')
+        return
+      }
+      if (!response.ok) {
+        setError('Outreach did not respond. Try again.')
+        return
+      }
+      const payload = (await response.json()) as ConsolePayload
+      if (!payload.settings || !payload.provider) {
+        setError(payload.error || 'Outreach did not finish loading.')
+        return
+      }
+      setData(payload)
+      setAddress(payload.settings.physicalMailingAddress || '')
+      if (payload.error) setError(payload.error)
+    } catch {
+      setError('Outreach is taking too long to load. Try again.')
     }
-    const payload = (await response.json()) as ConsolePayload
-    setData(payload)
-    setAddress(payload.settings?.physicalMailingAddress || '')
   }, [])
 
   useEffect(() => {
@@ -156,14 +173,27 @@ export default function OutreachConsole() {
         )
         setOpenSentId(null)
       }
-      await load()
+      await load(true)
     } finally {
       setBusy('')
     }
   }
 
   if (!data) {
-    return <p className="text-sm text-brand-muted">{error || 'Loading outreach…'}</p>
+    return (
+      <div className="max-w-3xl space-y-3">
+        <p className="text-sm text-brand-muted">{error || 'Loading outreach…'}</p>
+        {error ? (
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-lg border border-brand-border bg-white text-sm font-semibold text-brand-text"
+          >
+            Try again
+          </button>
+        ) : null}
+      </div>
+    )
   }
 
   const canOperate = Boolean(data.canOperate)

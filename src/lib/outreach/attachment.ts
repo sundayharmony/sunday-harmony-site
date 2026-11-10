@@ -43,7 +43,9 @@ export async function resolveCompanyPresentationPdf(root = process.cwd()): Promi
   const origin = publicPresentationOrigin()
   if (!origin) return null
   try {
-    const response = await fetch(`${origin}${OUTREACH_ATTACHMENT_PUBLIC_PATH}`)
+    const response = await fetch(`${origin}${OUTREACH_ATTACHMENT_PUBLIC_PATH}`, {
+      signal: AbortSignal.timeout(4000),
+    })
     if (!response.ok) return null
     const buf = Buffer.from(await response.arrayBuffer())
     return isPdf(buf) ? buf : null

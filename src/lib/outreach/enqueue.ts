@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto'
 import {
   OUTREACH_ATTACHMENT_FILENAME,
   OUTREACH_CAMPAIGN_SLUG,
+  OUTREACH_ENQUEUE_EXAMINE_CAP,
   OUTREACH_MAX_ATTEMPTS,
   OUTREACH_READY_QUEUE_SIZE,
 } from './constants'
 import { payloadSha256, renderDraft } from './draft'
-import { evaluateEligibility } from './eligibility'
+import { evaluateEligibility, isAlreadyContacted } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
 import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
@@ -196,25 +197,67 @@ export function isSentQueueStatus(status: QueueItem['status']): boolean {
 }
 
 export async function pendingReadyCount(store: OutreachStore): Promise<number> {
-  const queue = await store.listQueueSummaries()
-  return queue.filter((item) => item.status === 'pending').length
+  return store.countQueueByStatus('pending')
+}
+
+function leadNeedsNoDraft(lead: LeadSnapshot): boolean {
+  if ((lead.leadType || 'marketing_lead') !== 'marketing_lead') return true
+  if (!normalizeEmail(lead.email || '')) return true
+  return isAlreadyContacted(lead)
 }
 
 export async function ensureReadyQueue(
   store: OutreachStore,
-  options?: { mxResolver?: MxResolver; actor?: string; size?: number }
+  options?: {
+    mxResolver?: MxResolver
+    actor?: string
+    size?: number
+    /** New leads this call may draft. Already-queued and already-contacted rows do not count. */
+    maxCandidates?: number
+    /** How many unsent letters to rewrite before looking for new leads. */
+    refreshLimit?: number
+  }
 ): Promise<EnqueueResult> {
   const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
-  await refreshReadyQueueCopy(store, size)
+  const maxCandidates = options?.maxCandidates ?? OUTREACH_ENQUEUE_EXAMINE_CAP
+  const refreshWindow = options?.refreshLimit ?? size
+  await refreshReadyQueueCopy(
+    store,
+    refreshWindow,
+    options?.refreshLimit != null ? ['pending'] : undefined
+  )
   const result = emptyEnqueueResult()
   let pending = await pendingReadyCount(store)
-  if (pending >= size) return result
-  const leads = await store.listEligibleLeadCandidates()
-  for (const lead of leads) {
-    if (pending >= size) break
-    const one = await enqueueLeadSnapshots(store, [lead], options)
-    mergeEnqueueResults(result, one)
-    pending += one.enqueued
+  if (pending >= size || maxCandidates < 1) return result
+
+  const queued = await store.listQueuedLeadKeys()
+  const queuedLeadIds = new Set(queued.map((item) => item.leadId))
+  const queuedEmails = new Set(queued.map((item) => item.emailNormalized).filter(Boolean))
+  let examined = 0
+  let offset = 0
+  const pageSize = 100
+  // Skip leads already queued with one indexed read per page, then draft only a small handful.
+  // The scan has to clear the queued prefix or the next page view would start over at the same rows.
+  const scanCap = Math.min(2000, Math.max(maxCandidates * 8, queuedLeadIds.size + maxCandidates, pageSize))
+
+  while (pending < size && examined < maxCandidates && offset < scanCap) {
+    const page = await store.listEligibleLeadCandidates({ limit: pageSize, offset })
+    if (page.length === 0) break
+    for (const lead of page) {
+      if (pending >= size || examined >= maxCandidates) break
+      const emailNorm = normalizeEmail(lead.email || '')
+      if (leadNeedsNoDraft(lead) || queuedLeadIds.has(lead.id) || (emailNorm && queuedEmails.has(emailNorm))) {
+        continue
+      }
+      examined += 1
+      const one = await enqueueLeadSnapshots(store, [lead], options)
+      mergeEnqueueResults(result, one)
+      pending += one.enqueued
+      queuedLeadIds.add(lead.id)
+      if (emailNorm) queuedEmails.add(emailNorm)
+    }
+    offset += page.length
+    if (page.length < pageSize) break
   }
   return result
 }
@@ -226,7 +269,7 @@ export async function enqueueFromStoreCandidates(
   return ensureReadyQueue(store, options)
 }
 
-const COPY_REFRESH_STATUSES = new Set(['pending', 'needs_review', 'blocked_review'])
+const COPY_REFRESH_STATUSES = new Set<QueueItem['status']>(['pending', 'needs_review', 'blocked_review'])
 const COPY_HOLD_REASONS = new Set([
   'unusable_greeting',
   'missing_first_name',
@@ -256,14 +299,15 @@ export function nextQueueStateAfterCopyRefresh(item: QueueItem): {
 
 export async function refreshReadyQueueCopy(
   store: OutreachStore,
-  size = OUTREACH_READY_QUEUE_SIZE
+  size = OUTREACH_READY_QUEUE_SIZE,
+  statuses?: Array<QueueItem['status']>
 ): Promise<{ refreshed: number; skipped: number }> {
-  const summaries = await store.listQueueSummaries()
-  const ids = summaries
-    .filter((item) => COPY_REFRESH_STATUSES.has(item.status))
-    .sort(compareQueueOrder)
-    .slice(0, size)
-    .map((item) => item.id)
+  const summaries = await store.listQueueSummaries({
+    statuses: statuses ?? [...COPY_REFRESH_STATUSES],
+    order: 'queue',
+    limit: size,
+  })
+  const ids = summaries.map((item) => item.id)
   const items: QueueItem[] = []
   for (const id of ids) {
     const item = await store.getQueueItem(id)
@@ -321,18 +365,34 @@ export async function refreshUnsentQueueCopy(
       physicalMailingAddress: settings.physicalMailingAddress,
     })
     const next = nextQueueStateAfterCopyRefresh(item)
+    const digest = payloadSha256({
+      subject: draft.subject,
+      html: draft.html,
+      text: draft.text,
+      to: item.emailNormalized,
+    })
+    const storedDigest = payloadSha256({
+      subject: item.subject,
+      html: item.htmlBody,
+      text: item.textBody,
+      to: item.emailNormalized,
+    })
+    if (
+      digest === storedDigest &&
+      next.status === item.status &&
+      next.eligibilityReason === item.eligibilityReason &&
+      JSON.stringify(facts) === JSON.stringify(item.groundedFacts)
+    ) {
+      skipped += 1
+      continue
+    }
     const saved = await store.compareAndSwap(item.id, item.status, {
       groundedFacts: facts,
       subject: draft.subject,
       preheader: draft.preheader,
       htmlBody: draft.html,
       textBody: draft.text,
-      payloadSha256: payloadSha256({
-        subject: draft.subject,
-        html: draft.html,
-        text: draft.text,
-        to: item.emailNormalized,
-      }),
+      payloadSha256: digest,
       status: next.status,
       eligibilityReason: next.eligibilityReason,
     })

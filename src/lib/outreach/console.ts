@@ -1,7 +1,11 @@
 import { resolveCompanyPresentationPdf } from './attachment'
-import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_MANUAL_SEND_MAX, OUTREACH_READY_QUEUE_SIZE } from './constants'
+import {
+  EMAIL_BOT_UNVERIFIED_REPORTS,
+  OUTREACH_MANUAL_SEND_MAX,
+  OUTREACH_READY_QUEUE_SIZE,
+  OUTREACH_SENT_DESK_LIMIT,
+} from './constants'
 import { draftContentSha256 } from './draft-shell'
-import { compareQueueOrder, isSentQueueStatus } from './enqueue'
 import { buildHandoff, canViewHandoff } from './handoff'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { outreachCron } from './scheduler'
@@ -47,19 +51,24 @@ function deskRow(
 }
 
 export async function buildOutreachConsole(store: OutreachStore, role: string | null) {
-  const settings = await store.getSettings()
-  const campaign = await store.getCampaignBySlug('prospect-intro')
+  const [settings, campaign, pending, sent, readyCount, recon, attachment] = await Promise.all([
+    store.getSettings(),
+    store.getCampaignBySlug('prospect-intro'),
+    store.listQueueSummaries({ statuses: ['pending'], order: 'queue', limit: 1 }),
+    store.listQueueSummaries({
+      statuses: ['accepted', 'delivered', 'bounced'],
+      order: 'recent',
+      limit: OUTREACH_SENT_DESK_LIMIT,
+    }),
+    store.countQueueByStatus('pending'),
+    store.listReconciliationItems(),
+    resolveCompanyPresentationPdf(),
+  ])
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
-  const queue = await store.listQueueSummaries()
-  const recon = await store.listReconciliationItems()
-  const attachmentPresent = Boolean(await resolveCompanyPresentationPdf())
+  const attachmentPresent = Boolean(attachment)
   const blockers = currentBlockers(settings, template, { schemaReady: true, attachmentPresent })
   const includeHandoff = canViewHandoff(role)
   const canOperate = role === 'admin'
-  const pending = queue.filter((item) => item.status === 'pending').sort(compareQueueOrder)
-  const sent = queue
-    .filter((item) => isSentQueueStatus(item.status) || Boolean(item.acceptedAt))
-    .sort((a, b) => (b.acceptedAt || b.createdAt).localeCompare(a.acceptedAt || a.createdAt))
   const nextSummary = pending[0] || null
   const nextItem = nextSummary ? await buildOutreachItem(store, nextSummary.id, role) : null
   const liveSend = blockers.length === 0
@@ -70,7 +79,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     senderConfigured: senderConfiguredHere(),
     canOperate,
     attachmentPresent,
-    readyCount: pending.length,
+    readyCount,
     readyTarget: OUTREACH_READY_QUEUE_SIZE,
     manualSendMax: OUTREACH_MANUAL_SEND_MAX,
     next: nextItem,

@@ -1,6 +1,7 @@
 import { legacyLeadStatusForStage, marketingStatusForStage, type PipelineStage } from '@/lib/marketing-pipeline'
 import { getSupabase } from '@/lib/supabase'
-import type { OutreachStore } from './store'
+import { CONTACTED_PIPELINE_STAGES } from './eligibility'
+import type { LeadCandidateQuery, OutreachStore, QueueSummaryQuery } from './store'
 import type {
   AuditEvent,
   LeadSnapshot,
@@ -18,6 +19,14 @@ import { leadRowToSnapshot } from './enqueue'
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
+
+const QUEUE_SUMMARY_COLUMNS =
+  'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, next_attempt_at, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
+
+const LEAD_CANDIDATE_COLUMNS =
+  'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
+
+const CONTACTED_STAGE_FILTER = CONTACTED_PIPELINE_STAGES.join(',')
 
 function mapSettings(row: Record<string, unknown>): OutreachSettings {
   return {
@@ -408,14 +417,44 @@ export function createSupabaseOutreachStore(): OutreachStore {
       const { data } = await db().from('outreach_queue').select('*').order('created_at', { ascending: false })
       return ((data || []) as Array<Record<string, unknown>>).map(mapQueue)
     },
-    async listQueueSummaries() {
-      const { data } = await db()
-        .from('outreach_queue')
-        .select(
-          'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, next_attempt_at, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
-        )
-        .order('created_at', { ascending: false })
+    async listQueueSummaries(query?: QueueSummaryQuery) {
+      let request = db().from('outreach_queue').select(QUEUE_SUMMARY_COLUMNS)
+      if (query?.statuses?.length) request = request.in('status', query.statuses)
+      if (query?.order === 'recent') {
+        request = request
+          .order('accepted_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false })
+      } else if (query?.order === 'queue') {
+        request = request
+          .order('next_attempt_at', { ascending: true })
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+      } else {
+        request = request.order('created_at', { ascending: false })
+      }
+      if (query?.limit && query.limit > 0) request = request.limit(query.limit)
+      const { data, error } = await request
+      if (error) throw new Error(error.message)
       return ((data || []) as Array<Record<string, unknown>>).map(mapQueue)
+    },
+    async countQueueByStatus(status) {
+      const { count, error } = await db()
+        .from('outreach_queue')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', status)
+      if (error) throw new Error(error.message)
+      return count || 0
+    },
+    async listQueuedLeadKeys() {
+      const { data, error } = await db()
+        .from('outreach_queue')
+        .select('lead_id, email_normalized')
+        .limit(2000)
+      if (error) throw new Error(error.message)
+      return ((data || []) as Array<Record<string, unknown>>).map((row) => ({
+        leadId: asString(row.lead_id),
+        emailNormalized: asString(row.email_normalized),
+      }))
     },
     async insertQueue(item) {
       const { data, error } = await db()
@@ -534,20 +573,33 @@ export function createSupabaseOutreachStore(): OutreachStore {
     async getLead(id) {
       const { data } = await db()
         .from('leads')
-        .select(
-          'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
-        )
+        .select(LEAD_CANDIDATE_COLUMNS)
         .eq('id', id)
         .maybeSingle()
       return data ? leadRowToSnapshot(data as Record<string, unknown>) : null
     },
-    async listEligibleLeadCandidates() {
-      const { data } = await db()
-        .from('leads')
-        .select(
-          'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
-        )
-        .eq('lead_type', 'marketing_lead')
+    async listEligibleLeadCandidates(query?: LeadCandidateQuery) {
+      const limit = Math.min(Math.max(query?.limit ?? 40, 1), 200)
+      const offset = Math.max(query?.offset ?? 0, 0)
+      const load = async (filtered: boolean) => {
+        let request = db().from('leads').select(LEAD_CANDIDATE_COLUMNS).eq('lead_type', 'marketing_lead')
+        if (filtered) {
+          request = request
+            .not('email', 'is', null)
+            .neq('email', '')
+            .is('last_contacted_at', null)
+            .is('gmail_thread_id', null)
+            .or(`pipeline_stage.is.null,pipeline_stage.not.in.(${CONTACTED_STAGE_FILTER})`)
+        }
+        return request.order('created_at', { ascending: true }).range(offset, offset + limit - 1)
+      }
+      let { data, error } = await load(true)
+      if (error) {
+        const fallback = await load(false)
+        data = fallback.data
+        error = fallback.error
+      }
+      if (error) throw new Error(error.message)
       return ((data || []) as Array<Record<string, unknown>>)
         .map(leadRowToSnapshot)
         .filter((row): row is LeadSnapshot => Boolean(row))
