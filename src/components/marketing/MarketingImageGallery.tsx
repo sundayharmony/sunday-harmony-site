@@ -27,9 +27,9 @@ export default function MarketingImageGallery({
           <p className="mt-2 text-sm text-brand-muted leading-relaxed">{description}</p>
         ) : null}
       </div>
-      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 items-start gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {images.map((image, index) => (
-          <li key={image.src} className="min-w-0">
+          <li key={image.src} className="min-w-0 self-start">
             <MarketingImage image={image} priority={priorityFirst && index === 0} />
           </li>
         ))}

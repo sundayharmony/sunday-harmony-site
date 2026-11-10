@@ -49,14 +49,14 @@ export default function About() {
                 </div>
               </div>
               {prospectImage ? (
-                <div className="overflow-hidden rounded-[20px] border border-brand-border bg-brand-bg-soft">
+                <div className="overflow-hidden rounded-[20px] border border-brand-border bg-white">
                   <Image
                     src={prospectImage.src}
                     alt={prospectImage.alt}
                     width={prospectImage.width}
                     height={prospectImage.height}
                     sizes="(max-width: 1024px) 100vw, 520px"
-                    className="h-auto w-full object-cover"
+                    className="block h-auto w-full"
                     loading="lazy"
                   />
                 </div>

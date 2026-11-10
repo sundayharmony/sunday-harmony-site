@@ -18,8 +18,8 @@ export default function MarketingImage({
   sizes = `(max-width: 640px) 100vw, ${MARKETING_IMAGE_MAX_WIDTH_PX}px`,
 }: Props) {
   return (
-    <div
-      className={`relative mx-auto w-full overflow-hidden rounded-2xl border border-brand-border bg-brand-bg-soft ${className}`}
+    <figure
+      className={`mx-auto w-full overflow-hidden rounded-2xl border border-brand-border bg-white ${className}`}
       style={{ maxWidth: MARKETING_IMAGE_MAX_WIDTH_PX }}
     >
       <Image
@@ -30,8 +30,8 @@ export default function MarketingImage({
         sizes={sizes}
         priority={priority}
         loading={priority ? undefined : 'lazy'}
-        className="h-auto w-full object-cover"
+        className="block h-auto w-full"
       />
-    </div>
+    </figure>
   )
 }

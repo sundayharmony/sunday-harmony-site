@@ -183,14 +183,14 @@ export default function Packages() {
                   const image = section ? featuredMarketingImage(section) : undefined
                   if (!image) return null
                   return (
-                    <div className="mb-4 overflow-hidden rounded-xl border border-brand-border bg-brand-bg-soft">
+                    <div className="mb-4 overflow-hidden rounded-xl border border-brand-border bg-white">
                       <Image
                         src={image.src}
                         alt={image.alt}
                         width={image.width}
                         height={image.height}
                         sizes="(max-width: 768px) 100vw, 280px"
-                        className="h-36 w-full object-cover"
+                        className="block h-36 w-full object-cover"
                         loading="lazy"
                       />
                     </div>

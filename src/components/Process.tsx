@@ -1,13 +1,7 @@
 import { processSteps } from '@/lib/data'
 import SectionHeader from '@/components/ui/SectionHeader'
-import MarketingImage from '@/components/marketing/MarketingImage'
-import { marketingImagesFor } from '@/lib/marketing-images'
 
 export default function Process() {
-  const blueprint = marketingImagesFor('business-blueprint')
-  const nextSteps = marketingImagesFor('what-to-build-next')
-  const visuals = [...blueprint, ...nextSteps]
-
   return (
     <section className="py-24 bg-brand-bg-soft" id="process">
       <div className="max-w-[1100px] mx-auto px-7">
@@ -35,14 +29,6 @@ export default function Process() {
             </div>
           ))}
         </div>
-
-        {visuals.length > 0 ? (
-          <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {visuals.map((image) => (
-              <MarketingImage key={image.src} image={image} />
-            ))}
-          </div>
-        ) : null}
       </div>
     </section>
   )
