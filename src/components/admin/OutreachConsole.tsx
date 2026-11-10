@@ -261,8 +261,8 @@ export default function OutreachConsole() {
                   const count = effectiveSendCount
                   const prompt =
                     count === 1
-                      ? `Send this email to ${next.business} now? Gmail accepted is not delivered.`
-                      : `Send ${count} emails from the queue now, starting with ${next.business}? Gmail accepted is not delivered.`
+                      ? `Send this email to ${next.business} now?\n\nOK starts the send. Gmail “accepted” only means Gmail took the message — it is not proof of delivery.`
+                      : `Send ${count} emails from the queue now, starting with ${next.business}?\n\nOK starts the send. Gmail “accepted” only means Gmail took each message — it is not proof of delivery.`
                   if (!window.confirm(prompt)) return
                   void post('send', { count })
                 }}
