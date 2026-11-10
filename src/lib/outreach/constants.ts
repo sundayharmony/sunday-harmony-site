@@ -26,8 +26,11 @@ export const OUTREACH_SENT_DESK_LIMIT = 40
  * when most rows are ineligible.
  */
 export const OUTREACH_ENQUEUE_EXAMINE_CAP = 40
-/** Smaller window for the admin desk so opening Outreach returns before the function times out. */
-export const OUTREACH_PAGE_ENQUEUE_CAP = 12
+/**
+ * New leads the admin desk may draft on page load. Keep this modest so the page
+ * returns quickly; Fill queue / post-send refill uses the full examine cap.
+ */
+export const OUTREACH_PAGE_ENQUEUE_CAP = 20
 /** Default manual send when no count is specified (cron / legacy). */
 export const OUTREACH_SEND_LIMIT = 1
 /** Upper bound for a single operator send action. */

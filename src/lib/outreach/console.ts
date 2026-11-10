@@ -6,7 +6,7 @@ import {
   OUTREACH_SENT_DESK_LIMIT,
 } from './constants'
 import { draftContentSha256 } from './draft-shell'
-import { isClaimablePending } from './enqueue'
+import { isClaimablePending, isDeskReadyPending } from './enqueue'
 import { buildHandoff, canViewHandoff } from './handoff'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { outreachCron } from './scheduler'
@@ -74,10 +74,11 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
   const blockers = currentBlockers(settings, template, { schemaReady: true, attachmentPresent })
   const includeHandoff = canViewHandoff(role)
   const canOperate = role === 'admin'
-  const claimable = pendingAll.filter((item) => isClaimablePending(item, now))
-  const deferredCount = pendingAll.length - claimable.length
-  // Prefer a claimable letter for preview; fall back so staff still see what is waiting.
-  const nextSummary = claimable[0] || pendingAll[0] || null
+  // Desk Send ignores brief retry backoff, so ready = sendable pending (not long holds).
+  const deskReady = pendingAll.filter((item) => isDeskReadyPending(item, now))
+  const cronClaimable = pendingAll.filter((item) => isClaimablePending(item, now))
+  const deferredCount = deskReady.length - cronClaimable.length
+  const nextSummary = deskReady[0] || null
   const nextItem = nextSummary ? await buildOutreachItem(store, nextSummary.id, role) : null
   const liveSend = blockers.length === 0
   return {
@@ -87,8 +88,8 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     senderConfigured: senderConfiguredHere(),
     canOperate,
     attachmentPresent,
-    readyCount: claimable.length,
-    deferredCount,
+    readyCount: deskReady.length,
+    deferredCount: deferredCount > 0 ? deferredCount : 0,
     readyTarget: OUTREACH_READY_QUEUE_SIZE,
     manualSendMax: OUTREACH_MANUAL_SEND_MAX,
     next: nextItem,

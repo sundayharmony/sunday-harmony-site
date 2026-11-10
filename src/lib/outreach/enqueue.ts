@@ -196,7 +196,7 @@ export function isSentQueueStatus(status: QueueItem['status']): boolean {
   return status === 'accepted' || status === 'delivered' || status === 'bounced'
 }
 
-/** Pending letter that Send can claim right now (not waiting on retry backoff). */
+/** Pending letter that cron/workers can claim right now (not waiting on retry backoff). */
 export function isClaimablePending(
   item: Pick<QueueItem, 'status' | 'nextAttemptAt'>,
   at: Date = new Date()
@@ -207,6 +207,21 @@ export function isClaimablePending(
   return nextAt <= at.getTime()
 }
 
+/**
+ * Manual desk Send uses ignoreBackoff, so any pending letter that is not an
+ * intentional long hold counts toward the ready target and preview.
+ */
+export function isDeskReadyPending(
+  item: Pick<QueueItem, 'status' | 'nextAttemptAt' | 'eligibilityReason'>,
+  at: Date = new Date()
+): boolean {
+  if (item.status !== 'pending') return false
+  if (item.eligibilityReason === 'held_for_internal_test') return false
+  const nextAt = Date.parse(item.nextAttemptAt)
+  if (Number.isFinite(nextAt) && nextAt - at.getTime() > 7 * 24 * 60 * 60 * 1000) return false
+  return true
+}
+
 export async function pendingReadyCount(store: OutreachStore, at?: Date): Promise<number> {
   const when = at ?? store.now()
   const queue = await store.listQueueSummaries({
@@ -214,7 +229,7 @@ export async function pendingReadyCount(store: OutreachStore, at?: Date): Promis
     order: 'queue',
     limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
   })
-  return queue.filter((item) => isClaimablePending(item, when)).length
+  return queue.filter((item) => isDeskReadyPending(item, when)).length
 }
 
 export async function pendingDeferredCount(store: OutreachStore, at?: Date): Promise<number> {
@@ -224,13 +239,34 @@ export async function pendingDeferredCount(store: OutreachStore, at?: Date): Pro
     order: 'queue',
     limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
   })
-  return queue.filter((item) => !isClaimablePending(item, when)).length
+  return queue.filter((item) => !isClaimablePending(item, when) && isDeskReadyPending(item, when)).length
 }
 
 function leadNeedsNoDraft(lead: LeadSnapshot): boolean {
   if ((lead.leadType || 'marketing_lead') !== 'marketing_lead') return true
   if (!normalizeEmail(lead.email || '')) return true
   return isAlreadyContacted(lead)
+}
+
+const DESK_RECOVERABLE_REVIEW_REASONS = new Set([
+  'mx_uncertain',
+  'mx_uncertain_deferred',
+  'unusable_greeting',
+  'missing_first_name',
+  'observation_contains_email',
+  'observation_internal_notes',
+  'uncertain_after_inflight_timeout',
+  'unsubscribe_token_unusable',
+  'unsubscribe_persist_conflict',
+  'gmail_insufficient_scopes',
+])
+
+function isDeskRecoverableReason(reason: string): boolean {
+  if (!reason) return false
+  if (DESK_RECOVERABLE_REVIEW_REASONS.has(reason)) return true
+  if (reason.startsWith('retry:')) return true
+  if (reason.startsWith('gmail_')) return true
+  return false
 }
 
 /**
@@ -266,6 +302,63 @@ export async function releaseSoftRetryBackoff(
   return released
 }
 
+/**
+ * Pull soft-failed letters back into pending so the desk is not stuck at
+ * "0 ready" while needs_review / expired claims still hold the lead keys.
+ */
+export async function recoverStuckQueueForDesk(
+  store: OutreachStore,
+  options?: { limit?: number; at?: Date }
+): Promise<{ released: number; recovered: number }> {
+  const at = options?.at ?? store.now()
+  const limit = options?.limit ?? OUTREACH_READY_QUEUE_SIZE
+  const released = await releaseSoftRetryBackoff(store, { limit, at })
+  let recovered = 0
+
+  const reviewRows = await store.listQueueSummaries({
+    statuses: ['needs_review'],
+    order: 'queue',
+    limit: Math.max(limit * 3, 30),
+  })
+  for (const item of reviewRows) {
+    if (recovered >= limit) break
+    if (!isDeskRecoverableReason(item.eligibilityReason)) continue
+    const saved = await store.compareAndSwap(item.id, 'needs_review', {
+      status: 'pending',
+      eligibilityReason: 'eligible',
+      nextAttemptAt: at.toISOString(),
+      claimedBy: null,
+      claimedAt: null,
+      leaseExpiresAt: null,
+    })
+    if (saved) recovered += 1
+  }
+
+  if (recovered < limit) {
+    const claimedRows = await store.listQueueSummaries({
+      statuses: ['claimed'],
+      order: 'queue',
+      limit: 30,
+    })
+    for (const item of claimedRows) {
+      if (recovered >= limit) break
+      const leaseMs = Date.parse(item.leaseExpiresAt || '')
+      if (Number.isFinite(leaseMs) && leaseMs > at.getTime()) continue
+      const saved = await store.compareAndSwap(item.id, 'claimed', {
+        status: 'pending',
+        eligibilityReason: 'eligible',
+        nextAttemptAt: at.toISOString(),
+        claimedBy: null,
+        claimedAt: null,
+        leaseExpiresAt: null,
+      })
+      if (saved) recovered += 1
+    }
+  }
+
+  return { released, recovered }
+}
+
 export async function ensureReadyQueue(
   store: OutreachStore,
   options?: {
@@ -278,13 +371,19 @@ export async function ensureReadyQueue(
     refreshLimit?: number
     /** When false, leave retry backoff alone (cron/tests). Desk defaults to releasing. */
     releaseSoftRetries?: boolean
+    /** When false, skip reclaiming soft needs_review / expired claims. */
+    recoverStuck?: boolean
   }
 ): Promise<EnqueueResult> {
   const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
   const maxCandidates = options?.maxCandidates ?? OUTREACH_ENQUEUE_EXAMINE_CAP
   const refreshWindow = options?.refreshLimit ?? size
-  if (options?.releaseSoftRetries !== false) {
+  if (options?.releaseSoftRetries === false && options?.recoverStuck !== true) {
+    // Cron/tests can leave backoff and soft review holds alone.
+  } else if (options?.recoverStuck === false) {
     await releaseSoftRetryBackoff(store, { limit: size })
+  } else {
+    await recoverStuckQueueForDesk(store, { limit: size })
   }
   await refreshReadyQueueCopy(
     store,
@@ -292,7 +391,7 @@ export async function ensureReadyQueue(
     options?.refreshLimit != null ? ['pending'] : undefined
   )
   const result = emptyEnqueueResult()
-  // Fill to N *claimable* letters without walking the whole lead book on every page load.
+  // Fill to N desk-ready letters without walking the whole lead book on every page load.
   let claimable = await pendingReadyCount(store)
   if (claimable >= size || maxCandidates < 1) return result
 

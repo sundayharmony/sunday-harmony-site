@@ -1,4 +1,4 @@
-import { OUTREACH_LEASE_MS } from './constants'
+import { OUTREACH_LEASE_MS, OUTREACH_READY_QUEUE_SIZE } from './constants'
 import type { OutreachStore } from './store'
 import type { QueueItem } from './types'
 
@@ -6,13 +6,29 @@ export async function claimNextPending(
   store: OutreachStore,
   workerId: string,
   at: Date = store.now(),
-  options?: { ignoreBackoff?: boolean }
+  options?: { ignoreBackoff?: boolean; excludeIds?: ReadonlySet<string> }
 ): Promise<QueueItem | null> {
-  const items = await store.listQueue()
   const nowMs = at.getTime()
   const ignoreBackoff = Boolean(options?.ignoreBackoff)
-  const candidates = items
+  const excludeIds = options?.excludeIds
+  // Prefer status-filtered summaries so older pending rows are not buried under a
+  // default PostgREST page of recent accepted history from listQueue().
+  const [pending, claimedRows] = await Promise.all([
+    store.listQueueSummaries({
+      statuses: ['pending'],
+      order: 'queue',
+      limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
+    }),
+    store.listQueueSummaries({
+      statuses: ['claimed'],
+      order: 'queue',
+      limit: 30,
+    }),
+  ])
+
+  const candidates = [...pending, ...claimedRows]
     .filter((item) => {
+      if (excludeIds?.has(item.id)) return false
       if (item.status === 'pending') {
         if (ignoreBackoff) return true
         return new Date(item.nextAttemptAt).getTime() <= nowMs
@@ -42,12 +58,17 @@ export async function claimNextPending(
 }
 
 export async function recoverExpiredInFlight(store: OutreachStore, at: Date = store.now()): Promise<number> {
-  const items = await store.listQueue()
+  const items = await store.listQueueSummaries({
+    statuses: ['in_flight'],
+    order: 'queue',
+    limit: 50,
+  })
   let marked = 0
   for (const item of items) {
-    if (item.status !== 'in_flight') continue
     if (item.leaseExpiresAt && new Date(item.leaseExpiresAt).getTime() > at.getTime()) continue
-    const updated = await store.compareAndSwap(item.id, 'in_flight', {
+    // Full row needed before audit payload; summaries omit provider keys occasionally.
+    const full = (await store.getQueueItem(item.id)) || item
+    const updated = await store.compareAndSwap(full.id, 'in_flight', {
       status: 'needs_review',
       eligibilityReason: 'uncertain_after_inflight_timeout',
     })
@@ -58,8 +79,8 @@ export async function recoverExpiredInFlight(store: OutreachStore, at: Date = st
         actorId: 'outreach-dispatch',
         action: 'needs_review',
         entityType: 'queue',
-        entityId: item.id,
-        payload: { reason: 'expired_in_flight', providerIdempotencyKey: item.providerIdempotencyKey },
+        entityId: full.id,
+        payload: { reason: 'expired_in_flight', providerIdempotencyKey: full.providerIdempotencyKey },
       })
     }
   }

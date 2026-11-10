@@ -19,8 +19,10 @@ import {
   enqueueLeadSnapshots,
   ensureReadyQueue,
   isClaimablePending,
+  isDeskReadyPending,
   pendingDeferredCount,
   pendingReadyCount,
+  recoverStuckQueueForDesk,
   refreshUnsentQueueCopy,
   releaseSoftRetryBackoff,
 } from '../outreach/enqueue'
@@ -359,7 +361,7 @@ describe('eligibility, suppression, and unverified reports', () => {
     }
   })
 
-  it('does not count retry-backoff letters as ready and still refills to ten claimable', async () => {
+  it('keeps backoff letters desk-ready and still lets ignoreBackoff send them', async () => {
     const leads = manyLeads(24)
     const store = createMemoryOutreachStore({ leads })
     await ensureReadyQueue(store, { mxResolver: mxOk })
@@ -374,20 +376,23 @@ describe('eligibility, suppression, and unverified reports', () => {
         eligibilityReason: 'retry:mx_uncertain',
       })
     }
-    assert.equal(await pendingReadyCount(store), 3)
+    // Desk Send ignores backoff, so ready target stays full even while cron cannot claim yet.
+    assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
     assert.equal(await pendingDeferredCount(store), 7)
     const deferredRow = (await store.listQueue()).find((item) => item.id === deferredIds[0])
     assert.ok(deferredRow)
     assert.equal(isClaimablePending(deferredRow, store.now()), false)
+    assert.equal(isDeskReadyPending(deferredRow, store.now()), true)
 
-    // Without releasing backoff, refill drafts new claimable letters past the deferred rows.
+    // Already at desk-ready target, so do not over-draft while soft retries are waiting.
     const refilled = await ensureReadyQueue(store, { mxResolver: mxOk, releaseSoftRetries: false })
-    assert.equal(refilled.enqueued, 7)
+    assert.equal(refilled.enqueued, 0)
     assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
 
     const desk = await buildOutreachConsole(store, 'admin')
     assert.equal(desk.readyCount, OUTREACH_READY_QUEUE_SIZE)
     assert.equal(desk.deferredCount, 7)
+    assert.ok(desk.next?.id)
 
     await store.updateSettings({
       killSwitch: false,
@@ -412,7 +417,11 @@ describe('eligibility, suppression, and unverified reports', () => {
           nextAttemptAt: new Date(store.now().getTime() + 120_000).toISOString(),
         })
       }
-      assert.equal(await pendingReadyCount(store), 0)
+      const cronClaimable = (await store.listQueue()).filter((item) =>
+        isClaimablePending(item, store.now())
+      ).length
+      assert.equal(cronClaimable, 0)
+      assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
       const blocked = await dispatchOutreachBatch({
         store,
         provider,
@@ -440,7 +449,7 @@ describe('eligibility, suppression, and unverified reports', () => {
     }
   })
 
-  it('releases soft retry backoff so the desk can show ready letters again', async () => {
+  it('releases soft retry backoff so cron claimable catches up with desk-ready', async () => {
     const store = createMemoryOutreachStore({ leads: manyLeads(5) })
     await ensureReadyQueue(store, { mxResolver: mxOk, size: 5, releaseSoftRetries: false })
     for (const item of await store.listQueue()) {
@@ -450,7 +459,7 @@ describe('eligibility, suppression, and unverified reports', () => {
         eligibilityReason: 'retry:mx_uncertain',
       })
     }
-    assert.equal(await pendingReadyCount(store), 0)
+    assert.equal(await pendingReadyCount(store), 5)
     assert.equal(await pendingDeferredCount(store), 5)
     assert.equal(await releaseSoftRetryBackoff(store, { limit: 5 }), 5)
     assert.equal(await pendingReadyCount(store), 5)
@@ -458,6 +467,70 @@ describe('eligibility, suppression, and unverified reports', () => {
     const desk = await buildOutreachConsole(store, 'admin')
     assert.equal(desk.readyCount, 5)
     assert.equal(desk.deferredCount, 0)
+  })
+
+  it('recovers soft needs_review letters back into the ready desk queue', async () => {
+    const store = createMemoryOutreachStore({ leads: manyLeads(4) })
+    await ensureReadyQueue(store, { mxResolver: mxOk, size: 4, releaseSoftRetries: false })
+    const queue = await store.listQueue()
+    for (const item of queue.slice(0, 3)) {
+      await store.compareAndSwap(item.id, 'pending', {
+        status: 'needs_review',
+        eligibilityReason: 'mx_uncertain',
+      })
+    }
+    assert.equal(await pendingReadyCount(store), 1)
+    const recovered = await recoverStuckQueueForDesk(store, { limit: 4 })
+    assert.equal(recovered.recovered, 3)
+    assert.equal(await pendingReadyCount(store), 4)
+    const desk = await buildOutreachConsole(store, 'admin')
+    assert.equal(desk.readyCount, 4)
+    assert.ok(desk.next?.id)
+  })
+
+  it('does not reclaim the same soft-failed letter inside one ignoreBackoff batch', async () => {
+    const store = createMemoryOutreachStore({ leads: manyLeads(3) })
+    await ensureReadyQueue(store, { mxResolver: mxOk, size: 3, releaseSoftRetries: false })
+    await store.updateSettings({
+      killSwitch: false,
+      activatedAt: '2026-11-05T00:00:00.000Z',
+      physicalMailingAddress: '1 Example Street, City, ST 00000',
+      dailySendLimit: 0,
+      historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
+    })
+    const template = await store.getLatestTemplate('camp-prospect-intro')
+    assert.ok(template)
+    await store.approveTemplate(template.id, 'admin', draftContentSha256(), store.now())
+    const originalKill = process.env.OUTREACH_KILL_SWITCH
+    const originalAllow = process.env.OUTREACH_ACTIVATION_ALLOWED
+    process.env.OUTREACH_KILL_SWITCH = 'false'
+    process.env.OUTREACH_ACTIVATION_ALLOWED = 'true'
+    try {
+      const provider = createMockProvider()
+      const mxUncertain = async () => {
+        const err = new Error('dns timeout') as Error & { code?: string }
+        err.code = 'ETIMEOUT'
+        throw err
+      }
+      const result = await dispatchOutreachBatch({
+        store,
+        provider,
+        mxResolver: mxUncertain,
+        attachment: Buffer.from('%PDF-1.4 test'),
+        senderConfigured: true,
+        limit: 2,
+        ignoreBackoff: true,
+      })
+      assert.equal(result.accepted, 0)
+      assert.equal(result.dispatched, 3)
+      assert.equal((await store.listQueue()).filter((item) => item.status === 'pending').length, 3)
+    } finally {
+      if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
+      else process.env.OUTREACH_KILL_SWITCH = originalKill
+      if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
+      else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
+    }
   })
 
   it('stops drafting once the examine cap is hit instead of walking the whole book', async () => {
@@ -900,13 +973,16 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /ensureReadyQueue/)
     assert.match(admin, /OUTREACH_PAGE_ENQUEUE_CAP/)
     assert.match(admin, /refreshLimit: 1/)
+    assert.match(admin, /recoverStuck: true/)
     assert.equal(OUTREACH_PAGE_ENQUEUE_CAP < 40, true)
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
-    assert.match(consoleUi, /AbortSignal\.timeout/)
+    assert.match(consoleUi, /AbortSignal\.timeout\(90000\)/)
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)
+    assert.match(consoleUi, /post\('enqueue'\)/)
+    assert.match(consoleUi, /Fill queue/)
     assert.match(consoleUi, /How many emails to send/)
     assert.match(consoleUi, /Next in line/)
     assert.match(consoleUi, /Previously sent/)

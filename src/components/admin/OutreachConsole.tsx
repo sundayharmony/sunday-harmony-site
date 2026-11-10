@@ -96,7 +96,8 @@ export default function OutreachConsole() {
     try {
       const response = await fetch('/api/admin/outreach', {
         cache: 'no-store',
-        signal: AbortSignal.timeout(12000),
+        // Desk refill can examine several leads; keep this above page-load work.
+        signal: AbortSignal.timeout(90000),
       })
       if (response.status === 401 || response.status === 403) {
         setError('You do not have access to outreach review.')
@@ -158,10 +159,19 @@ export default function OutreachConsole() {
         error?: string
         message?: string
         sent?: number
+        enqueued?: number
         details?: string[]
         blockers?: Array<{ code?: string; message?: string }>
       }
       if (!response.ok && payload.error) setError(payload.error)
+      if (action === 'enqueue' && response.ok) {
+        const added = Number(payload.enqueued || 0)
+        setLastSend(
+          added > 0
+            ? `Added ${added} letter${added === 1 ? '' : 's'} to the ready queue.`
+            : 'Queue already had ready letters, or no new eligible prospects were left to draft.'
+        )
+      }
       if ((action === 'send' || action === 'send-batch') && response.ok) {
         const sent = Number(payload.sent || 0)
         const blockers = payload.blockers || []
@@ -262,12 +272,22 @@ export default function OutreachConsole() {
               </p>
             ) : (
               <p className="text-sm text-brand-muted mt-1">
-                Queue more eligible prospects, then refresh this page.
+                Use Fill queue to recover soft failures and draft the next eligible prospects.
               </p>
             )}
           </div>
           {canOperate ? (
             <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full sm:w-auto">
+              {readyCount < readyTarget ? (
+                <button
+                  type="button"
+                  onClick={() => void post('enqueue')}
+                  disabled={Boolean(busy)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg border border-brand-border bg-white text-sm font-semibold text-brand-text disabled:opacity-60"
+                >
+                  {busy === 'enqueue' ? 'Filling…' : 'Fill queue'}
+                </button>
+              ) : null}
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Count</span>
                 <input
