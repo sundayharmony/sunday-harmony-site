@@ -488,6 +488,37 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.ok(desk.next?.id)
   })
 
+  it('ensureReadyQueue recovers soft needs_review on the automatic desk path without a separate action', async () => {
+    const store = createMemoryOutreachStore({ leads: manyLeads(6) })
+    await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 4,
+      releaseSoftRetries: false,
+      recoverStuck: false,
+    })
+    const queue = await store.listQueue()
+    for (const item of queue.slice(0, 3)) {
+      await store.compareAndSwap(item.id, 'pending', {
+        status: 'needs_review',
+        eligibilityReason: 'mx_uncertain',
+      })
+    }
+    assert.equal(await pendingReadyCount(store), 1)
+    const topped = await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 4,
+      maxCandidates: OUTREACH_PAGE_ENQUEUE_CAP,
+      recoverStuck: true,
+      releaseSoftRetries: true,
+    })
+    assert.equal(topped.recovered, 3)
+    assert.ok(topped.enqueued >= 0)
+    assert.equal(await pendingReadyCount(store), 4)
+    const desk = await buildOutreachConsole(store, 'admin')
+    assert.equal(desk.readyCount, 4)
+    assert.ok(desk.next?.id)
+  })
+
   it('does not reclaim the same soft-failed letter inside one ignoreBackoff batch', async () => {
     const store = createMemoryOutreachStore({ leads: manyLeads(3) })
     await ensureReadyQueue(store, { mxResolver: mxOk, size: 3, releaseSoftRetries: false })
@@ -972,17 +1003,22 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /manualSendLimitFromBody/)
     assert.match(admin, /ensureReadyQueue/)
     assert.match(admin, /OUTREACH_PAGE_ENQUEUE_CAP/)
-    assert.match(admin, /refreshLimit: 1/)
+    assert.match(admin, /OUTREACH_READY_QUEUE_SIZE/)
+    assert.match(admin, /refreshLimit: OUTREACH_READY_QUEUE_SIZE/)
     assert.match(admin, /recoverStuck: true/)
-    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP < 40, true)
+    assert.match(admin, /topUp/)
+    assert.match(admin, /action === 'enqueue'/)
+    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP, 40)
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
     assert.match(consoleUi, /AbortSignal\.timeout\(90000\)/)
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)
-    assert.match(consoleUi, /post\('enqueue'\)/)
-    assert.match(consoleUi, /Fill queue/)
+    assert.match(consoleUi, /Queue topped up automatically/)
+    assert.match(consoleUi, /drafts the next eligible prospects automatically/)
+    assert.doesNotMatch(consoleUi, /Fill queue/)
+    assert.doesNotMatch(consoleUi, /post\('enqueue'\)/)
     assert.match(consoleUi, /How many emails to send/)
     assert.match(consoleUi, /Next in line/)
     assert.match(consoleUi, /Previously sent/)

@@ -24,6 +24,10 @@ export type EnqueueResult = {
   ineligible: number
   skipped: number
   reasons: Record<string, number>
+  /** Soft retry backoff rows released for the desk (ensureReadyQueue only). */
+  released: number
+  /** Soft needs_review / expired claim rows returned to pending (ensureReadyQueue only). */
+  recovered: number
 }
 
 function bump(reasons: Record<string, number>, reason: string) {
@@ -44,6 +48,8 @@ export async function enqueueLeadSnapshots(
     ineligible: 0,
     skipped: 0,
     reasons: {},
+    released: 0,
+    recovered: 0,
   }
   if (!campaign || !template) {
     bump(result.reasons, 'campaign_missing')
@@ -170,7 +176,15 @@ export async function enqueueLeadSnapshots(
 }
 
 function emptyEnqueueResult(): EnqueueResult {
-  return { enqueued: 0, blockedReview: 0, ineligible: 0, skipped: 0, reasons: {} }
+  return {
+    enqueued: 0,
+    blockedReview: 0,
+    ineligible: 0,
+    skipped: 0,
+    reasons: {},
+    released: 0,
+    recovered: 0,
+  }
 }
 
 function mergeEnqueueResults(into: EnqueueResult, from: EnqueueResult) {
@@ -178,6 +192,8 @@ function mergeEnqueueResults(into: EnqueueResult, from: EnqueueResult) {
   into.blockedReview += from.blockedReview
   into.ineligible += from.ineligible
   into.skipped += from.skipped
+  into.released += from.released
+  into.recovered += from.recovered
   for (const [reason, count] of Object.entries(from.reasons)) {
     into.reasons[reason] = (into.reasons[reason] || 0) + count
   }
@@ -378,12 +394,16 @@ export async function ensureReadyQueue(
   const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
   const maxCandidates = options?.maxCandidates ?? OUTREACH_ENQUEUE_EXAMINE_CAP
   const refreshWindow = options?.refreshLimit ?? size
+  let released = 0
+  let recovered = 0
   if (options?.releaseSoftRetries === false && options?.recoverStuck !== true) {
     // Cron/tests can leave backoff and soft review holds alone.
   } else if (options?.recoverStuck === false) {
-    await releaseSoftRetryBackoff(store, { limit: size })
+    released = await releaseSoftRetryBackoff(store, { limit: size })
   } else {
-    await recoverStuckQueueForDesk(store, { limit: size })
+    const stuck = await recoverStuckQueueForDesk(store, { limit: size })
+    released = stuck.released
+    recovered = stuck.recovered
   }
   await refreshReadyQueueCopy(
     store,
@@ -391,6 +411,8 @@ export async function ensureReadyQueue(
     options?.refreshLimit != null ? ['pending'] : undefined
   )
   const result = emptyEnqueueResult()
+  result.released = released
+  result.recovered = recovered
   // Fill to N desk-ready letters without walking the whole lead book on every page load.
   let claimable = await pendingReadyCount(store)
   if (claimable >= size || maxCandidates < 1) return result

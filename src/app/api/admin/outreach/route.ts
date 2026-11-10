@@ -54,18 +54,24 @@ export async function GET() {
   if (session instanceof NextResponse) return session
   try {
     const store = resolveOutreachStore()
+    let topUp = { enqueued: 0, released: 0, recovered: 0 }
     if (session.user.role === 'admin') {
-      // Recover soft failures / backoff, then draft only a small top-up on page load.
-      await ensureReadyQueue(store, {
+      // Automatic desk top-up: recover soft failures, then draft toward the ready target.
+      const refill = await ensureReadyQueue(store, {
         actor: session.user.email || session.user.id,
         maxCandidates: OUTREACH_PAGE_ENQUEUE_CAP,
-        refreshLimit: 1,
+        refreshLimit: OUTREACH_READY_QUEUE_SIZE,
         releaseSoftRetries: true,
         recoverStuck: true,
       })
+      topUp = {
+        enqueued: refill.enqueued,
+        released: refill.released,
+        recovered: refill.recovered,
+      }
     }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)
-    return NextResponse.json(payload)
+    return NextResponse.json({ ...payload, topUp })
   } catch (error) {
     const message = 'Outreach store is unavailable. Migration may be unapplied.'
     return NextResponse.json(
@@ -161,7 +167,11 @@ export async function POST(request: NextRequest) {
       limit,
       ignoreBackoff: true,
     })
-    const refill = await ensureReadyQueue(store, { actor: actorId })
+    const refill = await ensureReadyQueue(store, {
+      actor: actorId,
+      releaseSoftRetries: true,
+      recoverStuck: true,
+    })
     const detailSummary = humanizeDispatchDetails(result.details)
     return NextResponse.json({
       ok: true,
@@ -169,6 +179,8 @@ export async function POST(request: NextRequest) {
       // Keep `sent` as accepted count after spreading result (result has `accepted`, not `sent`).
       sent: result.accepted,
       refilled: refill.enqueued,
+      released: refill.released,
+      recovered: refill.recovered,
       liveSend: !result.skippedDisabled,
       message:
         result.accepted > 0

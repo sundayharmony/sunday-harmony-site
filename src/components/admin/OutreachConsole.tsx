@@ -66,6 +66,7 @@ type ConsolePayload = {
   provider: { intended: string; idempotencyRecovery: boolean; note: string }
   scheduler?: { enabled: boolean; note: string }
   error?: string
+  topUp?: { enqueued: number; released: number; recovered: number }
 }
 
 function formatWhen(value: string | null | undefined) {
@@ -115,6 +116,29 @@ export default function OutreachConsole() {
       setData(payload)
       setAddress(payload.settings.physicalMailingAddress || '')
       if (payload.error) setError(payload.error)
+      // Only narrate automatic top-up on a fresh desk load, not after Send (that has its own status).
+      if (!preserveError) {
+        const ready = payload.readyCount ?? 0
+        const target = payload.readyTarget ?? 10
+        const topUp = payload.topUp
+        if (
+          topUp &&
+          ready < target &&
+          topUp.enqueued === 0 &&
+          topUp.recovered === 0 &&
+          topUp.released === 0
+        ) {
+          setLastSend(
+            'No new eligible prospects were left to draft. Soft failures were already cleared when possible.'
+          )
+        } else if (topUp && (topUp.enqueued > 0 || topUp.recovered > 0 || topUp.released > 0)) {
+          const parts: string[] = []
+          if (topUp.enqueued > 0) parts.push(`drafted ${topUp.enqueued}`)
+          if (topUp.recovered > 0) parts.push(`recovered ${topUp.recovered}`)
+          if (topUp.released > 0) parts.push(`released ${topUp.released} from retry wait`)
+          setLastSend(`Queue topped up automatically (${parts.join(', ')}).`)
+        }
+      }
     } catch {
       setError('Outreach is taking too long to load. Try again.')
     }
@@ -164,14 +188,6 @@ export default function OutreachConsole() {
         blockers?: Array<{ code?: string; message?: string }>
       }
       if (!response.ok && payload.error) setError(payload.error)
-      if (action === 'enqueue' && response.ok) {
-        const added = Number(payload.enqueued || 0)
-        setLastSend(
-          added > 0
-            ? `Added ${added} letter${added === 1 ? '' : 's'} to the ready queue.`
-            : 'Queue already had ready letters, or no new eligible prospects were left to draft.'
-        )
-      }
       if ((action === 'send' || action === 'send-batch') && response.ok) {
         const sent = Number(payload.sent || 0)
         const blockers = payload.blockers || []
@@ -272,22 +288,14 @@ export default function OutreachConsole() {
               </p>
             ) : (
               <p className="text-sm text-brand-muted mt-1">
-                Use Fill queue to recover soft failures and draft the next eligible prospects.
+                {busy
+                  ? 'Topping up the ready queue…'
+                  : 'No letter is ready yet. Opening this page recovers soft failures and drafts the next eligible prospects automatically — refresh if the queue is still empty.'}
               </p>
             )}
           </div>
           {canOperate ? (
             <div className="flex flex-col sm:flex-row sm:items-end gap-2 w-full sm:w-auto">
-              {readyCount < readyTarget ? (
-                <button
-                  type="button"
-                  onClick={() => void post('enqueue')}
-                  disabled={Boolean(busy)}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-lg border border-brand-border bg-white text-sm font-semibold text-brand-text disabled:opacity-60"
-                >
-                  {busy === 'enqueue' ? 'Filling…' : 'Fill queue'}
-                </button>
-              ) : null}
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Count</span>
                 <input
