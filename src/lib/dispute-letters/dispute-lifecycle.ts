@@ -411,6 +411,16 @@ export function isLetterPackageZipReady(pkg: LetterPackageRow | null | undefined
   return Boolean(pkg?.zip_storage_path) && letterPackageZipStatus(pkg) === 'ready'
 }
 
+/** Staff-facing ZIP error. HTML and Cloudflare pages stay off the screen. */
+export function zipErrorLabel(error: string | null | undefined): string {
+  const raw = (error || '').trim()
+  if (!raw || /<!doctype|<html|just a moment|cloudflare/i.test(raw) || raw.includes('<')) {
+    return 'ZIP needs rebuild'
+  }
+  const line = raw.replace(/\s+/g, ' ')
+  return line.length > 180 ? 'ZIP needs rebuild' : line
+}
+
 export function zipReadyLabel(status: LetterPackageZipStatus | null | undefined, zipReady: boolean): string {
   if (zipReady || status === 'ready') return 'ZIP ready'
   if (status === 'building') return 'Building letter PDFs for ZIP…'

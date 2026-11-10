@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { getOrBuildLetterPackageZip, openReadyLetterPackageZip } from '@/lib/dispute-letters/letter-package-zip'
+import { publicLetterFailure } from '@/lib/dispute-letters/letter-pdf-render'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -52,7 +53,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
       },
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'ZIP download failed'
+    const message = publicLetterFailure(err, 'ZIP download failed')
     if (/still being prepared/i.test(message)) {
       return NextResponse.json({ ok: true, status: 'building', error: message }, { status: 202 })
     }
