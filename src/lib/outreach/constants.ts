@@ -23,14 +23,12 @@ export const OUTREACH_READY_QUEUE_SIZE = 10
 export const OUTREACH_SENT_DESK_LIMIT = 40
 /**
  * New leads one ensureReadyQueue call may draft. Stops a page load from walking the whole book
- * when most rows are ineligible.
+ * when most rows are ineligible. Page load and post-send refill both use this cap so the desk
+ * can reach OUTREACH_READY_QUEUE_SIZE without a separate Fill queue action.
  */
 export const OUTREACH_ENQUEUE_EXAMINE_CAP = 40
-/**
- * New leads the admin desk may draft on page load. Keep this modest so the page
- * returns quickly; Fill queue / post-send refill uses the full examine cap.
- */
-export const OUTREACH_PAGE_ENQUEUE_CAP = 20
+/** @deprecated Prefer OUTREACH_ENQUEUE_EXAMINE_CAP; kept as an alias for desk page-load top-up. */
+export const OUTREACH_PAGE_ENQUEUE_CAP = OUTREACH_ENQUEUE_EXAMINE_CAP
 /** Default manual send when no count is specified (cron / legacy). */
 export const OUTREACH_SEND_LIMIT = 1
 /** Upper bound for a single operator send action. */
