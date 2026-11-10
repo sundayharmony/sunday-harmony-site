@@ -127,12 +127,16 @@ export async function dispatchOutreachBatch(input: {
   const maxClaims = Math.min(Math.max(maxAccepted * 8, maxAccepted), 80)
   let dispatched = 0
   let accepted = 0
+  // Do not reclaim the same soft-failed letter inside one batch (ignoreBackoff would loop).
+  const attemptedIds = new Set<string>()
 
   while (accepted < maxAccepted && dispatched < maxClaims) {
     const claimed = await claimNextPending(store, workerId, at, {
       ignoreBackoff: Boolean(input.ignoreBackoff),
+      excludeIds: attemptedIds,
     })
     if (!claimed) break
+    attemptedIds.add(claimed.id)
     dispatched += 1
 
     const lead = await store.getLead(claimed.leadId)

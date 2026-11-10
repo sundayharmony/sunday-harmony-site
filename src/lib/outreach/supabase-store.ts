@@ -21,7 +21,7 @@ function asString(value: unknown): string {
 }
 
 const QUEUE_SUMMARY_COLUMNS =
-  'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, next_attempt_at, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
+  'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, next_attempt_at, claimed_by, claimed_at, lease_expires_at, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
 
 const LEAD_CANDIDATE_COLUMNS =
   'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
