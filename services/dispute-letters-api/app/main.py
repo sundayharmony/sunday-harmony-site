@@ -678,6 +678,25 @@ def _build_letter_download(
     raise HTTPException(400, "Unsupported format")
 
 
+@app.get("/internal/letters/{session_id}/{letter_id}/account-evidence")
+async def account_evidence(
+    session_id: str,
+    letter_id: str,
+    _: None = Depends(verify_internal_secret),
+):
+    """Report-page JPEGs for this letter. Does not build the letter PDF."""
+    letter = await asyncio.to_thread(get_letter, session_id, letter_id)
+    if not letter:
+        raise HTTPException(404, "Letter not found")
+    from app.services.report_screenshots import (
+        account_evidence_payload,
+        load_report_account_screenshot_files,
+    )
+
+    files = await asyncio.to_thread(load_report_account_screenshot_files, session_id, letter)
+    return account_evidence_payload(files)
+
+
 @app.get("/internal/letters/{session_id}/{letter_id}/download")
 async def download_letter(
     session_id: str,
