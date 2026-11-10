@@ -1,7 +1,12 @@
 import { resolveCompanyPresentationPdf } from './attachment'
-import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_MANUAL_SEND_MAX, OUTREACH_READY_QUEUE_SIZE } from './constants'
+import {
+  EMAIL_BOT_UNVERIFIED_REPORTS,
+  OUTREACH_MANUAL_SEND_MAX,
+  OUTREACH_READY_QUEUE_SIZE,
+  OUTREACH_SENT_DESK_LIMIT,
+} from './constants'
 import { draftContentSha256 } from './draft-shell'
-import { compareQueueOrder, isClaimablePending, isSentQueueStatus } from './enqueue'
+import { isClaimablePending } from './enqueue'
 import { buildHandoff, canViewHandoff } from './handoff'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { outreachCron } from './scheduler'
@@ -47,24 +52,32 @@ function deskRow(
 }
 
 export async function buildOutreachConsole(store: OutreachStore, role: string | null) {
-  const settings = await store.getSettings()
-  const campaign = await store.getCampaignBySlug('prospect-intro')
+  const now = store.now()
+  const [settings, campaign, pendingAll, sent, recon, attachment] = await Promise.all([
+    store.getSettings(),
+    store.getCampaignBySlug('prospect-intro'),
+    store.listQueueSummaries({
+      statuses: ['pending'],
+      order: 'queue',
+      limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
+    }),
+    store.listQueueSummaries({
+      statuses: ['accepted', 'delivered', 'bounced'],
+      order: 'recent',
+      limit: OUTREACH_SENT_DESK_LIMIT,
+    }),
+    store.listReconciliationItems(),
+    resolveCompanyPresentationPdf(),
+  ])
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
-  const queue = await store.listQueueSummaries()
-  const recon = await store.listReconciliationItems()
-  const attachmentPresent = Boolean(await resolveCompanyPresentationPdf())
+  const attachmentPresent = Boolean(attachment)
   const blockers = currentBlockers(settings, template, { schemaReady: true, attachmentPresent })
   const includeHandoff = canViewHandoff(role)
   const canOperate = role === 'admin'
-  const now = store.now()
-  const pendingAll = queue.filter((item) => item.status === 'pending').sort(compareQueueOrder)
-  const pending = pendingAll.filter((item) => isClaimablePending(item, now))
-  const deferredCount = pendingAll.length - pending.length
-  const sent = queue
-    .filter((item) => isSentQueueStatus(item.status) || Boolean(item.acceptedAt))
-    .sort((a, b) => (b.acceptedAt || b.createdAt).localeCompare(a.acceptedAt || a.createdAt))
+  const claimable = pendingAll.filter((item) => isClaimablePending(item, now))
+  const deferredCount = pendingAll.length - claimable.length
   // Prefer a claimable letter for preview; fall back so staff still see what is waiting.
-  const nextSummary = pending[0] || pendingAll[0] || null
+  const nextSummary = claimable[0] || pendingAll[0] || null
   const nextItem = nextSummary ? await buildOutreachItem(store, nextSummary.id, role) : null
   const liveSend = blockers.length === 0
   return {
@@ -74,7 +87,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     senderConfigured: senderConfiguredHere(),
     canOperate,
     attachmentPresent,
-    readyCount: pending.length,
+    readyCount: claimable.length,
     deferredCount,
     readyTarget: OUTREACH_READY_QUEUE_SIZE,
     manualSendMax: OUTREACH_MANUAL_SEND_MAX,

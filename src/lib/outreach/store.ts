@@ -28,6 +28,18 @@ import type {
   Suppression,
 } from './types'
 
+export type QueueSummaryQuery = {
+  statuses?: QueueStatus[]
+  limit?: number
+  /** queue: next attempt time ascending. recent: accepted time descending. */
+  order?: 'queue' | 'recent'
+}
+
+export type LeadCandidateQuery = {
+  limit?: number
+  offset?: number
+}
+
 export type OutreachStore = {
   now: () => Date
   getSettings(): Promise<OutreachSettings>
@@ -55,7 +67,9 @@ export type OutreachStore = {
   findLatestQueueForLead(leadId: string): Promise<QueueItem | null>
   findQueueByEmail(campaignId: string, emailNormalized: string): Promise<QueueItem | null>
   listQueue(): Promise<QueueItem[]>
-  listQueueSummaries(): Promise<QueueItem[]>
+  listQueueSummaries(query?: QueueSummaryQuery): Promise<QueueItem[]>
+  countQueueByStatus(status: QueueStatus): Promise<number>
+  listQueuedLeadKeys(): Promise<Array<{ leadId: string; emailNormalized: string }>>
   insertQueue(item: QueueItem): Promise<{ ok: true; item: QueueItem } | { ok: false; reason: 'duplicate' }>
   compareAndSwap(
     id: string,
@@ -68,7 +82,7 @@ export type OutreachStore = {
   addAudit(row: Omit<AuditEvent, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): Promise<AuditEvent>
   listAudit(limit?: number): Promise<AuditEvent[]>
   getLead(id: string): Promise<LeadSnapshot | null>
-  listEligibleLeadCandidates(): Promise<LeadSnapshot[]>
+  listEligibleLeadCandidates(query?: LeadCandidateQuery): Promise<LeadSnapshot[]>
   markLeadContacted(input: {
     leadId: string
     contactedAt: string
@@ -304,8 +318,33 @@ export function createMemoryOutreachStore(options?: {
     async listQueue() {
       return clone(queue)
     },
-    async listQueueSummaries() {
-      return clone(queue).map((item) => ({ ...item, htmlBody: '', textBody: '', preheader: '' }))
+    async listQueueSummaries(query) {
+      let rows = clone(queue).map((item) => ({ ...item, htmlBody: '', textBody: '', preheader: '' }))
+      if (query?.statuses?.length) {
+        const allowed = new Set(query.statuses)
+        rows = rows.filter((item) => allowed.has(item.status))
+      }
+      if (query?.order === 'recent') {
+        rows.sort(
+          (a, b) =>
+            (b.acceptedAt || b.createdAt).localeCompare(a.acceptedAt || a.createdAt) ||
+            b.id.localeCompare(a.id)
+        )
+      } else if (query?.order === 'queue') {
+        rows.sort((a, b) => {
+          const aKey = a.nextAttemptAt || a.createdAt
+          const bKey = b.nextAttemptAt || b.createdAt
+          return aKey.localeCompare(bKey) || a.id.localeCompare(b.id)
+        })
+      }
+      if (query?.limit && query.limit > 0) rows = rows.slice(0, query.limit)
+      return rows
+    },
+    async countQueueByStatus(status) {
+      return queue.filter((item) => item.status === status).length
+    },
+    async listQueuedLeadKeys() {
+      return queue.map((item) => ({ leadId: item.leadId, emailNormalized: item.emailNormalized }))
     },
     async insertQueue(item) {
       if (
@@ -362,8 +401,11 @@ export function createMemoryOutreachStore(options?: {
       const lead = leads.find((row) => row.id === id)
       return lead ? clone(lead) : null
     },
-    async listEligibleLeadCandidates() {
-      return clone(leads)
+    async listEligibleLeadCandidates(query) {
+      const offset = Math.max(query?.offset ?? 0, 0)
+      const rows = clone(leads).slice(offset)
+      if (query?.limit && query.limit > 0) return rows.slice(0, query.limit)
+      return rows
     },
     async markLeadContacted(input) {
       leadContacted.push({ ...input })

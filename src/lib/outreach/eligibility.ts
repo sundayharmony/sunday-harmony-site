@@ -5,7 +5,7 @@ import type { MxLookupResult } from './mx'
 import { mxBlocksSend } from './mx'
 import type { LeadSnapshot, QueueItem, ReconciliationItem, Suppression } from './types'
 
-const CONTACTED_STAGES = new Set([
+export const CONTACTED_PIPELINE_STAGES = [
   'contacted',
   'responded',
   'meeting_scheduled',
@@ -13,7 +13,9 @@ const CONTACTED_STAGES = new Set([
   'negotiation',
   'won',
   'lost_nurture',
-])
+] as const
+
+const CONTACTED_STAGES = new Set<string>(CONTACTED_PIPELINE_STAGES)
 
 export type EligibilityDecision = {
   ok: boolean

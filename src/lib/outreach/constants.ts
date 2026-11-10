@@ -19,6 +19,15 @@ export const OUTREACH_MAX_ATTEMPTS = 5
 export const OUTREACH_BACKOFF_SECONDS = [60, 120, 240, 480, 960] as const
 /** Pending letters kept ready so sending one can immediately queue the next. */
 export const OUTREACH_READY_QUEUE_SIZE = 10
+/** Previously sent rows shown on the desk. Older history stays in the queue table. */
+export const OUTREACH_SENT_DESK_LIMIT = 40
+/**
+ * New leads one ensureReadyQueue call may draft. Stops a page load from walking the whole book
+ * when most rows are ineligible.
+ */
+export const OUTREACH_ENQUEUE_EXAMINE_CAP = 40
+/** Smaller window for the admin desk so opening Outreach returns before the function times out. */
+export const OUTREACH_PAGE_ENQUEUE_CAP = 12
 /** Default manual send when no count is specified (cron / legacy). */
 export const OUTREACH_SEND_LIMIT = 1
 /** Upper bound for a single operator send action. */

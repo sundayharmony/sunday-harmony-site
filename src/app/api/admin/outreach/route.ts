@@ -11,8 +11,13 @@ import { buildOutreachConsole } from '@/lib/outreach/console'
 import { isSameOriginRequest } from '@/lib/outreach/csrf'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
 import { ensureReadyQueue } from '@/lib/outreach/enqueue'
-import { currentBlockers, resolveOutreachStore } from '@/lib/outreach/runtime'
-import { OUTREACH_MANUAL_SEND_MAX, OUTREACH_SEND_LIMIT } from '@/lib/outreach/constants'
+import { currentBlockers, defaultDisabledSettings, resolveOutreachStore } from '@/lib/outreach/runtime'
+import {
+  OUTREACH_MANUAL_SEND_MAX,
+  OUTREACH_PAGE_ENQUEUE_CAP,
+  OUTREACH_READY_QUEUE_SIZE,
+  OUTREACH_SEND_LIMIT,
+} from '@/lib/outreach/constants'
 import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -50,19 +55,38 @@ export async function GET() {
   try {
     const store = resolveOutreachStore()
     if (session.user.role === 'admin') {
-      await ensureReadyQueue(store, { actor: session.user.email || session.user.id })
+      await ensureReadyQueue(store, {
+        actor: session.user.email || session.user.id,
+        maxCandidates: OUTREACH_PAGE_ENQUEUE_CAP,
+        refreshLimit: 1,
+      })
     }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)
     return NextResponse.json(payload)
   } catch (error) {
+    const message = 'Outreach store is unavailable. Migration may be unapplied.'
     return NextResponse.json(
       {
         disabled: true,
         liveSend: false,
+        storage: 'unavailable',
+        senderConfigured: false,
+        canOperate: session.user.role === 'admin',
+        attachmentPresent: false,
+        readyCount: 0,
+        readyTarget: OUTREACH_READY_QUEUE_SIZE,
+        manualSendMax: OUTREACH_MANUAL_SEND_MAX,
         next: null,
         sent: [],
-        readyCount: 0,
-        error: 'Outreach store is unavailable. Migration may be unapplied.',
+        settings: defaultDisabledSettings(),
+        template: null,
+        reconciliation: [],
+        provider: {
+          intended: 'gmail',
+          idempotencyRecovery: false,
+          note: message,
+        },
+        error: message,
         blockers: currentBlockers(undefined, undefined, { schemaReady: false }),
         detail: error instanceof Error ? error.message : 'unknown',
       },
