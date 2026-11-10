@@ -56,6 +56,8 @@ export async function dispatchOutreachBatch(input: {
   attachment?: Buffer
   senderConfigured?: boolean
   schemaReady?: boolean
+  /** Manual desk send: claim the previewed letter even if it is briefly in retry backoff. */
+  ignoreBackoff?: boolean
 }): Promise<DispatchResult> {
   const store = input.store
   const at = store.now()
@@ -127,7 +129,9 @@ export async function dispatchOutreachBatch(input: {
   let accepted = 0
 
   while (accepted < maxAccepted && dispatched < maxClaims) {
-    const claimed = await claimNextPending(store, workerId, at)
+    const claimed = await claimNextPending(store, workerId, at, {
+      ignoreBackoff: Boolean(input.ignoreBackoff),
+    })
     if (!claimed) break
     dispatched += 1
 

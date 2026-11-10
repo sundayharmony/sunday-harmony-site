@@ -37,6 +37,7 @@ type ConsolePayload = {
   canOperate?: boolean
   attachmentPresent?: boolean
   readyCount?: number
+  deferredCount?: number
   readyTarget?: number
   manualSendMax?: number
   next: LetterPreview | null
@@ -138,21 +139,27 @@ export default function OutreachConsole() {
       })
       const payload = (await response.json()) as {
         error?: string
+        message?: string
         sent?: number
+        details?: string[]
         blockers?: Array<{ code?: string; message?: string }>
       }
       if (!response.ok && payload.error) setError(payload.error)
       if ((action === 'send' || action === 'send-batch') && response.ok) {
         const sent = Number(payload.sent || 0)
         const blockers = payload.blockers || []
+        const detailHint = (payload.details || []).filter(Boolean).slice(0, 3).join(', ')
         setLastSend(
           sent > 0
             ? sent === 1
               ? 'Gmail accepted this email. That is not delivered. The next letter is now ready.'
               : `Gmail accepted ${sent} emails. That is not delivered. The queue has been refilled where possible.`
-            : blockers.length
-              ? `Not sent. ${blockers.map((item) => item.message || item.code).filter(Boolean).join(' ')}`
-              : 'Not sent. There may be no ready letter.'
+            : payload.message ||
+                (blockers.length
+                  ? `Not sent. ${blockers.map((item) => item.message || item.code).filter(Boolean).join(' ')}`
+                  : detailHint
+                    ? `Not sent (${detailHint}).`
+                    : 'Not sent. No claimable letter was in the ready queue.')
         )
         setOpenSentId(null)
       }
@@ -170,11 +177,14 @@ export default function OutreachConsole() {
   const next = data.next ?? null
   const sent = data.sent ?? []
   const readyCount = data.readyCount ?? 0
+  const deferredCount = data.deferredCount ?? 0
   const readyTarget = data.readyTarget ?? 10
   const manualSendMax = data.manualSendMax ?? 50
-  const maxSendCount = Math.max(1, Math.min(readyCount, manualSendMax))
+  // Manual send ignores brief retry backoff, so deferred pending letters are still sendable.
+  const sendableCount = readyCount + deferredCount
+  const maxSendCount = Math.max(1, Math.min(Math.max(sendableCount, next ? 1 : 0), manualSendMax))
   const effectiveSendCount = Math.min(Math.max(1, sendCount), maxSendCount)
-  const canSend = canOperate && Boolean(data.liveSend) && Boolean(next) && readyCount > 0
+  const canSend = canOperate && Boolean(data.liveSend) && Boolean(next)
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -192,6 +202,8 @@ export default function OutreachConsole() {
           <StatusBadge status={data.liveSend ? 'active' : 'paused'} />
           <span className="text-sm text-brand-text">
             {readyCount} ready
+            {readyCount < readyTarget ? ` (target ${readyTarget})` : ''}
+            {deferredCount > 0 ? ` · ${deferredCount} waiting on retry` : ''}
             {sent.length ? ` · ${sent.length} sent` : ''}
           </span>
         </div>

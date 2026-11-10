@@ -195,9 +195,27 @@ export function isSentQueueStatus(status: QueueItem['status']): boolean {
   return status === 'accepted' || status === 'delivered' || status === 'bounced'
 }
 
-export async function pendingReadyCount(store: OutreachStore): Promise<number> {
+/** Pending letter that Send can claim right now (not waiting on retry backoff). */
+export function isClaimablePending(
+  item: Pick<QueueItem, 'status' | 'nextAttemptAt'>,
+  at: Date = new Date()
+): boolean {
+  if (item.status !== 'pending') return false
+  const nextAt = Date.parse(item.nextAttemptAt)
+  if (!Number.isFinite(nextAt)) return true
+  return nextAt <= at.getTime()
+}
+
+export async function pendingReadyCount(store: OutreachStore, at?: Date): Promise<number> {
+  const when = at ?? store.now()
   const queue = await store.listQueueSummaries()
-  return queue.filter((item) => item.status === 'pending').length
+  return queue.filter((item) => isClaimablePending(item, when)).length
+}
+
+export async function pendingDeferredCount(store: OutreachStore, at?: Date): Promise<number> {
+  const when = at ?? store.now()
+  const queue = await store.listQueueSummaries()
+  return queue.filter((item) => item.status === 'pending' && !isClaimablePending(item, when)).length
 }
 
 export async function ensureReadyQueue(
@@ -207,14 +225,16 @@ export async function ensureReadyQueue(
   const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
   await refreshReadyQueueCopy(store, size)
   const result = emptyEnqueueResult()
-  let pending = await pendingReadyCount(store)
-  if (pending >= size) return result
+  // Fill to N *claimable* letters. Retry-backoff rows still count as pending in the DB
+  // but must not block refill — that left the desk at "7 ready" with nothing Sendable.
+  let claimable = await pendingReadyCount(store)
+  if (claimable >= size) return result
   const leads = await store.listEligibleLeadCandidates()
   for (const lead of leads) {
-    if (pending >= size) break
+    if (claimable >= size) break
     const one = await enqueueLeadSnapshots(store, [lead], options)
     mergeEnqueueResults(result, one)
-    pending += one.enqueued
+    claimable += one.enqueued
   }
   return result
 }

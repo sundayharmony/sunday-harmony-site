@@ -13,6 +13,11 @@ import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
 import { ensureReadyQueue } from '@/lib/outreach/enqueue'
 import { currentBlockers, resolveOutreachStore } from '@/lib/outreach/runtime'
 import { OUTREACH_MANUAL_SEND_MAX, OUTREACH_SEND_LIMIT } from '@/lib/outreach/constants'
+import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
+
+export const dynamic = 'force-dynamic'
+/** Batch Gmail sends need headroom beyond the default serverless limit. */
+export const maxDuration = 180
 
 function manualSendLimitFromBody(body: Record<string, unknown>, action: string) {
   const defaultLimit = action === 'send' ? 1 : OUTREACH_SEND_LIMIT
@@ -26,9 +31,18 @@ function manualSendLimitFromBody(body: Record<string, unknown>, action: string) 
   if (!Number.isFinite(parsed) || parsed < 1) return defaultLimit
   return Math.min(Math.floor(parsed), OUTREACH_MANUAL_SEND_MAX)
 }
-import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
 
-export const dynamic = 'force-dynamic'
+function humanizeDispatchDetails(details: string[]): string {
+  const counts = new Map<string, number>()
+  for (const detail of details) {
+    const key = detail.split(':')[0] || detail
+    counts.set(key, (counts.get(key) || 0) + 1)
+  }
+  const parts = [...counts.entries()].map(([code, count]) =>
+    count > 1 ? `${code} ×${count}` : code
+  )
+  return parts.slice(0, 4).join(', ')
+}
 
 export async function GET() {
   const session = await requireSalesSession()
@@ -118,14 +132,24 @@ export async function POST(request: NextRequest) {
       store,
       workerId: `admin-send:${actorId}`,
       limit,
+      ignoreBackoff: true,
     })
     const refill = await ensureReadyQueue(store, { actor: actorId })
+    const detailSummary = humanizeDispatchDetails(result.details)
     return NextResponse.json({
       ok: true,
+      ...result,
+      // Keep `sent` as accepted count after spreading result (result has `accepted`, not `sent`).
       sent: result.accepted,
       refilled: refill.enqueued,
       liveSend: !result.skippedDisabled,
-      ...result,
+      message:
+        result.accepted > 0
+          ? undefined
+          : result.blockers[0]?.message ||
+            (detailSummary
+              ? `Not sent (${detailSummary}).`
+              : 'Not sent. No claimable letter was in the ready queue.'),
     })
   }
 

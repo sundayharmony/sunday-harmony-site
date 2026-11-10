@@ -14,7 +14,15 @@ import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility } from '../outreach/eligibility'
-import { enqueueFromStoreCandidates, enqueueLeadSnapshots, ensureReadyQueue, pendingReadyCount, refreshUnsentQueueCopy } from '../outreach/enqueue'
+import {
+  enqueueFromStoreCandidates,
+  enqueueLeadSnapshots,
+  ensureReadyQueue,
+  isClaimablePending,
+  pendingDeferredCount,
+  pendingReadyCount,
+  refreshUnsentQueueCopy,
+} from '../outreach/enqueue'
 import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
 import { prospectGreetingIsUsable } from '../outreach/greeting'
 import { toProspectObservation } from '../outreach/observation'
@@ -342,6 +350,94 @@ describe('eligibility, suppression, and unverified reports', () => {
       assert.equal(desk.sent.length, 1)
       assert.ok(desk.next?.previewHtml)
       assert.notEqual(desk.next?.id, desk.sent[0]?.id)
+    } finally {
+      if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
+      else process.env.OUTREACH_KILL_SWITCH = originalKill
+      if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
+      else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
+    }
+  })
+
+  it('does not count retry-backoff letters as ready and still refills to ten claimable', async () => {
+    const leads = manyLeads(24)
+    const store = createMemoryOutreachStore({ leads })
+    await ensureReadyQueue(store, { mxResolver: mxOk })
+    assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
+
+    const queue = await store.listQueue()
+    const pending = queue.filter((item) => item.status === 'pending')
+    const deferredIds = pending.slice(0, 7).map((item) => item.id)
+    for (const id of deferredIds) {
+      await store.compareAndSwap(id, 'pending', {
+        nextAttemptAt: new Date(store.now().getTime() + 60_000).toISOString(),
+        eligibilityReason: 'retry:mx_uncertain',
+      })
+    }
+    assert.equal(await pendingReadyCount(store), 3)
+    assert.equal(await pendingDeferredCount(store), 7)
+    const deferredRow = (await store.listQueue()).find((item) => item.id === deferredIds[0])
+    assert.ok(deferredRow)
+    assert.equal(isClaimablePending(deferredRow, store.now()), false)
+
+    const refilled = await ensureReadyQueue(store, { mxResolver: mxOk })
+    assert.equal(refilled.enqueued, 7)
+    assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
+
+    const desk = await buildOutreachConsole(store, 'admin')
+    assert.equal(desk.readyCount, OUTREACH_READY_QUEUE_SIZE)
+    assert.equal(desk.deferredCount, 7)
+
+    await store.updateSettings({
+      killSwitch: false,
+      activatedAt: '2026-11-05T00:00:00.000Z',
+      physicalMailingAddress: '1 Example Street, City, ST 00000',
+      dailySendLimit: 0,
+      historyReconciliationStatus: 'reconciled',
+      optOutVerifiedAt: '2026-11-05T00:00:00.000Z',
+    })
+    const template = await store.getLatestTemplate('camp-prospect-intro')
+    assert.ok(template)
+    await store.approveTemplate(template.id, 'admin', draftContentSha256(), store.now())
+    const originalKill = process.env.OUTREACH_KILL_SWITCH
+    const originalAllow = process.env.OUTREACH_ACTIVATION_ALLOWED
+    process.env.OUTREACH_KILL_SWITCH = 'false'
+    process.env.OUTREACH_ACTIVATION_ALLOWED = 'true'
+    try {
+      const provider = createMockProvider()
+      const onlyBackoff = (await store.listQueue()).filter(
+        (item) => item.status === 'pending' && !isClaimablePending(item, store.now())
+      )
+      for (const item of onlyBackoff) {
+        // Leave only backoff letters claimable via ignoreBackoff by accepting the rest.
+        if (isClaimablePending(item, store.now())) continue
+      }
+      // Force every pending into backoff so a normal claim would find nothing.
+      for (const item of await store.listQueue()) {
+        if (item.status !== 'pending') continue
+        await store.compareAndSwap(item.id, 'pending', {
+          nextAttemptAt: new Date(store.now().getTime() + 120_000).toISOString(),
+        })
+      }
+      assert.equal(await pendingReadyCount(store), 0)
+      const blocked = await dispatchOutreachBatch({
+        store,
+        provider,
+        mxResolver: mxOk,
+        attachment: Buffer.from('%PDF-1.4 test'),
+        senderConfigured: true,
+        limit: 1,
+      })
+      assert.equal(blocked.accepted, 0)
+      const forced = await dispatchOutreachBatch({
+        store,
+        provider,
+        mxResolver: mxOk,
+        attachment: Buffer.from('%PDF-1.4 test'),
+        senderConfigured: true,
+        limit: 3,
+        ignoreBackoff: true,
+      })
+      assert.equal(forced.accepted, 3)
     } finally {
       if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH
       else process.env.OUTREACH_KILL_SWITCH = originalKill

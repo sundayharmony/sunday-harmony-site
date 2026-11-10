@@ -5,13 +5,18 @@ import type { QueueItem } from './types'
 export async function claimNextPending(
   store: OutreachStore,
   workerId: string,
-  at: Date = store.now()
+  at: Date = store.now(),
+  options?: { ignoreBackoff?: boolean }
 ): Promise<QueueItem | null> {
   const items = await store.listQueue()
   const nowMs = at.getTime()
+  const ignoreBackoff = Boolean(options?.ignoreBackoff)
   const candidates = items
     .filter((item) => {
-      if (item.status === 'pending' && new Date(item.nextAttemptAt).getTime() <= nowMs) return true
+      if (item.status === 'pending') {
+        if (ignoreBackoff) return true
+        return new Date(item.nextAttemptAt).getTime() <= nowMs
+      }
       if (
         item.status === 'claimed' &&
         item.leaseExpiresAt &&

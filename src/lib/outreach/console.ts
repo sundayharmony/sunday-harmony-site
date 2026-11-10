@@ -1,7 +1,7 @@
 import { resolveCompanyPresentationPdf } from './attachment'
 import { EMAIL_BOT_UNVERIFIED_REPORTS, OUTREACH_MANUAL_SEND_MAX, OUTREACH_READY_QUEUE_SIZE } from './constants'
 import { draftContentSha256 } from './draft-shell'
-import { compareQueueOrder, isSentQueueStatus } from './enqueue'
+import { compareQueueOrder, isClaimablePending, isSentQueueStatus } from './enqueue'
 import { buildHandoff, canViewHandoff } from './handoff'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { outreachCron } from './scheduler'
@@ -56,11 +56,15 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
   const blockers = currentBlockers(settings, template, { schemaReady: true, attachmentPresent })
   const includeHandoff = canViewHandoff(role)
   const canOperate = role === 'admin'
-  const pending = queue.filter((item) => item.status === 'pending').sort(compareQueueOrder)
+  const now = store.now()
+  const pendingAll = queue.filter((item) => item.status === 'pending').sort(compareQueueOrder)
+  const pending = pendingAll.filter((item) => isClaimablePending(item, now))
+  const deferredCount = pendingAll.length - pending.length
   const sent = queue
     .filter((item) => isSentQueueStatus(item.status) || Boolean(item.acceptedAt))
     .sort((a, b) => (b.acceptedAt || b.createdAt).localeCompare(a.acceptedAt || a.createdAt))
-  const nextSummary = pending[0] || null
+  // Prefer a claimable letter for preview; fall back so staff still see what is waiting.
+  const nextSummary = pending[0] || pendingAll[0] || null
   const nextItem = nextSummary ? await buildOutreachItem(store, nextSummary.id, role) : null
   const liveSend = blockers.length === 0
   return {
@@ -71,6 +75,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     canOperate,
     attachmentPresent,
     readyCount: pending.length,
+    deferredCount,
     readyTarget: OUTREACH_READY_QUEUE_SIZE,
     manualSendMax: OUTREACH_MANUAL_SEND_MAX,
     next: nextItem,
