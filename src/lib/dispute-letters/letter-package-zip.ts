@@ -34,6 +34,13 @@ import {
   buildLetterZipFiles,
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
+import {
+  fetchAccountEvidence,
+  letterIdFromStoredPdfPath,
+  persistAccountEvidence,
+  readAccountEvidenceRecord,
+  storedLetterNeedsRebuild,
+} from '@/lib/dispute-letters/letter-account-evidence'
 import { publicLetterFailure, renderLetterPdfWithIdentity } from '@/lib/dispute-letters/letter-pdf-render'
 import { isPdfBytes, zipFiles } from '@/lib/dispute-letters/letter-zip'
 import type { GeneratedLetter } from '@/lib/dispute-letters/types'
@@ -160,7 +167,13 @@ export async function buildLetterPackageZipBytes(
   const letterFiles = await assembleLetterDocxFiles({
     sessionId,
     letters: rows,
-    readStored: (storagePath) => readStoredLetterBytes(storagePath),
+    readStored: async (storagePath) => {
+      const letterId = letterIdFromStoredPdfPath(sessionId, storagePath)
+      if (letterId && storedLetterNeedsRebuild(await readAccountEvidenceRecord(sessionId, letterId))) {
+        return null
+      }
+      return readStoredLetterBytes(storagePath)
+    },
     generateMissing: async (letter) => {
       generatedCount += 1
       const title = letter.title || letter.id
@@ -173,7 +186,11 @@ export async function buildLetterPackageZipBytes(
       if (!source) {
         throw new Error(`Letter "${title}" could not be saved as a PDF.`)
       }
-      const data = await renderLetterPdfWithIdentity(source, attachments || [])
+      const evidence = await fetchAccountEvidence(sessionId, letter.id)
+      const data = await renderLetterPdfWithIdentity(source, [
+        ...(attachments || []),
+        ...evidence.files,
+      ])
       if (!isPdfBytes(data)) {
         throw new Error(`Letter "${title}" could not be saved as a PDF.`)
       }
@@ -181,6 +198,12 @@ export async function buildLetterPackageZipBytes(
       if (!stored) {
         throw new Error(`Letter "${title}" could not be saved as a PDF.`)
       }
+      await persistAccountEvidence({
+        sessionId,
+        letterId: letter.id,
+        files: evidence.files,
+        missing: evidence.missing,
+      })
       return data
     },
   })

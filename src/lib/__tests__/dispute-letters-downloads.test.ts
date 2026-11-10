@@ -9,6 +9,10 @@ import {
   renderLetterPdfWithIdentity,
   renderLetterPreviewPdf,
 } from '../dispute-letters/letter-pdf-render'
+import {
+  interpretAccountEvidenceBody,
+  storedLetterNeedsRebuild,
+} from '../dispute-letters/letter-account-evidence'
 import { isPdfBytes } from '../dispute-letters/letter-zip'
 
 function source(path: string) {
@@ -79,8 +83,13 @@ describe('dispute letter downloads and preview', () => {
     assert.match(packageZip, /assembleLetterDocxFiles/)
     assert.match(packageZip, /renderLetterPdfWithIdentity/)
     assert.match(packageZip, /storeGeneratedLetterDocx/)
+    assert.match(packageZip, /fetchAccountEvidence/)
+    assert.match(packageZip, /storedLetterNeedsRebuild/)
     assert.doesNotMatch(packageZip, /fetchLetterPdfForPackageZip/)
     assert.doesNotMatch(packageZip, /\/download\?format/)
+    assert.doesNotMatch(downloadRoute, /account-evidence/)
+    assert.doesNotMatch(zipRoute, /account-evidence/)
+    assert.doesNotMatch(zipRoute, /\/download\?format/)
     assert.match(packageZip, /isStoredLetterDocxPath/)
     assert.match(packageZip, /buildLetterZipFiles/)
     assert.match(packageZip, /recordLetterPackageDownload/)
@@ -134,6 +143,39 @@ describe('dispute letter downloads and preview', () => {
     )
     assert.equal(zipErrorLabel(html), 'ZIP needs rebuild')
     assert.doesNotMatch(zipErrorLabel(html), /DOCTYPE|Just a moment/)
+  })
+
+  it('appends account screenshot JPEGs and ignores an HTML evidence body', async () => {
+    const jpeg = Buffer.from(
+      '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxISEhUQEhIVFhUXFRUYGBYYGBgYGBcYGBcYGBgYGBcYHSggGBolHRcVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OGhAQGy0lICUtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAAMBAAMBIgACEQEDEQH/xAAbAAABBQEBAAAAAAAAAAAAAAADAAIEBQYBB//EABYBAQEBAAAAAAAAAAAAAAAAAAABAv/aAAwDAQACEQMRAD8A0QAAAAAAAAAAAf/Z',
+      'base64'
+    )
+    const before = await renderLetterPreviewPdf({
+      date: 'November 10, 2026',
+      blocks: [{ kind: 'line', text: 'Letter body', variant: 'body' }],
+    })
+    const withShot = await renderLetterPdfWithIdentity(
+      {
+        title: 'Experian',
+        preview: {
+          date: 'November 10, 2026',
+          blocks: [{ kind: 'line', text: 'Letter body', variant: 'body' }],
+        },
+      },
+      [{ zipName: 'Account Evidence 1.jpg', data: new Uint8Array(jpeg), mimeType: 'image/jpeg' }]
+    )
+    assert.equal(isPdfBytes(withShot), true)
+    const plainPages = (await PDFDocument.load(before)).getPageCount()
+    const shotPages = (await PDFDocument.load(withShot)).getPageCount()
+    assert.equal(shotPages, plainPages + 1)
+
+    const html = '<!DOCTYPE html><title>Just a moment...</title>'
+    const parsed = interpretAccountEvidenceBody(html, true)
+    assert.equal(parsed.missing, true)
+    assert.equal(parsed.files.length, 0)
+    assert.equal(storedLetterNeedsRebuild(null), true)
+    assert.equal(storedLetterNeedsRebuild({ count: 0, missing: true }), false)
+    assert.doesNotMatch(publicLetterFailure(new Error(html)), /DOCTYPE|Just a moment/)
   })
 
   it('styles the preview like the printed letter page', () => {

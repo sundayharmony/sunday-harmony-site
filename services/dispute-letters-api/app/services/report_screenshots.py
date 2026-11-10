@@ -316,6 +316,23 @@ def letter_dispute_items(session_id: str, letter: GeneratedLetter) -> list[Lette
     return disputed_items_from_letter_markdown(letter.markdown)
 
 
+def account_evidence_payload(files: list[tuple[str, bytes]]) -> dict:
+    """JSON body for the account-evidence route. JPEG pages only, no letter PDF."""
+    import base64
+
+    encoded = []
+    for name, data in files:
+        if not data or data[:2] != b"\xff\xd8":
+            continue
+        encoded.append(
+            {
+                "name": name or f"Account Evidence {len(encoded) + 1}.jpg",
+                "jpeg_base64": base64.b64encode(data).decode("ascii"),
+            }
+        )
+    return {"files": encoded}
+
+
 def load_report_account_screenshot_files(
     session_id: str, letter: GeneratedLetter
 ) -> list[tuple[str, bytes]]:
