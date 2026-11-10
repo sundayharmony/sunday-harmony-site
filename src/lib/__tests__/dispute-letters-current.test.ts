@@ -54,6 +54,18 @@ describe('currentLetters', () => {
     assert.notEqual(letterIdentityKey(listed[0]), letterIdentityKey(listed[1]))
   })
 
+  it('replaces an older bureau title with the name, bureau, date, and round title', () => {
+    const listed = currentLetters([
+      letter('exp-old', 'Experian — 4 item(s)', 'plan-old'),
+      letter('exp-new', 'Jane Doe - Experian - 11-10-2026 RD 1 letter', 'plan-new'),
+      letter('eq-2', 'Jane Doe - Equifax (letter 2 of 2) - 11-10-2026 RD 1 letter', 'plan-eq-2'),
+    ])
+    assert.deepEqual(
+      listed.map((row) => row.id),
+      ['exp-new', 'eq-2']
+    )
+  })
+
   it('keeps chunked bureau letters with part numbers instead of collapsing them', () => {
     const listed = currentLetters([
       letter('exp-1', 'Experian (letter 1 of 2) — 7 item(s)', 'plan-exp-a'),

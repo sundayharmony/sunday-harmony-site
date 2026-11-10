@@ -3,18 +3,89 @@
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
 from typing import Iterable, Sequence, TypeVar
+from zoneinfo import ZoneInfo
 
 from app.models import GeneratedLetter, LetterPlan
 
 _ITEM_COUNT_SUFFIX = re.compile(r"\s+[—–-]\s+\d+\s+item\(s\)\s*$", re.IGNORECASE)
+_RD_TITLE = re.compile(
+    r"^(?P<name>.+?) - (?P<party>.+?) - (?P<date>\d{1,2}-\d{1,2}-\d{4}) RD (?P<round>\d+) letter$",
+    re.IGNORECASE,
+)
+_CHUNK_SUFFIX = re.compile(r"\(letter \d+ of \d+\)\s*$", re.IGNORECASE)
+_BUREAU_LABELS = (
+    ("transunion", "TransUnion"),
+    ("experian", "Experian"),
+    ("equifax", "Equifax"),
+)
+_EASTERN = ZoneInfo("America/New_York")
 
 T = TypeVar("T")
 
 
+def _clean_title_part(value: str, fallback: str) -> str:
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', " ", value or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    return cleaned or fallback
+
+
+def bureau_short_name(value: str) -> str:
+    """Equifax / Experian / TransUnion, keeping a chunk suffix when a bureau is split."""
+    text = _ITEM_COUNT_SUFFIX.sub("", (value or "").strip()).strip()
+    if not text:
+        return ""
+    chunk = ""
+    match = _CHUNK_SUFFIX.search(text)
+    if match:
+        chunk = " " + match.group(0).strip()
+    folded = text.casefold()
+    for needle, label in _BUREAU_LABELS:
+        if needle in folded:
+            return f"{label}{chunk}"
+    return ""
+
+
+def letter_party_label(letter_type: str, recipient_name: str) -> str:
+    """Bureau letters use the bureau name. Other letters keep the recipient."""
+    short = bureau_short_name(recipient_name) or bureau_short_name(letter_type or "")
+    if (letter_type or "").startswith("bureau_") and short:
+        return short
+    if (letter_type or "").startswith("bureau_"):
+        return {"bureau_equifax": "Equifax", "bureau_experian": "Experian", "bureau_transunion": "TransUnion"}.get(
+            letter_type, "Bureau"
+        )
+    return _clean_title_part(recipient_name, "Letter")
+
+
+def letter_display_title(
+    *,
+    person_name: str,
+    party: str,
+    round_number: int,
+    on_date: date | None = None,
+) -> str:
+    """Person, bureau (or other recipient), date, and round. Example: Jane Doe Experian 11-10-2026 RD 1 letter."""
+    name = _clean_title_part(person_name, "Client")
+    who = _clean_title_part(party, "Letter")
+    moment = on_date or datetime.now(_EASTERN).date()
+    stamp = f"{moment.month}-{moment.day}-{moment.year}"
+    round_n = max(1, int(round_number or 1))
+    return f"{name} - {who} - {stamp} RD {round_n} letter"
+
+
+def _title_party(title: str) -> str:
+    match = _RD_TITLE.match((title or "").strip())
+    if not match:
+        return ""
+    return match.group("party").strip()
+
+
 def letter_identity_key(*, plan_id: str = "", title: str = "", recipient_name: str = "", letter_id: str = "") -> str:
     raw = (recipient_name or title or "").strip()
-    recipient = _ITEM_COUNT_SUFFIX.sub("", raw).strip()
+    party = "" if recipient_name else _title_party(title)
+    recipient = party or _ITEM_COUNT_SUFFIX.sub("", raw).strip()
     if recipient:
         return f"recipient:{recipient.casefold()}"
     plan = (plan_id or "").strip()
@@ -30,6 +101,9 @@ def letter_identity_keys(*, plan_id: str = "", title: str = "", recipient_name: 
     plan = (plan_id or "").strip()
     if plan:
         keys.add(f"plan:{plan}")
+    short = bureau_short_name(recipient_name or _title_party(title) or title)
+    if short:
+        keys.add(f"recipient:{short.casefold()}")
     return list(keys)
 
 
