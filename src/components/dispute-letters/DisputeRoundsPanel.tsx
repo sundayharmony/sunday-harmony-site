@@ -8,6 +8,7 @@ import {
   itemStatusLabel,
   letterPackageDisplayCode,
   zipDownloadButtonLabel,
+  zipErrorLabel,
   zipReadyLabel,
   notYetDisputedFromItems,
   type DisputeCfpbEscalationRow,
@@ -506,7 +507,7 @@ function LetterPackageCard({
               ? ' · ZIP Downloaded ✓'
               : ` · ${zipReadyLabel(pkg.zipStatus, pkg.zipReady)}`}
             {allSent ? ' · Sent confirmation recorded' : downloaded ? ' · Ready to Send' : ''}
-            {pkg.zipStatus === 'failed' && pkg.zipError ? ` · ${pkg.zipError}` : ''}
+            {pkg.zipStatus === 'failed' && pkg.zipError ? ` · ${zipErrorLabel(pkg.zipError)}` : ''}
             {' · Photo ID, proof of residence, and Social Security card are in each letter'}
           </p>
         </div>

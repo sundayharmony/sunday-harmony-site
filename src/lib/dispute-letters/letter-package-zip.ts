@@ -1,4 +1,4 @@
-import { checkDisputeLettersHealth, disputeLettersJson } from '@/lib/dispute-letters/api-client'
+import { disputeLettersJson } from '@/lib/dispute-letters/api-client'
 import { currentLetters } from '@/lib/dispute-letters/current-letters'
 import { listDisputeSessionsForApplication, getDisputeSessionById } from '@/lib/dispute-letters/db'
 import {
@@ -32,9 +32,11 @@ import {
 } from '@/lib/dispute-letters/letter-docx-store'
 import {
   buildLetterZipFiles,
-  fetchLetterPdfForPackageZip,
+  loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
-import { zipFiles } from '@/lib/dispute-letters/letter-zip'
+import { publicLetterFailure, renderLetterPdfWithIdentity } from '@/lib/dispute-letters/letter-pdf-render'
+import { isPdfBytes, zipFiles } from '@/lib/dispute-letters/letter-zip'
+import type { GeneratedLetter } from '@/lib/dispute-letters/types'
 import {
   buildLetterPackageZipObjectPath,
   disputeLetterRoundIndex,
@@ -132,7 +134,16 @@ function lettersNeedGenerator(sessionId: string, letters: readonly LetterDocxSou
   return letters.some((letter) => !isStoredLetterDocxPath(sessionId, letter.storage_path))
 }
 
-/** Build the DOCX ZIP from stored Word files, generating only letters that are not already in storage. */
+async function loadLettersForPdf(sessionId: string): Promise<GeneratedLetter[]> {
+  try {
+    const data = await disputeLettersJson<{ letters?: GeneratedLetter[] }>(`/internal/letters/${sessionId}`)
+    return currentLetters(data.letters || [])
+  } catch (error) {
+    throw new Error(publicLetterFailure(error, 'Letter text could not be loaded.'))
+  }
+}
+
+/** Build the ZIP from stored PDFs, rendering any missing letter in this app. */
 export async function buildLetterPackageZipBytes(
   sessionId: string,
   letters?: StoredZipLetter[]
@@ -143,6 +154,8 @@ export async function buildLetterPackageZipBytes(
   }
 
   let generatedCount = 0
+  let contentById: Map<string, GeneratedLetter> | null = null
+  let attachments: Awaited<ReturnType<typeof loadLetterIdentityAttachments>> | null = null
 
   const letterFiles = await assembleLetterDocxFiles({
     sessionId,
@@ -150,16 +163,25 @@ export async function buildLetterPackageZipBytes(
     readStored: (storagePath) => readStoredLetterBytes(storagePath),
     generateMissing: async (letter) => {
       generatedCount += 1
-      try {
-        // Letter + identity only. Account screenshots OOM/timeout the free-tier API and
-        // cause Vercel prepare-zip to mark the package failed after a multi-minute wait.
-        const data = await fetchLetterPdfForPackageZip(sessionId, letter.id)
-        await storeGeneratedLetterDocx({ sessionId, letterId: letter.id, data })
-        return data
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : 'download failed'
-        throw new Error(`Letter "${letter.title || letter.id}" failed to download: ${detail}`)
+      const title = letter.title || letter.id
+      if (!contentById) {
+        contentById = new Map((await loadLettersForPdf(sessionId)).map((row) => [row.id, row]))
+        const session = await getDisputeSessionById(sessionId)
+        attachments = await loadLetterIdentityAttachments(session?.application_uuid)
       }
+      const source = contentById.get(letter.id)
+      if (!source) {
+        throw new Error(`Letter "${title}" could not be saved as a PDF.`)
+      }
+      const data = await renderLetterPdfWithIdentity(source, attachments || [])
+      if (!isPdfBytes(data)) {
+        throw new Error(`Letter "${title}" could not be saved as a PDF.`)
+      }
+      const stored = await storeGeneratedLetterDocx({ sessionId, letterId: letter.id, data })
+      if (!stored) {
+        throw new Error(`Letter "${title}" could not be saved as a PDF.`)
+      }
+      return data
     },
   })
   const files = buildLetterZipFiles(letterFiles).filter((file) => file.name.toLowerCase().endsWith('.pdf'))
@@ -308,7 +330,7 @@ export async function prepareLetterPackageZip(sessionId: string): Promise<Prepar
   try {
     letters = await listZipLetters(sessionId)
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to list letters'
+    const message = publicLetterFailure(err, 'Failed to list letters')
     if (pkg?.id) await markLetterPackageZipFailed(pkg.id, message)
     return { ok: false, status: 'failed', error: message, packageId: pkg?.id }
   }
@@ -349,14 +371,11 @@ export async function prepareLetterPackageZip(sessionId: string): Promise<Prepar
 
   const stopHeartbeat = startZipBuildHeartbeat(pkg.id)
   try {
-    if (lettersNeedGenerator(sessionId, letters)) {
-      await checkDisputeLettersHealth(45_000).catch(() => false)
-    }
     const built = await buildLetterPackageZipBytes(sessionId, letters)
     const persisted = await persistBuiltPackageZip(sessionId, built)
     return persisted
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'ZIP build failed'
+    const message = publicLetterFailure(err, 'ZIP needs rebuild')
     await markLetterPackageZipFailed(pkg.id, message)
     return { ok: false, status: 'failed', error: message, packageId: pkg.id }
   } finally {

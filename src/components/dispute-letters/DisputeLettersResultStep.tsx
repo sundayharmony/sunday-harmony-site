@@ -17,6 +17,7 @@ import type { LetterPackageSnapshot } from '@/lib/dispute-letters/dispute-lifecy
 import {
   letterPackageDisplayCode,
   zipDownloadButtonLabel,
+  zipErrorLabel,
   zipReadyLabel,
 } from '@/lib/dispute-letters/dispute-lifecycle'
 import type { SkippedLetterPlan } from '@/lib/dispute-letters/generate-job'
@@ -262,7 +263,7 @@ export default function DisputeLettersResultStep({
                   : 'ZIP not ready yet'}
               {!downloaded && pkg?.zipReady ? ' · ready to download' : ''}
               {!downloaded && pkg?.zipStatus === 'failed' && pkg.zipError
-                ? ` · ${pkg.zipError}`
+                ? ` · ${zipErrorLabel(pkg.zipError)}`
                 : ''}
             </li>
             <li>
@@ -352,9 +353,15 @@ export default function DisputeLettersResultStep({
                 {l.title}
               </button>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <a href={disputeLetterDownloadUrl(sessionId, l.id, 'pdf')} className="text-accent hover:underline">
-                  Download .pdf
-                </a>
+                {pkg?.zipReady ? (
+                  <a href={disputeLetterDownloadUrl(sessionId, l.id, 'pdf')} className="text-accent hover:underline">
+                    Download .pdf
+                  </a>
+                ) : (
+                  <span className="text-brand-dim" title="PDF is not ready yet">
+                    Download .pdf
+                  </span>
+                )}
                 {l.sent_at || pkg?.members.some((member) => member.letter_id === l.id && member.sent_at) ? (
                   <span className="font-medium text-green-800">
                     Sent

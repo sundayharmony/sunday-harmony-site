@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
+import { PDFDocument } from 'pdf-lib'
 import { disputeLetterDownloadUrl } from '../dispute-letters/client-api'
+import { zipErrorLabel } from '../dispute-letters/dispute-lifecycle'
+import {
+  publicLetterFailure,
+  renderLetterPdfWithIdentity,
+  renderLetterPreviewPdf,
+} from '../dispute-letters/letter-pdf-render'
+import { isPdfBytes } from '../dispute-letters/letter-zip'
 
 function source(path: string) {
   return readFileSync(path, 'utf8')
@@ -33,6 +41,11 @@ describe('dispute letter downloads and preview', () => {
     assert.match(ui, /letterLayout/)
     assert.match(ui, /Page 1\/1/)
     assert.match(downloadRoute, /searchParams\.get\('format'\) \|\| 'pdf'/)
+    assert.match(downloadRoute, /readStoredLetterDocxForSession/)
+    assert.match(downloadRoute, /PDF is not ready yet/)
+    assert.doesNotMatch(downloadRoute, /fetchLetterPdfForInteractiveDownload/)
+    assert.doesNotMatch(downloadRoute, /\/internal\/letters\//)
+    assert.doesNotMatch(downloadRoute, /\/download\?format/)
     assert.doesNotMatch(zipRoute, /download\.zip/)
     assert.match(zipRoute, /openReadyLetterPackageZip/)
     assert.match(zipRoute, /getOrBuildLetterPackageZip/)
@@ -43,10 +56,8 @@ describe('dispute letter downloads and preview', () => {
     assert.match(ui, /same letter PDFs as Download \.pdf|photo ID, proof of residence, and Social Security card/i)
     assert.match(ui, /zipReadyLabel|zipReady/)
     assert.match(ui, /zipError/)
-    // Interactive + ZIP PDFs skip account screenshots; individual downloads are stored for ZIP reuse.
-    assert.match(downloadRoute, /fetchLetterPdfForInteractiveDownload/)
-    assert.match(downloadRoute, /maxDuration = 120/)
-    assert.match(downloadRoute, /storeGeneratedLetterDocx/)
+    assert.match(ui, /zipErrorLabel/)
+    assert.match(ui, /PDF is not ready yet/)
     const clientApi = source('src/lib/dispute-letters/client-api.ts')
     assert.match(clientApi, /downloadDisputeLettersZip/)
     assert.match(clientApi, /prepareDisputeLettersZip/)
@@ -66,8 +77,10 @@ describe('dispute letter downloads and preview', () => {
     assert.match(packageZip, /openReadyLetterPackageZip/)
     assert.match(packageZip, /getOrBuildLetterPackageZip/)
     assert.match(packageZip, /assembleLetterDocxFiles/)
-    // ZIP generate uses letter+identity PDFs (no account screenshots) so prepare-zip finishes.
-    assert.match(packageZip, /fetchLetterPdfForPackageZip/)
+    assert.match(packageZip, /renderLetterPdfWithIdentity/)
+    assert.match(packageZip, /storeGeneratedLetterDocx/)
+    assert.doesNotMatch(packageZip, /fetchLetterPdfForPackageZip/)
+    assert.doesNotMatch(packageZip, /\/download\?format/)
     assert.match(packageZip, /isStoredLetterDocxPath/)
     assert.match(packageZip, /buildLetterZipFiles/)
     assert.match(packageZip, /recordLetterPackageDownload/)
@@ -85,6 +98,42 @@ describe('dispute letter downloads and preview', () => {
     assert.match(panel, /downloadDisputeLettersZip/)
     assert.match(panel, /zipDownloadButtonLabel|Building ZIP|Downloading/)
     assert.match(panel, /zipReadyLabel/)
+  })
+
+  it('renders a stored PDF from the on-screen letter and keeps HTML out of errors', async () => {
+    const bytes = await renderLetterPreviewPdf({
+      date: 'November 10, 2026',
+      blocks: [
+        { kind: 'line', text: 'Equifax Information Services LLC', variant: 'name' },
+        { kind: 'line', text: 'I dispute this account.', variant: 'body' },
+        { kind: 'line', text: 'Respectfully,', variant: 'closing' },
+        { kind: 'line', text: 'Essence Trice', variant: 'signature' },
+      ],
+    })
+    assert.equal(isPdfBytes(bytes), true)
+
+    const extra = await PDFDocument.create()
+    extra.addPage()
+    const merged = await renderLetterPdfWithIdentity(
+      {
+        title: 'Experian',
+        preview: {
+          date: 'November 10, 2026',
+          blocks: [{ kind: 'line', text: 'Hello', variant: 'body' }],
+        },
+      },
+      [{ zipName: 'Government Photo ID.pdf', data: new Uint8Array(await extra.save()), mimeType: 'application/pdf' }]
+    )
+    assert.equal(isPdfBytes(merged), true)
+    assert.ok((await PDFDocument.load(merged)).getPageCount() >= 2)
+
+    const html = '<!DOCTYPE html><html><title>Just a moment...</title>'
+    assert.equal(
+      publicLetterFailure(new Error(html), 'Letter "Experian" could not be saved as a PDF.'),
+      'Letter "Experian" could not be saved as a PDF.'
+    )
+    assert.equal(zipErrorLabel(html), 'ZIP needs rebuild')
+    assert.doesNotMatch(zipErrorLabel(html), /DOCTYPE|Just a moment/)
   })
 
   it('styles the preview like the printed letter page', () => {
