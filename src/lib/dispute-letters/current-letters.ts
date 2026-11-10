@@ -1,6 +1,13 @@
 /** Keep the latest letter per recipient/plan so re-generation does not accumulate copies. */
 
 const ITEM_COUNT_SUFFIX = /\s+[—–-]\s+\d+\s+item\(s\)\s*$/i
+const RD_TITLE = /^(.+?) - (.+?) - (\d{1,2}-\d{1,2}-\d{4}) RD (\d+) letter$/i
+const CHUNK_SUFFIX = /\(letter \d+ of \d+\)\s*$/i
+const BUREAU_LABELS: [string, string][] = [
+  ['transunion', 'TransUnion'],
+  ['experian', 'Experian'],
+  ['equifax', 'Equifax'],
+]
 
 export type LetterIdentityFields = {
   id?: string
@@ -9,9 +16,27 @@ export type LetterIdentityFields = {
   recipient_name?: string
 }
 
+function titleParty(title: string): string {
+  const match = RD_TITLE.exec(title.trim())
+  return match?.[2]?.trim() || ''
+}
+
+export function bureauShortName(value: string): string {
+  const text = (value || '').trim().replace(ITEM_COUNT_SUFFIX, '').trim()
+  if (!text) return ''
+  const chunkMatch = CHUNK_SUFFIX.exec(text)
+  const chunk = chunkMatch ? ` ${chunkMatch[0].trim()}` : ''
+  const folded = text.toLowerCase()
+  for (const [needle, label] of BUREAU_LABELS) {
+    if (folded.includes(needle)) return `${label}${chunk}`
+  }
+  return ''
+}
+
 export function letterIdentityKey(letter: LetterIdentityFields): string {
   const raw = (letter.recipient_name || letter.title || '').trim()
-  const recipient = raw.replace(ITEM_COUNT_SUFFIX, '').trim()
+  const party = letter.recipient_name ? '' : titleParty(letter.title || '')
+  const recipient = party || raw.replace(ITEM_COUNT_SUFFIX, '').trim()
   if (recipient) return `recipient:${recipient.toLowerCase()}`
   const planId = (letter.plan_id || '').trim()
   if (planId) return `plan:${planId}`
@@ -22,6 +47,8 @@ export function letterIdentityKeys(letter: LetterIdentityFields): string[] {
   const keys = new Set<string>([letterIdentityKey(letter)])
   const planId = (letter.plan_id || '').trim()
   if (planId) keys.add(`plan:${planId}`)
+  const short = bureauShortName(letter.recipient_name || titleParty(letter.title || '') || letter.title || '')
+  if (short) keys.add(`recipient:${short.toLowerCase()}`)
   return [...keys]
 }
 

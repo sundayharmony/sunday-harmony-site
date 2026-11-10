@@ -914,6 +914,27 @@ describe('letter package workflow', () => {
       zipDownloadButtonLabel({ busy: true, zipReady: false, zipStatus: 'building' }),
       'Building ZIP…'
     )
+    const staleBuilding = {
+      ...pkg,
+      zip_status: 'building' as const,
+      updated_at: '2020-01-01T00:00:00.000Z',
+    }
+    assert.equal(letterPackageZipStatus(staleBuilding), 'failed')
+    assert.equal(
+      zipDownloadButtonLabel({
+        busy: false,
+        zipReady: false,
+        zipStatus: letterPackageZipStatus(staleBuilding),
+      }),
+      'Retry ZIP'
+    )
+    assert.notEqual(zipReadyLabel(letterPackageZipStatus(staleBuilding), false), 'Building letter PDFs for ZIP…')
+    const freshBuilding = {
+      ...staleBuilding,
+      updated_at: new Date().toISOString(),
+    }
+    assert.equal(letterPackageZipStatus(freshBuilding), 'building')
+    assert.equal(zipReadyLabel(letterPackageZipStatus(freshBuilding), false), 'Building letter PDFs for ZIP…')
     const readyPkg = {
       ...pkg,
       zip_status: 'ready' as const,

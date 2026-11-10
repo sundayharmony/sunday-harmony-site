@@ -398,9 +398,31 @@ export function roundWorkflowView(params: {
   }
 }
 
-export function letterPackageZipStatus(pkg: LetterPackageRow | null | undefined): LetterPackageZipStatus {
+/**
+ * How long a ZIP build may stay quiet before another request takes over.
+ * The builder heartbeats `updated_at` while it runs, so a live build stays inside this window.
+ * A pre-marked "building" row that never started work goes stale and no longer blocks download.
+ */
+export const ZIP_BUILD_JOIN_MS = 30_000
+
+export function zipBuildHeartbeatFresh(
+  pkg: { updated_at?: string | null } | null | undefined,
+  now = Date.now(),
+  joinMs = ZIP_BUILD_JOIN_MS
+): boolean {
+  const updated = Date.parse(pkg?.updated_at || '')
+  return Number.isFinite(updated) && updated > now - joinMs
+}
+
+export function letterPackageZipStatus(
+  pkg: LetterPackageRow | null | undefined,
+  now = Date.now()
+): LetterPackageZipStatus {
   const status = pkg?.zip_status
-  if (status === 'building' || status === 'ready' || status === 'failed' || status === 'pending') {
+  if (status === 'building') {
+    return zipBuildHeartbeatFresh(pkg, now) ? 'building' : 'failed'
+  }
+  if (status === 'ready' || status === 'failed' || status === 'pending') {
     return status
   }
   return pkg?.zip_storage_path ? 'ready' : 'pending'

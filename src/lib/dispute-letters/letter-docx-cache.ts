@@ -1,5 +1,5 @@
 import { mapWithConcurrency } from '@/lib/dispute-letters/async-pool'
-import { letterIdsSignature } from '@/lib/dispute-letters/dispute-lifecycle'
+import { ZIP_BUILD_JOIN_MS, letterIdsSignature } from '@/lib/dispute-letters/dispute-lifecycle'
 import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import { hasSafeStoragePathSegments } from '@/lib/storage-utils'
 
@@ -8,17 +8,11 @@ export const LETTER_DOCX_READ_CONCURRENCY = 6
 
 /**
  * Parallel generator calls for letters that have no stored PDF yet.
- * Keep this at 1: each PDF pulls identity docs + report account screenshots through
- * the free-tier letters API, and concurrent builds OOM / stall "Preparing ZIP".
+ * Keep this at 1 so identity documents are not downloaded for every letter at once.
  */
 export const LETTER_DOCX_GENERATE_CONCURRENCY = 1
 
-/**
- * How long a ZIP build may stay quiet before another request takes over.
- * The builder heartbeats `updated_at` while it runs, so a live build stays inside this window.
- * A pre-marked "building" row that never started work goes stale and no longer blocks download.
- */
-export const ZIP_BUILD_JOIN_MS = 30_000
+export { ZIP_BUILD_JOIN_MS }
 
 const SESSION_ID = /^[0-9a-f-]{36}$/i
 

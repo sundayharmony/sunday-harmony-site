@@ -1,35 +1,72 @@
 import { getSupabase } from '@/lib/supabase'
-import { DISPUTE_LETTERS_BUCKET } from '@/lib/dispute-letters-storage'
-import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
+import { downloadDisputeLetterBytes } from '@/lib/dispute-letters-storage'
 import type { LetterPacketAttachment } from '@/lib/dispute-letters/letter-identity-attachments'
 import { hasSafeStoragePathSegments } from '@/lib/storage-utils'
 
 const SESSION_ID = /^[0-9a-f-]{36}$/i
 
-export type AccountEvidenceRecord = {
-  count: number
+export type SessionEvidencePage = {
+  page: number
+  bureau: string
+  tradelineId: string
+  path: string
+  account?: string
+}
+
+export type SessionEvidenceManifest = {
+  attempted: boolean
   missing: boolean
+  pages: SessionEvidencePage[]
 }
 
-export function safeEvidenceLetterId(letterId: string): string {
-  return (letterId || '').replace(/[^a-zA-Z0-9-]/g, '')
+export type EvidenceLetterItem = {
+  tradeline_id?: string
+  tradelineId?: string
 }
 
-export function accountEvidenceManifestPath(sessionId: string, letterId: string): string {
-  return `sessions/${sessionId}/letters/${safeEvidenceLetterId(letterId)}/evidence/manifest.json`
+export function sessionEvidenceManifestPath(sessionId: string): string {
+  return `sessions/${sessionId}/evidence/manifest.json`
 }
 
-/** A stored letter PDF is reused only after an evidence attempt has been recorded. */
-export function storedLetterNeedsRebuild(record: AccountEvidenceRecord | null): boolean {
-  return record == null
+export function letterBureauFromType(letterType: string | null | undefined): 'TUC' | 'EXP' | 'EQF' | null {
+  if (letterType === 'bureau_transunion') return 'TUC'
+  if (letterType === 'bureau_experian') return 'EXP'
+  if (letterType === 'bureau_equifax') return 'EQF'
+  return null
 }
 
-export function letterIdFromStoredPdfPath(sessionId: string, storagePath: string): string | null {
-  const prefix = `sessions/${sessionId}/letters/`
-  if (!storagePath.startsWith(prefix) || !storagePath.toLowerCase().endsWith('.pdf')) return null
-  const name = storagePath.slice(prefix.length, -'.pdf'.length)
-  if (!name || name.includes('/')) return null
-  return name
+function isSessionEvidenceJpeg(sessionId: string, storagePath: string): boolean {
+  const prefix = `sessions/${sessionId}/evidence/`
+  if (!storagePath.startsWith(prefix) || !storagePath.toLowerCase().endsWith('.jpg')) return false
+  if (storagePath.includes('..')) return false
+  return hasSafeStoragePathSegments(storagePath)
+}
+
+export function evidencePagesForLetter(
+  manifest: SessionEvidenceManifest | null,
+  items: EvidenceLetterItem[],
+  letterBureau: string | null
+): SessionEvidencePage[] {
+  if (!manifest?.pages?.length) return []
+  const ids = new Set(
+    items.map((item) => item.tradeline_id || item.tradelineId || '').filter((id) => id.length > 0)
+  )
+  if (!ids.size) return []
+  const seen = new Set<string>()
+  const pages: SessionEvidencePage[] = []
+  for (const page of manifest.pages) {
+    if (!page?.path || !page.tradelineId || !ids.has(page.tradelineId)) continue
+    if (letterBureau && page.bureau && page.bureau !== letterBureau) continue
+    if (seen.has(page.path)) continue
+    seen.add(page.path)
+    pages.push(page)
+  }
+  return pages
+}
+
+/** A stored letter PDF is kept. A missing manifest must not start another render. */
+export function storedLetterNeedsRebuild(_record: { attempted?: boolean } | null): boolean {
+  return false
 }
 
 export function interpretAccountEvidenceBody(
@@ -57,73 +94,79 @@ export function interpretAccountEvidenceBody(
   }
 }
 
-export async function fetchAccountEvidence(
-  sessionId: string,
-  letterId: string
-): Promise<{ files: LetterPacketAttachment[]; missing: boolean }> {
-  try {
-    const res = await disputeLettersFetch(
-      `/internal/letters/${sessionId}/${letterId}/account-evidence`,
-      { signal: AbortSignal.timeout(60_000) }
-    )
-    const raw = await res.text()
-    return interpretAccountEvidenceBody(raw, res.ok)
-  } catch (error) {
-    console.warn(
-      'account evidence unavailable',
-      letterId,
-      error instanceof Error ? error.message : error
-    )
-    return { files: [], missing: true }
-  }
-}
-
-export async function readAccountEvidenceRecord(
-  sessionId: string,
-  letterId: string
-): Promise<AccountEvidenceRecord | null> {
+export async function readSessionEvidenceManifest(sessionId: string): Promise<SessionEvidenceManifest | null> {
   if (!SESSION_ID.test(sessionId)) return null
-  const storagePath = accountEvidenceManifestPath(sessionId, letterId)
+  const storagePath = sessionEvidenceManifestPath(sessionId)
   if (!hasSafeStoragePathSegments(storagePath)) return null
-  const { data, error } = await getSupabase().storage.from(DISPUTE_LETTERS_BUCKET).download(storagePath)
-  if (error || !data) return null
+  const data = await downloadDisputeLetterBytes(storagePath)
+  if (!data?.length) return null
   try {
-    const parsed = JSON.parse(Buffer.from(await data.arrayBuffer()).toString('utf8')) as AccountEvidenceRecord
-    if (typeof parsed?.count !== 'number' || typeof parsed?.missing !== 'boolean') return null
-    return { count: parsed.count, missing: parsed.missing }
+    const parsed = JSON.parse(data.toString('utf8')) as {
+      attempted?: boolean
+      missing?: boolean
+      pages?: Array<{
+        page?: number
+        bureau?: string
+        tradeline_id?: string
+        tradelineId?: string
+        path?: string
+        account?: string
+      }>
+    }
+    if (parsed?.attempted !== true) return null
+    const pages: SessionEvidencePage[] = []
+    for (const page of parsed.pages || []) {
+      const path = page.path || ''
+      const tradelineId = page.tradeline_id || page.tradelineId || ''
+      if (!isSessionEvidenceJpeg(sessionId, path) || !tradelineId) continue
+      pages.push({
+        page: Number(page.page) || 0,
+        bureau: page.bureau || '',
+        tradelineId,
+        path,
+        account: page.account,
+      })
+    }
+    return { attempted: true, missing: Boolean(parsed.missing), pages }
   } catch {
     return null
   }
 }
 
-export async function persistAccountEvidence(params: {
-  sessionId: string
-  letterId: string
-  files: LetterPacketAttachment[]
-  missing: boolean
-}): Promise<void> {
-  if (!SESSION_ID.test(params.sessionId)) return
-  const letterKey = safeEvidenceLetterId(params.letterId)
-  const bucket = getSupabase().storage.from(DISPUTE_LETTERS_BUCKET)
-  if (!params.missing) {
-    for (let index = 0; index < params.files.length; index += 1) {
-      const storagePath = `sessions/${params.sessionId}/letters/${letterKey}/evidence/${index + 1}.jpg`
-      if (!hasSafeStoragePathSegments(storagePath)) continue
-      const { error } = await bucket.upload(storagePath, Buffer.from(params.files[index].data), {
-        contentType: 'image/jpeg',
-        upsert: true,
-      })
-      if (error) console.error('account evidence jpeg upload error:', error)
-    }
+export async function loadStoredEvidenceAttachments(
+  sessionId: string,
+  items: EvidenceLetterItem[],
+  letterType: string | null | undefined
+): Promise<LetterPacketAttachment[]> {
+  const manifest = await readSessionEvidenceManifest(sessionId)
+  const pages = evidencePagesForLetter(manifest, items, letterBureauFromType(letterType))
+  const files: LetterPacketAttachment[] = []
+  for (const page of pages) {
+    const data = await downloadDisputeLetterBytes(page.path)
+    if (!data || data.length < 3 || data[0] !== 0xff || data[1] !== 0xd8) continue
+    files.push({
+      zipName: `Account Evidence ${files.length + 1}.jpg`,
+      data: new Uint8Array(data),
+      mimeType: 'image/jpeg',
+    })
   }
-  const manifestPath = accountEvidenceManifestPath(params.sessionId, params.letterId)
-  const body = JSON.stringify({
-    count: params.missing ? 0 : params.files.length,
-    missing: params.missing,
-  } satisfies AccountEvidenceRecord)
-  const { error } = await bucket.upload(manifestPath, Buffer.from(body), {
-    contentType: 'application/json',
-    upsert: true,
-  })
-  if (error) console.error('account evidence manifest upload error:', error)
+  return files
+}
+
+export async function loadLetterPlanForEvidence(
+  sessionId: string,
+  planId: string
+): Promise<{ letter_type?: string; items?: EvidenceLetterItem[] } | null> {
+  if (!SESSION_ID.test(sessionId) || !planId) return null
+  const { data, error } = await getSupabase()
+    .from('dispute_letter_plans')
+    .select('plans_json')
+    .eq('session_id', sessionId)
+    .maybeSingle()
+  if (error || !data) return null
+  const plans = Array.isArray(data.plans_json) ? data.plans_json : []
+  const plan = plans.find((row) => row && typeof row === 'object' && (row as { id?: string }).id === planId) as
+    | { letter_type?: string; items?: EvidenceLetterItem[] }
+    | undefined
+  return plan || null
 }

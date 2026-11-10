@@ -53,6 +53,25 @@ export async function readStoredLetterBytes(storagePath: string): Promise<Uint8A
   return isPdfBytes(data) ? data : null
 }
 
+export async function readLetterPdfSource(
+  sessionId: string,
+  letterId: string
+): Promise<{ id: string; plan_id: string; title: string; markdown: string } | null> {
+  const { data, error } = await getSupabase()
+    .from('dispute_letters')
+    .select('id, plan_id, title, markdown')
+    .eq('session_id', sessionId)
+    .eq('id', letterId)
+    .maybeSingle()
+  if (error || !data?.id) return null
+  return {
+    id: data.id as string,
+    plan_id: (data.plan_id as string) || '',
+    title: (data.title as string) || '',
+    markdown: (data.markdown as string) || '',
+  }
+}
+
 export async function readStoredLetterDocxForSession(
   sessionId: string,
   letterId: string

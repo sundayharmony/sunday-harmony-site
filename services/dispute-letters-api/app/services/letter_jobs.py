@@ -8,11 +8,15 @@ from typing import Any, Awaitable, Callable
 from app.db import (
     get_letter_plan,
     get_session,
+    get_session_row,
     prepare_session_letters_for_generation,
     save_letter,
+    session_letter_round,
     update_session_report,
 )
+from app.services.account_evidence_store import ensure_account_evidence
 from app.services.letter_consumer import apply_letter_consumer
+from app.services.letter_current import letter_display_title, letter_party_label
 from app.services.letter_generator import generate_letter_async, save_letter_file
 from app.services.letter_job_result import empty_letters_error
 
@@ -69,6 +73,9 @@ async def run_letter_job(
         row = get_session(session_id)
         if not row:
             raise RuntimeError("Session not found")
+        # Reports analyzed before screenshots were stored get one backfill here.
+        # The website ZIP path only reads the saved images.
+        await asyncio.to_thread(ensure_account_evidence, session_id)
         _, _, report = row
 
         if any(
@@ -87,6 +94,8 @@ async def run_letter_job(
         plan_resp = get_letter_plan(session_id)
         if not plan_resp:
             raise RuntimeError("No dispute plan found. Call /internal/disputes/plan first.")
+        session_row = get_session_row(session_id) or {}
+        round_number = session_letter_round(session_id, session_row.get("application_uuid"))
 
         plans = plan_resp.plans
         if plan_ids:
@@ -125,7 +134,11 @@ async def run_letter_job(
 
             md = await generate_letter_async(plan, report.consumer, report)
             path = save_letter_file(session_id, plan, md)
-            title = f"{plan.recipient_name} — {len(plan.items)} item(s)"
+            title = letter_display_title(
+                person_name=report.consumer.name,
+                party=letter_party_label(plan.letter_type, plan.recipient_name),
+                round_number=round_number,
+            )
             letter_id = save_letter(session_id, plan.id, title, md, str(path))
             generated.append(
                 {

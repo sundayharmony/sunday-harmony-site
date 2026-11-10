@@ -3,7 +3,15 @@
 from __future__ import annotations
 
 from app.models import GeneratedLetter, LetterItem, LetterPlan
-from app.services.letter_current import current_letters, letter_identity_key, superseded_letter_ids
+from datetime import date
+
+from app.services.letter_current import (
+    current_letters,
+    letter_display_title,
+    letter_identity_key,
+    letter_party_label,
+    superseded_letter_ids,
+)
 
 
 def _letter(letter_id: str, title: str, plan_id: str) -> GeneratedLetter:
@@ -77,6 +85,34 @@ def test_superseded_ids_include_old_plan_uuid_for_same_recipient():
     )
     ids = superseded_letter_ids(existing, [new_plan])
     assert ids == ["exp-old"]
+
+
+def test_letter_title_is_name_bureau_date_and_round():
+    title = letter_display_title(
+        person_name="Jane Doe",
+        party=letter_party_label("bureau_equifax", "Equifax Information Services LLC"),
+        round_number=2,
+        on_date=date(2026, 11, 10),
+    )
+    assert title == "Jane Doe - Equifax - 11-10-2026 RD 2 letter"
+    furnisher = letter_display_title(
+        person_name="Jane Doe",
+        party=letter_party_label("furnisher", "KIKOFF LENDING LLC"),
+        round_number=1,
+        on_date=date(2026, 11, 10),
+    )
+    assert furnisher == "Jane Doe - KIKOFF LENDING LLC - 11-10-2026 RD 1 letter"
+
+
+def test_new_title_replaces_older_bureau_letter():
+    listed = current_letters(
+        [
+            _letter("exp-old", "Experian — 4 item(s)", "plan-old"),
+            _letter("exp-new", "Jane Doe - Experian - 11-10-2026 RD 1 letter", "plan-new"),
+            _letter("eq-2", "Jane Doe - Equifax (letter 2 of 2) - 11-10-2026 RD 1 letter", "plan-eq-2"),
+        ]
+    )
+    assert [row.id for row in listed] == ["exp-new", "eq-2"]
 
 
 def test_generate_endpoints_replace_prior_letters():
