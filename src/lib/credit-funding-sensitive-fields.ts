@@ -2,8 +2,15 @@ import {
   decryptFieldOrLegacy,
   encryptField,
   encryptFieldIfPresent,
+  isEncryptedField,
 } from '@/lib/field-encryption'
-import type { BusinessProfile, CreditFundingApplication, CreditProfile } from '@/lib/credit-funding-types'
+import type {
+  BusinessProfile,
+  CreditFundingApplication,
+  CreditProfile,
+  FundingAppIntake,
+} from '@/lib/credit-funding-types'
+import { mergePreservedFundingApp } from '@/lib/fundingapp-fields'
 import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 
 const REDACTED = '••••••••'
@@ -23,24 +30,67 @@ export function decryptFreeTextForView(value: string | undefined | null): string
   return value ? decryptFieldOrLegacy(value) : ''
 }
 
-export function encryptCreditProfileForDb(profile: CreditProfile): CreditProfile {
+function encryptStoredText(value: string): string {
+  if (!value) return ''
+  if (isEncryptedField(value)) return value
+  return encryptField(value)
+}
+
+function decryptStoredText(value: string | undefined): string {
+  if (!value) return ''
+  return decryptFieldOrLegacy(value)
+}
+
+function encryptFundingAppForDb(intake: FundingAppIntake | undefined): FundingAppIntake | undefined {
+  if (!intake || intake.source !== 'fundingapp') return undefined
   return {
+    source: 'fundingapp',
+    whyFunding: encryptStoredText(intake.whyFunding),
+    llcCreated: encryptStoredText(intake.llcCreated),
+    businessRevenue: encryptStoredText(intake.businessRevenue),
+    personalAccounts: encryptStoredText(intake.personalAccounts),
+    derogatoryAccounts: encryptStoredText(intake.derogatoryAccounts),
+  }
+}
+
+function decryptFundingAppForAdmin(intake: FundingAppIntake | undefined): FundingAppIntake | undefined {
+  if (!intake || intake.source !== 'fundingapp') return undefined
+  return {
+    source: 'fundingapp',
+    whyFunding: decryptStoredText(intake.whyFunding),
+    llcCreated: decryptStoredText(intake.llcCreated),
+    businessRevenue: decryptStoredText(intake.businessRevenue),
+    personalAccounts: decryptStoredText(intake.personalAccounts),
+    derogatoryAccounts: decryptStoredText(intake.derogatoryAccounts),
+  }
+}
+
+export function encryptCreditProfileForDb(profile: CreditProfile): CreditProfile {
+  const fundingApp = encryptFundingAppForDb(profile.fundingApp)
+  const next: CreditProfile = {
     ...profile,
     monthlyGrossIncome: profile.monthlyGrossIncome
       ? encryptField(profile.monthlyGrossIncome)
       : profile.monthlyGrossIncome,
     annualIncome: profile.annualIncome ? encryptField(profile.annualIncome) : profile.annualIncome,
   }
+  if (fundingApp) next.fundingApp = fundingApp
+  else delete next.fundingApp
+  return next
 }
 
 export function decryptCreditProfileForAdmin(profile: CreditProfile): CreditProfile {
-  return {
+  const fundingApp = decryptFundingAppForAdmin(profile.fundingApp)
+  const next: CreditProfile = {
     ...profile,
     monthlyGrossIncome: profile.monthlyGrossIncome
       ? decryptFieldOrLegacy(profile.monthlyGrossIncome)
       : profile.monthlyGrossIncome,
     annualIncome: profile.annualIncome ? decryptFieldOrLegacy(profile.annualIncome) : profile.annualIncome,
   }
+  if (fundingApp) next.fundingApp = fundingApp
+  else delete next.fundingApp
+  return next
 }
 
 export function serializeBusinessProfileForDb(bp: BusinessProfile): Record<string, unknown> {
@@ -192,7 +242,9 @@ export function buildPartialEncryptedApplicationRow(
     city,
     state,
     zip_code: zip,
-    credit_profile: encryptCreditProfileForDb(payload.creditProfile || {}),
+    credit_profile: encryptCreditProfileForDb(
+      mergePreservedFundingApp(payload.creditProfile || {}, existing?.credit_profile)
+    ),
     selected_credit_provider: payload.selectedCreditProvider || existing?.selected_credit_provider || 'Pending',
     provider_username_encrypted: keepSecret(payload.providerUsername, existing?.provider_username_encrypted),
     provider_password_encrypted: keepSecret(payload.providerPassword, existing?.provider_password_encrypted),

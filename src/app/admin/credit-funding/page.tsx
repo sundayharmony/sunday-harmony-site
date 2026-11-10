@@ -28,6 +28,7 @@ import {
   type FundingScores,
 } from '@/lib/credit-funding-types'
 import { formatSsnFull } from '@/lib/ssn-utils'
+import { fundingAppFromProfile } from '@/lib/fundingapp-fields'
 import { applicationIsWaiting } from '@/lib/people'
 import { parseDisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import {
@@ -229,6 +230,31 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
       <h3 className="text-sm font-bold text-brand-text mb-3">{title}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">{children}</div>
     </div>
+  )
+}
+
+function FundingAppIntakeSection({
+  profile,
+  fundingAmount,
+}: {
+  profile: unknown
+  fundingAmount?: string | null
+}) {
+  const intake = fundingAppFromProfile(profile)
+  if (!intake) return null
+  return (
+    <DetailSection title="Funding application">
+      <DetailField label="Submitted from" value="/fundingapp" />
+      <DetailField label="How Much Funding Do You Need" value={fundingAmount} />
+      <DetailField label="Why are you looking for funding?" value={intake.whyFunding} />
+      <DetailField label="When was your LLC Created?" value={intake.llcCreated} />
+      <DetailField label="Is Your Business Generating Revenue Yet?" value={intake.businessRevenue} />
+      <DetailField label="How many personal accounts do you have?" value={intake.personalAccounts} />
+      <DetailField
+        label="Derogatory accounts or late payments within the last 2 years"
+        value={intake.derogatoryAccounts}
+      />
+    </DetailSection>
   )
 }
 
@@ -1735,9 +1761,21 @@ function CreditFundingAdminContent() {
                     )}
                     <DetailField label="Email" value={selected.email} />
                     <DetailField label="Phone" value={selected.phone} />
-                    <DetailField label="Address" value={`${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`} />
+                    <DetailField
+                      label="Address"
+                      value={
+                        fundingAppFromProfile(selected.credit_profile)
+                          ? 'Not collected on this form'
+                          : `${selected.address}, ${selected.city}, ${selected.state} ${selected.zip_code}`
+                      }
+                    />
                     <DetailField label="Referred by" value={selected.referred_by} />
                   </DetailSection>
+
+                  <FundingAppIntakeSection
+                    profile={selected.credit_profile}
+                    fundingAmount={selected.funding_amount}
+                  />
 
                   <DetailSection title="Credit Profile">
                     <DetailField label="Credit Score" value={String(selected.credit_profile?.creditScore || '')} />

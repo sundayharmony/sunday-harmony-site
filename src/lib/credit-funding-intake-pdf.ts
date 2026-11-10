@@ -12,6 +12,7 @@ import {
   type CreditProfile,
   type DocumentType,
 } from '@/lib/credit-funding-types'
+import { fundingAppFromProfile } from '@/lib/fundingapp-fields'
 
 /** Keep the packet small enough for a staff browser download. */
 export const INTAKE_PDF_MAX_ATTACHMENT_BYTES = 18 * 1024 * 1024
@@ -259,6 +260,7 @@ export function intakePdfSourceFromApplication(app: object): IntakePdfSource {
       latePayments24Months: profile.latePayments24Months,
       employed: profile.employed,
       businessOwner: profile.businessOwner,
+      ...(profile.fundingApp?.source === 'fundingapp' ? { fundingApp: profile.fundingApp } : {}),
     },
     business_profile: business
       ? {
@@ -381,6 +383,19 @@ export function buildIntakePdfModel(
   pushField(goals, 'Funding goals', source.funding_goals)
   pushField(goals, 'Additional notes', source.goals_notes)
   if (goals.length) sections.push({ title: 'Goals and funding', fields: goals })
+
+  const fundingIntake = fundingAppFromProfile(source.credit_profile)
+  if (fundingIntake) {
+    const fundingApplication: IntakePdfField[] = []
+    pushField(fundingApplication, 'Why are you looking for funding?', fundingIntake.whyFunding)
+    pushField(fundingApplication, 'When was your LLC created?', fundingIntake.llcCreated)
+    pushField(fundingApplication, 'Is your business generating revenue?', fundingIntake.businessRevenue)
+    pushField(fundingApplication, 'Personal accounts (open and closed)', fundingIntake.personalAccounts)
+    pushField(fundingApplication, 'Derogatory accounts or late payments', fundingIntake.derogatoryAccounts)
+    if (fundingApplication.length) {
+      sections.push({ title: 'Funding application', fields: fundingApplication })
+    }
+  }
 
   if (hasBusinessContent(source) && source.business_profile) {
     const profile = source.business_profile

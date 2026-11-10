@@ -41,6 +41,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      url: absoluteUrl('/fundingapp'),
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+    {
       url: absoluteUrl('/credit'),
       lastModified: now,
       changeFrequency: 'monthly',

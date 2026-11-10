@@ -491,6 +491,16 @@ export function letterWorkingCopyOriginalId(storagePath: string | null | undefin
   return match?.[1]?.toLowerCase() || null
 }
 
+/** Answers that exist only on the public /fundingapp form. */
+export interface FundingAppIntake {
+  source: 'fundingapp'
+  whyFunding: string
+  llcCreated: string
+  businessRevenue: string
+  personalAccounts: string
+  derogatoryAccounts: string
+}
+
 export interface CreditProfile {
   creditScore?: string
   bankruptcy?: boolean
@@ -503,6 +513,8 @@ export interface CreditProfile {
   monthlyGrossIncome?: string
   annualIncome?: string
   businessOwner?: boolean
+  /** Set only when the person applied at /fundingapp. */
+  fundingApp?: FundingAppIntake
 }
 
 export interface BusinessProfile {

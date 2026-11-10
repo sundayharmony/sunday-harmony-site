@@ -92,11 +92,16 @@ const CREDIT_FUNDING_LIST_SELECT = [
 
 export async function createCreditFundingApplication(
   payload: IntakeFormPayload,
-  link?: { userId?: string; clientId?: string }
+  link?: { userId?: string; clientId?: string },
+  extras?: { draftSource?: string; fundingGoals?: string }
 ): Promise<CreditFundingApplication | null> {
   const applicationId = generateApplicationId()
-  const fundingGoals = buildFundingGoalsSummary(payload)
+  const fundingGoals = extras?.fundingGoals || buildFundingGoalsSummary(payload)
   const encrypted = buildEncryptedApplicationRow(payload, link)
+  const historyNotes =
+    extras?.draftSource === 'fundingapp'
+      ? 'Application submitted via /fundingapp'
+      : 'Application submitted via intake form'
 
   const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
   const row = {
@@ -107,6 +112,7 @@ export async function createCreditFundingApplication(
     service_type: classification.serviceType,
     lead_type: classification.leadType,
     credit_funding_client_status: 'intake_completed',
+    ...(extras?.draftSource ? { draft_source: extras.draftSource } : {}),
   }
 
   const { data, error } = await getSupabase()
@@ -129,7 +135,7 @@ export async function createCreditFundingApplication(
           application_uuid: app.id,
           status: 'submitted',
           staff_email: null,
-          notes: 'Application submitted via intake form',
+          notes: historyNotes,
         })
         return app
       }
@@ -143,7 +149,7 @@ export async function createCreditFundingApplication(
     application_uuid: app.id,
     status: 'submitted',
     staff_email: null,
-    notes: 'Application submitted via intake form',
+    notes: historyNotes,
   })
 
   return app

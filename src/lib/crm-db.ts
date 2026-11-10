@@ -704,7 +704,10 @@ export async function ensureClientFromCreditApplication(app: CreditFundingApplic
         lead_type: leadType,
         service_type: app.service_type,
       }),
-      notes: `Auto-created from Credit & Funding application ${app.application_id}`,
+      notes:
+        app.draft_source === 'fundingapp'
+          ? `Auto-created from funding application ${app.application_id}`
+          : `Auto-created from Credit & Funding application ${app.application_id}`,
       deliverables: [],
       quick_wins: [],
       lead_type: leadType,
