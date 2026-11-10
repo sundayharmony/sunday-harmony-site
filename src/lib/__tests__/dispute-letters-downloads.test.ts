@@ -10,7 +10,9 @@ import {
   renderLetterPreviewPdf,
 } from '../dispute-letters/letter-pdf-render'
 import {
+  evidencePagesForLetter,
   interpretAccountEvidenceBody,
+  letterBureauFromType,
   storedLetterNeedsRebuild,
 } from '../dispute-letters/letter-account-evidence'
 import { isPdfBytes } from '../dispute-letters/letter-zip'
@@ -61,7 +63,8 @@ describe('dispute letter downloads and preview', () => {
     assert.match(ui, /zipReadyLabel|zipReady/)
     assert.match(ui, /zipError/)
     assert.match(ui, /zipErrorLabel/)
-    assert.match(ui, /PDF is not ready yet/)
+    assert.match(ui, /disputeLetterDownloadUrl/)
+    assert.doesNotMatch(ui, /PDF is not ready yet/)
     const clientApi = source('src/lib/dispute-letters/client-api.ts')
     assert.match(clientApi, /downloadDisputeLettersZip/)
     assert.match(clientApi, /prepareDisputeLettersZip/)
@@ -83,10 +86,13 @@ describe('dispute letter downloads and preview', () => {
     assert.match(packageZip, /assembleLetterDocxFiles/)
     assert.match(packageZip, /renderLetterPdfWithIdentity/)
     assert.match(packageZip, /storeGeneratedLetterDocx/)
-    assert.match(packageZip, /fetchAccountEvidence/)
-    assert.match(packageZip, /storedLetterNeedsRebuild/)
+    assert.match(packageZip, /loadStoredEvidenceAttachments/)
+    assert.match(packageZip, /buildAndStoreLetterPdf/)
+    assert.doesNotMatch(packageZip, /fetchAccountEvidence/)
+    assert.doesNotMatch(packageZip, /\/account-evidence/)
     assert.doesNotMatch(packageZip, /fetchLetterPdfForPackageZip/)
     assert.doesNotMatch(packageZip, /\/download\?format/)
+    assert.match(downloadRoute, /buildAndStoreLetterPdf/)
     assert.doesNotMatch(downloadRoute, /account-evidence/)
     assert.doesNotMatch(zipRoute, /account-evidence/)
     assert.doesNotMatch(zipRoute, /\/download\?format/)
@@ -173,8 +179,23 @@ describe('dispute letter downloads and preview', () => {
     const parsed = interpretAccountEvidenceBody(html, true)
     assert.equal(parsed.missing, true)
     assert.equal(parsed.files.length, 0)
-    assert.equal(storedLetterNeedsRebuild(null), true)
-    assert.equal(storedLetterNeedsRebuild({ count: 0, missing: true }), false)
+    assert.equal(storedLetterNeedsRebuild(null), false)
+    assert.equal(storedLetterNeedsRebuild({ attempted: true }), false)
+    assert.equal(letterBureauFromType('bureau_experian'), 'EXP')
+    const pages = evidencePagesForLetter(
+      {
+        attempted: true,
+        missing: false,
+        pages: [
+          { page: 2, bureau: 'EQF', tradelineId: 'disc', path: 'sessions/s/evidence/page-2.jpg' },
+          { page: 3, bureau: 'TUC', tradelineId: 'disc', path: 'sessions/s/evidence/page-3.jpg' },
+          { page: 4, bureau: 'EXP', tradelineId: 'other', path: 'sessions/s/evidence/page-4.jpg' },
+        ],
+      },
+      [{ tradeline_id: 'disc' }],
+      'EQF'
+    )
+    assert.deepEqual(pages.map((page) => page.page), [2])
     assert.doesNotMatch(publicLetterFailure(new Error(html)), /DOCTYPE|Just a moment/)
   })
 

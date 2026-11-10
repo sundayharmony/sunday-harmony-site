@@ -27,6 +27,7 @@ from app.db import (
     update_session_report,
 )
 from app.ingest.router import detect_file_type, ingest_file
+from app.services.account_evidence_store import store_account_evidence
 from app.models import (
     ConsumerUpdateRequest,
     DisputePlanFromReportRequest,
@@ -194,6 +195,16 @@ async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -
         temp_path = await asyncio.to_thread(write_temp_report, storage_path, ext)
         doc = await asyncio.to_thread(ingest_file, temp_path)
         report = await analyze_report_async(doc, allow_fallback=True, file_name=file_name)
+        pdf_path = str(temp_path) if temp_path and temp_path.suffix.lower() == ".pdf" else ""
+        # Images are saved before the session is marked ready. A failed render
+        # still writes a manifest and does not fail the analysis.
+        await asyncio.to_thread(
+            store_account_evidence,
+            session_id,
+            report,
+            pdf_path,
+            list(doc.pages or []),
+        )
         update_session_report(session_id, report, file_type=doc.file_type)
         return {
             "status": "complete",

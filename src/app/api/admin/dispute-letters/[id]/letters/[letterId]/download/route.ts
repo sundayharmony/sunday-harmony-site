@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
+import { buildAndStoreLetterPdf } from '@/lib/dispute-letters/letter-package-zip'
 import { readStoredLetterDocxForSession } from '@/lib/dispute-letters/letter-docx-store'
 import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-/** Stored letter PDF only. The file is rendered when the package is prepared. */
+/** Stored letter PDF, or one letter built from saved text and saved account images. */
 export const maxDuration = 60
 
 type Params = { params: Promise<{ id: string; letterId: string }> }
@@ -25,7 +26,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const data = await readStoredLetterDocxForSession(id, letterId)
+    const stored = await readStoredLetterDocxForSession(id, letterId)
+    const data = stored && isPdfBytes(stored) ? stored : await buildAndStoreLetterPdf(id, letterId)
     if (!data || !isPdfBytes(data)) {
       return NextResponse.json({ error: 'PDF is not ready yet' }, { status: 409 })
     }

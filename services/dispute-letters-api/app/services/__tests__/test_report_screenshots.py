@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.models import LetterItem
+from app.models import LetterItem, Tradeline
 from app.services.report_screenshots import (
     _SCREENSHOT_CACHE,
     _cache_get,
     _cache_put,
     _screenshot_cache_key,
     account_match_tokens,
+    account_number_core,
     disputed_items_from_letter_markdown,
+    select_tradeline_account_pages,
     is_score_summary_page,
     page_matches_tokens,
     screenshot_files_for_items,
@@ -72,6 +74,45 @@ def test_fico_whats_hurting_page_is_never_selected():
     ]
     # Must not pick the FICO page even though it mentions past due / accounts.
     assert select_report_pages_for_items(pages, items) == [2]
+
+
+def test_tradeline_pages_use_bureau_account_and_skip_other_bureaus():
+    pages = [
+        "FICO What's hurting Account Number 601100XXXXXX past due accounts",
+        "Equifax DISCOVER C Account Number 601100XXXXXX Payment History Reported Status",
+        "TransUnion ALLY FINANCIAL Account Number 228533XXXXXX Account Type Auto Date Opened",
+        "Experian CAPITAL ONE Account Number 517805XXXXXX Reported Status Charge Off",
+        "DISCOVERCARD Payment History Reported Status",
+    ]
+    tradelines = [
+        Tradeline(id="disc", creditor="DISCOVERCARD", account_eqf="601100XXXXXX", bureaus=["EQF"]),
+        Tradeline(id="ally", creditor="ALLY FINANCIAL", account_tu="228533XXXXXX", bureaus=["TUC"]),
+    ]
+    rows = select_tradeline_account_pages(pages, tradelines)
+    assert {(row["tradeline_id"], row["bureau"], row["page"]) for row in rows} == {
+        ("disc", "EQF", 2),
+        ("ally", "TUC", 3),
+    }
+    assert account_number_core("601100XXXXXX") == "601100"
+
+
+def test_same_account_number_stays_on_the_named_bureau_page():
+    pages = [
+        "Equifax DISCOVER Account Number 601100XXXXXX Payment History Date Opened",
+        "TransUnion DISCOVER Account Number 601100XXXXXX Payment History Date Opened",
+    ]
+    tradelines = [
+        Tradeline(
+            id="disc",
+            creditor="DISCOVER",
+            account_tu="601100XXXXXX",
+            account_eqf="601100XXXXXX",
+            bureaus=["TUC", "EQF"],
+        )
+    ]
+    rows = select_tradeline_account_pages(pages, tradelines)
+    by_bureau = {row["bureau"]: row["page"] for row in rows}
+    assert by_bureau == {"EQF": 1, "TUC": 2}
 
 
 def test_disputed_items_from_letter_markdown():

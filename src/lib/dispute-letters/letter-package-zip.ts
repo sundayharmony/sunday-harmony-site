@@ -26,6 +26,7 @@ import {
 import {
   listLetterRowsForZip,
   loadActiveLetterPackageZipRow,
+  readLetterPdfSource,
   readStoredLetterBytes,
   storeGeneratedLetterDocx,
   type StoredZipLetter,
@@ -35,15 +36,11 @@ import {
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
 import {
-  fetchAccountEvidence,
-  letterIdFromStoredPdfPath,
-  persistAccountEvidence,
-  readAccountEvidenceRecord,
-  storedLetterNeedsRebuild,
+  loadLetterPlanForEvidence,
+  loadStoredEvidenceAttachments,
 } from '@/lib/dispute-letters/letter-account-evidence'
 import { publicLetterFailure, renderLetterPdfWithIdentity } from '@/lib/dispute-letters/letter-pdf-render'
 import { isPdfBytes, zipFiles } from '@/lib/dispute-letters/letter-zip'
-import type { GeneratedLetter } from '@/lib/dispute-letters/types'
 import {
   buildLetterPackageZipObjectPath,
   disputeLetterRoundIndex,
@@ -141,13 +138,26 @@ function lettersNeedGenerator(sessionId: string, letters: readonly LetterDocxSou
   return letters.some((letter) => !isStoredLetterDocxPath(sessionId, letter.storage_path))
 }
 
-async function loadLettersForPdf(sessionId: string): Promise<GeneratedLetter[]> {
-  try {
-    const data = await disputeLettersJson<{ letters?: GeneratedLetter[] }>(`/internal/letters/${sessionId}`)
-    return currentLetters(data.letters || [])
-  } catch (error) {
-    throw new Error(publicLetterFailure(error, 'Letter text could not be loaded.'))
-  }
+/**
+ * Build one letter PDF from the saved letter text, identity documents, and
+ * account-page images stored during analysis. Does not render report pages.
+ */
+export async function buildAndStoreLetterPdf(sessionId: string, letterId: string): Promise<Uint8Array | null> {
+  const source = await readLetterPdfSource(sessionId, letterId)
+  if (!source || !source.markdown.trim()) return null
+  const session = await getDisputeSessionById(sessionId)
+  const plan = await loadLetterPlanForEvidence(sessionId, source.plan_id)
+  const [identity, evidence] = await Promise.all([
+    loadLetterIdentityAttachments(session?.application_uuid),
+    loadStoredEvidenceAttachments(sessionId, plan?.items || [], plan?.letter_type),
+  ])
+  const data = await renderLetterPdfWithIdentity(
+    { title: source.title, markdown: source.markdown },
+    [...identity, ...evidence]
+  )
+  if (!isPdfBytes(data)) return null
+  await storeGeneratedLetterDocx({ sessionId, letterId, data })
+  return data
 }
 
 /** Build the ZIP from stored PDFs, rendering any missing letter in this app. */
@@ -161,49 +171,17 @@ export async function buildLetterPackageZipBytes(
   }
 
   let generatedCount = 0
-  let contentById: Map<string, GeneratedLetter> | null = null
-  let attachments: Awaited<ReturnType<typeof loadLetterIdentityAttachments>> | null = null
 
   const letterFiles = await assembleLetterDocxFiles({
     sessionId,
     letters: rows,
-    readStored: async (storagePath) => {
-      const letterId = letterIdFromStoredPdfPath(sessionId, storagePath)
-      if (letterId && storedLetterNeedsRebuild(await readAccountEvidenceRecord(sessionId, letterId))) {
-        return null
-      }
-      return readStoredLetterBytes(storagePath)
-    },
+    readStored: async (storagePath) => readStoredLetterBytes(storagePath),
     generateMissing: async (letter) => {
       generatedCount += 1
-      const title = letter.title || letter.id
-      if (!contentById) {
-        contentById = new Map((await loadLettersForPdf(sessionId)).map((row) => [row.id, row]))
-        const session = await getDisputeSessionById(sessionId)
-        attachments = await loadLetterIdentityAttachments(session?.application_uuid)
+      const data = await buildAndStoreLetterPdf(sessionId, letter.id)
+      if (!data || !isPdfBytes(data)) {
+        throw new Error(`Letter "${letter.title || letter.id}" could not be saved as a PDF.`)
       }
-      const source = contentById.get(letter.id)
-      if (!source) {
-        throw new Error(`Letter "${title}" could not be saved as a PDF.`)
-      }
-      const evidence = await fetchAccountEvidence(sessionId, letter.id)
-      const data = await renderLetterPdfWithIdentity(source, [
-        ...(attachments || []),
-        ...evidence.files,
-      ])
-      if (!isPdfBytes(data)) {
-        throw new Error(`Letter "${title}" could not be saved as a PDF.`)
-      }
-      const stored = await storeGeneratedLetterDocx({ sessionId, letterId: letter.id, data })
-      if (!stored) {
-        throw new Error(`Letter "${title}" could not be saved as a PDF.`)
-      }
-      await persistAccountEvidence({
-        sessionId,
-        letterId: letter.id,
-        files: evidence.files,
-        missing: evidence.missing,
-      })
       return data
     },
   })

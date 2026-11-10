@@ -7,7 +7,7 @@ import re
 import threading
 from io import BytesIO
 
-from app.models import GeneratedLetter, LetterItem
+from app.models import GeneratedLetter, LetterItem, Tradeline
 
 # Process-local caches so a ZIP of N letters does not re-download / re-OCR / re-render
 # the same report N times (that pegs free-tier CPU, OOMs the box, and stalls "Building ZIP").
@@ -162,6 +162,84 @@ def select_report_pages_for_items(
                 break
         if len(selected) >= max_pages:
             break
+    return selected
+
+
+_BUREAU_ACCOUNT_FIELDS = (
+    ("TUC", "account_tu"),
+    ("EXP", "account_exp"),
+    ("EQF", "account_eqf"),
+)
+_BUREAU_PAGE_LABELS = {
+    "TUC": ("TRANSUNION", "TRANS UNION"),
+    "EXP": ("EXPERIAN",),
+    "EQF": ("EQUIFAX",),
+}
+
+
+def account_number_core(account_number: str) -> str:
+    """Account digits that can be found on a report page. Trailing masks are dropped."""
+    raw = re.sub(r"[^A-Za-z0-9]", "", (account_number or "").upper())
+    core = re.sub(r"X+$", "", raw)
+    if len(core) >= 4:
+        return core
+    if len(raw) >= 4:
+        return raw
+    return ""
+
+
+def page_named_bureaus(page_text: str) -> set[str]:
+    blob = re.sub(r"\s+", " ", (page_text or "").upper())
+    found: set[str] = set()
+    for bureau, labels in _BUREAU_PAGE_LABELS.items():
+        if any(label in blob for label in labels):
+            found.add(bureau)
+    return found
+
+
+def select_tradeline_account_pages(
+    page_texts: list[str],
+    tradelines: list[Tradeline],
+    *,
+    max_pages: int = 8,
+) -> list[dict]:
+    """Pages for each tradeline bureau, matched by that bureau's account number.
+
+    Creditor-name guesses are not used. A page that names a different bureau is
+    not attached. Score, FICO, and "what's hurting" pages are skipped.
+    """
+    selected: list[dict] = []
+    seen: set[tuple[int, str, str]] = set()
+    kept_pages: list[int] = []
+    for tradeline in tradelines:
+        for bureau, field in _BUREAU_ACCOUNT_FIELDS:
+            core = account_number_core(getattr(tradeline, field, "") or "")
+            if not core:
+                continue
+            for index, text in enumerate(page_texts, start=1):
+                if is_score_summary_page(text) or not page_has_tradeline_detail(text):
+                    continue
+                if not page_matches_tokens(text, [core]):
+                    continue
+                named = page_named_bureaus(text)
+                if named and bureau not in named:
+                    continue
+                if index not in kept_pages:
+                    if len(kept_pages) >= max_pages:
+                        continue
+                    kept_pages.append(index)
+                key = (index, bureau, tradeline.id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                selected.append(
+                    {
+                        "page": index,
+                        "bureau": bureau,
+                        "tradeline_id": tradeline.id,
+                        "account": core,
+                    }
+                )
     return selected
 
 
