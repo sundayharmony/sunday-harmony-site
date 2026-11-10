@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import Packages from '@/components/Packages'
+import PackageLookSection from '@/components/marketing/PackageLookSection'
 import HeroHarmonyVisual from '@/components/HeroHarmonyVisual'
 import { processSteps, services } from '@/lib/data'
 
@@ -149,6 +150,8 @@ export default function ServicesPage() {
             <Packages />
           </div>
         </section>
+
+        <PackageLookSection />
 
         <section className="relative overflow-hidden py-24 bg-brand-text text-white" id="how">
           <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-[radial-gradient(circle,rgba(184,148,63,0.22)_0%,transparent_70%)] pointer-events-none" />

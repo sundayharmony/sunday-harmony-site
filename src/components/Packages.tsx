@@ -1,8 +1,17 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useState } from 'react'
 import { packages, packagePriceDisplay, packageDisclaimer, type Package } from '@/lib/data'
+import { featuredMarketingImage } from '@/lib/marketing-images'
+
+const packageImageSection: Record<string, 'business-essentials' | 'business-launch' | 'marketing-partner' | 'custom-solutions'> = {
+  'Business Essentials': 'business-essentials',
+  'Business Launch': 'business-launch',
+  'Marketing Partner': 'marketing-partner',
+  'Custom Solutions': 'custom-solutions',
+}
 
 const taglineColor: Record<string, string> = {
   blue: 'text-brand-muted',
@@ -169,6 +178,24 @@ export default function Packages() {
                 }`}
                 onClick={() => setOpenTier(pkg.tier)}
               >
+                {(() => {
+                  const section = packageImageSection[pkg.tier]
+                  const image = section ? featuredMarketingImage(section) : undefined
+                  if (!image) return null
+                  return (
+                    <div className="mb-4 overflow-hidden rounded-xl border border-brand-border bg-brand-bg-soft">
+                      <Image
+                        src={image.src}
+                        alt={image.alt}
+                        width={image.width}
+                        height={image.height}
+                        sizes="(max-width: 768px) 100vw, 280px"
+                        className="h-36 w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )
+                })()}
                 <div className="flex items-center gap-4 mb-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-brand-border bg-accent-soft text-[22px]">
                     {pkg.icon}

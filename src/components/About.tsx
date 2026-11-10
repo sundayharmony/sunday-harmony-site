@@ -1,8 +1,12 @@
+import Image from 'next/image'
 import { aboutValues } from '@/lib/data'
 import BrandLogo from '@/components/BrandLogo'
 import SectionHeader from '@/components/ui/SectionHeader'
+import { featuredMarketingImage } from '@/lib/marketing-images'
 
 export default function About() {
+  const prospectImage = featuredMarketingImage('where-to-find-prospects')
+
   return (
       <section className="py-24">
         <div className="max-w-[1100px] mx-auto px-7">
@@ -38,10 +42,25 @@ export default function About() {
               </div>
             </div>
 
-            <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
-              <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-10">
-                <BrandLogo height={120} href={null} />
+            <div className="space-y-5">
+              <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-10">
+                  <BrandLogo height={120} href={null} />
+                </div>
               </div>
+              {prospectImage ? (
+                <div className="overflow-hidden rounded-[20px] border border-brand-border bg-brand-bg-soft">
+                  <Image
+                    src={prospectImage.src}
+                    alt={prospectImage.alt}
+                    width={prospectImage.width}
+                    height={prospectImage.height}
+                    sizes="(max-width: 1024px) 100vw, 520px"
+                    className="h-auto w-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
