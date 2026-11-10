@@ -233,6 +233,39 @@ function leadNeedsNoDraft(lead: LeadSnapshot): boolean {
   return isAlreadyContacted(lead)
 }
 
+/**
+ * Soft MX / send retries set nextAttemptAt in the future, so the desk showed
+ * "0 ready · N waiting on retry" with nothing claimable. Release those for the
+ * operator desk (not intentional holds like held_for_internal_test).
+ */
+export async function releaseSoftRetryBackoff(
+  store: OutreachStore,
+  options?: { limit?: number; at?: Date }
+): Promise<number> {
+  const at = options?.at ?? store.now()
+  const limit = options?.limit ?? OUTREACH_READY_QUEUE_SIZE
+  const pending = await store.listQueueSummaries({
+    statuses: ['pending'],
+    order: 'queue',
+    limit: Math.max(limit * 3, 30),
+  })
+  let released = 0
+  for (const item of pending) {
+    if (released >= limit) break
+    if (isClaimablePending(item, at)) continue
+    if (item.eligibilityReason === 'held_for_internal_test') continue
+    const saved = await store.compareAndSwap(item.id, 'pending', {
+      nextAttemptAt: at.toISOString(),
+      eligibilityReason:
+        item.eligibilityReason.startsWith('retry:') || item.eligibilityReason === 'mx_uncertain'
+          ? 'eligible'
+          : item.eligibilityReason,
+    })
+    if (saved) released += 1
+  }
+  return released
+}
+
 export async function ensureReadyQueue(
   store: OutreachStore,
   options?: {
@@ -243,11 +276,16 @@ export async function ensureReadyQueue(
     maxCandidates?: number
     /** How many unsent letters to rewrite before looking for new leads. */
     refreshLimit?: number
+    /** When false, leave retry backoff alone (cron/tests). Desk defaults to releasing. */
+    releaseSoftRetries?: boolean
   }
 ): Promise<EnqueueResult> {
   const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
   const maxCandidates = options?.maxCandidates ?? OUTREACH_ENQUEUE_EXAMINE_CAP
   const refreshWindow = options?.refreshLimit ?? size
+  if (options?.releaseSoftRetries !== false) {
+    await releaseSoftRetryBackoff(store, { limit: size })
+  }
   await refreshReadyQueueCopy(
     store,
     refreshWindow,

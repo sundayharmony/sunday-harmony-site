@@ -55,10 +55,12 @@ export async function GET() {
   try {
     const store = resolveOutreachStore()
     if (session.user.role === 'admin') {
+      // Release soft retries first so "waiting on retry" becomes ready, then top up.
       await ensureReadyQueue(store, {
         actor: session.user.email || session.user.id,
         maxCandidates: OUTREACH_PAGE_ENQUEUE_CAP,
         refreshLimit: 1,
+        releaseSoftRetries: true,
       })
     }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)

@@ -22,6 +22,7 @@ import {
   pendingDeferredCount,
   pendingReadyCount,
   refreshUnsentQueueCopy,
+  releaseSoftRetryBackoff,
 } from '../outreach/enqueue'
 import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
 import { prospectGreetingIsUsable } from '../outreach/greeting'
@@ -379,7 +380,8 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.ok(deferredRow)
     assert.equal(isClaimablePending(deferredRow, store.now()), false)
 
-    const refilled = await ensureReadyQueue(store, { mxResolver: mxOk })
+    // Without releasing backoff, refill drafts new claimable letters past the deferred rows.
+    const refilled = await ensureReadyQueue(store, { mxResolver: mxOk, releaseSoftRetries: false })
     assert.equal(refilled.enqueued, 7)
     assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
 
@@ -436,6 +438,26 @@ describe('eligibility, suppression, and unverified reports', () => {
       if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
       else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
     }
+  })
+
+  it('releases soft retry backoff so the desk can show ready letters again', async () => {
+    const store = createMemoryOutreachStore({ leads: manyLeads(5) })
+    await ensureReadyQueue(store, { mxResolver: mxOk, size: 5, releaseSoftRetries: false })
+    for (const item of await store.listQueue()) {
+      if (item.status !== 'pending') continue
+      await store.compareAndSwap(item.id, 'pending', {
+        nextAttemptAt: new Date(store.now().getTime() + 120_000).toISOString(),
+        eligibilityReason: 'retry:mx_uncertain',
+      })
+    }
+    assert.equal(await pendingReadyCount(store), 0)
+    assert.equal(await pendingDeferredCount(store), 5)
+    assert.equal(await releaseSoftRetryBackoff(store, { limit: 5 }), 5)
+    assert.equal(await pendingReadyCount(store), 5)
+    assert.equal(await pendingDeferredCount(store), 0)
+    const desk = await buildOutreachConsole(store, 'admin')
+    assert.equal(desk.readyCount, 5)
+    assert.equal(desk.deferredCount, 0)
   })
 
   it('stops drafting once the examine cap is hit instead of walking the whole book', async () => {
