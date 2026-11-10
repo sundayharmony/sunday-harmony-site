@@ -3,9 +3,7 @@ export type MarketingImageSection =
   | 'business-launch'
   | 'marketing-partner'
   | 'custom-solutions'
-  | 'business-blueprint'
   | 'where-to-find-prospects'
-  | 'what-to-build-next'
 
 export type MarketingImage = {
   section: MarketingImageSection
@@ -20,9 +18,7 @@ export const marketingImageSections = [
   { id: 'business-launch' as const, label: 'Business Launch' },
   { id: 'marketing-partner' as const, label: 'Marketing Partner' },
   { id: 'custom-solutions' as const, label: 'Custom Solutions' },
-  { id: 'business-blueprint' as const, label: 'Business blueprint' },
   { id: 'where-to-find-prospects' as const, label: 'Where to find prospects' },
-  { id: 'what-to-build-next' as const, label: 'What to build next' },
 ] as const
 
 export const marketingImages: MarketingImage[] = [
@@ -101,12 +97,7 @@ export const marketingImages: MarketingImage[] = [
   { section: 'custom-solutions', src: '/marketing/custom-solutions/16-tailwind-dashboard.webp', alt: "Modern dashboard template", width: 1152, height: 864 },
   { section: 'custom-solutions', src: '/marketing/custom-solutions/17-brand-experience-event.webp', alt: "Brand experience event setup", width: 1280, height: 720 },
   { section: 'custom-solutions', src: '/marketing/custom-solutions/18-inflatable-event-room.webp', alt: "Custom inflatable event room", width: 1152, height: 864 },
-  { section: 'business-blueprint', src: '/marketing/business-blueprint/01-identity-kit-desk.webp', alt: "Brand identity kit on a desk", width: 1024, height: 1024 },
-  { section: 'business-blueprint', src: '/marketing/business-blueprint/02-strategy-meeting-table.webp', alt: "Strategy meeting at a conference table", width: 1280, height: 720 },
   { section: 'where-to-find-prospects', src: '/marketing/where-to-find-prospects/01-networking-reception.webp', alt: "Networking reception seen from behind", width: 1280, height: 720 },
-  { section: 'what-to-build-next', src: '/marketing/what-to-build-next/01-workspace-monitor.webp', alt: "Workspace desk with a soft-focus monitor", width: 1280, height: 720 },
-  { section: 'what-to-build-next', src: '/marketing/what-to-build-next/02-pitch-deck-boards.webp', alt: "Typographic pitch deck boards", width: 1152, height: 864 },
-  { section: 'what-to-build-next', src: '/marketing/what-to-build-next/03-cafe-planning-meeting.webp', alt: "Planning meeting in a cafe", width: 1024, height: 1024 },
 ]
 
 export function marketingImagesFor(section: MarketingImageSection): MarketingImage[] {
