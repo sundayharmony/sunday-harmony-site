@@ -17,6 +17,24 @@ function source(path: string) {
   return readFileSync(path, 'utf8')
 }
 
+function pdfVisibleText(bytes: Uint8Array): string {
+  const raw = Buffer.from(bytes).toString('latin1')
+  const parts = [raw]
+  for (const match of raw.matchAll(/\/Length\s+(\d+)/g)) {
+    const after = raw.slice(match.index, match.index + 120)
+    const stream = after.match(/stream\r?\n/)
+    if (!stream || stream.index === undefined) continue
+    const start = match.index + stream.index + stream[0].length
+    const slice = Buffer.from(raw.slice(start, start + Number(match[1])), 'latin1')
+    try {
+      parts.push(inflateSync(slice).toString('latin1'))
+    } catch {
+      // Uncompressed or not Flate.
+    }
+  }
+  return parts.join('\n')
+}
+
 describe('dispute letter downloads and preview', () => {
   it('defaults individual downloads to pdf', () => {
     assert.match(disputeLetterDownloadUrl('sess', 'letter-1'), /format=pdf/)
@@ -126,17 +144,19 @@ describe('dispute letter downloads and preview', () => {
       ],
     })
     assert.equal(isPdfBytes(bytes), true)
-    const raw = Buffer.from(bytes).toString('latin1')
-    const inflated = [raw]
-    for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
-      if (match[1].length > 2000) continue
-      try {
-        inflated.push(inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1'))
-      } catch {
-        // Not a Flate stream.
-      }
-    }
-    const page = inflated.find((part) => part.includes('TJ')) || ''
+    const printed = pdfVisibleText(bytes)
+    const readable = `${printed}\n${[...printed.matchAll(/<([0-9A-Fa-f]{4,})>/g)]
+      .map((match) =>
+        match[1].replace(/([0-9A-Fa-f]{2})/g, (_pair, hex: string) => {
+          const code = parseInt(hex, 16)
+          return code >= 32 && code < 127 ? String.fromCharCode(code) : ''
+        })
+      )
+      .join('')}`
+    const page = printed
+      .split('\n')
+      .filter((part) => part.includes('TJ'))
+      .join('\n')
     const visible = [...page.matchAll(/<([0-9A-Fa-f]{2,})>/g)]
       .map((match) =>
         match[1]
@@ -147,7 +167,9 @@ describe('dispute letter downloads and preview', () => {
     assert.equal(visible.includes('**'), false)
     assert.match(visible, /MERRICK BANK CORP/)
     assert.match(visible, /Essence Trice/)
-    assert.match(raw, /GreatVibes/)
+    assert.match(readable, /GreatVibes/)
+    assert.match(readable, /Page 1 of 1/)
+    assert.match(readable, /November 10, 2026/)
 
     const extra = await PDFDocument.create()
     extra.addPage()
@@ -163,6 +185,17 @@ describe('dispute letter downloads and preview', () => {
     )
     assert.equal(isPdfBytes(merged), true)
     assert.ok((await PDFDocument.load(merged)).getPageCount() >= 2)
+    const mergedText = pdfVisibleText(merged)
+    const mergedReadable = `${mergedText}\n${[...mergedText.matchAll(/<([0-9A-Fa-f]{4,})>/g)]
+      .map((match) =>
+        match[1].replace(/([0-9A-Fa-f]{2})/g, (_pair, hex: string) => {
+          const code = parseInt(hex, 16)
+          return code >= 32 && code < 127 ? String.fromCharCode(code) : ''
+        })
+      )
+      .join('')}`
+    assert.match(mergedReadable, /Page 1 of 2/)
+    assert.match(mergedReadable, /Page 2 of 2/)
 
     const html = '<!DOCTYPE html><html><title>Just a moment...</title>'
     assert.equal(

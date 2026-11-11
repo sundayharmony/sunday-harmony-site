@@ -5,7 +5,7 @@ import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { LetterPacketAttachment } from '@/lib/dispute-letters/letter-identity-attachments'
 import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@/lib/dispute-letters/types'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import PDFDocumentKit from 'pdfkit'
 
 /** Same cursive face the on-screen preview and the Python letter use. */
@@ -40,28 +40,63 @@ export function publicLetterFailure(error: unknown, fallback = 'Letter PDF could
   return line
 }
 
-export function renderLetterPreviewPdf(layout: LetterPreviewLayout): Promise<Uint8Array> {
+function renderLetterBody(layout: LetterPreviewLayout): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocumentKit({
       size: 'LETTER',
-      margins: { top: 64, bottom: 72, left: 72, right: 72 },
+      margins: { top: 76, bottom: 72, left: 72, right: 72 },
     })
     const chunks: Buffer[] = []
     doc.on('data', (chunk: Buffer) => chunks.push(chunk))
     doc.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))))
     doc.on('error', reject)
 
-    const date = pdfSafeText(layout.date || '')
-    if (date) {
-      doc.font('Times-Roman').fontSize(11).fillColor('#111111').text(date)
-      doc.moveDown(0.8)
-    }
     for (const block of layout.blocks) drawBlock(doc, block)
-    if (!date && layout.blocks.length === 0) {
+    if (layout.blocks.length === 0) {
       doc.font('Times-Roman').fontSize(12).text(' ')
     }
     doc.end()
   })
+}
+
+/** Date on the left and "Page n of m" on the right, on every page of the file. */
+export async function stampLetterPageNumbers(bytes: Uint8Array, date: string): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(bytes)
+  const font = await doc.embedFont(StandardFonts.TimesRoman)
+  const pages = doc.getPages()
+  const total = pages.length
+  const labelDate = pdfSafeText(date).slice(0, 80)
+  const size = 10
+  const ink = rgb(0.07, 0.07, 0.07)
+  pages.forEach((page, index) => {
+    const { width, height } = page.getSize()
+    const label = `Page ${index + 1} of ${total}`
+    const labelWidth = font.widthOfTextAtSize(label, size)
+    page.drawRectangle({
+      x: 0,
+      y: height - 34,
+      width,
+      height: 34,
+      color: rgb(1, 1, 1),
+    })
+    const dateWidth = labelDate ? font.widthOfTextAtSize(labelDate, size) : 0
+    if (labelDate && 72 + dateWidth + 12 < width - 72 - labelWidth) {
+      page.drawText(labelDate, { x: 72, y: height - 22, size, font, color: ink })
+    }
+    page.drawText(label, {
+      x: Math.max(36, width - 72 - labelWidth),
+      y: height - 22,
+      size,
+      font,
+      color: ink,
+    })
+  })
+  return new Uint8Array(await doc.save())
+}
+
+export async function renderLetterPreviewPdf(layout: LetterPreviewLayout): Promise<Uint8Array> {
+  const body = await renderLetterBody(layout)
+  return stampLetterPageNumbers(body, layout.date || '')
 }
 
 type InlinePart = { bold: boolean; text: string }
@@ -197,11 +232,12 @@ export async function renderLetterPdfWithIdentity(
   attachments: LetterPacketAttachment[] = []
 ): Promise<Uint8Array> {
   const title = letter.title || 'letter'
-  const letterPdf = await renderLetterPreviewPdf(layoutForLetter(letter))
+  const layout = layoutForLetter(letter)
+  const letterPdf = await renderLetterBody(layout)
   if (!isPdfBytes(letterPdf)) {
     throw new Error(`Letter "${title}" could not be saved as a PDF.`)
   }
-  if (!attachments.length) return letterPdf
+  if (!attachments.length) return stampLetterPageNumbers(letterPdf, layout.date || '')
   const doc = await PDFDocument.load(letterPdf)
   for (const file of attachments) {
     try {
@@ -214,7 +250,7 @@ export async function renderLetterPdfWithIdentity(
       )
     }
   }
-  const saved = new Uint8Array(await doc.save())
+  const saved = await stampLetterPageNumbers(new Uint8Array(await doc.save()), layout.date || '')
   if (!isPdfBytes(saved)) {
     throw new Error(`Letter "${title}" could not be saved as a PDF.`)
   }
