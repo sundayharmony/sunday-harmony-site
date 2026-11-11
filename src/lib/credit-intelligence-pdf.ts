@@ -94,6 +94,12 @@ function impactPct(value: unknown) {
 /** Match CreditIntelligenceDashboard bandClass color mapping. */
 export function bandTone(band: unknown): BandTone {
   const b = asText(band).toLowerCase().replace(/\s+/g, '_')
+  if (b === 'high') {
+    return { fill: COLORS.redSoft, text: COLORS.red }
+  }
+  if (b === 'low') {
+    return { fill: COLORS.emeraldSoft, text: COLORS.emerald }
+  }
   if (
     b.includes('exceptional') ||
     b.includes('very_good') ||
@@ -377,9 +383,13 @@ export async function buildCreditIntelligencePdfBuffer(
     .join('  ·  ')
 
   const bandLabel = formatBand(overall?.band)
+  const fileRiskLabel = formatBand(overall?.file_risk_band)
   const overallTone = bandTone(overall?.band)
+  const fileRiskTone = bandTone(overall?.file_risk_band)
   const fundingTone = bandTone(funding?.level)
-  const heroPill = `${bandLabel}${averageScore != null ? `  ·  ~${averageScore}` : ''}`.toUpperCase()
+  const heroPill = `Reported ${bandLabel}${averageScore != null ? `  ·  ~${averageScore}` : ''}`.toUpperCase()
+  const fileRiskPill = fileRiskLabel ? `File risk ${fileRiskLabel}`.toUpperCase() : ''
+  const adjustments = Array.isArray(funding?.adjustments) ? funding.adjustments : []
 
   return new Promise<Buffer>((resolve, reject) => {
     let pageNumber = 1
@@ -428,21 +438,32 @@ export async function buildCreditIntelligencePdfBuffer(
     doc.x = left
 
     // —— Hero score card ——
-    ensureSpace(doc, 70)
+    doc.font('Helvetica').fontSize(9)
+    const narrativeH = narrative
+      ? doc.heightOfString(narrative, { width: width - 28, lineGap: 1 })
+      : 0
+    const heroH = 12 + 28 + (narrative ? 8 + narrativeH : 0) + 12
+    ensureSpace(doc, heroH + 8)
     const heroY = doc.y
-    const heroH = narrative ? 62 : 44
     doc.roundedRect(left, heroY, width, heroH, 8).fillAndStroke(overallTone.fill, COLORS.border)
-    drawPill(doc, heroPill, overallTone, left + 14, heroY + 12, {
+    const scorePill = drawPill(doc, heroPill, overallTone, left + 14, heroY + 12, {
       fontSize: 11,
       padX: 12,
       padY: 5,
     })
+    if (fileRiskPill) {
+      drawPill(doc, fileRiskPill, fileRiskTone, left + 14 + scorePill.width + 8, heroY + 12, {
+        fontSize: 11,
+        padX: 12,
+        padY: 5,
+      })
+    }
     if (narrative) {
       doc
         .font('Helvetica')
         .fontSize(9)
         .fillColor(COLORS.muted)
-        .text(narrative, left + 14, heroY + 36, { width: width - 28, lineGap: 1 })
+        .text(narrative, left + 14, heroY + 44, { width: width - 28, lineGap: 1 })
     }
     doc.y = heroY + heroH + 14
     doc.x = left
@@ -531,6 +552,19 @@ export async function buildCreditIntelligencePdfBuffer(
       for (const step of practical) {
         ensureSpace(doc, 14)
         doc.text(`- ${step}`, { width })
+      }
+      doc.moveDown(0.3)
+    }
+
+    if (adjustments.length) {
+      ensureSpace(doc, 40)
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text('Score adjustments')
+      doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted)
+      for (const item of adjustments) {
+        const points = typeof item.points === 'number' ? item.points : Number(item.points)
+        const signed = Number.isFinite(points) && points > 0 ? `+${points}` : String(points)
+        ensureSpace(doc, 14)
+        doc.text(`${signed}  ${asText(item.label)}`, { width })
       }
       doc.moveDown(0.3)
     }

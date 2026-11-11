@@ -9,10 +9,14 @@ import {
 
 function bandClass(band: string) {
   const b = band.toLowerCase()
-  if (b.includes('exceptional') || b.includes('very_good') || b === 'strong') return 'text-emerald-700 bg-emerald-50'
+  if (b === 'low' || b.includes('exceptional') || b.includes('very_good') || b === 'strong') {
+    return 'text-emerald-700 bg-emerald-50'
+  }
   if (b.includes('good') || b === 'moderate') return 'text-sky-800 bg-sky-50'
   if (b.includes('fair') || b === 'mixed' || b === 'developing') return 'text-amber-800 bg-amber-50'
-  if (b.includes('poor') || b === 'weak' || b === 'limited' || b === 'severe') return 'text-red-800 bg-red-50'
+  if (b === 'high' || b.includes('poor') || b === 'weak' || b === 'limited' || b === 'severe') {
+    return 'text-red-800 bg-red-50'
+  }
   return 'text-brand-dim bg-neutral-50'
 }
 
@@ -112,10 +116,17 @@ export default function CreditIntelligenceDashboard({
               {intelligence.report_date ? ` · Report ${intelligence.report_date}` : ''}
             </p>
           </div>
-          <span className={`text-xs font-bold uppercase tracking-wide px-3 py-1 rounded-full ${bandClass(overall.band)}`}>
-            {overall.band.replace(/_/g, ' ')}
-            {overall.average_score != null ? ` · ~${overall.average_score}` : ''}
-          </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className={`text-xs font-bold uppercase tracking-wide px-3 py-1 rounded-full ${bandClass(overall.band)}`}>
+              Reported {overall.band.replace(/_/g, ' ')}
+              {overall.average_score != null ? ` · ~${overall.average_score}` : ''}
+            </span>
+            {overall.file_risk_band ? (
+              <span className={`text-xs font-bold uppercase tracking-wide px-3 py-1 rounded-full ${bandClass(overall.file_risk_band)}`}>
+                File risk {overall.file_risk_band.replace(/_/g, ' ')}
+              </span>
+            ) : null}
+          </div>
         </div>
         <p className="mt-3 text-sm text-brand-muted leading-relaxed">{overall.narrative}</p>
         <p className="mt-2 text-[11px] text-brand-dim">{intelligence.disclaimer}</p>
@@ -157,6 +168,18 @@ export default function CreditIntelligenceDashboard({
           </span>
         </div>
         <p className="text-sm text-sky-900 mb-3">{funding?.summary}</p>
+        {funding?.adjustments && funding.adjustments.length > 0 ? (
+          <div className="mb-3">
+            <p className="text-xs font-semibold uppercase text-sky-800 mb-1">Score adjustments</p>
+            <ul className="space-y-1 text-sm text-sky-950">
+              {funding.adjustments.map((item) => (
+                <li key={`${item.kind}-${item.label}`}>
+                  {item.points > 0 ? `+${item.points}` : item.points} · {item.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-xs font-semibold uppercase text-sky-800 mb-1">Blockers</p>

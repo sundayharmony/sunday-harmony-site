@@ -64,6 +64,8 @@ class FactorAnalysis(BaseModel):
 
 class OverallCreditHealth(BaseModel):
     band: str = "unscored"
+    # Factor risk, separate from the reported bureau-score band.
+    file_risk_band: str = ""
     narrative: str = ""
     strengths: list[str] = Field(default_factory=list)
     weaknesses: list[str] = Field(default_factory=list)
@@ -92,6 +94,12 @@ class FundingContext(BaseModel):
     document_types: list[str] = Field(default_factory=list)
 
 
+class FundingAdjustment(BaseModel):
+    label: str
+    points: int
+    kind: str = "blocker"
+
+
 class FundingReadinessAssessment(BaseModel):
     level: str = "moderate"
     score_0_to_100: int = 50
@@ -99,6 +107,15 @@ class FundingReadinessAssessment(BaseModel):
     blockers: list[str] = Field(default_factory=list)
     supportive_signals: list[str] = Field(default_factory=list)
     practical_steps: list[str] = Field(default_factory=list)
+    adjustments: list[FundingAdjustment] = Field(default_factory=list)
+
+
+class AccountOutcome(BaseModel):
+    """Bureau result already logged for an account. Matched by creditor and last 4."""
+
+    creditor: str = ""
+    account_last4: str = ""
+    status: str = ""
 
 
 class Recommendation(BaseModel):
@@ -115,7 +132,7 @@ class Recommendation(BaseModel):
 
 
 class CreditIntelligenceReport(BaseModel):
-    version: str = "1.0"
+    version: str = "1.1"
     analyzed_at: str = ""
     report_date: str = ""
     consumer_name: str = ""
@@ -301,3 +318,4 @@ class ReportHealthResponse(BaseModel):
 class IntelligenceRequest(BaseModel):
     session_id: str
     funding_context: FundingContext | None = None
+    account_outcomes: list[AccountOutcome] = Field(default_factory=list)

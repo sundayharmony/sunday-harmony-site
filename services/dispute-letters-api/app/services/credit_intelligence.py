@@ -12,8 +12,10 @@ from datetime import date
 from typing import Any
 
 from app.models import (
+    AccountOutcome,
     CreditIntelligenceReport,
     FactorAnalysis,
+    FundingAdjustment,
     FundingContext,
     FundingReadinessAssessment,
     OverallCreditHealth,
@@ -100,12 +102,111 @@ def mix_bucket(tl: Tradeline) -> str:
     return "other"
 
 
-def _dofd(tl: Tradeline) -> date | None:
-    return (
-        parse_date(tl.date_of_first_delinquency)
-        or parse_date(tl.date_opened)
-        or parse_date(tl.last_reported)
-    )
+_TIMES_LATE_RE = re.compile(
+    r"Times late 30/60/90:\s*(\d+)\s*/\s*(\d+)\s*/\s*(\d+)",
+    re.I,
+)
+_BUREAU_LATE_RE = re.compile(
+    r"\b(?:EQF|EXP|TUC|EFX|TU|EQ)\s*:\s*(30|60|90)\s*(?::\s*(\d{4}-\d{2}(?:-\d{2})?))?",
+    re.I,
+)
+_RESOLVED_OUTCOMES = {"deleted", "withdrawn"}
+_FOLLOWUP_OUTCOMES = {"verified", "updated", "no_response"}
+
+
+def _reported_dofd(tl: Tradeline) -> date | None:
+    """Date of first delinquency only. Opened and last-reported dates are not a delinquency clock."""
+    return parse_date(tl.date_of_first_delinquency)
+
+
+def _mark_date(value: str | None) -> date | None:
+    parsed = parse_date(value)
+    if parsed:
+        return parsed
+    match = re.match(r"^(\d{4})-(\d{2})$", (value or "").strip())
+    if not match:
+        return None
+    try:
+        return date(int(match.group(1)), int(match.group(2)), 1)
+    except ValueError:
+        return None
+
+
+def _payment_lates(text: str) -> dict[str, Any]:
+    late_30 = late_60 = late_90 = 0
+    counted = _TIMES_LATE_RE.search(text or "")
+    if counted:
+        late_30, late_60, late_90 = (int(counted.group(i)) for i in (1, 2, 3))
+    mark_dates: list[date] = []
+    for mark in _BUREAU_LATE_RE.finditer(text or ""):
+        code = mark.group(1)
+        if code == "90":
+            late_90 = max(late_90, 1)
+        elif code == "60":
+            late_60 = max(late_60, 1)
+        else:
+            late_30 = max(late_30, 1)
+        parsed = _mark_date(mark.group(2))
+        if parsed:
+            mark_dates.append(parsed)
+    if late_90:
+        severity = "severe"
+    elif late_60:
+        severity = "elevated"
+    elif late_30:
+        severity = "moderate"
+    else:
+        severity = ""
+    return {
+        "late_30": late_30,
+        "late_60": late_60,
+        "late_90": late_90,
+        "severity": severity,
+        "most_recent": max(mark_dates) if mark_dates else None,
+        "has_late": bool(late_30 or late_60 or late_90),
+    }
+
+
+def _creditor_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def _tradeline_last4s(tl: Tradeline) -> set[str]:
+    found: set[str] = set()
+    for raw in (tl.account_tu, tl.account_exp, tl.account_eqf, tl.remarks, tl.status):
+        for run in re.findall(r"\d{4,}", raw or ""):
+            found.add(run[-4:])
+    return found
+
+
+def _names_match(left: str, right: str) -> bool:
+    a, b = _creditor_key(left), _creditor_key(right)
+    if len(a) < 4 or len(b) < 4:
+        return False
+    return a == b or a in b or b in a
+
+
+def _outcome_status(tl: Tradeline, outcomes: list[AccountOutcome] | None) -> str:
+    if not outcomes:
+        return ""
+    last4s = _tradeline_last4s(tl)
+    for outcome in outcomes:
+        status = (outcome.status or "").strip().lower().replace(" ", "_")
+        if status not in _RESOLVED_OUTCOMES and status not in _FOLLOWUP_OUTCOMES:
+            continue
+        last4 = re.sub(r"\D", "", outcome.account_last4 or "")[-4:]
+        if len(last4) == 4 and last4 not in last4s:
+            continue
+        if last4 and not _names_match(tl.creditor, outcome.creditor):
+            continue
+        if not last4 and not _names_match(tl.creditor, outcome.creditor):
+            continue
+        return status
+    return ""
+
+
+def _resolved_ids(tradelines: list[Tradeline], outcomes: list[AccountOutcome] | None) -> set[str]:
+    return {tl.id for tl in tradelines if _outcome_status(tl, outcomes) in _RESOLVED_OUTCOMES}
 
 
 def _age_months(tl: Tradeline, as_of: date) -> int | None:
@@ -135,13 +236,11 @@ def _impact_label(util: float | None) -> str:
     return "severe"
 
 
-def _confidence(has_limits: bool, has_dates: bool, extraction_quality: str) -> float:
-    base = {"high": 0.85, "medium": 0.65, "low": 0.4}.get(extraction_quality, 0.6)
-    if has_limits:
-        base += 0.08
-    if has_dates:
-        base += 0.07
-    return round(min(0.95, base), 2)
+def _confidence(fields_complete: bool, extraction_quality: str) -> float:
+    """Field completeness sets the level. Extraction quality is only a small modifier."""
+    base = 0.78 if fields_complete else 0.42
+    modifier = {"high": 0.05, "medium": 0.0, "low": -0.05}.get(extraction_quality, 0.0)
+    return round(min(0.95, max(0.25, base + modifier)), 2)
 
 
 def analyze_payment_history(tradelines: list[Tradeline], as_of: date) -> FactorAnalysis:
@@ -150,8 +249,16 @@ def analyze_payment_history(tradelines: list[Tradeline], as_of: date) -> FactorA
     for tl in tradelines:
         cat = classify_category(tl)
         if cat in ("late_payment", "collection", "charge_off", "closed_derogatory", "negative"):
-            dofd = _dofd(tl)
+            grid = _payment_lates(tl.payment_history)
+            dofd = grid["most_recent"] or _reported_dofd(tl)
             age_m = months_between(as_of, dofd) if dofd else None
+            severity = grid["severity"] or (
+                "severe"
+                if cat in ("collection", "charge_off")
+                else "moderate"
+                if cat == "late_payment"
+                else "elevated"
+            )
             late.append(
                 {
                     "tradeline_id": tl.id,
@@ -159,13 +266,27 @@ def analyze_payment_history(tradelines: list[Tradeline], as_of: date) -> FactorA
                     "category": cat,
                     "status": tl.status,
                     "age_months": age_m,
-                    "severity": (
-                        "severe"
-                        if cat in ("collection", "charge_off")
-                        else "moderate"
-                        if cat == "late_payment"
-                        else "elevated"
-                    ),
+                    "severity": severity,
+                    "late_30": grid["late_30"],
+                    "late_60": grid["late_60"],
+                    "late_90": grid["late_90"],
+                }
+            )
+        elif _payment_lates(tl.payment_history)["has_late"]:
+            grid = _payment_lates(tl.payment_history)
+            dofd = grid["most_recent"] or _reported_dofd(tl)
+            age_m = months_between(as_of, dofd) if dofd else None
+            late.append(
+                {
+                    "tradeline_id": tl.id,
+                    "creditor": tl.creditor,
+                    "category": cat or "late_payment",
+                    "status": tl.status,
+                    "age_months": age_m,
+                    "severity": grid["severity"] or "moderate",
+                    "late_30": grid["late_30"],
+                    "late_60": grid["late_60"],
+                    "late_90": grid["late_90"],
                 }
             )
         elif not is_negative_tradeline(tl) and not is_closed_tradeline(tl):
@@ -196,21 +317,23 @@ def analyze_payment_history(tradelines: list[Tradeline], as_of: date) -> FactorA
 
 def analyze_revolving(tradelines: list[Tradeline], extraction_quality: str) -> FactorAnalysis:
     revolving = [tl for tl in tradelines if is_revolving(tl) and not tl.is_collection]
-    balances: list[float] = []
-    limits: list[float] = []
+    included_balances: list[float] = []
+    included_limits: list[float] = []
     per_account: list[dict[str, Any]] = []
     missing_limits = 0
+    excluded_balance = 0.0
 
     for tl in revolving:
         bal = parse_money(tl.balance)
         lim = parse_money(tl.credit_limit)
         util = _utilization(bal, lim)
-        if lim is None:
-            missing_limits += 1
-        if bal is not None:
-            balances.append(bal)
-        if lim is not None and lim > 0:
-            limits.append(lim)
+        if util is None:
+            if bal is not None and (lim is None or lim <= 0):
+                missing_limits += 1
+                excluded_balance += max(0.0, bal)
+        else:
+            included_balances.append(bal or 0.0)
+            included_limits.append(lim or 0.0)
         per_account.append(
             {
                 "tradeline_id": tl.id,
@@ -219,11 +342,12 @@ def analyze_revolving(tradelines: list[Tradeline], extraction_quality: str) -> F
                 "credit_limit": lim,
                 "utilization": round(util, 3) if util is not None else None,
                 "impact": _impact_label(util),
+                "excluded": util is None,
             }
         )
 
-    total_bal = sum(balances) if balances else None
-    total_lim = sum(limits) if limits else None
+    total_bal = sum(included_balances) if included_balances else None
+    total_lim = sum(included_limits) if included_limits else None
     overall_util = _utilization(total_bal, total_lim)
     available = (total_lim - total_bal) if total_lim is not None and total_bal is not None else None
 
@@ -255,7 +379,7 @@ def analyze_revolving(tradelines: list[Tradeline], extraction_quality: str) -> F
 
     if missing_limits:
         strategies.append(
-            f"{missing_limits} revolving account(s) lack credit limits in the extract — confirm limits for accurate utilization math."
+            f"{missing_limits} revolving account(s) lack a usable credit limit and were left out of the aggregate."
         )
 
     summary = (
@@ -267,6 +391,8 @@ def analyze_revolving(tradelines: list[Tradeline], extraction_quality: str) -> F
             else "Aggregate utilization could not be computed (missing balances or limits)."
         )
     )
+    if excluded_balance:
+        summary += f" ${excluded_balance:,.0f} of revolving balance was excluded because the limit was missing."
     if available is not None:
         summary += f" Estimated available revolving credit ≈ ${available:,.0f}."
 
@@ -283,7 +409,8 @@ def analyze_revolving(tradelines: list[Tradeline], extraction_quality: str) -> F
             "aggregate_utilization": round(overall_util, 4) if overall_util is not None else None,
             "available_credit": available,
             "missing_limits": missing_limits,
-            "confidence": _confidence(total_lim is not None, False, extraction_quality),
+            "excluded_balance": round(excluded_balance, 2),
+            "confidence": _confidence(missing_limits == 0 and total_lim is not None, extraction_quality),
         },
         strengths=(
             ["Revolving utilization appears within commonly cited healthy ranges."]
@@ -347,9 +474,24 @@ def analyze_collections(tradelines: list[Tradeline], as_of: date) -> FactorAnaly
     ]
     findings = []
     for tl in cols:
-        dofd = _dofd(tl)
+        dofd = _reported_dofd(tl)
         age_m = months_between(as_of, dofd) if dofd else None
         possibly_obsolete = age_m is not None and age_m >= _OBSOLETE_COLLECTION_MONTHS
+        if possibly_obsolete:
+            strategy = (
+                "Screen for obsolete reporting under FCRA §605 timing rules; "
+                "dispute inaccurate/unverifiable data under §611 / furnisher duties under §623."
+            )
+        elif dofd is None:
+            strategy = (
+                "Date of first delinquency is missing, so obsolescence was not scored. "
+                "Confirm the date on the source report before treating the item as outdated."
+            )
+        else:
+            strategy = (
+                "Validate ownership, balance accuracy, and reporting consistency; "
+                "consider dispute and/or resolution strategy based on facts and goals."
+            )
         findings.append(
             {
                 "tradeline_id": tl.id,
@@ -359,14 +501,9 @@ def analyze_collections(tradelines: list[Tradeline], as_of: date) -> FactorAnaly
                 "last_reported": tl.last_reported,
                 "age_months": age_m,
                 "possibly_obsolete": possibly_obsolete,
+                "date_missing": dofd is None,
                 "estimated_impact": "high",
-                "strategy": (
-                    "Screen for obsolete reporting under FCRA §605 timing rules; "
-                    "dispute inaccurate/unverifiable data under §611 / furnisher duties under §623."
-                    if possibly_obsolete
-                    else "Validate ownership, balance accuracy, and reporting consistency; "
-                    "consider dispute and/or resolution strategy based on facts and goals."
-                ),
+                "strategy": strategy,
             }
         )
     summary = (
@@ -392,7 +529,7 @@ def analyze_charge_offs(tradelines: list[Tradeline], as_of: date) -> FactorAnaly
     cos = [tl for tl in tradelines if classify_category(tl) == "charge_off"]
     findings = []
     for tl in cos:
-        dofd = _dofd(tl)
+        dofd = _reported_dofd(tl)
         age_m = months_between(as_of, dofd) if dofd else None
         findings.append(
             {
@@ -475,9 +612,9 @@ def analyze_public_records(tradelines: list[Tradeline], as_of: date) -> FactorAn
     ]
     findings = []
     for tl in pubs:
-        filed = parse_date(tl.date_opened) or _dofd(tl)
-        age_m = months_between(as_of, filed) if filed else None
         is_bk = bool(re.search(r"bankrupt", _account_blob(tl), re.I))
+        filed = parse_date(tl.date_opened) if is_bk else _reported_dofd(tl)
+        age_m = months_between(as_of, filed) if filed else None
         findings.append(
             {
                 "tradeline_id": tl.id,
@@ -630,6 +767,7 @@ def build_overall_health(
         band = "unscored"
         avg_score = None
 
+    file_risk = _file_risk_band(factors)
     priorities = []
     if factors.get("collections") and factors["collections"].findings:
         priorities.append("Address collections (dispute accuracy/obsolescence or resolve where appropriate).")
@@ -641,12 +779,14 @@ def build_overall_health(
         priorities.append("Maintain on-time payments and monitor bureau updates.")
 
     narrative = (
-        f"Overall profile band: {band.replace('_', ' ')}"
-        + (f" (avg reported score ≈ {int(avg_score)})." if avg_score is not None else ".")
+        f"Reported score band: {band.replace('_', ' ')}"
+        + (f" (avg reported score about {int(avg_score)})." if avg_score is not None else ".")
+        + f" File risk: {file_risk}."
         + " Assessment uses educational factor framing; it is not a FICO Score calculation or approval prediction."
     )
     return OverallCreditHealth(
         band=band,
+        file_risk_band=file_risk,
         narrative=narrative,
         strengths=list(dict.fromkeys(strengths))[:12],
         weaknesses=list(dict.fromkeys(weaknesses))[:12],
@@ -656,41 +796,69 @@ def build_overall_health(
     )
 
 
+def _file_risk_band(factors: dict[str, FactorAnalysis]) -> str:
+    collections = factors.get("collections")
+    charge_offs = factors.get("charge_offs")
+    public_records = factors.get("public_records")
+    if (
+        (collections and collections.findings)
+        or (charge_offs and charge_offs.findings)
+        or (public_records and public_records.findings)
+    ):
+        return "high"
+    util = (factors.get("revolving_utilization") or FactorAnalysis(factor="x")).metrics.get(
+        "aggregate_utilization"
+    )
+    if isinstance(util, (int, float)) and util > _UTIL_HIGH:
+        return "high"
+    payment = factors.get("payment_history")
+    inquiries = factors.get("hard_inquiries")
+    recent_inq = 0
+    if inquiries:
+        recent_inq = sum(
+            1
+            for finding in inquiries.findings
+            if isinstance(finding.get("age_months"), int) and finding["age_months"] <= 12
+        )
+    if (payment and payment.findings) or (isinstance(util, (int, float)) and util > _UTIL_GOOD) or recent_inq >= 2:
+        return "moderate"
+    return "low"
+
+
 def assess_funding_readiness(
     factors: dict[str, FactorAnalysis],
     overall: OverallCreditHealth,
     funding: FundingContext | None,
     tradelines: list[Tradeline],
 ) -> FundingReadinessAssessment:
-    blockers: list[str] = []
-    supports: list[str] = []
+    adjustments: list[FundingAdjustment] = []
     steps: list[str] = []
-    score = 55  # neutral baseline 0-100 indicator
+    score = 55
+
+    def adjust(label: str, points: int, kind: str) -> None:
+        nonlocal score
+        adjustments.append(FundingAdjustment(label=label, points=points, kind=kind))
+        score += points
 
     util = (factors.get("revolving_utilization") or FactorAnalysis(factor="x")).metrics.get(
         "aggregate_utilization"
     )
     if util is not None:
         if util > _UTIL_CRITICAL:
-            blockers.append("Very high revolving utilization may impede revolving/unsecured financing.")
-            score -= 20
+            adjust("Very high revolving utilization may impede revolving/unsecured financing.", -20, "blocker")
         elif util > _UTIL_GOOD:
-            blockers.append("Elevated revolving utilization may reduce financing flexibility.")
-            score -= 10
+            adjust("Elevated revolving utilization may reduce financing flexibility.", -10, "blocker")
         else:
-            supports.append("Revolving utilization appears within a commonly acceptable educational range.")
-            score += 8
+            adjust("Revolving utilization appears within a commonly acceptable educational range.", 8, "support")
 
     cols = factors.get("collections")
     if cols and cols.findings:
-        blockers.append("Open collections are a common underwriting red flag.")
-        score -= 15
+        adjust("Open collections are a common underwriting red flag.", -15, "blocker")
         steps.append("Clear or dispute inaccurate collections before packaging funding applications.")
 
     cos = factors.get("charge_offs")
     if cos and cos.findings:
-        blockers.append("Charge-offs signal prior severe delinquency.")
-        score -= 12
+        adjust("Charge-offs signal prior severe delinquency.", -12, "blocker")
 
     inq = factors.get("hard_inquiries")
     recent_inq = 0
@@ -701,63 +869,49 @@ def assess_funding_readiness(
             if isinstance(f.get("age_months"), int) and f["age_months"] <= 12
         )
         if recent_inq >= 4:
-            blockers.append("Recent inquiry clustering may look like elevated credit-seeking.")
-            score -= 8
+            adjust("Recent inquiry clustering may look like elevated credit-seeking.", -8, "blocker")
             steps.append("Wait before applying for additional credit unless strategically necessary.")
 
     thin = len([tl for tl in tradelines if classify_category(tl) != "inquiry"]) < 3
     if thin:
-        blockers.append("Thin credit file — few tradelines for lenders to evaluate.")
-        score -= 10
+        adjust("Thin credit file — few tradelines for lenders to evaluate.", -10, "blocker")
         steps.append("Where appropriate, preserve positive tradelines and consider responsible credit-building options.")
 
     pay = factors.get("payment_history")
     if pay and pay.score_band == "strong":
-        supports.append("Payment history shows limited derogatory signals in the extract.")
-        score += 10
+        adjust("Payment history shows limited derogatory signals in the extract.", 10, "support")
     elif pay and pay.score_band == "weak":
-        blockers.append("Recent or material payment issues may delay financing readiness.")
-        score -= 12
+        adjust("Recent or material payment issues may delay financing readiness.", -12, "blocker")
 
     if overall.band in ("good", "very_good", "exceptional"):
-        supports.append(f"Reported score band ({overall.band.replace('_', ' ')}) is relatively supportive.")
-        score += 10
+        adjust(f"Reported score band ({overall.band.replace('_', ' ')}) is relatively supportive.", 10, "support")
     elif overall.band in ("poor", "fair"):
-        blockers.append(f"Reported score band ({overall.band}) may limit program options or pricing.")
-        score -= 8
+        adjust(f"Reported score band ({overall.band}) may limit program options or pricing.", -8, "blocker")
 
     if funding:
         if funding.self_reported_bankruptcy:
-            blockers.append("Self-reported bankruptcy history — verify public-record aging and rebuild progress.")
-            score -= 10
+            adjust("Self-reported bankruptcy history — verify public-record aging and rebuild progress.", -10, "blocker")
         if funding.business_year_established:
             try:
                 year = int(re.sub(r"\D", "", funding.business_year_established)[:4])
                 age_years = _today().year - year
                 if age_years < 1:
-                    blockers.append("Very new business history may constrain business-financing options.")
-                    score -= 8
+                    adjust("Very new business history may constrain business-financing options.", -8, "blocker")
                 elif age_years >= 2:
-                    supports.append(f"Business age (~{age_years} years) can support some funding programs.")
-                    score += 5
+                    adjust(f"Business age (~{age_years} years) can support some funding programs.", 5, "support")
             except ValueError:
                 pass
         if funding.annual_revenue:
             rev = parse_money(funding.annual_revenue)
             if rev is not None and rev < 50000:
-                blockers.append("Self-reported revenue appears modest for many business-funding products.")
-                score -= 5
+                adjust("Self-reported revenue appears modest for many business-funding products.", -5, "blocker")
             elif rev is not None and rev >= 150000:
-                supports.append("Self-reported revenue level may support a broader program set.")
-                score += 5
+                adjust("Self-reported revenue level may support a broader program set.", 5, "support")
         if funding.monthly_income and funding.funding_amount:
             income = parse_money(funding.monthly_income)
             ask = parse_money(funding.funding_amount)
-            if income and ask and income > 0:
-                # crude affordability optic — not DTI
-                if ask > income * 24:
-                    blockers.append("Requested funding is large relative to stated monthly income.")
-                    score -= 6
+            if income and ask and income > 0 and ask > income * 24:
+                adjust("Requested funding is large relative to stated monthly income.", -6, "blocker")
         for goal in funding.credit_goals or []:
             if "funding" in goal.lower() or "business" in goal.lower():
                 steps.append(f"Align credit cleanup sequencing with stated goal: {goal}.")
@@ -777,17 +931,20 @@ def assess_funding_readiness(
     steps.append(
         "These readiness notes are educational indicators only — they do not predict lender decisions or guarantee approvals."
     )
+    blockers = [item.label for item in adjustments if item.kind == "blocker"]
+    supports = [item.label for item in adjustments if item.kind == "support"]
 
     return FundingReadinessAssessment(
         level=level,
         score_0_to_100=score,
         summary=(
             f"Funding readiness indicator: {level} ({score}/100). "
-            "Combines report factors with intake context when available."
+            "The points below are advisory and do not replace the staff funding score."
         ),
         blockers=list(dict.fromkeys(blockers))[:10],
         supportive_signals=list(dict.fromkeys(supports))[:10],
         practical_steps=list(dict.fromkeys(steps))[:12],
+        adjustments=adjustments,
     )
 
 
@@ -797,8 +954,16 @@ def build_recommendations(
     funding: FundingReadinessAssessment,
     tradelines: list[Tradeline],
     extraction_quality: str,
+    outcomes: list[AccountOutcome] | None = None,
 ) -> list[Recommendation]:
     recs: list[Recommendation] = []
+    resolved = _resolved_ids(tradelines, outcomes)
+    followup = {
+        tl.id: _outcome_status(tl, outcomes)
+        for tl in tradelines
+        if _outcome_status(tl, outcomes) in _FOLLOWUP_OUTCOMES
+    }
+    claimed_dispute_ids: set[str] = set()
 
     def add(
         title: str,
@@ -811,6 +976,19 @@ def build_recommendations(
         tradeline_ids: list[str] | None = None,
         legal_basis: str = "",
     ) -> None:
+        ids = list(tradeline_ids or [])
+        if category == "dispute":
+            ids = [item for item in ids if item not in resolved and item not in claimed_dispute_ids]
+            if tradeline_ids is not None and not ids:
+                return
+            claimed_dispute_ids.update(ids)
+            noted = sorted({followup[item] for item in ids if item in followup})
+            if noted:
+                labels = ", ".join(status.replace("_", " ") for status in noted)
+                rationale = (
+                    f"{rationale} Bureau outcome: {labels}. "
+                    "The item is still on file and needs a later round."
+                )
         recs.append(
             Recommendation(
                 id=f"rec_{len(recs) + 1}",
@@ -821,7 +999,7 @@ def build_recommendations(
                 confidence=round(confidence, 2),
                 priority_score=round(impact * confidence, 3),
                 suggested_actions=actions or [],
-                related_tradeline_ids=tradeline_ids or [],
+                related_tradeline_ids=ids,
                 legal_basis=legal_basis,
             )
         )
@@ -885,18 +1063,19 @@ def build_recommendations(
                 "One or more collections may exceed typical FCRA reporting windows when DOFD/dates are reliable. Obsolete items should not remain on consumer reports.",
                 category="dispute",
                 impact=0.95,
-                confidence=_confidence(False, True, extraction_quality),
+                confidence=_confidence(True, extraction_quality),
                 actions=["Verify DOFD on source report", "Dispute obsolete/inaccurate reporting with CRA and furnisher"],
                 tradeline_ids=obsolete_ids,
                 legal_basis="FCRA §605 (15 U.S.C. §1681c); FCRA §611 (15 U.S.C. §1681i)",
             )
         if other_ids:
+            dates_complete = all(not f.get("date_missing") for f in cols.findings if f["tradeline_id"] in other_ids)
             add(
                 "Validate and dispute inaccurate collection entries",
                 "Collections often warrant verification of ownership, balance, and status. Dispute incomplete or unverifiable data; consider resolution strategy when accurate.",
                 category="dispute",
                 impact=0.88,
-                confidence=0.7,
+                confidence=_confidence(dates_complete, extraction_quality),
                 actions=["Gather supporting documents", "Generate bureau and furnisher dispute letters"],
                 tradeline_ids=other_ids,
                 legal_basis="FCRA §611 (15 U.S.C. §1681i); FCRA §623 (15 U.S.C. §1681s-2)",
@@ -976,12 +1155,14 @@ def build_recommendations(
             actions=["Finalize business docs", "Avoid unnecessary hard pulls", "Align ask amount with capacity"],
         )
 
-    # Closed derogatory cleanup
     closed_neg = [
         tl.id
         for tl in tradelines
-        if classify_category(tl) in ("closed_derogatory", "collection", "charge_off")
-        or "obsolete_negative" in (tl.legal_flags or [])
+        if (
+            classify_category(tl) in ("closed_derogatory",)
+            or "obsolete_negative" in (tl.legal_flags or [])
+        )
+        and tl.id not in claimed_dispute_ids
     ]
     if closed_neg:
         add(
@@ -1002,14 +1183,19 @@ def build_recommendations(
     return recs
 
 
-def build_account_dispute_insights(tradelines: list[Tradeline], as_of: date) -> list[dict[str, Any]]:
+def build_account_dispute_insights(
+    tradelines: list[Tradeline],
+    as_of: date,
+    outcomes: list[AccountOutcome] | None = None,
+) -> list[dict[str, Any]]:
     insights = []
     for tl in tradelines:
         enrich_tradeline(tl)
         cat = classify_category(tl)
         if cat in ("positive", "closed") and not is_negative_tradeline(tl):
             continue
-        dofd = _dofd(tl)
+        outcome = _outcome_status(tl, outcomes)
+        dofd = _reported_dofd(tl)
         age_m = months_between(as_of, dofd) if dofd else None
         obsolete = False
         if cat in ("collection", "charge_off") and age_m is not None:
@@ -1017,23 +1203,53 @@ def build_account_dispute_insights(tradelines: list[Tradeline], as_of: date) -> 
         elif is_negative_tradeline(tl) and age_m is not None:
             obsolete = age_m >= _OBSOLETE_STANDARD_MONTHS
 
+        if outcome in _RESOLVED_OUTCOMES:
+            insights.append(
+                {
+                    "tradeline_id": tl.id,
+                    "creditor": tl.creditor,
+                    "category": cat,
+                    "repair_priority": tl.repair_priority,
+                    "dispute_recommended": False,
+                    "rationale": (
+                        f"Bureau outcome is {outcome.replace('_', ' ')}. "
+                        "This account is off the dispute list."
+                    ),
+                    "suggested_dispute_reason": tl.suggested_dispute_reason or tl.dispute_reason,
+                    "supporting_facts": {
+                        "status": tl.status,
+                        "balance": tl.balance,
+                        "outcome": outcome,
+                    },
+                    "legal_citations": [],
+                }
+            )
+            continue
+
         reasons = []
         if obsolete:
             reasons.append("Possibly outside typical FCRA reporting period — verify dates on source report.")
+        elif dofd is None and cat in ("collection", "charge_off", "closed_derogatory", "negative", "late_payment"):
+            reasons.append("Date of first delinquency is missing, so obsolescence was not scored.")
         if "balance_mismatch" in (tl.legal_flags or []):
             reasons.append("Bureau field mismatch flagged during extraction.")
         if cat in ("collection", "charge_off"):
             reasons.append("Severe derogatory — validate accuracy and completeness.")
         if not reasons and is_negative_tradeline(tl):
             reasons.append("Derogatory reporting may warrant accuracy review.")
+        if outcome in _FOLLOWUP_OUTCOMES:
+            reasons.append(
+                f"Bureau outcome is {outcome.replace('_', ' ')}, and the item is still on file and needs a later round."
+            )
 
+        recommended = outcome not in _RESOLVED_OUTCOMES and (is_recommended_dispute(tl) or obsolete)
         insights.append(
             {
                 "tradeline_id": tl.id,
                 "creditor": tl.creditor,
                 "category": cat,
                 "repair_priority": tl.repair_priority,
-                "dispute_recommended": is_recommended_dispute(tl) or obsolete,
+                "dispute_recommended": recommended,
                 "rationale": " ".join(reasons) or tl.analysis_notes or "Review for accuracy.",
                 "suggested_dispute_reason": tl.suggested_dispute_reason or tl.dispute_reason,
                 "supporting_facts": {
@@ -1045,12 +1261,13 @@ def build_account_dispute_insights(tradelines: list[Tradeline], as_of: date) -> 
                     "last_reported": tl.last_reported,
                     "bureaus": tl.bureaus,
                     "legal_flags": tl.legal_flags,
+                    "outcome": outcome or None,
                 },
                 "legal_citations": (
                     ["FCRA §605 (15 U.S.C. §1681c)", "FCRA §611 (15 U.S.C. §1681i)"]
                     if obsolete
                     else ["FCRA §611 (15 U.S.C. §1681i)", "FCRA §623 (15 U.S.C. §1681s-2)"]
-                    if is_recommended_dispute(tl) or obsolete
+                    if recommended
                     else []
                 ),
             }
@@ -1061,6 +1278,7 @@ def build_account_dispute_insights(tradelines: list[Tradeline], as_of: date) -> 
 def build_credit_intelligence(
     report: ParsedReport,
     funding: FundingContext | None = None,
+    outcomes: list[AccountOutcome] | None = None,
 ) -> CreditIntelligenceReport:
     as_of = parse_date(report.report_date) or _today()
     tradelines = [enrich_tradeline(tl) for tl in report.tradelines]
@@ -1088,9 +1306,9 @@ def build_credit_intelligence(
     overall = build_overall_health(factors, tradelines, scores)
     funding_ready = assess_funding_readiness(factors, overall, funding, tradelines)
     recommendations = build_recommendations(
-        factors, overall, funding_ready, tradelines, quality
+        factors, overall, funding_ready, tradelines, quality, outcomes
     )
-    account_insights = build_account_dispute_insights(tradelines, as_of)
+    account_insights = build_account_dispute_insights(tradelines, as_of, outcomes)
 
     next_steps = (
         overall.improvement_priorities[:3]
@@ -1106,7 +1324,7 @@ def build_credit_intelligence(
             ordered_steps.append(s)
 
     return CreditIntelligenceReport(
-        version="1.0",
+        version="1.1",
         analyzed_at=datetime_isoformat(),
         report_date=report.report_date,
         consumer_name=report.consumer.name,

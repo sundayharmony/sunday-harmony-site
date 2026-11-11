@@ -3,11 +3,55 @@ import {
   getDisputeSessionById,
   updateDisputeSessionIntelligence,
 } from '@/lib/dispute-letters/db'
+import { listLifecycleItemsForSession } from '@/lib/dispute-letters/dispute-lifecycle-db'
+import type { DisputeItemStatus } from '@/lib/dispute-letters/dispute-lifecycle'
 import type {
+  AccountOutcomePayload,
   CreditIntelligenceReport,
   DisputeSessionListItem,
   FundingContextPayload,
 } from '@/lib/dispute-letters/types'
+
+const OUTCOME_RANK: Record<AccountOutcomePayload['status'], number> = {
+  no_response: 1,
+  updated: 2,
+  verified: 3,
+  withdrawn: 4,
+  deleted: 5,
+}
+
+function outcomeStatus(status: DisputeItemStatus): AccountOutcomePayload['status'] | null {
+  if (status in OUTCOME_RANK) return status as AccountOutcomePayload['status']
+  return null
+}
+
+/** One bureau result per creditor + last 4. A deletion wins over a later verified row. */
+export function accountOutcomesFromItems(
+  items: Array<{ creditor_name?: string | null; account_last4?: string | null; current_status?: DisputeItemStatus | null }>
+): AccountOutcomePayload[] {
+  const best = new Map<string, AccountOutcomePayload>()
+  for (const item of items) {
+    const status = item.current_status ? outcomeStatus(item.current_status) : null
+    if (!status) continue
+    const creditor = String(item.creditor_name || '').trim()
+    const last4 = String(item.account_last4 || '').replace(/\D/g, '').slice(-4)
+    if (!creditor && last4.length !== 4) continue
+    const key = `${creditor.toLowerCase()}|${last4}`
+    const next: AccountOutcomePayload = { creditor, account_last4: last4, status }
+    const prev = best.get(key)
+    if (!prev || OUTCOME_RANK[status] > OUTCOME_RANK[prev.status]) best.set(key, next)
+  }
+  return [...best.values()]
+}
+
+export async function accountOutcomesForSession(sessionId: string): Promise<AccountOutcomePayload[]> {
+  try {
+    const items = await listLifecycleItemsForSession(sessionId)
+    return accountOutcomesFromItems(items)
+  } catch {
+    return []
+  }
+}
 
 export function intelligenceFromDisputeSession(
   session: DisputeSessionListItem
@@ -46,11 +90,13 @@ export async function resolveCreditIntelligenceForSession(params: {
   }
 
   try {
+    const accountOutcomes = await accountOutcomesForSession(params.sessionId)
     const upstream = await disputeLettersFetch(`/internal/reports/${params.sessionId}/intelligence`, {
       method: 'POST',
       body: JSON.stringify({
         session_id: params.sessionId,
         funding_context: params.fundingContext || null,
+        account_outcomes: accountOutcomes,
       }),
     })
     const upstreamText = await upstream.text()

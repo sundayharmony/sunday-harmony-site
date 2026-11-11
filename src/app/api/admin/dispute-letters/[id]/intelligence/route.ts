@@ -4,6 +4,7 @@ import { disputeLettersFetch } from '@/lib/dispute-letters/api-client'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 import { updateDisputeSessionIntelligence } from '@/lib/dispute-letters/db'
 import type { CreditIntelligenceReport, FundingContextPayload } from '@/lib/dispute-letters/types'
+import { accountOutcomesForSession } from '@/lib/credit-intelligence-resolve'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -24,11 +25,13 @@ export async function POST(request: NextRequest, { params }: Params) {
       funding_context?: FundingContextPayload
     }
 
+    const accountOutcomes = await accountOutcomesForSession(id)
     const upstream = await disputeLettersFetch(`/internal/reports/${id}/intelligence`, {
       method: 'POST',
       body: JSON.stringify({
         session_id: id,
         funding_context: body.funding_context || null,
+        account_outcomes: accountOutcomes,
       }),
     })
     const upstreamText = await upstream.text()

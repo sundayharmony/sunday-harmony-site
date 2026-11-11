@@ -388,7 +388,11 @@ def rebuild_intelligence(
     if not row:
         raise HTTPException(404, "Session not found")
     _, _, report = row
-    intelligence = build_credit_intelligence(report, funding=body.funding_context)
+    intelligence = build_credit_intelligence(
+        report,
+        funding=body.funding_context,
+        outcomes=body.account_outcomes,
+    )
     report.credit_intelligence = intelligence
     if not update_session_report(session_id, report):
         raise HTTPException(404, "Session not found")

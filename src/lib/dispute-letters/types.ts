@@ -57,12 +57,20 @@ export interface FactorAnalysis {
 
 export interface OverallCreditHealth {
   band: string
+  /** Factor risk, separate from the reported bureau-score band. Absent on older stored reports. */
+  file_risk_band?: string
   narrative: string
   strengths: string[]
   weaknesses: string[]
   risk_factors: string[]
   improvement_priorities: string[]
   average_score: number | null
+}
+
+export interface FundingAdjustment {
+  label: string
+  points: number
+  kind: string
 }
 
 export interface FundingReadinessAssessment {
@@ -73,6 +81,8 @@ export interface FundingReadinessAssessment {
   blockers: string[]
   supportive_signals: string[]
   practical_steps: string[]
+  /** Point checklist behind the advisory score. Absent on older stored reports. */
+  adjustments?: FundingAdjustment[]
 }
 
 export interface Recommendation {
@@ -112,6 +122,12 @@ export interface CreditIntelligenceReport {
   account_dispute_insights: AccountDisputeInsight[]
   recommended_next_steps: string[]
   disclaimer: string
+}
+
+export interface AccountOutcomePayload {
+  creditor: string
+  account_last4: string
+  status: 'deleted' | 'withdrawn' | 'verified' | 'updated' | 'no_response'
 }
 
 export interface FundingContextPayload {

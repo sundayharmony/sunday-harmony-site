@@ -63,9 +63,10 @@ const sample: CreditIntelligenceReport = {
       recommendations: [],
     },
   ],
-  overall: {
+    overall: {
     band: 'fair',
-    narrative: 'Overall profile band: fair (avg reported score ≈ 645).',
+    file_risk_band: 'high',
+    narrative: 'Reported score band: fair (avg reported score ≈ 645). File risk: high.',
     strengths: ['Installment diversity present', 'No public records identified'],
     weaknesses: ['1 collection(s) are high-priority profile risks'],
     risk_factors: ['1 derogatory tradeline(s) remain on the file'],
@@ -81,6 +82,10 @@ const sample: CreditIntelligenceReport = {
     practical_steps: [
       'Clear or dispute inaccurate collections before packaging funding applications.',
       'These readiness notes are educational indicators only.',
+    ],
+    adjustments: [
+      { label: 'Open collections are a common underwriting red flag.', points: -15, kind: 'blocker' },
+      { label: 'Inquiry activity appears limited.', points: 4, kind: 'support' },
     ],
   },
   recommendations: [
