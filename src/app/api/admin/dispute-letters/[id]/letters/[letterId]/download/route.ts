@@ -7,7 +7,7 @@ import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-/** Stored letter PDF, or one letter built from saved text and saved account images. */
+/** Stored letter PDF, or one letter built from the saved text and identity documents. */
 export const maxDuration = 60
 
 type Params = { params: Promise<{ id: string; letterId: string }> }
