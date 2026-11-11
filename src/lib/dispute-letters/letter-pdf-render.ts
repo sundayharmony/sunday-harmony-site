@@ -33,7 +33,7 @@ export function groupLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBl
   while (index < blocks.length) {
     const block = blocks[index]
     if (block.kind === 'line' && block.variant === 'heading') {
-      const group = [block]
+      const group: LetterPreviewBlock[] = [block]
       index += 1
       const follow = blocks[index]
       if (
@@ -48,25 +48,29 @@ export function groupLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBl
       continue
     }
     if (block.kind === 'line' && block.variant === 'closing') {
-      const group = [block]
+      const group: LetterPreviewBlock[] = [block]
       index += 1
-      while (blocks[index]?.kind === 'spacer') {
-        group.push(blocks[index])
+      let ahead = blocks[index]
+      while (ahead?.kind === 'spacer') {
+        group.push(ahead)
         index += 1
+        ahead = blocks[index]
       }
-      if (blocks[index]?.kind === 'line' && blocks[index].variant === 'signature') {
-        group.push(blocks[index])
+      if (ahead?.kind === 'line' && ahead.variant === 'signature') {
+        group.push(ahead)
         index += 1
       }
       groups.push(group)
       continue
     }
     if (isRunOnBlock(block)) {
-      const group = [block]
+      const group: LetterPreviewBlock[] = [block]
       index += 1
-      while (isRunOnBlock(blocks[index])) {
-        group.push(blocks[index])
+      let ahead = blocks[index]
+      while (isRunOnBlock(ahead)) {
+        group.push(ahead)
         index += 1
+        ahead = blocks[index]
       }
       groups.push(group)
       continue
@@ -77,7 +81,9 @@ export function groupLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBl
   return groups
 }
 
-function isRunOnBlock(block: LetterPreviewBlock | undefined): boolean {
+function isRunOnBlock(
+  block: LetterPreviewBlock | undefined
+): block is Extract<LetterPreviewBlock, { kind: 'line' }> {
   return Boolean(
     block && block.kind === 'line' && (block.variant === 'name' || block.variant === 'field' || block.variant === 'tight')
   )
