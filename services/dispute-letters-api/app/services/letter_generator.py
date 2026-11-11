@@ -348,11 +348,10 @@ Basis of Dispute:
 13) Closing paragraph thanking them and expecting FCRA compliance.
 14) Closing: "Respectfully," then two blank lines, then the consumer's name in normal title/case (not ALL CAPS). Keep that printed name as plain text only. The formatter places a cursive signature of the same name on the right side of the page next to it — do not draw ASCII art.
 15) After the sign-off name, section heading: Enclosures
-    Then always include these bullets (the mailing packet attaches the copies/images):
+    Then always include these bullets (the mailing packet attaches these copies):
     ● Copy of government-issued photo identification
     ● Proof of current residential address
-    ● Screenshots of the disputed account(s) from my consumer credit report
-    Do NOT list credit score pages, score dashboards, or summary-only screenshots.
+    Do NOT mention account screenshots, credit score pages, or score dashboards.
 
 Rules:
 - Professional tone suitable for certified mail. No legal-advice disclaimer in the letter body.
@@ -614,7 +613,6 @@ Respectfully,
 Enclosures
 ● Copy of government-issued photo identification
 ● Proof of current residential address
-● Screenshots of the disputed account(s) from my consumer credit report
 """
 
 

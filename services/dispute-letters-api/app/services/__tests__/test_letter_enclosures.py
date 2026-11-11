@@ -71,14 +71,14 @@ def test_template_lists_photo_id_and_address_enclosures():
     assert "Enclosures" in text
     assert "government-issued photo identification" in text
     assert "Proof of current residential address" in text
-    assert "Screenshots of the disputed account(s) from my consumer credit report" in text
+    assert "Screenshots of the disputed account" not in text
     assert "score" not in text.lower().split("enclosures", 1)[-1]
     layout = letter_layout(text)
     assert any(block.get("variant") == "heading" and block.get("text") == "Enclosures" for block in layout["blocks"])
     bullets = [block.get("text", "") for block in layout["blocks"] if block["kind"] == "bullet"]
     assert any("photo identification" in bullet for bullet in bullets)
     assert any("residential address" in bullet for bullet in bullets)
-    assert any("screenshots of the disputed account" in bullet.lower() for bullet in bullets)
+    assert all("screenshot" not in bullet.lower() for bullet in bullets)
 
 
 def test_template_puts_dob_and_ssn_at_letter_beginning():
@@ -128,8 +128,8 @@ def test_prompt_requires_identity_enclosures():
     assert "Enclosures" in prompt
     assert "government-issued photo identification" in prompt
     assert "Proof of current residential address" in prompt
-    assert "Screenshots of the disputed account(s) from my consumer credit report" in prompt
-    assert "Do NOT list credit score pages" in prompt
+    assert "Screenshots of the disputed account" not in prompt
+    assert "Do NOT mention account screenshots" in prompt
     assert "Do NOT use em dashes" in prompt
     assert "Date of Birth" in prompt
     assert "Social Security Number" in prompt
