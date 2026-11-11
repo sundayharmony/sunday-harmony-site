@@ -14,7 +14,6 @@ from app.db import (
     session_letter_round,
     update_session_report,
 )
-from app.services.account_evidence_store import ensure_account_evidence
 from app.services.letter_consumer import apply_letter_consumer
 from app.services.letter_current import letter_display_title, letter_party_label
 from app.services.letter_generator import generate_letter_async, save_letter_file
@@ -73,9 +72,6 @@ async def run_letter_job(
         row = get_session(session_id)
         if not row:
             raise RuntimeError("Session not found")
-        # Reports analyzed before screenshots were stored get one backfill here.
-        # The website ZIP path only reads the saved images.
-        await asyncio.to_thread(ensure_account_evidence, session_id)
         _, _, report = row
 
         if any(

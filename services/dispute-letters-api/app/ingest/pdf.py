@@ -46,7 +46,6 @@ def extract_pdf(path: Path) -> ExtractedDocument:
         page_count=page_count,
         ocr_used=ocr_used,
         extraction_quality=_quality_from_chars(len(text)),
-        pages=pages_text,
     )
 
 

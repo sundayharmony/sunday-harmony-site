@@ -35,10 +35,6 @@ import {
   buildLetterZipFiles,
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
-import {
-  loadLetterPlanForEvidence,
-  loadStoredEvidenceAttachments,
-} from '@/lib/dispute-letters/letter-account-evidence'
 import { publicLetterFailure, renderLetterPdfWithIdentity } from '@/lib/dispute-letters/letter-pdf-render'
 import { isPdfBytes, zipFiles } from '@/lib/dispute-letters/letter-zip'
 import {
@@ -139,21 +135,17 @@ function lettersNeedGenerator(sessionId: string, letters: readonly LetterDocxSou
 }
 
 /**
- * Build one letter PDF from the saved letter text, identity documents, and
- * account-page images stored during analysis. Does not render report pages.
+ * Build one letter PDF from the saved letter text and identity documents.
+ * Account-page screenshots are not attached.
  */
 export async function buildAndStoreLetterPdf(sessionId: string, letterId: string): Promise<Uint8Array | null> {
   const source = await readLetterPdfSource(sessionId, letterId)
   if (!source || !source.markdown.trim()) return null
   const session = await getDisputeSessionById(sessionId)
-  const plan = await loadLetterPlanForEvidence(sessionId, source.plan_id)
-  const [identity, evidence] = await Promise.all([
-    loadLetterIdentityAttachments(session?.application_uuid),
-    loadStoredEvidenceAttachments(sessionId, plan?.items || [], plan?.letter_type),
-  ])
+  const identity = await loadLetterIdentityAttachments(session?.application_uuid)
   const data = await renderLetterPdfWithIdentity(
     { title: source.title, markdown: source.markdown },
-    [...identity, ...evidence]
+    identity
   )
   if (!isPdfBytes(data)) return null
   await storeGeneratedLetterDocx({ sessionId, letterId, data })
