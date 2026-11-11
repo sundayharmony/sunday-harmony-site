@@ -4,9 +4,8 @@ import {
   letterWorkingCopyOriginalId,
 } from '@/lib/credit-funding-types'
 import { downloadCreditFundingDocument } from '@/lib/credit-funding-storage'
-import { disputeLettersFetch, disputeLettersFetchForm } from '@/lib/dispute-letters/api-client'
-import { mapWithConcurrency, withRetries } from '@/lib/dispute-letters/async-pool'
-import { isPdfBytes, uniquePdfFilename, uniqueZipFilename } from '@/lib/dispute-letters/letter-zip'
+import { mapWithConcurrency } from '@/lib/dispute-letters/async-pool'
+import { uniquePdfFilename, uniqueZipFilename } from '@/lib/dispute-letters/letter-zip'
 
 export type LetterIdentityDoc = {
   id: string
@@ -69,9 +68,6 @@ export type LetterPacketAttachment = {
 const PHOTO_ID_STEM = 'Government Photo ID'
 const ADDRESS_STEM = 'Proof of Address'
 const SSN_STEM = 'Social Security Card'
-
-/** Concurrent letter DOCX builds against the Python API (ZIP package). */
-export const LETTER_DOCX_FETCH_CONCURRENCY = 4
 
 function isUsableIdentityDoc(doc: LetterIdentityDoc): boolean {
   return doc.scan_status !== 'rejected' && Boolean(doc.storage_path)
@@ -231,123 +227,4 @@ export async function loadLetterIdentityAttachments(
     console.error('Letter identity attachments failed:', err)
     return []
   }
-}
-
-async function fetchEnclosedLetterDocx(
-  sessionId: string,
-  letterId: string,
-  attachments: LetterPacketAttachment[]
-): Promise<Uint8Array> {
-  const form = new FormData()
-  for (const attachment of attachments) {
-    const blob = new Blob([Buffer.from(attachment.data)], {
-      type: attachment.mimeType || 'application/octet-stream',
-    })
-    form.append('enclosures', blob, attachment.zipName)
-  }
-  const posted = await disputeLettersFetchForm(
-    `/internal/letters/${sessionId}/${letterId}/download?format=pdf`,
-    form
-  )
-  if (!posted.ok) {
-    throw new Error(`Enclosure merge failed (HTTP ${posted.status})`)
-  }
-  const data = new Uint8Array(await posted.arrayBuffer())
-  if (!isPdfBytes(data)) {
-    throw new Error('Enclosure merge returned a non-PDF payload')
-  }
-  return data
-}
-
-async function fetchPlainLetterDocx(
-  sessionId: string,
-  letterId: string,
-  opts?: { includeEvidence?: boolean }
-): Promise<Uint8Array> {
-  const evidence = opts?.includeEvidence === false ? 'false' : 'true'
-  const res = await disputeLettersFetch(
-    `/internal/letters/${sessionId}/${letterId}/download?format=pdf&include_evidence=${evidence}`
-  )
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || 'PDF download failed')
-  }
-  const data = new Uint8Array(await res.arrayBuffer())
-  if (!isPdfBytes(data)) {
-    throw new Error('Letter download was not a PDF. Redeploy the dispute-letters API.')
-  }
-  return data
-}
-
-/**
- * Download letter PDF, optionally merging identity enclosures via the Python API.
- * Retries transient upstream failures; falls back to plain PDF if enclosure merge fails.
- */
-export async function fetchLetterDocxWithEnclosures(
-  sessionId: string,
-  letterId: string,
-  attachments: LetterPacketAttachment[]
-): Promise<Uint8Array> {
-  if (attachments.length) {
-    try {
-      return await withRetries(
-        () => fetchEnclosedLetterDocx(sessionId, letterId, attachments),
-        4,
-        1_500
-      )
-    } catch (error) {
-      console.warn(
-        '[letter-identity] enclosure merge failed after retries; falling back to plain PDF',
-        letterId,
-        error instanceof Error ? error.message : error
-      )
-    }
-  }
-
-  return withRetries(() => fetchPlainLetterDocx(sessionId, letterId), 4, 1_500)
-}
-
-/**
- * Letter + identity docs PDF without account-report screenshots.
- * Shared by Download .pdf and Download all (ZIP) so both paths return the same packet.
- * Screenshot rendering on the free-tier API exceeds Vercel timeouts and is skipped.
- */
-export async function fetchLetterPdfForInteractiveDownload(
-  sessionId: string,
-  letterId: string
-): Promise<Uint8Array> {
-  return withRetries(
-    () => fetchPlainLetterDocx(sessionId, letterId, { includeEvidence: false }),
-    2,
-    1_000
-  )
-}
-
-/** Alias: ZIP packages the exact same PDFs as Download .pdf. */
-export async function fetchLetterPdfForPackageZip(
-  sessionId: string,
-  letterId: string
-): Promise<Uint8Array> {
-  return fetchLetterPdfForInteractiveDownload(sessionId, letterId)
-}
-
-/** Build DOCX letter files for a ZIP in parallel (bounded concurrency). */
-export async function fetchLetterDocxFilesForZip(
-  sessionId: string,
-  letters: { id: string; title?: string }[],
-  attachments: LetterPacketAttachment[]
-): Promise<{ title: string; data: Uint8Array }[]> {
-  return mapWithConcurrency(letters, LETTER_DOCX_FETCH_CONCURRENCY, async (letter) => {
-    try {
-      const data = await fetchLetterDocxWithEnclosures(sessionId, letter.id, attachments)
-      return {
-        title: letter.title || letter.id,
-        data,
-      }
-    } catch (error) {
-      const label = letter.title || letter.id
-      const detail = error instanceof Error ? error.message : 'download failed'
-      throw new Error(`Letter "${label}" failed to download: ${detail}`)
-    }
-  })
 }

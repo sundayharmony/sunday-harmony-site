@@ -611,8 +611,6 @@ def _letter_files_for_download(
     session_id: str,
     letter,
     uploaded: list[tuple[str, bytes]] | None = None,
-    *,
-    include_evidence: bool = False,
 ):
     from app.services.letter_download import letter_files_for_download
 
@@ -624,7 +622,6 @@ def _letter_files_for_download(
         session_id,
         letter,
         uploaded,
-        include_evidence=include_evidence,
         application_uuid=application_uuid,
     )
 
@@ -657,8 +654,6 @@ def _build_letter_download(
     letter,
     format: str,
     uploaded: list[tuple[str, bytes]] | None = None,
-    *,
-    include_evidence: bool = False,
 ):
     """CPU/memory-heavy PDF build — keep off the asyncio event loop."""
     body = finalize_letter(letter.markdown)
@@ -668,9 +663,7 @@ def _build_letter_download(
             media_type="text/plain",
             headers={"Content-Disposition": f'attachment; filename="letter_{letter.id}.txt"'},
         )
-    files = _letter_files_for_download(
-        session_id, letter, uploaded, include_evidence=include_evidence
-    )
+    files = _letter_files_for_download(session_id, letter, uploaded)
     if format == "pdf":
         return _letter_pdf_response(letter, files)
     if format == "docx":
@@ -678,23 +671,11 @@ def _build_letter_download(
     raise HTTPException(400, "Unsupported format")
 
 
-@app.get("/internal/letters/{session_id}/{letter_id}/account-evidence")
-async def account_evidence(
-    session_id: str,
-    letter_id: str,
-    _: None = Depends(verify_internal_secret),
-):
-    """Account-page screenshots are disabled. Returns no images and does not render the report."""
-    del session_id, letter_id
-    return {"files": []}
-
-
 @app.get("/internal/letters/{session_id}/{letter_id}/download")
 async def download_letter(
     session_id: str,
     letter_id: str,
     format: str = "pdf",
-    include_evidence: bool = False,
     _: None = Depends(verify_internal_secret),
 ):
     letter = await asyncio.to_thread(get_letter, session_id, letter_id)
@@ -706,7 +687,6 @@ async def download_letter(
         letter,
         format,
         None,
-        include_evidence=include_evidence,
     )
 
 
@@ -715,7 +695,6 @@ async def download_letter_with_enclosures(
     session_id: str,
     letter_id: str,
     format: str = "pdf",
-    include_evidence: bool = False,
     enclosures: list[UploadFile] = File(default_factory=list),
     _: None = Depends(verify_internal_secret),
 ):
@@ -735,7 +714,6 @@ async def download_letter_with_enclosures(
         letter,
         format,
         uploaded,
-        include_evidence=include_evidence,
     )
 
 

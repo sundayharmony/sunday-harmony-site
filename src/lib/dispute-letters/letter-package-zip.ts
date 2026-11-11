@@ -136,7 +136,6 @@ function lettersNeedGenerator(sessionId: string, letters: readonly LetterDocxSou
 
 /**
  * Build one letter PDF from the saved letter text and identity documents.
- * Account-page screenshots are not attached.
  */
 export async function buildAndStoreLetterPdf(sessionId: string, letterId: string): Promise<Uint8Array | null> {
   const source = await readLetterPdfSource(sessionId, letterId)
