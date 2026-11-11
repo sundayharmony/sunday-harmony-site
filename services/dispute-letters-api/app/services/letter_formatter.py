@@ -245,10 +245,6 @@ def _is_closing_line(display: str) -> bool:
     return normalized in {"respectfully,", "respectfully", "sincerely,", "sincerely"}
 
 
-def _is_run_on(block: dict) -> bool:
-    return block.get("kind") == "line" and block.get("variant") in {"name", "field", "tight"}
-
-
 def _compact_blocks(blocks: list[dict]) -> list[dict]:
     compacted: list[dict] = []
     i = 0
@@ -265,7 +261,7 @@ def _compact_blocks(blocks: list[dict]) -> list[dict]:
                 "heading",
                 "signature",
             }
-            if not skip and prev and _is_run_on(prev) and nxt and not _is_run_on(nxt):
+            if not skip and prev and nxt:
                 compacted.append({"kind": "spacer"})
             i = j
             continue
@@ -551,15 +547,18 @@ def _add_rich_paragraph(
     fmt = para.paragraph_format
     fmt.line_spacing = 1.0
     fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
-    fmt.space_before = Pt(10) if heading else Pt(0)
+    fmt.space_before = Pt(16) if heading else (Pt(10) if closing else Pt(0))
     if heading:
-        fmt.space_after = Pt(4)
+        fmt.space_after = Pt(6)
     elif closing:
         fmt.space_after = Pt(8)
     elif name_line or field_line or tight:
         fmt.space_after = Pt(0)
     else:
-        fmt.space_after = Pt(6)
+        fmt.space_after = Pt(8)
+    fmt.keep_together = True
+    if heading or closing:
+        fmt.keep_with_next = True
 
     if indent_level:
         fmt.left_indent = Inches(0.35 * indent_level)
@@ -578,6 +577,7 @@ def _add_bullet_paragraph(document, text: str):
     fmt.first_line_indent = Inches(-0.2)
     fmt.space_after = Pt(2)
     fmt.space_before = Pt(0)
+    fmt.keep_together = True
     fmt.line_spacing = 1.0
     fmt.line_spacing_rule = WD_LINE_SPACING.SINGLE
     _add_runs(para, f"● {text}")
@@ -834,9 +834,9 @@ def _add_header_page_counter(document, letter_date: str) -> None:
 
     for section in document.sections:
         section.top_margin = Inches(1.45)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
+        section.bottom_margin = Inches(0.45)
+        section.left_margin = Inches(0.5)
+        section.right_margin = Inches(0.5)
         section.page_width = Inches(8.5)
         section.page_height = Inches(11)
         section.header_distance = Inches(1)
@@ -849,7 +849,7 @@ def _add_header_page_counter(document, letter_date: str) -> None:
             if child.tag.endswith("}p") or child.tag.endswith("}tbl"):
                 hdr.remove(child)
 
-        table = header.add_table(1, 2, Inches(6.5))
+        table = header.add_table(1, 2, Inches(7.5))
         table.autofit = False
         tbl = table._tbl
         tbl_pr = tbl.tblPr
@@ -861,8 +861,8 @@ def _add_header_page_counter(document, letter_date: str) -> None:
         tbl_pr.append(borders)
 
         left, right = table.rows[0].cells
-        left.width = Inches(3.25)
-        right.width = Inches(3.25)
+        left.width = Inches(3.75)
+        right.width = Inches(3.75)
         _set_cell_borders_nil(left)
         _set_cell_borders_nil(right)
 
@@ -986,6 +986,58 @@ def _picture_size_inches(data: bytes) -> tuple[float, float]:
     return width, height
 
 
+def _is_run_on_block(block: dict) -> bool:
+    return block.get("kind") == "line" and block.get("variant") in {"name", "field", "tight"}
+
+
+def _group_letter_blocks(blocks: list[dict]) -> list[list[dict]]:
+    """Keep a heading with the next line, an address run together, and a closing with its signature."""
+    groups: list[list[dict]] = []
+    index = 0
+    while index < len(blocks):
+        block = blocks[index]
+        kind = block.get("kind")
+        variant = block.get("variant")
+        if kind == "line" and variant == "heading":
+            group = [block]
+            index += 1
+            if index < len(blocks):
+                follow = blocks[index]
+                if follow.get("kind") != "spacer" and not (
+                    follow.get("kind") == "line" and follow.get("variant") == "heading"
+                ):
+                    group.append(follow)
+                    index += 1
+            groups.append(group)
+            continue
+        if kind == "line" and variant == "closing":
+            group = [block]
+            index += 1
+            while index < len(blocks) and blocks[index].get("kind") == "spacer":
+                group.append(blocks[index])
+                index += 1
+            if (
+                index < len(blocks)
+                and blocks[index].get("kind") == "line"
+                and blocks[index].get("variant") == "signature"
+            ):
+                group.append(blocks[index])
+                index += 1
+            groups.append(group)
+            continue
+        if _is_run_on_block(block):
+            group = [block]
+            index += 1
+            while index < len(blocks) and _is_run_on_block(blocks[index]):
+                group.append(blocks[index])
+                index += 1
+            groups.append(group)
+            continue
+        groups.append([block])
+        index += 1
+    return groups
+
+
 def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = None) -> bytes:
     """Build a print-ready PDF letter with optional enclosure images."""
     from reportlab.lib.enums import TA_LEFT
@@ -994,7 +1046,15 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
     from reportlab.lib.units import inch
     from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas as pdf_canvas
-    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import (
+        Image,
+        KeepTogether,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
 
     layout = letter_layout(text)
     files = enclosure_files or []
@@ -1018,10 +1078,11 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
             for state in self._saved_page_states:
                 self.__dict__.update(state)
                 self.setFont("Times-Roman", 10)
+                side = 0.5 * inch
                 # Baseline sits 1in below the top edge so the date and page number are not cramped.
-                self.drawString(inch, letter_page[1] - inch, letter_date)
+                self.drawString(side, letter_page[1] - inch, letter_date)
                 self.drawRightString(
-                    letter_page[0] - inch,
+                    letter_page[0] - side,
                     letter_page[1] - inch,
                     f"Page {self._pageNumber} of {total}",
                 )
@@ -1031,10 +1092,10 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
     doc = SimpleDocTemplate(
         buf,
         pagesize=letter_page,
-        leftMargin=inch,
-        rightMargin=inch,
+        leftMargin=0.5 * inch,
+        rightMargin=0.5 * inch,
         topMargin=1.55 * inch,
-        bottomMargin=0.75 * inch,
+        bottomMargin=0.45 * inch,
     )
 
     body = ParagraphStyle(
@@ -1043,7 +1104,7 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
         fontSize=11,
         leading=14,
         spaceBefore=0,
-        spaceAfter=6,
+        spaceAfter=8,
         alignment=TA_LEFT,
     )
     heading = ParagraphStyle(
@@ -1051,13 +1112,14 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
         parent=body,
         fontName="Times-Bold",
         fontSize=11,
-        spaceBefore=10,
-        spaceAfter=4,
+        spaceBefore=16,
+        spaceAfter=6,
+        keepWithNext=True,
     )
     name_style = ParagraphStyle("LetterName", parent=body, fontName="Times-Bold", spaceAfter=0)
     field = ParagraphStyle("LetterField", parent=body, spaceAfter=0)
     tight = ParagraphStyle("LetterTight", parent=body, spaceAfter=0)
-    closing = ParagraphStyle("LetterClosing", parent=body, spaceAfter=8)
+    closing = ParagraphStyle("LetterClosing", parent=body, spaceAfter=8, keepWithNext=True)
     bullet = ParagraphStyle(
         "LetterBullet",
         parent=body,
@@ -1074,15 +1136,14 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
             .replace(">", "&gt;")
         )
 
-    story: list = []
-    for block in blocks:
+    content_width = letter_page[0] - 1.0 * inch
+
+    def flowables_for(block: dict) -> list:
         kind = block["kind"]
         if kind == "spacer":
-            story.append(Spacer(1, 8))
-            continue
+            return [Spacer(1, 10)]
         if kind == "bullet":
-            story.append(Paragraph(f"● {_inline_pdf(block['text'])}", bullet))
-            continue
+            return [Paragraph(f"● {_inline_pdf(block['text'])}", bullet)]
         variant = block.get("variant") or "body"
         text_line = _inline_pdf(block.get("text") or "")
         if variant == "signature":
@@ -1113,7 +1174,10 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
                 sig_buf.seek(0)
                 height = width * (ih / max(iw, 1))
                 right_flowable = Image(sig_buf, width=width, height=height)
-            table = Table([[left, right_flowable]], colWidths=[3.0 * inch, 3.5 * inch])
+            table = Table(
+                [[left, right_flowable]],
+                colWidths=[content_width * 0.42, content_width * 0.58],
+            )
             table.setStyle(
                 TableStyle(
                     [
@@ -1126,8 +1190,7 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
                     ]
                 )
             )
-            story.append(table)
-            continue
+            return [table]
         style = {
             "heading": heading,
             "name": name_style,
@@ -1142,7 +1205,13 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
                 parent=style,
                 leftIndent=0.35 * inch * indent,
             )
-        story.append(Paragraph(text_line, style))
+        return [Paragraph(text_line, style)]
+
+    story: list = []
+    for block in blocks:
+        chunk = flowables_for(block)
+        if chunk:
+            story.append(KeepTogether(chunk))
 
     for stream in image_streams:
         data = stream.getvalue()

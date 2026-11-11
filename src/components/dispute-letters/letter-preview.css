@@ -2,7 +2,7 @@
   width: 8.5in;
   min-height: 11in;
   margin: 0 auto;
-  padding: 1in;
+  padding: 1in 0.5in 0.45in;
   background: #fff;
   box-sizing: border-box;
   color: #000;
@@ -31,13 +31,13 @@
 
 .letter-body .letter-line,
 .letter-body .letter-spacer {
-  margin: 0 0 6pt;
+  margin: 0 0 8pt;
 }
 
 .letter-body .letter-heading {
   font-weight: 700;
-  margin-top: 10pt;
-  margin-bottom: 4pt;
+  margin-top: 16pt;
+  margin-bottom: 6pt;
 }
 
 .letter-body .letter-name {
@@ -99,6 +99,6 @@
 }
 
 .letter-body .letter-spacer {
-  min-height: 8pt;
+  min-height: 12pt;
   margin: 0;
 }

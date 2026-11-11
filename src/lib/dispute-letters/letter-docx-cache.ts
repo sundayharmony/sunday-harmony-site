@@ -30,7 +30,7 @@ export type ZipBuildClaimRow = {
 
 export function buildStoredLetterDocxPath(sessionId: string, letterId: string): string {
   const safeLetter = (letterId || '').replace(/[^a-zA-Z0-9-]/g, '')
-  return `sessions/${sessionId}/letters/${safeLetter}.v4.pdf`
+  return `sessions/${sessionId}/letters/${safeLetter}.v5.pdf`
 }
 
 /** True when this path is a PDF letter we stored for the session, not a local generator path or a .txt copy. */
@@ -38,7 +38,7 @@ export function isStoredLetterDocxPath(sessionId: string, storagePath: string | 
   if (!storagePath || !SESSION_ID.test(sessionId)) return false
   if (!hasSafeStoragePathSegments(storagePath)) return false
   if (!storagePath.startsWith(`sessions/${sessionId}/letters/`)) return false
-  if (!storagePath.toLowerCase().endsWith('.v4.pdf')) return false
+  if (!storagePath.toLowerCase().endsWith('.v5.pdf')) return false
   return storagePath.split('/').length === 4
 }
 

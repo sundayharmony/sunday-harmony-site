@@ -6,10 +6,12 @@ import { PDFDocument } from 'pdf-lib'
 import { disputeLetterDownloadUrl } from '../dispute-letters/client-api'
 import { zipErrorLabel } from '../dispute-letters/dispute-lifecycle'
 import {
-  publicLetterFailure,
+  groupLetterBlocks,
   letterInlineParts,
+  publicLetterFailure,
   renderLetterPdfWithIdentity,
   renderLetterPreviewPdf,
+  shouldKeepGroupTogether,
 } from '../dispute-letters/letter-pdf-render'
 import { isPdfBytes } from '../dispute-letters/letter-zip'
 
@@ -207,9 +209,33 @@ describe('dispute letter downloads and preview', () => {
     const css = source('src/components/dispute-letters/letter-preview.css')
     assert.match(css, /width:\s*8\.5in/)
     assert.match(css, /min-height:\s*11in/)
-    assert.match(css, /padding:\s*1in;/)
+    assert.match(css, /padding:\s*1in 0\.5in 0\.45in/)
+    assert.match(css, /margin-top:\s*16pt/)
     assert.match(css, /Times New Roman/)
     assert.match(css, /font-size:\s*12pt/)
+  })
+
+  it('keeps a section and a paragraph together instead of splitting the paragraph', () => {
+    const paragraph = 'The account is reporting a balance that the creditor already wrote off. '.repeat(12).trim()
+    const groups = groupLetterBlocks([
+      { kind: 'line', text: '172 MEADOW CIR', variant: 'tight' },
+      { kind: 'line', text: 'MAYS LANDING, NJ 08330', variant: 'tight' },
+      { kind: 'line', text: 'Consumer Identification', variant: 'heading' },
+      { kind: 'line', text: 'Full Name: Widji Selphin', variant: 'field' },
+      { kind: 'line', text: paragraph, variant: 'body' },
+      { kind: 'line', text: 'Respectfully,', variant: 'closing' },
+      { kind: 'spacer' },
+      { kind: 'line', text: 'Widji Selphin', variant: 'signature' },
+    ])
+    assert.equal(groups.length, 4)
+    assert.equal(groups[0].length, 2)
+    assert.equal(groups[1][0].kind === 'line' && groups[1][0].text, 'Consumer Identification')
+    assert.equal(groups[1][1].kind === 'line' && groups[1][1].variant, 'field')
+    assert.equal(groups[2][0].kind === 'line' && groups[2][0].variant, 'body')
+    assert.equal(groups[3].length, 3)
+    assert.equal(shouldKeepGroupTogether(180, 40, 600), true)
+    assert.equal(shouldKeepGroupTogether(180, 200, 600), false)
+    assert.equal(shouldKeepGroupTogether(700, 40, 600), false)
   })
 
   it('uses a letter package confirm-all action instead of per-item dropdowns', () => {

@@ -93,10 +93,6 @@ function isClosingLine(display: string): boolean {
   return normalized === 'respectfully,' || normalized === 'respectfully' || normalized === 'sincerely,' || normalized === 'sincerely'
 }
 
-function isRunOn(block: LetterPreviewBlock): boolean {
-  return block.kind === 'line' && (block.variant === 'name' || block.variant === 'field' || block.variant === 'tight')
-}
-
 function compactLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBlock[] {
   const compacted: LetterPreviewBlock[] = []
   let i = 0
@@ -111,7 +107,7 @@ function compactLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBlock[]
         (next?.kind === 'line' && next.variant === 'heading') ||
         (prev?.kind === 'line' &&
           (prev.variant === 'closing' || prev.variant === 'heading' || prev.variant === 'signature'))
-      if (!skip && prev && isRunOn(prev) && next && !isRunOn(next)) {
+      if (!skip && prev && next) {
         compacted.push({ kind: 'spacer' })
       }
       i = j

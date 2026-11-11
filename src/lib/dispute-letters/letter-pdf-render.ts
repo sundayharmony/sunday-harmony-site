@@ -17,6 +17,79 @@ const SIGNATURE_FONT = join(
 const PAGE_WIDTH = 612
 const PAGE_HEIGHT = 792
 
+/** Narrower than a 1in inset so the letter uses more of the page. The top stays clear of the date. */
+export const LETTER_MARGIN_SIDE = 36
+export const LETTER_MARGIN_BOTTOM = 32
+export const LETTER_MARGIN_TOP = 120
+const SECTION_GAP = 16
+const CLOSING_GAP = 10
+const PARAGRAPH_GAP = 6
+const HEADING_AFTER = 6
+const SPACER_GAP = 10
+
+export function groupLetterBlocks(blocks: LetterPreviewBlock[]): LetterPreviewBlock[][] {
+  const groups: LetterPreviewBlock[][] = []
+  let index = 0
+  while (index < blocks.length) {
+    const block = blocks[index]
+    if (block.kind === 'line' && block.variant === 'heading') {
+      const group = [block]
+      index += 1
+      const follow = blocks[index]
+      if (
+        follow &&
+        follow.kind !== 'spacer' &&
+        !(follow.kind === 'line' && follow.variant === 'heading')
+      ) {
+        group.push(follow)
+        index += 1
+      }
+      groups.push(group)
+      continue
+    }
+    if (block.kind === 'line' && block.variant === 'closing') {
+      const group = [block]
+      index += 1
+      while (blocks[index]?.kind === 'spacer') {
+        group.push(blocks[index])
+        index += 1
+      }
+      if (blocks[index]?.kind === 'line' && blocks[index].variant === 'signature') {
+        group.push(blocks[index])
+        index += 1
+      }
+      groups.push(group)
+      continue
+    }
+    if (isRunOnBlock(block)) {
+      const group = [block]
+      index += 1
+      while (isRunOnBlock(blocks[index])) {
+        group.push(blocks[index])
+        index += 1
+      }
+      groups.push(group)
+      continue
+    }
+    groups.push([block])
+    index += 1
+  }
+  return groups
+}
+
+function isRunOnBlock(block: LetterPreviewBlock | undefined): boolean {
+  return Boolean(
+    block && block.kind === 'line' && (block.variant === 'name' || block.variant === 'field' || block.variant === 'tight')
+  )
+}
+
+/** Start a new page when the whole group fits on a blank page and not in the space left. */
+export function shouldKeepGroupTogether(groupHeight: number, remaining: number, pageContentHeight: number): boolean {
+  if (groupHeight <= 1) return false
+  if (groupHeight > pageContentHeight + 1) return false
+  return groupHeight > remaining + 0.5
+}
+
 type LetterPdfSource = {
   title?: string
   preview?: GeneratedLetter['preview']
@@ -44,14 +117,40 @@ function renderLetterBody(layout: LetterPreviewLayout): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocumentKit({
       size: 'LETTER',
-      margins: { top: 120, bottom: 72, left: 72, right: 72 },
+      margins: {
+        top: LETTER_MARGIN_TOP,
+        bottom: LETTER_MARGIN_BOTTOM,
+        left: LETTER_MARGIN_SIDE,
+        right: LETTER_MARGIN_SIDE,
+      },
     })
     const chunks: Buffer[] = []
     doc.on('data', (chunk: Buffer) => chunks.push(chunk))
     doc.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))))
     doc.on('error', reject)
 
-    for (const block of layout.blocks) drawBlock(doc, block)
+    const blocks = layout.blocks
+    for (let index = 0; index < blocks.length; index += 1) {
+      const block = blocks[index]
+      const pageContent = doc.page.height - doc.page.margins.top - doc.page.margins.bottom
+      const remaining = doc.page.height - doc.page.margins.bottom - doc.y
+      const height = measureBlock(doc, block)
+      let needed = height
+      const next = blocks[index + 1]
+      if (block.kind === 'line' && block.variant === 'heading' && next) {
+        const follow = measureBlock(doc, next)
+        if (follow <= pageContent + 1 && height + follow > remaining) needed = height + follow
+        else if (remaining < height + 36) needed = height + 36
+      } else if (block.kind === 'line' && block.variant === 'closing') {
+        for (let look = index + 1; look < blocks.length && look <= index + 2; look += 1) {
+          const ahead = blocks[look]
+          if (ahead.kind === 'line' && ahead.variant === 'signature') needed += measureBlock(doc, ahead)
+        }
+      }
+      if (shouldKeepGroupTogether(needed, remaining, pageContent)) doc.addPage()
+      else if (height > pageContent + 1 && remaining < 64) doc.addPage()
+      drawBlock(doc, block)
+    }
     if (layout.blocks.length === 0) {
       doc.font('Times-Roman').fontSize(12).text(' ')
     }
@@ -82,11 +181,11 @@ export async function stampLetterPageNumbers(bytes: Uint8Array, date: string): P
       color: rgb(1, 1, 1),
     })
     const dateWidth = labelDate ? font.widthOfTextAtSize(labelDate, size) : 0
-    if (labelDate && 72 + dateWidth + 12 < width - 72 - labelWidth) {
-      page.drawText(labelDate, { x: 72, y: baseline, size, font, color: ink })
+    if (labelDate && LETTER_MARGIN_SIDE + dateWidth + 12 < width - LETTER_MARGIN_SIDE - labelWidth) {
+      page.drawText(labelDate, { x: LETTER_MARGIN_SIDE, y: baseline, size, font, color: ink })
     }
     page.drawText(label, {
-      x: Math.max(36, width - 72 - labelWidth),
+      x: Math.max(36, width - LETTER_MARGIN_SIDE - labelWidth),
       y: baseline,
       size,
       font,
@@ -173,24 +272,65 @@ function drawSignature(doc: PDFKit.PDFDocument, name: string) {
   doc.y = Math.max(doc.y, afterName) + 6
 }
 
+function contentWidth(doc: PDFKit.PDFDocument): number {
+  return doc.page.width - doc.page.margins.left - doc.page.margins.right
+}
+
+function atPageTop(doc: PDFKit.PDFDocument): boolean {
+  return doc.y <= doc.page.margins.top + 1
+}
+
+function blockPlainText(block: LetterPreviewBlock): string {
+  if (block.kind === 'spacer') return ''
+  if (block.kind === 'bullet') return `- ${block.text || ''}`
+  return letterInlineParts(block.text || '')
+    .map((part) => part.text)
+    .join('')
+}
+
+function measureBlock(doc: PDFKit.PDFDocument, block: LetterPreviewBlock): number {
+  if (block.kind === 'spacer') return SPACER_GAP
+  if (block.kind === 'line' && block.variant === 'signature') return 12 * 1.1 + 32
+  const indent = block.kind === 'line' ? (block.indent || 0) * 18 : 0
+  const tight =
+    block.kind === 'line' && (block.variant === 'tight' || block.variant === 'field' || block.variant === 'name')
+  doc.font('Times-Bold').fontSize(12)
+  const textHeight = doc.heightOfString(blockPlainText(block) || ' ', {
+    width: Math.max(72, contentWidth(doc) - (block.kind === 'bullet' ? 16 : indent)),
+    lineGap: tight ? 1 : 3,
+  })
+  if (block.kind === 'bullet') return textHeight + 2
+  let extra = 0
+  if (block.kind === 'line' && block.variant === 'heading') {
+    extra += (atPageTop(doc) ? 0 : SECTION_GAP) + HEADING_AFTER
+  } else if (block.kind === 'line' && block.variant === 'closing') {
+    extra += atPageTop(doc) ? 0 : CLOSING_GAP
+  } else if (!tight) {
+    extra += PARAGRAPH_GAP
+  }
+  return textHeight + extra
+}
+
 function drawBlock(doc: PDFKit.PDFDocument, block: LetterPreviewBlock) {
   if (block.kind === 'spacer') {
-    doc.moveDown(0.55)
+    doc.y += SPACER_GAP
     return
   }
   if (block.kind === 'bullet') {
-    drawInline(doc, block.text, { indent: 16, prefix: '- ' })
+    drawInline(doc, block.text, { indent: 16, prefix: '- ', lineGap: 3 })
+    doc.y += 2
     return
   }
   const indent = (block.indent || 0) * 18
   if (block.variant === 'heading' || block.variant === 'name') {
-    if (block.variant === 'heading') doc.moveDown(0.45)
-    drawInline(doc, block.text || '', { indent, boldAll: true })
+    if (block.variant === 'heading' && !atPageTop(doc)) doc.y += SECTION_GAP
+    drawInline(doc, block.text || '', { indent, boldAll: true, lineGap: 2 })
+    if (block.variant === 'heading') doc.y += HEADING_AFTER
     return
   }
   if (block.variant === 'closing') {
-    doc.moveDown(0.6)
-    drawInline(doc, block.text || '', { indent })
+    if (!atPageTop(doc)) doc.y += CLOSING_GAP
+    drawInline(doc, block.text || '', { indent, lineGap: 2 })
     return
   }
   if (block.variant === 'signature') {
@@ -199,6 +339,7 @@ function drawBlock(doc: PDFKit.PDFDocument, block: LetterPreviewBlock) {
   }
   const tight = block.variant === 'tight' || block.variant === 'field'
   drawInline(doc, block.text || '', { indent, lineGap: tight ? 1 : 3 })
+  if (!tight) doc.y += PARAGRAPH_GAP
 }
 
 async function appendAttachment(doc: PDFDocument, file: LetterPacketAttachment) {

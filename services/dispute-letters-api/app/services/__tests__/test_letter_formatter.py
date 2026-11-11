@@ -7,6 +7,7 @@ from io import BytesIO
 
 from app.services.letter_formatter import (
     _blocks_for_enclosures,
+    _group_letter_blocks,
     _inline_pdf,
     letter_layout,
     letter_to_docx,
@@ -46,7 +47,20 @@ Disputed Tradelines
 """
 
 
-def test_layout_keeps_dob_and_ssn_only_in_consumer_identification():
+def test_groups_keep_sections_and_closings_together():
+    layout = letter_layout(SAMPLE)
+    groups = _group_letter_blocks(layout["blocks"])
+    headings = [
+        group
+        for group in groups
+        if group[0].get("variant") == "heading"
+    ]
+    assert headings
+    assert headings[0][0]["text"] == "Consumer Identification"
+    assert headings[0][1]["text"].startswith("Full Name:")
+    signed = letter_layout("Respectfully,\n\nWidji Selphin\n")
+    closing = next(group for group in _group_letter_blocks(signed["blocks"]) if group[0].get("variant") == "closing")
+    assert closing[-1]["variant"] == "signature"
     layout = letter_layout(SAMPLE)
     fields = [block.get("text", "") for block in layout["blocks"] if block.get("variant") == "field"]
     assert fields.count("Date of Birth: January 1, 1990") == 1
