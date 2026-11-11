@@ -14,7 +14,7 @@ import { prospectObservationIsSafe } from './greeting'
 import { lookupMx, type MxResolver } from './mx'
 import type { OutreachStore } from './store'
 import { newIdempotencyKey } from './store'
-import { extractUnsubscribeUrl } from './tokens'
+import { ensureQueueUnsubscribeUrl, extractUnsubscribeUrl } from './tokens'
 import { createUnsubscribeToken, hashUnsubscribeToken, unsubscribeUrl } from './unsubscribe'
 import type { LeadSnapshot, QueueItem } from './types'
 
@@ -375,6 +375,111 @@ export async function recoverStuckQueueForDesk(
   return { released, recovered }
 }
 
+const PROMOTABLE_HOLD_REASONS = new Set([
+  'observation_internal_notes',
+  'unusable_greeting',
+  'missing_first_name',
+  'observation_contains_email',
+  'mx_uncertain',
+  'mx_uncertain_deferred',
+])
+
+function holdReasonCanBecomeReady(reason: string): boolean {
+  if (PROMOTABLE_HOLD_REASONS.has(reason)) return true
+  if (reason.startsWith('retry:')) return true
+  if (reason.startsWith('gmail_')) return true
+  return false
+}
+
+/**
+ * Letters parked as blocked or in review still belong to those leads, so a new
+ * draft is skipped. When the copy is safe now, put the existing letter back in
+ * the ready queue instead of leaving the desk at zero.
+ */
+export async function promoteHeldLetters(store: OutreachStore, limit: number): Promise<number> {
+  if (limit < 1) return 0
+  const settings = await store.getSettings()
+  const now = store.now().toISOString()
+  let promoted = 0
+  const pageSize = 100
+  const statuses: Array<QueueItem['status']> = ['blocked_review', 'needs_review', 'ineligible']
+  for (const status of statuses) {
+    for (let offset = 0; offset < 500 && promoted < limit; offset += pageSize) {
+      const rows = await store.listQueueSummaries({
+        statuses: [status],
+        order: 'queue',
+        limit: pageSize,
+        offset,
+      })
+      if (rows.length === 0) break
+      for (const summary of rows) {
+        if (promoted >= limit) break
+        if (!holdReasonCanBecomeReady(summary.eligibilityReason)) continue
+        const item = await store.getQueueItem(summary.id)
+        if (!item || item.status !== status) continue
+        const lead = await store.getLead(item.leadId)
+        if (!lead || leadNeedsNoDraft(lead)) continue
+        const emailNorm = normalizeEmail(lead.email || item.emailNormalized)
+        const suppression = emailNorm ? await store.findSuppression(emailNorm) : null
+        const reconciliation = await store.findReconciliationForLead({
+          emailNormalized: emailNorm,
+          businessNormalized: normalizeBusinessName(lead.business),
+        })
+        const decision = evaluateEligibility({
+          lead,
+          suppression,
+          reconciliation,
+          existingQueue: null,
+          mx: { kind: 'uncertain', reason: 'mx_deferred_until_dispatch' },
+        })
+        if (!decision.ok) continue
+        const facts = extractGroundedFacts({
+          business: lead.business,
+          first_name: lead.firstName,
+          location_text: lead.locationText,
+          industry: lead.industry,
+          marketing_opportunity: lead.marketingOpportunity,
+          recommended_service: lead.recommendedService,
+          website: lead.website,
+        })
+        if (!facts || !prospectObservationIsSafe(facts.observation)) continue
+        let unsub = extractUnsubscribeUrl(item.htmlBody) || extractUnsubscribeUrl(item.textBody)
+        if (!unsub) {
+          const minted = await ensureQueueUnsubscribeUrl(store, item)
+          unsub = minted.url
+        }
+        const draft = renderDraft({
+          facts,
+          unsubscribeUrl: unsub,
+          physicalMailingAddress: settings.physicalMailingAddress,
+        })
+        const saved = await store.compareAndSwap(item.id, item.status, {
+          groundedFacts: facts,
+          subject: draft.subject,
+          preheader: draft.preheader,
+          htmlBody: draft.html,
+          textBody: draft.text,
+          payloadSha256: payloadSha256({
+            subject: draft.subject,
+            html: draft.html,
+            text: draft.text,
+            to: item.emailNormalized,
+          }),
+          status: 'pending',
+          eligibilityReason: 'eligible',
+          nextAttemptAt: now,
+          claimedBy: null,
+          claimedAt: null,
+          leaseExpiresAt: null,
+        })
+        if (saved) promoted += 1
+      }
+      if (rows.length < pageSize) break
+    }
+  }
+  return promoted
+}
+
 const CANDIDATE_PAGE_SIZE = 100
 /** Stop a refill that keeps receiving the same page. Skipped rows do not count as drafts. */
 const CANDIDATE_SCAN_LIMIT = 20000
@@ -418,6 +523,11 @@ export async function ensureReadyQueue(
   result.released = released
   result.recovered = recovered
   let claimable = await pendingReadyCount(store)
+  if (claimable < size) {
+    const promoted = await promoteHeldLetters(store, size - claimable)
+    result.recovered += promoted
+    if (promoted > 0) claimable = await pendingReadyCount(store)
+  }
   if (claimable >= size || maxCandidates < 1) return result
 
   const queued = await store.listQueuedLeadKeys()

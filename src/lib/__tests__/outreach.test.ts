@@ -643,6 +643,106 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(queuedIds.has('fresh-b'), true)
   })
 
+  it('puts a held observation letter back in the ready queue', async () => {
+    const held = lead({
+      id: 'held-1',
+      business: 'Held Shop',
+      email: 'held@example.test',
+      marketingOpportunity: 'Unclaimed GBP and local SEO score 12',
+    })
+    const store = createMemoryOutreachStore({ leads: [held] })
+    const now = '2026-11-01T00:00:00.000Z'
+    const unsub = 'https://www.sundayharmony.com/unsubscribe/abcdefghijklmnop'
+    const inserted = await store.insertQueue({
+      id: 'queued-held-1',
+      campaignId: 'camp-prospect-intro',
+      templateVersionId: 'tpl-1',
+      leadId: held.id,
+      emailRaw: held.email || '',
+      emailNormalized: held.email || '',
+      status: 'blocked_review',
+      eligibilityReason: 'observation_internal_notes',
+      groundedFacts: {} as QueueItem['groundedFacts'],
+      subject: 'Old subject',
+      preheader: '',
+      htmlBody: `<p><a href="${unsub}">Unsubscribe</a></p>`,
+      textBody: unsub,
+      payloadSha256: 'sha-held',
+      providerIdempotencyKey: 'idem-held',
+      providerMessageId: null,
+      providerThreadId: null,
+      attemptCount: 0,
+      maxAttempts: 5,
+      nextAttemptAt: now,
+      claimedBy: null,
+      claimedAt: null,
+      leaseExpiresAt: null,
+      acceptedAt: null,
+      deliveredAt: null,
+      bouncedAt: null,
+      contactedLeadUpdatedAt: null,
+      attachmentFilename: 'Sunday-Harmony-Consulting-company-presentation.pdf',
+      createdAt: now,
+      updatedAt: now,
+    })
+    assert.equal(inserted.ok, true)
+    const filled = await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 1,
+      maxCandidates: 1,
+      refreshLimit: 1,
+    })
+    assert.equal(filled.recovered, 1)
+    assert.equal(filled.enqueued, 0)
+    assert.equal(await pendingReadyCount(store), 1)
+    const letter = (await store.listQueue()).find((row) => row.id === 'queued-held-1')
+    assert.equal(letter?.status, 'pending')
+    assert.doesNotMatch(letter?.textBody || '', /GBP|SEO/i)
+  })
+
+  it('leaves a null MX letter out of the ready queue', async () => {
+    const dead = lead({ id: 'dead-1', business: 'Dead Shop', email: 'dead@example.test' })
+    const store = createMemoryOutreachStore({ leads: [dead] })
+    const now = '2026-11-01T00:00:00.000Z'
+    await store.insertQueue({
+      id: 'queued-dead-1',
+      campaignId: 'camp-prospect-intro',
+      templateVersionId: 'tpl-1',
+      leadId: dead.id,
+      emailRaw: dead.email || '',
+      emailNormalized: dead.email || '',
+      status: 'ineligible',
+      eligibilityReason: 'null_mx',
+      groundedFacts: {} as QueueItem['groundedFacts'],
+      subject: 'Old subject',
+      preheader: '',
+      htmlBody: '',
+      textBody: '',
+      payloadSha256: 'sha-dead',
+      providerIdempotencyKey: 'idem-dead',
+      providerMessageId: null,
+      providerThreadId: null,
+      attemptCount: 0,
+      maxAttempts: 5,
+      nextAttemptAt: now,
+      claimedBy: null,
+      claimedAt: null,
+      leaseExpiresAt: null,
+      acceptedAt: null,
+      deliveredAt: null,
+      bouncedAt: null,
+      contactedLeadUpdatedAt: null,
+      attachmentFilename: 'Sunday-Harmony-Consulting-company-presentation.pdf',
+      createdAt: now,
+      updatedAt: now,
+    })
+    const filled = await ensureReadyQueue(store, { mxResolver: mxOk, size: 1, maxCandidates: 5 })
+    assert.equal(filled.recovered, 0)
+    assert.equal(filled.enqueued, 0)
+    assert.equal(await pendingReadyCount(store), 0)
+    assert.equal((await store.listQueue())[0]?.status, 'ineligible')
+  })
+
   it('shows a short sent history and no ready letters when the queue is already sent', async () => {
     const leads = manyLeads(OUTREACH_SENT_DESK_LIMIT + 1)
     const store = createMemoryOutreachStore({ leads })

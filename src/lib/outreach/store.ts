@@ -32,6 +32,7 @@ import type {
 export type QueueSummaryQuery = {
   statuses?: QueueStatus[]
   limit?: number
+  offset?: number
   /** queue: next attempt time ascending. recent: accepted time descending. */
   order?: 'queue' | 'recent'
 }
@@ -340,7 +341,9 @@ export function createMemoryOutreachStore(options?: {
           return aKey.localeCompare(bKey) || a.id.localeCompare(b.id)
         })
       }
-      if (query?.limit && query.limit > 0) rows = rows.slice(0, query.limit)
+      const offset = Math.max(query?.offset ?? 0, 0)
+      if (query?.limit && query.limit > 0) return rows.slice(offset, offset + query.limit)
+      if (offset > 0) return rows.slice(offset)
       return rows
     },
     async countQueueByStatus(status) {

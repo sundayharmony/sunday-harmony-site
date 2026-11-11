@@ -1,6 +1,5 @@
 import { legacyLeadStatusForStage, marketingStatusForStage, type PipelineStage } from '@/lib/marketing-pipeline'
 import { getSupabase } from '@/lib/supabase'
-import { CONTACTED_PIPELINE_STAGES } from './eligibility'
 import type { LeadCandidateQuery, OutreachStore, QueueSummaryQuery } from './store'
 import type {
   AuditEvent,
@@ -25,8 +24,6 @@ const QUEUE_SUMMARY_COLUMNS =
 
 const LEAD_CANDIDATE_COLUMNS =
   'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
-
-const CONTACTED_STAGE_FILTER = CONTACTED_PIPELINE_STAGES.join(',')
 
 function mapSettings(row: Record<string, unknown>): OutreachSettings {
   return {
@@ -432,7 +429,12 @@ export function createSupabaseOutreachStore(): OutreachStore {
       } else {
         request = request.order('created_at', { ascending: false })
       }
-      if (query?.limit && query.limit > 0) request = request.limit(query.limit)
+      if (query?.limit && query.limit > 0) {
+        const offset = Math.max(query.offset ?? 0, 0)
+        request = request.range(offset, offset + query.limit - 1)
+      } else if (query?.offset && query.offset > 0) {
+        request = request.range(query.offset, query.offset + 999)
+      }
       const { data, error } = await request
       if (error) throw new Error(error.message)
       return ((data || []) as Array<Record<string, unknown>>).map(mapQueue)
@@ -589,42 +591,32 @@ export function createSupabaseOutreachStore(): OutreachStore {
       return data ? leadRowToSnapshot(data as Record<string, unknown>) : null
     },
     async listEligibleLeadCandidates(query?: LeadCandidateQuery) {
-      const limit = Math.min(Math.max(query?.limit ?? 40, 1), 200)
+      const limit = Math.min(Math.max(query?.limit ?? 100, 1), 200)
       const offset = Math.max(query?.offset ?? 0, 0)
-      const load = async (mode: 'fresh' | 'untouched' | 'any') => {
-        const columns =
-          mode === 'fresh' ? `${LEAD_CANDIDATE_COLUMNS},outreach_queue!left(lead_id)` : LEAD_CANDIDATE_COLUMNS
-        let request = db().from('leads').select(columns).eq('lead_type', 'marketing_lead')
-        if (mode !== 'any') {
+      const load = async (untouched: boolean) => {
+        let request = db().from('leads').select(LEAD_CANDIDATE_COLUMNS).eq('lead_type', 'marketing_lead')
+        if (untouched) {
           request = request
             .not('email', 'is', null)
             .neq('email', '')
             .is('last_contacted_at', null)
             .is('gmail_thread_id', null)
-            .or(`pipeline_stage.is.null,pipeline_stage.not.in.(${CONTACTED_STAGE_FILTER})`)
         }
-        if (mode === 'fresh') request = request.is('outreach_queue', null)
-        return request.order('created_at', { ascending: true }).range(offset, offset + limit - 1)
+        // Newest prospects first. The oldest rows are the ones already queued.
+        return request
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(offset, offset + limit - 1)
       }
-      if (query?.untouched) {
-        const fresh = await load('fresh')
-        if (!fresh.error) {
-          return ((fresh.data || []) as unknown as Array<Record<string, unknown>>)
-            .filter((row) => !Array.isArray(row.outreach_queue) || row.outreach_queue.length === 0)
-            .map(leadRowToSnapshot)
-            .filter((row): row is LeadSnapshot => Boolean(row))
-        }
-        console.error('outreach fresh-lead filter failed; paging untouched leads', fresh.error.message)
-      }
-      let { data, error } = await load('untouched')
-      if (error) {
+      let { data, error } = await load(Boolean(query?.untouched))
+      if (error && query?.untouched) {
         console.error('outreach candidate filter failed; paging the marketing book', error.message)
-        const fallback = await load('any')
+        const fallback = await load(false)
         data = fallback.data
         error = fallback.error
       }
       if (error) throw new Error(error.message)
-      return ((data || []) as unknown as Array<Record<string, unknown>>)
+      return ((data || []) as Array<Record<string, unknown>>)
         .map(leadRowToSnapshot)
         .filter((row): row is LeadSnapshot => Boolean(row))
     },
