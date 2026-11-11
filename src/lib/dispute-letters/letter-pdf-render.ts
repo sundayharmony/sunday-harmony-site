@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { pdfSafeText } from '@/lib/credit-intelligence-pdf'
 import { letterLayout } from '@/lib/dispute-letters/letter-layout'
 import type { LetterPacketAttachment } from '@/lib/dispute-letters/letter-identity-attachments'
@@ -5,6 +7,12 @@ import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import type { GeneratedLetter, LetterPreviewBlock, LetterPreviewLayout } from '@/lib/dispute-letters/types'
 import { PDFDocument } from 'pdf-lib'
 import PDFDocumentKit from 'pdfkit'
+
+/** Same cursive face the on-screen preview and the Python letter use. */
+const SIGNATURE_FONT = join(
+  process.cwd(),
+  'services/dispute-letters-api/assets/fonts/GreatVibes-Regular.ttf'
+)
 
 const PAGE_WIDTH = 612
 const PAGE_HEIGHT = 792
@@ -56,39 +64,104 @@ export function renderLetterPreviewPdf(layout: LetterPreviewLayout): Promise<Uin
   })
 }
 
+type InlinePart = { bold: boolean; text: string }
+
+/** Turn **account titles** into bold spans so the PDF never prints the asterisks. */
+export function letterInlineParts(text: string): InlinePart[] {
+  const parts: InlinePart[] = []
+  for (const part of (text || '').split(/(\*\*[^*]+\*\*)/g)) {
+    if (!part) continue
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      const inner = pdfSafeText(part.slice(2, -2))
+      if (inner) parts.push({ bold: true, text: inner })
+      continue
+    }
+    const plain = pdfSafeText(part)
+    if (plain) parts.push({ bold: false, text: plain })
+  }
+  return parts
+}
+
+function drawInline(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  options: { indent?: number; lineGap?: number; boldAll?: boolean; prefix?: string }
+) {
+  const parts = letterInlineParts(options.prefix ? `${options.prefix}${text}` : text)
+  if (!parts.length) {
+    doc.font('Times-Roman').fontSize(12).text(' ')
+    return
+  }
+  parts.forEach((part, index) => {
+    doc
+      .font(options.boldAll || part.bold ? 'Times-Bold' : 'Times-Roman')
+      .fontSize(12)
+      .fillColor('#111111')
+      .text(part.text, {
+        indent: index === 0 ? options.indent || 0 : 0,
+        lineGap: options.lineGap,
+        continued: index < parts.length - 1,
+      })
+  })
+}
+
+function drawSignature(doc: PDFKit.PDFDocument, name: string) {
+  const clean = letterInlineParts(name)
+    .map((part) => part.text)
+    .join('')
+    .trim()
+  doc.moveDown(1.1)
+  const left = doc.page.margins.left
+  const width = doc.page.width - doc.page.margins.left - doc.page.margins.right
+  const y = doc.y
+  doc.font('Times-Bold').fontSize(12).fillColor('#111111').text(clean || ' ', left, y, {
+    width: width * 0.48,
+    align: 'left',
+  })
+  const afterName = doc.y
+  const script = existsSync(SIGNATURE_FONT) && clean && !clean.startsWith('[')
+  if (script) {
+    doc.font(SIGNATURE_FONT).fontSize(22).fillColor('#141414').text(clean, left + width * 0.4, Math.max(y - 10, doc.page.margins.top), {
+      width: width * 0.6,
+      align: 'right',
+      lineBreak: false,
+    })
+  } else if (clean) {
+    doc.font('Times-Italic').fontSize(16).fillColor('#141414').text(clean, left + width * 0.4, y, {
+      width: width * 0.6,
+      align: 'right',
+    })
+  }
+  doc.x = left
+  doc.y = Math.max(doc.y, afterName) + 6
+}
+
 function drawBlock(doc: PDFKit.PDFDocument, block: LetterPreviewBlock) {
   if (block.kind === 'spacer') {
     doc.moveDown(0.55)
     return
   }
   if (block.kind === 'bullet') {
-    doc.font('Times-Roman').fontSize(12).fillColor('#111111')
-    doc.text(pdfSafeText(`- ${block.text}`), { indent: 16 })
+    drawInline(doc, block.text, { indent: 16, prefix: '- ' })
     return
   }
-  const text = pdfSafeText(block.text || '')
   const indent = (block.indent || 0) * 18
-  if (block.variant === 'heading') {
-    doc.moveDown(0.45)
-    doc.font('Times-Bold').fontSize(12).text(text, { indent })
-    return
-  }
-  if (block.variant === 'name') {
-    doc.font('Times-Bold').fontSize(12).text(text, { indent })
+  if (block.variant === 'heading' || block.variant === 'name') {
+    if (block.variant === 'heading') doc.moveDown(0.45)
+    drawInline(doc, block.text || '', { indent, boldAll: true })
     return
   }
   if (block.variant === 'closing') {
     doc.moveDown(0.6)
-    doc.font('Times-Roman').fontSize(12).text(text, { indent })
+    drawInline(doc, block.text || '', { indent })
     return
   }
   if (block.variant === 'signature') {
-    doc.moveDown(1.1)
-    doc.font('Times-Italic').fontSize(12).text(text, { indent })
+    drawSignature(doc, block.text || '')
     return
   }
   const tight = block.variant === 'tight' || block.variant === 'field'
-  doc.font('Times-Roman').fontSize(12).text(text, { indent, lineGap: tight ? 1 : 3 })
+  drawInline(doc, block.text || '', { indent, lineGap: tight ? 1 : 3 })
 }
 
 async function appendAttachment(doc: PDFDocument, file: LetterPacketAttachment) {

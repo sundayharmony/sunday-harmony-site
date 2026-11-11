@@ -201,8 +201,6 @@ class ExtractedDocument(BaseModel):
     page_count: int | None = None
     ocr_used: bool = False
     extraction_quality: ExtractionQuality = "medium"
-    # Per-page text from the same read that built `text`. Empty for non-PDF ingests.
-    pages: list[str] = Field(default_factory=list)
 
 
 class TradelineSelection(BaseModel):

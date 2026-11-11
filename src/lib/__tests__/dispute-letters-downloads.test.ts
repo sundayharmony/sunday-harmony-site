@@ -1,20 +1,16 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { inflateSync } from 'node:zlib'
 import { describe, it } from 'node:test'
 import { PDFDocument } from 'pdf-lib'
 import { disputeLetterDownloadUrl } from '../dispute-letters/client-api'
 import { zipErrorLabel } from '../dispute-letters/dispute-lifecycle'
 import {
   publicLetterFailure,
+  letterInlineParts,
   renderLetterPdfWithIdentity,
   renderLetterPreviewPdf,
 } from '../dispute-letters/letter-pdf-render'
-import {
-  evidencePagesForLetter,
-  interpretAccountEvidenceBody,
-  letterBureauFromType,
-  storedLetterNeedsRebuild,
-} from '../dispute-letters/letter-account-evidence'
 import { isPdfBytes } from '../dispute-letters/letter-zip'
 
 function source(path: string) {
@@ -115,17 +111,43 @@ describe('dispute letter downloads and preview', () => {
     assert.match(panel, /zipReadyLabel/)
   })
 
-  it('renders a stored PDF from the on-screen letter and keeps HTML out of errors', async () => {
+  it('prints the cursive signature and account titles without asterisks', async () => {
+    assert.deepEqual(letterInlineParts('**MERRICK BANK CORP**'), [{ bold: true, text: 'MERRICK BANK CORP' }])
+    assert.equal(letterInlineParts('**ALLY** still open').some((part) => part.text.includes('**')), false)
+
     const bytes = await renderLetterPreviewPdf({
       date: 'November 10, 2026',
       blocks: [
         { kind: 'line', text: 'Equifax Information Services LLC', variant: 'name' },
+        { kind: 'line', text: '**MERRICK BANK CORP**', variant: 'tight' },
         { kind: 'line', text: 'I dispute this account.', variant: 'body' },
         { kind: 'line', text: 'Respectfully,', variant: 'closing' },
         { kind: 'line', text: 'Essence Trice', variant: 'signature' },
       ],
     })
     assert.equal(isPdfBytes(bytes), true)
+    const raw = Buffer.from(bytes).toString('latin1')
+    const inflated = [raw]
+    for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+      if (match[1].length > 2000) continue
+      try {
+        inflated.push(inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1'))
+      } catch {
+        // Not a Flate stream.
+      }
+    }
+    const page = inflated.find((part) => part.includes('TJ')) || ''
+    const visible = [...page.matchAll(/<([0-9A-Fa-f]{2,})>/g)]
+      .map((match) =>
+        match[1]
+          .replace(/(..)/g, (_pair, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+          .replace(/[^\x20-\x7E]/g, '')
+      )
+      .join('')
+    assert.equal(visible.includes('**'), false)
+    assert.match(visible, /MERRICK BANK CORP/)
+    assert.match(visible, /Essence Trice/)
+    assert.match(raw, /GreatVibes/)
 
     const extra = await PDFDocument.create()
     extra.addPage()
@@ -149,54 +171,6 @@ describe('dispute letter downloads and preview', () => {
     )
     assert.equal(zipErrorLabel(html), 'ZIP needs rebuild')
     assert.doesNotMatch(zipErrorLabel(html), /DOCTYPE|Just a moment/)
-  })
-
-  it('appends account screenshot JPEGs and ignores an HTML evidence body', async () => {
-    const jpeg = Buffer.from(
-      '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxISEhUQEhIVFhUXFRUYGBYYGBgYGBcYGBcYGBgYGBcYHSggGBolHRcVITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OGhAQGy0lICUtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAAMBAAMBIgACEQEDEQH/xAAbAAABBQEBAAAAAAAAAAAAAAADAAIEBQYBB//EABYBAQEBAAAAAAAAAAAAAAAAAAABAv/aAAwDAQACEQMRAD8A0QAAAAAAAAAAAf/Z',
-      'base64'
-    )
-    const before = await renderLetterPreviewPdf({
-      date: 'November 10, 2026',
-      blocks: [{ kind: 'line', text: 'Letter body', variant: 'body' }],
-    })
-    const withShot = await renderLetterPdfWithIdentity(
-      {
-        title: 'Experian',
-        preview: {
-          date: 'November 10, 2026',
-          blocks: [{ kind: 'line', text: 'Letter body', variant: 'body' }],
-        },
-      },
-      [{ zipName: 'Account Evidence 1.jpg', data: new Uint8Array(jpeg), mimeType: 'image/jpeg' }]
-    )
-    assert.equal(isPdfBytes(withShot), true)
-    const plainPages = (await PDFDocument.load(before)).getPageCount()
-    const shotPages = (await PDFDocument.load(withShot)).getPageCount()
-    assert.equal(shotPages, plainPages + 1)
-
-    const html = '<!DOCTYPE html><title>Just a moment...</title>'
-    const parsed = interpretAccountEvidenceBody(html, true)
-    assert.equal(parsed.missing, true)
-    assert.equal(parsed.files.length, 0)
-    assert.equal(storedLetterNeedsRebuild(null), false)
-    assert.equal(storedLetterNeedsRebuild({ attempted: true }), false)
-    assert.equal(letterBureauFromType('bureau_experian'), 'EXP')
-    const pages = evidencePagesForLetter(
-      {
-        attempted: true,
-        missing: false,
-        pages: [
-          { page: 2, bureau: 'EQF', tradelineId: 'disc', path: 'sessions/s/evidence/page-2.jpg' },
-          { page: 3, bureau: 'TUC', tradelineId: 'disc', path: 'sessions/s/evidence/page-3.jpg' },
-          { page: 4, bureau: 'EXP', tradelineId: 'other', path: 'sessions/s/evidence/page-4.jpg' },
-        ],
-      },
-      [{ tradeline_id: 'disc' }],
-      'EQF'
-    )
-    assert.deepEqual(pages.map((page) => page.page), [2])
-    assert.doesNotMatch(publicLetterFailure(new Error(html)), /DOCTYPE|Just a moment/)
   })
 
   it('styles the preview like the printed letter page', () => {

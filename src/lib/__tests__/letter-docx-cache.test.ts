@@ -23,6 +23,7 @@ describe('stored letter pdf paths', () => {
     assert.match(path, /\.pdf$/)
     assert.equal(isStoredLetterDocxPath(SESSION, path), true)
     assert.equal(isStoredLetterDocxPath(SESSION, `${path}.txt`), false)
+    assert.equal(isStoredLetterDocxPath(SESSION, `sessions/${SESSION}/letters/letter-1.pdf`), false)
     assert.equal(isStoredLetterDocxPath(SESSION, `sessions/${SESSION}/letters/letter-1.docx`), false)
     assert.equal(isStoredLetterDocxPath(SESSION, `sessions/${SESSION}/letters/letter-1.txt`), false)
     assert.equal(isStoredLetterDocxPath(SESSION, '/tmp/letters/session/plan.letter'), false)
