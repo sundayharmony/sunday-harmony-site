@@ -319,11 +319,36 @@ def _signature_image_html(name: str) -> str | None:
     )
 
 
+_OPENING_SENSITIVE_RE = re.compile(
+    r"^(?:Date of Birth|Social Security Number|SSN)\s*:",
+    re.I,
+)
+
+
+def _drop_opening_sensitive_lines(lines: list[str]) -> list[str]:
+    """Birthday and Social Security number belong only in Consumer Identification."""
+    id_index = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.strip() in {"Consumer Identification", "CONSUMER INFORMATION"}
+        ),
+        -1,
+    )
+    if id_index < 0:
+        return lines
+    return [
+        line
+        for i, line in enumerate(lines)
+        if i >= id_index or not _OPENING_SENSITIVE_RE.match(line.strip())
+    ]
+
+
 def letter_layout(text: str) -> dict:
     """Shared structure for HTML preview, React preview, and .docx export."""
     body = normalize_letter_source(text)
     letter_date = _extract_letter_date(body)
-    lines = body.splitlines()
+    lines = _drop_opening_sensitive_lines(body.splitlines())
     start = 0
     if lines and _DATE_LINE_RE.match(lines[0].strip()):
         start = 1
@@ -808,13 +833,13 @@ def _add_header_page_counter(document, letter_date: str) -> None:
     from docx.shared import Inches, Pt
 
     for section in document.sections:
-        section.top_margin = Inches(1)
+        section.top_margin = Inches(1.45)
         section.bottom_margin = Inches(1)
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
         section.page_width = Inches(8.5)
         section.page_height = Inches(11)
-        section.header_distance = Inches(0.45)
+        section.header_distance = Inches(1)
         section.different_first_page_header_footer = False
 
         header = section.header
@@ -993,10 +1018,11 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
             for state in self._saved_page_states:
                 self.__dict__.update(state)
                 self.setFont("Times-Roman", 10)
-                self.drawString(inch, letter_page[1] - 0.55 * inch, letter_date)
+                # Baseline sits 1in below the top edge so the date and page number are not cramped.
+                self.drawString(inch, letter_page[1] - inch, letter_date)
                 self.drawRightString(
                     letter_page[0] - inch,
-                    letter_page[1] - 0.55 * inch,
+                    letter_page[1] - inch,
                     f"Page {self._pageNumber} of {total}",
                 )
                 pdf_canvas.Canvas.showPage(self)
@@ -1007,7 +1033,7 @@ def letter_to_pdf(text: str, enclosure_files: list[tuple[str, bytes]] | None = N
         pagesize=letter_page,
         leftMargin=inch,
         rightMargin=inch,
-        topMargin=0.85 * inch,
+        topMargin=1.55 * inch,
         bottomMargin=0.75 * inch,
     )
 

@@ -148,6 +148,18 @@ function isTightLine(display: string, heading: boolean, nameLine: boolean, field
   return fieldLine || (!heading && !nameLine && !closing && display.length < 70 && !display.includes(':'))
 }
 
+const OPENING_SENSITIVE_RE = /^(?:Date of Birth|Social Security Number|SSN)\s*:/i
+
+/** Birthday and Social Security number belong only in Consumer Identification. */
+function dropOpeningSensitiveLines(lines: string[]): string[] {
+  const idIndex = lines.findIndex((line) => {
+    const trimmed = line.trim()
+    return trimmed === 'Consumer Identification' || trimmed === 'CONSUMER INFORMATION'
+  })
+  if (idIndex < 0) return lines
+  return lines.filter((line, index) => index >= idIndex || !OPENING_SENSITIVE_RE.test(line.trim()))
+}
+
 function extractLetterDate(body: string): string {
   for (const line of body.split('\n').slice(0, 8)) {
     if (DATE_LINE_RE.test(line.trim())) return line.trim()
@@ -159,7 +171,7 @@ function extractLetterDate(body: string): string {
 export function letterLayout(text: string): LetterPreviewLayout {
   const body = normalizeLetterSource(text || '')
   const date = extractLetterDate(body)
-  const lines = body.split('\n')
+  const lines = dropOpeningSensitiveLines(body.split('\n'))
   let start = 0
   if (lines[0] && DATE_LINE_RE.test(lines[0].trim())) {
     start = 1

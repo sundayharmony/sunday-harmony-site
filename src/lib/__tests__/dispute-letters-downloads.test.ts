@@ -207,7 +207,7 @@ describe('dispute letter downloads and preview', () => {
     const css = source('src/components/dispute-letters/letter-preview.css')
     assert.match(css, /width:\s*8\.5in/)
     assert.match(css, /min-height:\s*11in/)
-    assert.match(css, /padding:\s*0\.5in 1in 1in/)
+    assert.match(css, /padding:\s*1in;/)
     assert.match(css, /Times New Roman/)
     assert.match(css, /font-size:\s*12pt/)
   })

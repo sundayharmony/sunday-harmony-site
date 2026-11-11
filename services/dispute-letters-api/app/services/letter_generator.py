@@ -39,14 +39,6 @@ def _format_dob_for_letter(consumer: ConsumerInfo) -> str:
     return (consumer.dob or "").strip() or "Not Provided"
 
 
-def _identity_header_lines(consumer: ConsumerInfo) -> str:
-    """DOB + SSN directly under the consumer address at the top of the letter."""
-    return (
-        f"Date of Birth: {_format_dob_for_letter(consumer)}\n"
-        f"Social Security Number: {_format_ssn_for_letter(consumer)}"
-    )
-
-
 _DISPUTE_OPENER_RE = re.compile(
     r"\bi\s+dispute(?:\s+this\s+tradeline)?\s+as\s+inaccurate\s+and\s+unverifiable\b",
     re.I,
@@ -306,14 +298,10 @@ FORMAT: match a polished mailed business letter (like a finished Experian disput
 1) First line: today's date as Month DD, YYYY (e.g. July 24, 2026). Do NOT write "Page X/Y". Pagination is added when printing.
 2) Blank line, then consumer full name in ALL CAPS on its own line.
 3) Consumer current address on the following lines (street, unit if any, city/state/ZIP). No labels here.
-4) Immediately after the address (still in the opening identity block, before the recipient), include BOTH labeled lines:
-   Date of Birth: ...
-   Social Security Number: ...
-   Use the DOB and SSN values provided above. Prefer the full Social Security Number (XXX-XX-XXXX). Only if a full SSN is unavailable and last-4 alone was provided, format as XXX-XX-1234. Never invent a DOB or SSN.
-5) Blank line, then recipient name, then recipient address lines.
-6) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
+4) Blank line, then recipient name, then recipient address lines. Do NOT put Date of Birth or Social Security Number in this opening block.
+5) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
    Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
-7) Blank line, then salutation: "Dear Sir or Madam:"
+6) Blank line, then salutation: "Dear Sir or Madam:"
 8) One or two short opening paragraphs stating this is a formal dispute under {plan.statute}, requesting a reasonable reinvestigation{opening_ask}.
 
 9) Section heading on its own line (Title Case, NOT ALL CAPS): Consumer Identification
@@ -358,7 +346,7 @@ Rules:
 - Do NOT use markdown headers (#), numbered lists, or italic *emphasis*. Only **bold** on creditor name lines.
 - Use "● " for bullets under Additional Addresses and Statutory Requirements.
 - Do NOT invent facts not provided (balances, statuses, addresses, account numbers, DOB, SSN).
-- Date of Birth and Social Security Number MUST appear in the opening identity block under the consumer address AND again under Consumer Identification.
+- Date of Birth and Social Security Number appear only in the Consumer Identification section. Do not repeat them under the name and address at the top. Prefer the full Social Security Number (XXX-XX-XXXX). Only if a full SSN is unavailable and last-4 alone was provided, format as XXX-XX-1234. Never invent a DOB or SSN.
 - Do NOT guarantee deletion or score improvement.
 - Do NOT use em dashes (—), en dashes (–), or a spaced hyphen as punctuation. Use a comma or a period. Keep hyphens only inside words such as charge-off.
 - Output ONLY the letter body (no code fences, no commentary).
@@ -567,7 +555,6 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"Please mail written confirmation of your investigation results to the address listed above."
         )
 
-    identity_header = _identity_header_lines(consumer)
     dob = _format_dob_for_letter(consumer)
     ssn = _format_ssn_for_letter(consumer)
 
@@ -575,7 +562,6 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
 
 {name_caps}
 {current_addr}
-{identity_header}
 
 {plan.recipient_name}
 {addr}

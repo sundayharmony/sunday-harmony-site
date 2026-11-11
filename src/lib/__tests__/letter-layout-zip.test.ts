@@ -111,6 +111,31 @@ Enclosures
       true
     )
   })
+
+  it('keeps birthday and social security number only in Consumer Identification', () => {
+    const layout = letterLayout(`September 12, 2026
+
+JANE CONSUMER
+123 MAIN STREET
+Date of Birth: January 15, 1988
+Social Security Number: 123-45-6789
+
+EXPERIAN
+
+Consumer Identification
+Full Name: Jane Consumer
+Date of Birth: January 15, 1988
+Social Security Number: 123-45-6789
+`)
+    const lines = layout.blocks.filter((block) => block.kind === 'line')
+    const dob = lines.filter((block) => block.text.startsWith('Date of Birth:'))
+    const ssn = lines.filter((block) => block.text.startsWith('Social Security Number:'))
+    assert.equal(dob.length, 1)
+    assert.equal(ssn.length, 1)
+    const idIndex = lines.findIndex((block) => block.text === 'Consumer Identification')
+    const dobIndex = lines.findIndex((block) => block.text.startsWith('Date of Birth:'))
+    assert.ok(idIndex >= 0 && dobIndex > idIndex)
+  })
 })
 
 describe('letter zip packaging', () => {

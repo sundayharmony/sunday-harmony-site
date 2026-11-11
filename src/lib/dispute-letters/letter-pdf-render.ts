@@ -44,7 +44,7 @@ function renderLetterBody(layout: LetterPreviewLayout): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocumentKit({
       size: 'LETTER',
-      margins: { top: 76, bottom: 72, left: 72, right: 72 },
+      margins: { top: 120, bottom: 72, left: 72, right: 72 },
     })
     const chunks: Buffer[] = []
     doc.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -72,20 +72,22 @@ export async function stampLetterPageNumbers(bytes: Uint8Array, date: string): P
     const { width, height } = page.getSize()
     const label = `Page ${index + 1} of ${total}`
     const labelWidth = font.widthOfTextAtSize(label, size)
+    // Baseline sits 1in below the top edge so the date and page number are not cramped.
+    const baseline = height - 72
     page.drawRectangle({
       x: 0,
-      y: height - 34,
+      y: height - 96,
       width,
-      height: 34,
+      height: 96,
       color: rgb(1, 1, 1),
     })
     const dateWidth = labelDate ? font.widthOfTextAtSize(labelDate, size) : 0
     if (labelDate && 72 + dateWidth + 12 < width - 72 - labelWidth) {
-      page.drawText(labelDate, { x: 72, y: height - 22, size, font, color: ink })
+      page.drawText(labelDate, { x: 72, y: baseline, size, font, color: ink })
     }
     page.drawText(label, {
       x: Math.max(36, width - 72 - labelWidth),
-      y: height - 22,
+      y: baseline,
       size,
       font,
       color: ink,

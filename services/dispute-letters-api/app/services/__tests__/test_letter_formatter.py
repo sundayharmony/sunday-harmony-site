@@ -46,7 +46,13 @@ Disputed Tradelines
 """
 
 
-def test_layout_puts_date_in_header_not_body():
+def test_layout_keeps_dob_and_ssn_only_in_consumer_identification():
+    layout = letter_layout(SAMPLE)
+    fields = [block.get("text", "") for block in layout["blocks"] if block.get("variant") == "field"]
+    assert fields.count("Date of Birth: January 1, 1990") == 1
+    assert fields.count("Social Security Number: XXX-XX-1234") == 1
+    texts = [block.get("text", "") for block in layout["blocks"]]
+    assert texts.index("Consumer Identification") < texts.index("Date of Birth: January 1, 1990")
     layout = letter_layout(SAMPLE)
     assert layout["date"] == "September 12, 2026"
     body_text = "\n".join(block.get("text", "") for block in layout["blocks"] if block["kind"] != "spacer")

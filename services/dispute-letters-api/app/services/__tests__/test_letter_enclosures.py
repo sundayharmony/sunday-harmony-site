@@ -81,7 +81,7 @@ def test_template_lists_photo_id_and_address_enclosures():
     assert all("screenshot" not in bullet.lower() for bullet in bullets)
 
 
-def test_template_puts_dob_and_ssn_at_letter_beginning():
+def test_template_keeps_dob_and_ssn_in_consumer_identification():
     text = _template_fallback(
         _plan(),
         ConsumerInfo(
@@ -94,12 +94,12 @@ def test_template_puts_dob_and_ssn_at_letter_beginning():
     )
     header_end = text.index("Experian")
     opening = text[:header_end]
-    assert "Date of Birth: January 15, 1988" in opening
-    assert "Social Security Number: 123-45-6789" in opening
-    assert opening.index("JANE CONSUMER") < opening.index("Date of Birth:")
-    assert opening.index("Date of Birth:") < opening.index("Social Security Number:")
-    assert "Date of Birth: January 15, 1988" in text.split("Consumer Identification", 1)[1]
-    assert "Social Security Number: 123-45-6789" in text.split("Consumer Identification", 1)[1]
+    assert "JANE CONSUMER" in opening
+    assert "Date of Birth:" not in opening
+    assert "Social Security Number:" not in opening
+    identified = text.split("Consumer Identification", 1)[1]
+    assert "Date of Birth: January 15, 1988" in identified
+    assert "Social Security Number: 123-45-6789" in identified
     layout = letter_layout(text)
     fields = [
         block.get("text", "")
@@ -133,7 +133,7 @@ def test_prompt_requires_identity_enclosures():
     assert "Do NOT use em dashes" in prompt
     assert "Date of Birth" in prompt
     assert "Social Security Number" in prompt
-    assert "opening identity block" in prompt
+    assert "only in the Consumer Identification section" in prompt
 
 
 def test_template_and_cleanup_drop_sentence_em_dashes():
