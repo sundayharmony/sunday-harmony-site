@@ -27,7 +27,6 @@ from app.db import (
     update_session_report,
 )
 from app.ingest.router import detect_file_type, ingest_file
-from app.services.account_evidence_store import store_account_evidence
 from app.models import (
     ConsumerUpdateRequest,
     DisputePlanFromReportRequest,
@@ -195,16 +194,6 @@ async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -
         temp_path = await asyncio.to_thread(write_temp_report, storage_path, ext)
         doc = await asyncio.to_thread(ingest_file, temp_path)
         report = await analyze_report_async(doc, allow_fallback=True, file_name=file_name)
-        pdf_path = str(temp_path) if temp_path and temp_path.suffix.lower() == ".pdf" else ""
-        # Images are saved before the session is marked ready. A failed render
-        # still writes a manifest and does not fail the analysis.
-        await asyncio.to_thread(
-            store_account_evidence,
-            session_id,
-            report,
-            pdf_path,
-            list(doc.pages or []),
-        )
         update_session_report(session_id, report, file_type=doc.file_type)
         return {
             "status": "complete",
@@ -623,7 +612,7 @@ def _letter_files_for_download(
     letter,
     uploaded: list[tuple[str, bytes]] | None = None,
     *,
-    include_evidence: bool = True,
+    include_evidence: bool = False,
 ):
     from app.services.letter_download import letter_files_for_download
 
@@ -669,7 +658,7 @@ def _build_letter_download(
     format: str,
     uploaded: list[tuple[str, bytes]] | None = None,
     *,
-    include_evidence: bool = True,
+    include_evidence: bool = False,
 ):
     """CPU/memory-heavy PDF build — keep off the asyncio event loop."""
     body = finalize_letter(letter.markdown)
@@ -695,17 +684,9 @@ async def account_evidence(
     letter_id: str,
     _: None = Depends(verify_internal_secret),
 ):
-    """Report-page JPEGs for this letter. Does not build the letter PDF."""
-    letter = await asyncio.to_thread(get_letter, session_id, letter_id)
-    if not letter:
-        raise HTTPException(404, "Letter not found")
-    from app.services.report_screenshots import (
-        account_evidence_payload,
-        load_report_account_screenshot_files,
-    )
-
-    files = await asyncio.to_thread(load_report_account_screenshot_files, session_id, letter)
-    return account_evidence_payload(files)
+    """Account-page screenshots are disabled. Returns no images and does not render the report."""
+    del session_id, letter_id
+    return {"files": []}
 
 
 @app.get("/internal/letters/{session_id}/{letter_id}/download")
@@ -713,7 +694,7 @@ async def download_letter(
     session_id: str,
     letter_id: str,
     format: str = "pdf",
-    include_evidence: bool = True,
+    include_evidence: bool = False,
     _: None = Depends(verify_internal_secret),
 ):
     letter = await asyncio.to_thread(get_letter, session_id, letter_id)
@@ -734,7 +715,7 @@ async def download_letter_with_enclosures(
     session_id: str,
     letter_id: str,
     format: str = "pdf",
-    include_evidence: bool = True,
+    include_evidence: bool = False,
     enclosures: list[UploadFile] = File(default_factory=list),
     _: None = Depends(verify_internal_secret),
 ):
