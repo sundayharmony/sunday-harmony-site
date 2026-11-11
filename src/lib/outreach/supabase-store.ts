@@ -446,15 +446,25 @@ export function createSupabaseOutreachStore(): OutreachStore {
       return count || 0
     },
     async listQueuedLeadKeys() {
-      const { data, error } = await db()
-        .from('outreach_queue')
-        .select('lead_id, email_normalized')
-        .limit(2000)
-      if (error) throw new Error(error.message)
-      return ((data || []) as Array<Record<string, unknown>>).map((row) => ({
-        leadId: asString(row.lead_id),
-        emailNormalized: asString(row.email_normalized),
-      }))
+      const rows: Array<{ leadId: string; emailNormalized: string }> = []
+      const pageSize = 1000
+      for (let offset = 0; offset < 20000; offset += pageSize) {
+        const { data, error } = await db()
+          .from('outreach_queue')
+          .select('lead_id, email_normalized')
+          .order('created_at', { ascending: true })
+          .range(offset, offset + pageSize - 1)
+        if (error) throw new Error(error.message)
+        const page = (data || []) as Array<Record<string, unknown>>
+        for (const row of page) {
+          rows.push({
+            leadId: asString(row.lead_id),
+            emailNormalized: asString(row.email_normalized),
+          })
+        }
+        if (page.length < pageSize) break
+      }
+      return rows
     },
     async insertQueue(item) {
       const { data, error } = await db()
@@ -581,9 +591,11 @@ export function createSupabaseOutreachStore(): OutreachStore {
     async listEligibleLeadCandidates(query?: LeadCandidateQuery) {
       const limit = Math.min(Math.max(query?.limit ?? 40, 1), 200)
       const offset = Math.max(query?.offset ?? 0, 0)
-      const load = async (filtered: boolean) => {
-        let request = db().from('leads').select(LEAD_CANDIDATE_COLUMNS).eq('lead_type', 'marketing_lead')
-        if (filtered) {
+      const load = async (mode: 'fresh' | 'untouched' | 'any') => {
+        const columns =
+          mode === 'fresh' ? `${LEAD_CANDIDATE_COLUMNS},outreach_queue!left(lead_id)` : LEAD_CANDIDATE_COLUMNS
+        let request = db().from('leads').select(columns).eq('lead_type', 'marketing_lead')
+        if (mode !== 'any') {
           request = request
             .not('email', 'is', null)
             .neq('email', '')
@@ -591,16 +603,28 @@ export function createSupabaseOutreachStore(): OutreachStore {
             .is('gmail_thread_id', null)
             .or(`pipeline_stage.is.null,pipeline_stage.not.in.(${CONTACTED_STAGE_FILTER})`)
         }
+        if (mode === 'fresh') request = request.is('outreach_queue', null)
         return request.order('created_at', { ascending: true }).range(offset, offset + limit - 1)
       }
-      let { data, error } = await load(true)
+      if (query?.untouched) {
+        const fresh = await load('fresh')
+        if (!fresh.error) {
+          return ((fresh.data || []) as unknown as Array<Record<string, unknown>>)
+            .filter((row) => !Array.isArray(row.outreach_queue) || row.outreach_queue.length === 0)
+            .map(leadRowToSnapshot)
+            .filter((row): row is LeadSnapshot => Boolean(row))
+        }
+        console.error('outreach fresh-lead filter failed; paging untouched leads', fresh.error.message)
+      }
+      let { data, error } = await load('untouched')
       if (error) {
-        const fallback = await load(false)
+        console.error('outreach candidate filter failed; paging the marketing book', error.message)
+        const fallback = await load('any')
         data = fallback.data
         error = fallback.error
       }
       if (error) throw new Error(error.message)
-      return ((data || []) as Array<Record<string, unknown>>)
+      return ((data || []) as unknown as Array<Record<string, unknown>>)
         .map(leadRowToSnapshot)
         .filter((row): row is LeadSnapshot => Boolean(row))
     },

@@ -375,6 +375,10 @@ export async function recoverStuckQueueForDesk(
   return { released, recovered }
 }
 
+const CANDIDATE_PAGE_SIZE = 100
+/** Stop a refill that keeps receiving the same page. Skipped rows do not count as drafts. */
+const CANDIDATE_SCAN_LIMIT = 20000
+
 export async function ensureReadyQueue(
   store: OutreachStore,
   options?: {
@@ -413,7 +417,6 @@ export async function ensureReadyQueue(
   const result = emptyEnqueueResult()
   result.released = released
   result.recovered = recovered
-  // Fill to N desk-ready letters without walking the whole lead book on every page load.
   let claimable = await pendingReadyCount(store)
   if (claimable >= size || maxCandidates < 1) return result
 
@@ -422,11 +425,13 @@ export async function ensureReadyQueue(
   const queuedEmails = new Set(queued.map((item) => item.emailNormalized).filter(Boolean))
   let examined = 0
   let offset = 0
-  const pageSize = 100
-  const scanCap = Math.min(2000, Math.max(maxCandidates * 8, queuedLeadIds.size + maxCandidates, pageSize))
 
-  while (claimable < size && examined < maxCandidates && offset < scanCap) {
-    const page = await store.listEligibleLeadCandidates({ limit: pageSize, offset })
+  while (claimable < size && examined < maxCandidates && offset < CANDIDATE_SCAN_LIMIT) {
+    const page = await store.listEligibleLeadCandidates({
+      untouched: true,
+      limit: CANDIDATE_PAGE_SIZE,
+      offset,
+    })
     if (page.length === 0) break
     for (const lead of page) {
       if (claimable >= size || examined >= maxCandidates) break
@@ -442,7 +447,7 @@ export async function ensureReadyQueue(
       if (emailNorm) queuedEmails.add(emailNorm)
     }
     offset += page.length
-    if (page.length < pageSize) break
+    if (page.length < CANDIDATE_PAGE_SIZE) break
   }
   return result
 }

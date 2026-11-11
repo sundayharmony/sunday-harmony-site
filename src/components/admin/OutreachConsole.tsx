@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
+import { OUTREACH_READY_QUEUE_SIZE } from '@/lib/outreach/constants'
 
 type Blocker = { code: string; message: string }
 
@@ -119,7 +120,7 @@ export default function OutreachConsole() {
       // Only narrate automatic top-up on a fresh desk load, not after Send (that has its own status).
       if (!preserveError) {
         const ready = payload.readyCount ?? 0
-        const target = payload.readyTarget ?? 10
+        const target = payload.readyTarget ?? OUTREACH_READY_QUEUE_SIZE
         const topUp = payload.topUp
         if (
           topUp &&
@@ -234,7 +235,7 @@ export default function OutreachConsole() {
   const sent = data.sent ?? []
   const readyCount = data.readyCount ?? 0
   const deferredCount = data.deferredCount ?? 0
-  const readyTarget = data.readyTarget ?? 10
+  const readyTarget = data.readyTarget ?? OUTREACH_READY_QUEUE_SIZE
   const manualSendMax = data.manualSendMax ?? 50
   // Manual send ignores brief retry backoff, so deferred pending letters are still sendable.
   const sendableCount = readyCount + deferredCount

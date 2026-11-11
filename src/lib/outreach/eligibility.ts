@@ -17,6 +17,16 @@ export const CONTACTED_PIPELINE_STAGES = [
 
 const CONTACTED_STAGES = new Set<string>(CONTACTED_PIPELINE_STAGES)
 
+/** Leads the ready queue may still draft. Already-contacted rows are left out. */
+export function leadIsReadyQueueCandidate(lead: LeadSnapshot): boolean {
+  if ((lead.leadType || 'marketing_lead') !== 'marketing_lead') return false
+  if (!normalizeEmail(lead.email || '')) return false
+  if (lead.lastContactedAt) return false
+  if (lead.gmailThreadId) return false
+  if (lead.pipelineStage && CONTACTED_STAGES.has(lead.pipelineStage)) return false
+  return true
+}
+
 export type EligibilityDecision = {
   ok: boolean
   status: QueueItem['status'] | 'skip'

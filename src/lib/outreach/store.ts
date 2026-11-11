@@ -13,6 +13,7 @@ import {
 } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
+import { leadIsReadyQueueCandidate } from './eligibility'
 import type {
   AuditEvent,
   AttemptOutcome,
@@ -38,6 +39,8 @@ export type QueueSummaryQuery = {
 export type LeadCandidateQuery = {
   limit?: number
   offset?: number
+  /** Skip leads that already have no email or were already contacted. */
+  untouched?: boolean
 }
 
 export type OutreachStore = {
@@ -402,10 +405,12 @@ export function createMemoryOutreachStore(options?: {
       return lead ? clone(lead) : null
     },
     async listEligibleLeadCandidates(query) {
+      let rows = leads
+      if (query?.untouched) rows = rows.filter(leadIsReadyQueueCandidate)
       const offset = Math.max(query?.offset ?? 0, 0)
-      const rows = clone(leads).slice(offset)
-      if (query?.limit && query.limit > 0) return rows.slice(0, query.limit)
-      return rows
+      const sliced = rows.slice(offset)
+      if (query?.limit && query.limit > 0) return clone(sliced.slice(0, query.limit))
+      return clone(sliced)
     },
     async markLeadContacted(input) {
       leadContacted.push({ ...input })

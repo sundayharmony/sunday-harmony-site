@@ -17,16 +17,16 @@ export const OUTREACH_CREAM = '#f0ebe3'
 export const OUTREACH_LEASE_MS = 2 * 60 * 1000
 export const OUTREACH_MAX_ATTEMPTS = 5
 export const OUTREACH_BACKOFF_SECONDS = [60, 120, 240, 480, 960] as const
-/** Pending letters kept ready so sending one can immediately queue the next. */
-export const OUTREACH_READY_QUEUE_SIZE = 10
+/** Claimable letters kept ready so Send always has a preview and a refill. */
+export const OUTREACH_READY_QUEUE_SIZE = 30
 /** Previously sent rows shown on the desk. Older history stays in the queue table. */
 export const OUTREACH_SENT_DESK_LIMIT = 40
 /**
- * New leads one ensureReadyQueue call may draft. Stops a page load from walking the whole book
- * when most rows are ineligible. Page load and post-send refill both use this cap so the desk
- * can reach OUTREACH_READY_QUEUE_SIZE without a separate Fill queue action.
+ * New leads one ensureReadyQueue call may draft. Stops a page load from drafting the whole book.
+ * Page load and post-send refill both use this cap so the desk can reach
+ * OUTREACH_READY_QUEUE_SIZE without a separate Fill queue action.
  */
-export const OUTREACH_ENQUEUE_EXAMINE_CAP = 40
+export const OUTREACH_ENQUEUE_EXAMINE_CAP = 80
 /** @deprecated Prefer OUTREACH_ENQUEUE_EXAMINE_CAP; kept as an alias for desk page-load top-up. */
 export const OUTREACH_PAGE_ENQUEUE_CAP = OUTREACH_ENQUEUE_EXAMINE_CAP
 /** Default manual send when no count is specified (cron / legacy). */

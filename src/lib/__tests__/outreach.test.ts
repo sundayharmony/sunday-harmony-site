@@ -29,7 +29,7 @@ import {
 import { extractGroundedFacts, usableFirstName } from '../outreach/facts'
 import { prospectGreetingIsUsable } from '../outreach/greeting'
 import { toProspectObservation } from '../outreach/observation'
-import type { LeadSnapshot } from '../outreach/types'
+import type { LeadSnapshot, QueueItem } from '../outreach/types'
 import { buildHandoff } from '../outreach/handoff'
 import { buildOutreachMime, mimeContainsAttachment, toQuotedPrintable } from '../outreach/mime'
 import { lookupMx } from '../outreach/mx'
@@ -307,8 +307,8 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.doesNotMatch(next.htmlBody, /Hi Not,/)
   })
 
-  it('keeps ten pending letters ready and refills after one send', async () => {
-    const leads = manyLeads(12)
+  it('keeps the ready target full and refills after one send', async () => {
+    const leads = manyLeads(OUTREACH_READY_QUEUE_SIZE + 2)
     const store = createMemoryOutreachStore({ leads })
     const filled = await ensureReadyQueue(store, { mxResolver: mxOk })
     assert.equal(filled.enqueued, OUTREACH_READY_QUEUE_SIZE)
@@ -362,7 +362,7 @@ describe('eligibility, suppression, and unverified reports', () => {
   })
 
   it('keeps backoff letters desk-ready and still lets ignoreBackoff send them', async () => {
-    const leads = manyLeads(24)
+    const leads = manyLeads(OUTREACH_READY_QUEUE_SIZE)
     const store = createMemoryOutreachStore({ leads })
     await ensureReadyQueue(store, { mxResolver: mxOk })
     assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
@@ -590,6 +590,57 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(await pendingReadyCount(store), 2)
     assert.equal((await store.listQueue()).some((row) => row.leadId === 'fresh-lead-2'), true)
     assert.equal((await store.listQueue()).some((row) => row.leadId === 'lead-1'), false)
+  })
+
+  it('pages past a queued prefix longer than the old 2000-row scan and drafts the later prospects', async () => {
+    const prefix = manyLeads(2050)
+    const fresh = [
+      lead({ id: 'fresh-a', business: 'Fresh Studio A', email: 'fresh-a@example.test' }),
+      lead({ id: 'fresh-b', business: 'Fresh Studio B', email: 'fresh-b@example.test' }),
+    ]
+    const store = createMemoryOutreachStore({ leads: [...prefix, ...fresh] })
+    const now = '2026-11-01T00:00:00.000Z'
+    for (const row of prefix) {
+      const inserted = await store.insertQueue({
+        id: `queued-${row.id}`,
+        campaignId: 'camp-prospect-intro',
+        templateVersionId: 'tpl-1',
+        leadId: row.id,
+        emailRaw: row.email || '',
+        emailNormalized: row.email || '',
+        status: 'ineligible',
+        eligibilityReason: 'already_handled',
+        groundedFacts: {} as QueueItem['groundedFacts'],
+        subject: 'Already handled',
+        preheader: '',
+        htmlBody: '',
+        textBody: '',
+        payloadSha256: `sha-${row.id}`,
+        providerIdempotencyKey: `idem-${row.id}`,
+        providerMessageId: null,
+        providerThreadId: null,
+        attemptCount: 0,
+        maxAttempts: 5,
+        nextAttemptAt: now,
+        claimedBy: null,
+        claimedAt: null,
+        leaseExpiresAt: null,
+        acceptedAt: null,
+        deliveredAt: null,
+        bouncedAt: null,
+        contactedLeadUpdatedAt: null,
+        attachmentFilename: 'Sunday-Harmony-Consulting-company-presentation.pdf',
+        createdAt: now,
+        updatedAt: now,
+      })
+      assert.equal(inserted.ok, true)
+    }
+    const filled = await ensureReadyQueue(store, { mxResolver: mxOk, size: 2, maxCandidates: 5 })
+    assert.equal(filled.enqueued, 2)
+    assert.equal(await pendingReadyCount(store), 2)
+    const queuedIds = new Set((await store.listQueue()).map((row) => row.leadId))
+    assert.equal(queuedIds.has('fresh-a'), true)
+    assert.equal(queuedIds.has('fresh-b'), true)
   })
 
   it('shows a short sent history and no ready letters when the queue is already sent', async () => {
@@ -1008,7 +1059,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /recoverStuck: true/)
     assert.match(admin, /topUp/)
     assert.match(admin, /action === 'enqueue'/)
-    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP, 40)
+    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP, 80)
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
