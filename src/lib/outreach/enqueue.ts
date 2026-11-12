@@ -12,6 +12,7 @@ import { findSingleEmail, normalizeBusinessName, normalizeEmail, resolveLeadEmai
 import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
 import { isPipelineStage, stageFromLegacy } from '@/lib/marketing-pipeline'
+import { usableWebsite } from './website-email'
 import { lookupMx, type MxResolver } from './mx'
 import type { OutreachStore } from './store'
 import { newIdempotencyKey } from './store'
@@ -508,6 +509,8 @@ export async function ensureReadyQueue(
     releaseSoftRetries?: boolean
     /** When false, skip reclaiming soft needs_review / expired claims. */
     recoverStuck?: boolean
+    /** Read a published address from the business website when the prospect has none. */
+    discoverWebsiteEmail?: (website: string) => Promise<string | null>
   }
 ): Promise<EnqueueResult> {
   const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
@@ -543,6 +546,7 @@ export async function ensureReadyQueue(
   const queued = await store.listQueuedLeadKeys()
   const queuedLeadIds = new Set(queued.map((item) => item.leadId))
   const queuedEmails = new Set(queued.map((item) => item.emailNormalized).filter(Boolean))
+  const websiteLeads: LeadSnapshot[] = []
   let examined = 0
   let offset = 0
 
@@ -558,6 +562,9 @@ export async function ensureReadyQueue(
       const emailNorm = resolveLeadEmail(lead)
       if (emailNorm) lead.email = emailNorm
       if (isReadyToContactProspect(lead) && !emailNorm) {
+        if (options?.discoverWebsiteEmail && usableWebsite(lead.website) && websiteLeads.length < 80) {
+          websiteLeads.push(lead)
+        }
         result.ineligible += 1
         bump(result.reasons, 'invalid_or_missing_email')
         continue
@@ -579,6 +586,53 @@ export async function ensureReadyQueue(
     }
     offset += page.length
     if (page.length < CANDIDATE_PAGE_SIZE) break
+  }
+
+  if (claimable < size && options?.discoverWebsiteEmail && websiteLeads.length > 0) {
+    const deadline = Date.now() + 45_000
+    let checked = 0
+    let found = 0
+    for (let index = 0; index < websiteLeads.length && claimable < size && Date.now() < deadline; index += 6) {
+      const batch = websiteLeads.slice(index, index + 6)
+      const discovered = await Promise.all(
+        batch.map(async (lead) => {
+          const website = usableWebsite(lead.website)
+          if (!website) return { lead, email: null as string | null }
+          checked += 1
+          try {
+            const email = await options.discoverWebsiteEmail?.(website)
+            return { lead, email: email && normalizeEmail(email) }
+          } catch {
+            return { lead, email: null as string | null }
+          }
+        })
+      )
+      for (const row of discovered) {
+        if (claimable >= size || !row.email) continue
+        if (queuedLeadIds.has(row.lead.id) || queuedEmails.has(row.email)) continue
+        row.lead.email = row.email
+        found += 1
+        if (result.ineligible > 0) result.ineligible -= 1
+        if (result.reasons.invalid_or_missing_email) {
+          result.reasons.invalid_or_missing_email -= 1
+          if (result.reasons.invalid_or_missing_email <= 0) delete result.reasons.invalid_or_missing_email
+        }
+        try {
+          await store.saveLeadEmail?.({ id: row.lead.id, email: row.email })
+        } catch (error) {
+          console.error('outreach could not save a website email', error instanceof Error ? error.message : 'unknown')
+        }
+        examined += 1
+        const one = await enqueueLeadSnapshots(store, [row.lead], options)
+        mergeEnqueueResults(result, one)
+        const draftedOrHeld = one.enqueued + one.ineligible + one.blockedReview
+        if (draftedOrHeld === 0) examined -= 1
+        claimable += one.enqueued
+        queuedLeadIds.add(row.lead.id)
+        queuedEmails.add(row.email)
+      }
+    }
+    console.log('outreach website lookup', JSON.stringify({ checked, found, candidates: websiteLeads.length }))
   }
   return result
 }

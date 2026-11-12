@@ -11,6 +11,7 @@ import { buildOutreachConsole } from '@/lib/outreach/console'
 import { isSameOriginRequest } from '@/lib/outreach/csrf'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
 import { ensureReadyQueue } from '@/lib/outreach/enqueue'
+import { discoverEmailFromWebsite } from '@/lib/outreach/website-email'
 import { currentBlockers, defaultDisabledSettings, resolveOutreachStore } from '@/lib/outreach/runtime'
 import {
   OUTREACH_MANUAL_SEND_MAX,
@@ -71,6 +72,7 @@ export async function GET() {
         refreshLimit: OUTREACH_READY_QUEUE_SIZE,
         releaseSoftRetries: true,
         recoverStuck: true,
+        discoverWebsiteEmail: discoverEmailFromWebsite,
       })
       topUp = {
         enqueued: refill.enqueued,

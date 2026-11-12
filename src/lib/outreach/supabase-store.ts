@@ -624,6 +624,13 @@ export function createSupabaseOutreachStore(): OutreachStore {
         .map(leadRowToSnapshot)
         .filter((row): row is LeadSnapshot => Boolean(row))
     },
+    async saveLeadEmail(input) {
+      const email = input.email.trim()
+      if (!email) return
+      const now = new Date().toISOString()
+      await db().from('leads').update({ email, updated_at: now }).eq('id', input.id).is('email', null)
+      await db().from('leads').update({ email, updated_at: now }).eq('id', input.id).eq('email', '')
+    },
     async markLeadContacted(input) {
       const stage = input.pipelineStage as PipelineStage
       await db()

@@ -41,16 +41,52 @@ export function normalizeEmail(raw: string): string | null {
 }
 
 const EMBEDDED_EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+const JUNK_EMAIL_DOMAINS = [
+  'sentry.io',
+  'wixpress.com',
+  'schema.org',
+  'example.com',
+  'godaddy.com',
+  'wordpress.com',
+  'squarespace.com',
+  'cloudflare.com',
+  'w3.org',
+  'googleapis.com',
+  'gstatic.com',
+  'facebook.com',
+  'instagram.com',
+]
+const JUNK_LOCAL_PARTS = new Set(['noreply', 'no-reply', 'donotreply', 'privacy', 'abuse', 'postmaster', 'mailer-daemon'])
 
-/** One address written in notes or another text field. Several different addresses are left alone. */
+export function isJunkMailbox(email: string): boolean {
+  const at = email.lastIndexOf('@')
+  if (at <= 0) return true
+  const local = email.slice(0, at)
+  const domain = email.slice(at + 1)
+  if (JUNK_LOCAL_PARTS.has(local)) return true
+  return JUNK_EMAIL_DOMAINS.some((junk) => domain === junk || domain.endsWith(`.${junk}`))
+}
+
+function textVariants(blob: string): string[] {
+  if (!/\b(?:at|dot)\b|\[(?:at|dot)\]|\((?:at|dot)\)/i.test(blob)) return [blob]
+  return [
+    blob,
+    blob.replace(/\[at\]|\(at\)|\sat\s/gi, '@').replace(/\[dot\]|\(dot\)|\sdot\s/gi, '.'),
+  ]
+}
+
+/** Addresses written in notes or another text field. One address wins. Several are left alone. */
 export function findSingleEmail(blobs: Array<unknown>): string | null {
   const found = new Set<string>()
   for (const blob of blobs) {
-    if (typeof blob !== 'string' || !blob.includes('@')) continue
-    const matches = blob.match(EMBEDDED_EMAIL) || []
-    for (const match of matches) {
-      const email = normalizeEmail(match)
-      if (email) found.add(email)
+    if (typeof blob !== 'string') continue
+    for (const variant of textVariants(blob)) {
+      if (!variant.includes('@')) continue
+      const matches = variant.match(EMBEDDED_EMAIL) || []
+      for (const match of matches) {
+        const email = normalizeEmail(match)
+        if (email && !isJunkMailbox(email)) found.add(email)
+      }
     }
   }
   if (found.size !== 1) return null
@@ -68,8 +104,9 @@ export function resolveLeadEmail(lead: {
   lastName?: string | null
 }): string | null {
   const direct = normalizeEmail(lead.email || '')
-  if (direct) return direct
+  if (direct && !isJunkMailbox(direct)) return direct
   return findSingleEmail([
+    lead.email,
     lead.notes,
     lead.marketingOpportunity,
     lead.website,

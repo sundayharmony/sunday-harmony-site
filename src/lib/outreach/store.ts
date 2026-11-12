@@ -13,7 +13,7 @@ import {
 } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
-import { leadIsReadyQueueCandidate } from './eligibility'
+import { isReadyToContactProspect, leadIsReadyQueueCandidate } from './eligibility'
 import type {
   AuditEvent,
   AttemptOutcome,
@@ -93,6 +93,7 @@ export type OutreachStore = {
     pipelineStage: string
     gmailThreadId?: string | null
   }): Promise<void>
+  saveLeadEmail?(input: { id: string; email: string }): Promise<void>
   getBooking(leadId: string, emailNormalized: string): Promise<BookingSnapshot>
   putUnsubscribeToken(input: { tokenHash: string; emailNormalized: string; leadId: string | null; queueId: string | null }): Promise<void>
   findUnsubscribeToken(tokenHash: string): Promise<{
@@ -409,11 +410,23 @@ export function createMemoryOutreachStore(options?: {
     },
     async listEligibleLeadCandidates(query) {
       let rows = leads
-      if (query?.untouched) rows = rows.filter(leadIsReadyQueueCandidate)
+      if (query?.untouched) {
+        rows = rows.filter(
+          (lead) =>
+            leadIsReadyQueueCandidate(lead) ||
+            (isReadyToContactProspect(lead) && Boolean((lead.website || '').trim()))
+        )
+      }
       const offset = Math.max(query?.offset ?? 0, 0)
       const sliced = rows.slice(offset)
       if (query?.limit && query.limit > 0) return clone(sliced.slice(0, query.limit))
       return clone(sliced)
+    },
+    async saveLeadEmail(input) {
+      const lead = leads.find((row) => row.id === input.id)
+      if (!lead) return
+      if (normalizeEmail(lead.email || '')) return
+      lead.email = input.email
     },
     async markLeadContacted(input) {
       leadContacted.push({ ...input })

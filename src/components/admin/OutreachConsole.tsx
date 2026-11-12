@@ -107,7 +107,7 @@ export default function OutreachConsole() {
       const response = await fetch('/api/admin/outreach', {
         cache: 'no-store',
         // Desk refill can examine several leads; keep this above page-load work.
-        signal: AbortSignal.timeout(90000),
+        signal: AbortSignal.timeout(120000),
       })
       if (response.status === 401 || response.status === 403) {
         setError('You do not have access to outreach review.')
@@ -165,7 +165,12 @@ export default function OutreachConsole() {
           if (topUp.enqueued > 0) parts.push(`drafted ${topUp.enqueued}`)
           if (topUp.recovered > 0) parts.push(`recovered ${topUp.recovered}`)
           if (topUp.released > 0) parts.push(`released ${topUp.released} from retry wait`)
-          setLastSend(`Queue topped up automatically (${parts.join(', ')}).`)
+          const missingEmails = topUp.reasons?.invalid_or_missing_email || 0
+          const missingNote =
+            ready < target && missingEmails > 0
+              ? ` ${missingEmails} Ready to contact prospects have no email address.`
+              : ''
+          setLastSend(`Queue topped up automatically (${parts.join(', ')}).${missingNote}`)
         }
       }
     } catch {

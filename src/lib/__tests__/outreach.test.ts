@@ -14,6 +14,7 @@ import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
 import { evaluateEligibility, leadIsReadyQueueCandidate } from '../outreach/eligibility'
+import { pickPublishedEmail, usableWebsite } from '../outreach/website-email'
 import {
   enqueueFromStoreCandidates,
   enqueueLeadSnapshots,
@@ -770,6 +771,36 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(leadIsReadyQueueCandidate(blank), true)
   })
 
+  it('reads a published contact address from a business website', () => {
+    assert.equal(usableWebsite('not found'), null)
+    assert.equal(usableWebsite('http://127.0.0.1/secret'), null)
+    const html = '<a href="mailto:privacy@sentry.io">no</a> <a href="mailto:hello@barefoot-market.test">Hello</a> info@gmail.com'
+    assert.equal(pickPublishedEmail(html, 'https://www.barefoot-market.test'), 'hello@barefoot-market.test')
+    assert.equal(pickPublishedEmail('Email owner@shop.test today', 'https://shop.test'), 'owner@shop.test')
+  })
+
+  it('drafts a Ready to contact prospect from an email published on the website', async () => {
+    const prospect = lead({
+      id: 'ready-web',
+      business: 'Barefoot Market Web',
+      pipelineStage: 'ready_to_contact',
+    })
+    prospect.email = ''
+    prospect.website = 'https://barefoot-market.test'
+    const store = createMemoryOutreachStore({ leads: [prospect] })
+    const filled = await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 1,
+      maxCandidates: 5,
+      refreshLimit: 1,
+      discoverWebsiteEmail: async () => 'jennifer@barefoot-market.test',
+    })
+    assert.equal(filled.enqueued, 1)
+    assert.equal(filled.ineligible, 0)
+    assert.equal((await store.listQueue())[0]?.emailNormalized, 'jennifer@barefoot-market.test')
+    assert.equal((await store.getLead('ready-web'))?.email, 'jennifer@barefoot-market.test')
+  })
+
   it('drafts a Ready to contact prospect whose only email is written in the notes', async () => {
     const prospect = lead({
       id: 'ready-notes',
@@ -1254,7 +1285,7 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.doesNotMatch(candidateQuery, /not\('email', 'is', null\)/)
     assert.doesNotMatch(candidateQuery, /gmail_thread_id', null/)
     assert.match(consoleUi, /have no email address, so no letter was drafted/)
-    assert.match(consoleUi, /AbortSignal\.timeout\(90000\)/)
+    assert.match(consoleUi, /AbortSignal\.timeout\(120000\)/)
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)
     assert.match(consoleUi, /Queue topped up automatically/)
