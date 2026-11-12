@@ -596,12 +596,13 @@ export function createSupabaseOutreachStore(): OutreachStore {
       const load = async (untouched: boolean) => {
         // Blank lead_type is still a marketing prospect. Requiring the literal
         // value hid the older book and the desk reported that nobody was left.
-        let request = db()
-          .from('leads')
-          .select(LEAD_CANDIDATE_COLUMNS)
-          .or('lead_type.eq.marketing_lead,lead_type.is.null')
+        let request = db().from('leads').select(LEAD_CANDIDATE_COLUMNS)
         if (untouched) {
-          request = request.not('email', 'is', null).is('last_contacted_at', null)
+          // The pipeline Ready to contact list is the book the desk drafts.
+          // A stored last_contacted_at must not hide those rows.
+          request = request.eq('pipeline_stage', 'ready_to_contact').not('email', 'is', null)
+        } else {
+          request = request.or('lead_type.eq.marketing_lead,lead_type.is.null')
         }
         return request
           .order('created_at', { ascending: false })

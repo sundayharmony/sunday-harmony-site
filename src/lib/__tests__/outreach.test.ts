@@ -766,6 +766,63 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(leadIsReadyQueueCandidate(blank), true)
     blank.leadType = 'existing_client'
     assert.equal(leadIsReadyQueueCandidate(blank), false)
+    blank.pipelineStage = 'ready_to_contact'
+    assert.equal(leadIsReadyQueueCandidate(blank), true)
+  })
+
+  it('drafts Ready to contact prospects that already have a contact date', async () => {
+    const prospect = lead({
+      id: 'ready-1',
+      business: 'Cape May Antique Center',
+      email: 'debbie@capemay.example',
+      pipelineStage: 'ready_to_contact',
+      lastContactedAt: '2026-11-05T14:00:00.000Z',
+      gmailThreadId: 'old-thread',
+    })
+    const store = createMemoryOutreachStore({ leads: [prospect] })
+    const filled = await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 1,
+      maxCandidates: 5,
+      refreshLimit: 1,
+    })
+    assert.equal(filled.enqueued, 1)
+    assert.equal(await pendingReadyCount(store), 1)
+    const decision = evaluateEligibility({
+      lead: prospect,
+      suppression: null,
+      reconciliation: null,
+      existingQueue: null,
+      mx: { kind: 'ok' },
+    })
+    assert.equal(decision.ok, true)
+    assert.equal(decision.status, 'pending')
+  })
+
+  it('returns a Ready to contact letter that was parked as already contacted', async () => {
+    const prospect = lead({
+      id: 'ready-held',
+      business: 'Cousins Coffee Corner',
+      email: 'anna@cousins.example',
+      pipelineStage: 'ready_to_contact',
+      lastContactedAt: '2026-11-05T14:00:00.000Z',
+    })
+    const store = createMemoryOutreachStore({ leads: [prospect] })
+    await enqueueLeadSnapshots(store, [prospect], { mxResolver: mxOk })
+    const item = (await store.listQueue())[0]
+    assert.ok(item)
+    await store.compareAndSwap(item.id, 'pending', {
+      status: 'ineligible',
+      eligibilityReason: 'already_contacted',
+    })
+    const filled = await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 1,
+      maxCandidates: 5,
+      refreshLimit: 1,
+    })
+    assert.equal(filled.recovered, 1)
+    assert.equal(await pendingReadyCount(store), 1)
   })
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
     const decision = evaluateEligibility({
@@ -1172,8 +1229,9 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
     const candidateQuery = readFileSync('src/lib/outreach/supabase-store.ts', 'utf8')
     assert.match(candidateQuery, /lead_type\.is\.null/)
+    assert.match(candidateQuery, /pipeline_stage', 'ready_to_contact'/)
     assert.doesNotMatch(candidateQuery, /gmail_thread_id', null/)
-    assert.match(consoleUi, /No uncontacted marketing prospects with an email address were left to draft/)
+    assert.match(consoleUi, /No Ready to contact prospects with an email address were left to draft/)
     assert.match(consoleUi, /AbortSignal\.timeout\(90000\)/)
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)

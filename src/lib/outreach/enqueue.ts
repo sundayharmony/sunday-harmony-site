@@ -7,7 +7,7 @@ import {
   OUTREACH_READY_QUEUE_SIZE,
 } from './constants'
 import { payloadSha256, renderDraft } from './draft'
-import { evaluateEligibility, isAlreadyContacted } from './eligibility'
+import { evaluateEligibility, leadIsReadyQueueCandidate } from './eligibility'
 import { normalizeBusinessName, normalizeEmail } from './email-address'
 import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
@@ -259,9 +259,7 @@ export async function pendingDeferredCount(store: OutreachStore, at?: Date): Pro
 }
 
 function leadNeedsNoDraft(lead: LeadSnapshot): boolean {
-  if ((lead.leadType || 'marketing_lead') !== 'marketing_lead') return true
-  if (!normalizeEmail(lead.email || '')) return true
-  return isAlreadyContacted(lead)
+  return !leadIsReadyQueueCandidate(lead)
 }
 
 const DESK_RECOVERABLE_REVIEW_REASONS = new Set([
@@ -382,6 +380,9 @@ const PROMOTABLE_HOLD_REASONS = new Set([
   'observation_contains_email',
   'mx_uncertain',
   'mx_uncertain_deferred',
+  'already_contacted',
+  'not_marketing_lead',
+  'invalid_or_missing_email',
 ])
 
 function holdReasonCanBecomeReady(reason: string): boolean {
@@ -546,7 +547,12 @@ export async function ensureReadyQueue(
     for (const lead of page) {
       if (claimable >= size || examined >= maxCandidates) break
       const emailNorm = normalizeEmail(lead.email || '')
-      if (leadNeedsNoDraft(lead) || queuedLeadIds.has(lead.id) || (emailNorm && queuedEmails.has(emailNorm))) {
+      if (!emailNorm) {
+        result.ineligible += 1
+        bump(result.reasons, 'invalid_or_missing_email')
+        continue
+      }
+      if (leadNeedsNoDraft(lead) || queuedLeadIds.has(lead.id) || queuedEmails.has(emailNorm)) {
         continue
       }
       examined += 1

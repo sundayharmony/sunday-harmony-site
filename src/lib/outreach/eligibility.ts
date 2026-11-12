@@ -16,11 +16,22 @@ export const CONTACTED_PIPELINE_STAGES = [
 ] as const
 
 const CONTACTED_STAGES = new Set<string>(CONTACTED_PIPELINE_STAGES)
+const OUTREACH_LEAD_TYPES = new Set(['marketing_lead', 'existing_client', 'completed_client'])
+
+function outreachLeadType(lead: LeadSnapshot): string {
+  return lead.leadType || 'marketing_lead'
+}
+
+/** Pipeline "Ready to contact" is the desk's source list, even if an older contact date is stored. */
+export function isReadyToContactProspect(lead: LeadSnapshot): boolean {
+  return lead.pipelineStage === 'ready_to_contact' && OUTREACH_LEAD_TYPES.has(outreachLeadType(lead))
+}
 
 /** Leads the ready queue may still draft. Already-contacted rows are left out. */
 export function leadIsReadyQueueCandidate(lead: LeadSnapshot): boolean {
-  if ((lead.leadType || 'marketing_lead') !== 'marketing_lead') return false
   if (!normalizeEmail(lead.email || '')) return false
+  if (isReadyToContactProspect(lead)) return true
+  if (outreachLeadType(lead) !== 'marketing_lead') return false
   if (lead.lastContactedAt) return false
   if (lead.gmailThreadId) return false
   if (lead.pipelineStage && CONTACTED_STAGES.has(lead.pipelineStage)) return false
@@ -47,8 +58,9 @@ export function evaluateEligibility(input: {
   existingQueue: QueueItem | null
   mx: MxLookupResult | null
 }): EligibilityDecision {
+  const readyToContact = isReadyToContactProspect(input.lead)
   const leadType = input.lead.leadType || 'marketing_lead'
-  if (leadType !== 'marketing_lead') {
+  if (!readyToContact && leadType !== 'marketing_lead') {
     return { ok: false, status: 'ineligible', reason: 'not_marketing_lead' }
   }
   const email = normalizeEmail(input.lead.email || '')
@@ -89,7 +101,7 @@ export function evaluateEligibility(input: {
   if (input.suppression && input.suppression.emailNormalized === email) {
     return { ok: false, status: 'suppressed', reason: `suppressed:${input.suppression.reason}` }
   }
-  if (isAlreadyContacted(input.lead)) {
+  if (!readyToContact && isAlreadyContacted(input.lead)) {
     return { ok: false, status: 'ineligible', reason: 'already_contacted' }
   }
   if (input.reconciliation && input.reconciliation.treatment === 'block_review') {
@@ -117,7 +129,9 @@ export function dispatchRecheck(input: {
   if (input.suppression && email && input.suppression.emailNormalized === email) {
     return { ok: false, status: 'suppressed', reason: `suppressed:${input.suppression.reason}` }
   }
-  if (isAlreadyContacted(input.lead)) return { ok: false, status: 'ineligible', reason: 'already_contacted' }
+  if (!isReadyToContactProspect(input.lead) && isAlreadyContacted(input.lead)) {
+    return { ok: false, status: 'ineligible', reason: 'already_contacted' }
+  }
   if (input.reconciliation && input.reconciliation.treatment === 'block_review') {
     return { ok: false, status: 'blocked_review', reason: `unverified_report:${input.reconciliation.outcome}` }
   }

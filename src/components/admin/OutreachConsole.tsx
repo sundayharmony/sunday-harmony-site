@@ -149,7 +149,7 @@ export default function OutreachConsole() {
           setLastSend(
             parts.length
               ? `No letter was added to the ready queue (${parts.join(', ')}${reasons.length ? `: ${reasons.join(', ')}` : ''}).`
-              : 'No uncontacted marketing prospects with an email address were left to draft.'
+              : 'No Ready to contact prospects with an email address were left to draft.'
           )
         } else if (topUp && (topUp.enqueued > 0 || topUp.recovered > 0 || topUp.released > 0)) {
           const parts: string[] = []
