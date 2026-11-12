@@ -40,6 +40,45 @@ export function normalizeEmail(raw: string): string | null {
   return `${local.toLowerCase()}@${domain}`
 }
 
+const EMBEDDED_EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
+
+/** One address written in notes or another text field. Several different addresses are left alone. */
+export function findSingleEmail(blobs: Array<unknown>): string | null {
+  const found = new Set<string>()
+  for (const blob of blobs) {
+    if (typeof blob !== 'string' || !blob.includes('@')) continue
+    const matches = blob.match(EMBEDDED_EMAIL) || []
+    for (const match of matches) {
+      const email = normalizeEmail(match)
+      if (email) found.add(email)
+    }
+  }
+  if (found.size !== 1) return null
+  return [...found][0]
+}
+
+/** The mailbox to draft, from the email field or the only address written on the prospect. */
+export function resolveLeadEmail(lead: {
+  email?: string | null
+  notes?: string | null
+  marketingOpportunity?: string | null
+  website?: string | null
+  phone?: string | null
+  firstName?: string | null
+  lastName?: string | null
+}): string | null {
+  const direct = normalizeEmail(lead.email || '')
+  if (direct) return direct
+  return findSingleEmail([
+    lead.notes,
+    lead.marketingOpportunity,
+    lead.website,
+    lead.phone,
+    lead.firstName,
+    lead.lastName,
+  ])
+}
+
 export function emailDomain(normalized: string): string {
   return normalized.slice(normalized.lastIndexOf('@') + 1)
 }

@@ -81,6 +81,18 @@ export async function GET() {
         skipped: refill.skipped,
         reasons: refill.reasons,
       }
+      console.log(
+        'outreach top-up',
+        JSON.stringify({
+          enqueued: topUp.enqueued,
+          recovered: topUp.recovered,
+          released: topUp.released,
+          ineligible: topUp.ineligible,
+          blocked: topUp.blockedReview,
+          skipped: topUp.skipped,
+          reasons: topUp.reasons,
+        })
+      )
     }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)
     return NextResponse.json({ ...payload, topUp })

@@ -1,4 +1,4 @@
-import { normalizeBusinessName, normalizeEmail } from './email-address'
+import { normalizeBusinessName, normalizeEmail, resolveLeadEmail } from './email-address'
 import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
 import type { MxLookupResult } from './mx'
@@ -29,7 +29,7 @@ export function isReadyToContactProspect(lead: LeadSnapshot): boolean {
 
 /** Leads the ready queue may still draft. Already-contacted rows are left out. */
 export function leadIsReadyQueueCandidate(lead: LeadSnapshot): boolean {
-  if (!normalizeEmail(lead.email || '')) return false
+  if (!resolveLeadEmail(lead)) return false
   if (isReadyToContactProspect(lead)) return true
   if (outreachLeadType(lead) !== 'marketing_lead') return false
   if (lead.lastContactedAt) return false

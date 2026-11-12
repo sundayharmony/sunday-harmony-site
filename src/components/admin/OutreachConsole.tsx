@@ -137,6 +137,7 @@ export default function OutreachConsole() {
           topUp.recovered === 0 &&
           topUp.released === 0
         ) {
+          const missingEmails = topUp.reasons?.invalid_or_missing_email || 0
           const reasons = Object.entries(topUp.reasons || {})
             .filter(([, count]) => count > 0)
             .sort((a, b) => b[1] - a[1])
@@ -146,11 +147,19 @@ export default function OutreachConsole() {
           if (topUp.ineligible) parts.push(`${topUp.ineligible} not eligible`)
           if (topUp.blockedReview) parts.push(`${topUp.blockedReview} held for review`)
           if (topUp.skipped) parts.push(`${topUp.skipped} already handled`)
-          setLastSend(
-            parts.length
-              ? `No letter was added to the ready queue (${parts.join(', ')}${reasons.length ? `: ${reasons.join(', ')}` : ''}).`
-              : 'No Ready to contact prospects with an email address were left to draft.'
-          )
+          if (missingEmails > 0 && !topUp.blockedReview && !topUp.skipped) {
+            setLastSend(
+              missingEmails === 1
+                ? '1 Ready to contact prospect has no email address, so no letter was drafted.'
+                : `${missingEmails} Ready to contact prospects have no email address, so no letter was drafted.`
+            )
+          } else {
+            setLastSend(
+              parts.length
+                ? `No letter was added to the ready queue (${parts.join(', ')}${reasons.length ? `: ${reasons.join(', ')}` : ''}).`
+                : 'No Ready to contact prospects were left to draft.'
+            )
+          }
         } else if (topUp && (topUp.enqueued > 0 || topUp.recovered > 0 || topUp.released > 0)) {
           const parts: string[] = []
           if (topUp.enqueued > 0) parts.push(`drafted ${topUp.enqueued}`)

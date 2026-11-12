@@ -770,6 +770,26 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(leadIsReadyQueueCandidate(blank), true)
   })
 
+  it('drafts a Ready to contact prospect whose only email is written in the notes', async () => {
+    const prospect = lead({
+      id: 'ready-notes',
+      business: 'Barefoot Market Notes',
+      pipelineStage: 'ready_to_contact',
+    })
+    prospect.email = ''
+    prospect.notes = 'Owner email: jennifer@barefoot-market.test'
+    assert.equal(leadIsReadyQueueCandidate(prospect), true)
+    const store = createMemoryOutreachStore({ leads: [prospect] })
+    const filled = await ensureReadyQueue(store, {
+      mxResolver: mxOk,
+      size: 1,
+      maxCandidates: 5,
+      refreshLimit: 1,
+    })
+    assert.equal(filled.enqueued, 1)
+    assert.equal((await store.listQueue())[0]?.emailNormalized, 'jennifer@barefoot-market.test')
+  })
+
   it('drafts Ready to contact prospects that already have a contact date', async () => {
     const prospect = lead({
       id: 'ready-1',
@@ -1230,8 +1250,10 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     const candidateQuery = readFileSync('src/lib/outreach/supabase-store.ts', 'utf8')
     assert.match(candidateQuery, /lead_type\.is\.null/)
     assert.match(candidateQuery, /pipeline_stage', 'ready_to_contact'/)
+    assert.match(candidateQuery, /marketing_lead_status', 'qualified'/)
+    assert.doesNotMatch(candidateQuery, /not\('email', 'is', null\)/)
     assert.doesNotMatch(candidateQuery, /gmail_thread_id', null/)
-    assert.match(consoleUi, /No Ready to contact prospects with an email address were left to draft/)
+    assert.match(consoleUi, /have no email address, so no letter was drafted/)
     assert.match(consoleUi, /AbortSignal\.timeout\(90000\)/)
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)

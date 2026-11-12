@@ -23,7 +23,7 @@ const QUEUE_SUMMARY_COLUMNS =
   'id, campaign_id, lead_id, email_raw, email_normalized, status, eligibility_reason, grounded_facts, subject, next_attempt_at, claimed_by, claimed_at, lease_expires_at, accepted_at, delivered_at, bounced_at, contacted_lead_updated_at, attachment_filename, created_at, updated_at'
 
 const LEAD_CANDIDATE_COLUMNS =
-  'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, pipeline_stage, last_contacted_at, gmail_thread_id, source, lead_type'
+  'id, first_name, last_name, business, email, phone, website, location_text, industry, marketing_opportunity, recommended_service, notes, message, pipeline_stage, marketing_lead_status, status, last_contacted_at, gmail_thread_id, source, lead_type'
 
 function mapSettings(row: Record<string, unknown>): OutreachSettings {
   return {
@@ -593,28 +593,31 @@ export function createSupabaseOutreachStore(): OutreachStore {
     async listEligibleLeadCandidates(query?: LeadCandidateQuery) {
       const limit = Math.min(Math.max(query?.limit ?? 100, 1), 200)
       const offset = Math.max(query?.offset ?? 0, 0)
-      const load = async (untouched: boolean) => {
-        // Blank lead_type is still a marketing prospect. Requiring the literal
-        // value hid the older book and the desk reported that nobody was left.
+      const page = (filter: 'ready' | 'qualified' | 'book') => {
         let request = db().from('leads').select(LEAD_CANDIDATE_COLUMNS)
-        if (untouched) {
-          // The pipeline Ready to contact list is the book the desk drafts.
-          // A stored last_contacted_at must not hide those rows.
-          request = request.eq('pipeline_stage', 'ready_to_contact').not('email', 'is', null)
-        } else {
-          request = request.or('lead_type.eq.marketing_lead,lead_type.is.null')
-        }
+        if (filter === 'ready') request = request.eq('pipeline_stage', 'ready_to_contact')
+        else if (filter === 'qualified') request = request.eq('marketing_lead_status', 'qualified')
+        else request = request.or('lead_type.eq.marketing_lead,lead_type.is.null')
         return request
-          .order('created_at', { ascending: false })
+          .order('updated_at', { ascending: false })
           .order('id', { ascending: false })
           .range(offset, offset + limit - 1)
       }
-      let { data, error } = await load(Boolean(query?.untouched))
-      if (error && query?.untouched) {
-        console.error('outreach candidate filter failed; paging the marketing book', error.message)
-        const fallback = await load(false)
-        data = fallback.data
-        error = fallback.error
+      // Do not require an email here. Ready to contact rows with a blank email
+      // column still need to be seen so a note can supply the address, or the
+      // desk can say how many are missing one.
+      let { data, error } = await page(query?.untouched ? 'ready' : 'book')
+      if (query?.untouched && (error || !data?.length)) {
+        if (error) console.error('outreach candidate filter failed; trying qualified leads', error.message)
+        const qualified = await page('qualified')
+        if (!qualified.error && qualified.data?.length) {
+          data = qualified.data
+          error = null
+        } else if (error) {
+          const book = await page('book')
+          data = book.data
+          error = book.error
+        }
       }
       if (error) throw new Error(error.message)
       return ((data || []) as Array<Record<string, unknown>>)

@@ -7,10 +7,11 @@ import {
   OUTREACH_READY_QUEUE_SIZE,
 } from './constants'
 import { payloadSha256, renderDraft } from './draft'
-import { evaluateEligibility, leadIsReadyQueueCandidate } from './eligibility'
-import { normalizeBusinessName, normalizeEmail } from './email-address'
+import { evaluateEligibility, isReadyToContactProspect, leadIsReadyQueueCandidate } from './eligibility'
+import { findSingleEmail, normalizeBusinessName, normalizeEmail, resolveLeadEmail } from './email-address'
 import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
+import { isPipelineStage, stageFromLegacy } from '@/lib/marketing-pipeline'
 import { lookupMx, type MxResolver } from './mx'
 import type { OutreachStore } from './store'
 import { newIdempotencyKey } from './store'
@@ -392,6 +393,13 @@ function holdReasonCanBecomeReady(reason: string): boolean {
   return false
 }
 
+function hardStopHold(reason: string): boolean {
+  if (reason === 'null_mx' || reason === 'no_mx') return true
+  if (reason.startsWith('suppressed')) return true
+  if (reason.startsWith('unverified_report')) return true
+  return false
+}
+
 /**
  * Letters parked as blocked or in review still belong to those leads, so a new
  * draft is skipped. When the copy is safe now, put the existing letter back in
@@ -415,11 +423,12 @@ export async function promoteHeldLetters(store: OutreachStore, limit: number): P
       if (rows.length === 0) break
       for (const summary of rows) {
         if (promoted >= limit) break
-        if (!holdReasonCanBecomeReady(summary.eligibilityReason)) continue
+        if (hardStopHold(summary.eligibilityReason)) continue
         const item = await store.getQueueItem(summary.id)
         if (!item || item.status !== status) continue
         const lead = await store.getLead(item.leadId)
         if (!lead || leadNeedsNoDraft(lead)) continue
+        if (!isReadyToContactProspect(lead) && !holdReasonCanBecomeReady(summary.eligibilityReason)) continue
         const emailNorm = normalizeEmail(lead.email || item.emailNormalized)
         const suppression = emailNorm ? await store.findSuppression(emailNorm) : null
         const reconciliation = await store.findReconciliationForLead({
@@ -546,13 +555,17 @@ export async function ensureReadyQueue(
     if (page.length === 0) break
     for (const lead of page) {
       if (claimable >= size || examined >= maxCandidates) break
-      const emailNorm = normalizeEmail(lead.email || '')
-      if (!emailNorm) {
+      const emailNorm = resolveLeadEmail(lead)
+      if (emailNorm) lead.email = emailNorm
+      if (isReadyToContactProspect(lead) && !emailNorm) {
         result.ineligible += 1
         bump(result.reasons, 'invalid_or_missing_email')
         continue
       }
-      if (leadNeedsNoDraft(lead) || queuedLeadIds.has(lead.id) || queuedEmails.has(emailNorm)) {
+      if (leadNeedsNoDraft(lead)) continue
+      if (queuedLeadIds.has(lead.id) || (emailNorm && queuedEmails.has(emailNorm))) {
+        result.skipped += 1
+        bump(result.reasons, 'already_queued')
         continue
       }
       examined += 1
@@ -710,11 +723,21 @@ export async function refreshUnsentQueueCopy(
   return { refreshed, skipped }
 }
 
+function stageOfLeadRow(row: Record<string, unknown>): string | null {
+  const raw = typeof row.pipeline_stage === 'string' ? row.pipeline_stage : ''
+  if (isPipelineStage(raw)) return raw
+  return stageFromLegacy({
+    marketingStatus: typeof row.marketing_lead_status === 'string' ? row.marketing_lead_status : null,
+    legacyStatus: typeof row.status === 'string' ? row.status : null,
+    source: typeof row.source === 'string' ? row.source : null,
+  })
+}
+
 export function leadRowToSnapshot(row: Record<string, unknown>): LeadSnapshot | null {
   const id = typeof row.id === 'string' ? row.id : ''
   const business = typeof row.business === 'string' ? row.business : ''
   if (!id || !business) return null
-  return {
+  const snapshot: LeadSnapshot = {
     id,
     firstName: typeof row.first_name === 'string' ? row.first_name : null,
     lastName: typeof row.last_name === 'string' ? row.last_name : null,
@@ -727,10 +750,13 @@ export function leadRowToSnapshot(row: Record<string, unknown>): LeadSnapshot | 
     marketingOpportunity: typeof row.marketing_opportunity === 'string' ? row.marketing_opportunity : null,
     recommendedService: typeof row.recommended_service === 'string' ? row.recommended_service : null,
     notes: typeof row.notes === 'string' ? row.notes : null,
-    pipelineStage: typeof row.pipeline_stage === 'string' ? row.pipeline_stage : null,
+    pipelineStage: stageOfLeadRow(row),
     lastContactedAt: typeof row.last_contacted_at === 'string' ? row.last_contacted_at : null,
     gmailThreadId: typeof row.gmail_thread_id === 'string' ? row.gmail_thread_id : null,
     source: typeof row.source === 'string' ? row.source : null,
     leadType: typeof row.lead_type === 'string' ? row.lead_type : 'marketing_lead',
   }
+  const resolved = resolveLeadEmail(snapshot) || findSingleEmail([row.message])
+  if (resolved) snapshot.email = resolved
+  return snapshot
 }
