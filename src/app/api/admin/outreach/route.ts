@@ -54,7 +54,15 @@ export async function GET() {
   if (session instanceof NextResponse) return session
   try {
     const store = resolveOutreachStore()
-    let topUp = { enqueued: 0, released: 0, recovered: 0 }
+    let topUp: {
+      enqueued: number
+      released: number
+      recovered: number
+      ineligible?: number
+      blockedReview?: number
+      skipped?: number
+      reasons?: Record<string, number>
+    } = { enqueued: 0, released: 0, recovered: 0 }
     if (session.user.role === 'admin') {
       // Automatic desk top-up: recover soft failures, then draft toward the ready target.
       const refill = await ensureReadyQueue(store, {
@@ -68,6 +76,10 @@ export async function GET() {
         enqueued: refill.enqueued,
         released: refill.released,
         recovered: refill.recovered,
+        ineligible: refill.ineligible,
+        blockedReview: refill.blockedReview,
+        skipped: refill.skipped,
+        reasons: refill.reasons,
       }
     }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)

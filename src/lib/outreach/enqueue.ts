@@ -552,6 +552,8 @@ export async function ensureReadyQueue(
       examined += 1
       const one = await enqueueLeadSnapshots(store, [lead], options)
       mergeEnqueueResults(result, one)
+      const draftedOrHeld = one.enqueued + one.ineligible + one.blockedReview
+      if (draftedOrHeld === 0) examined -= 1
       claimable += one.enqueued
       queuedLeadIds.add(lead.id)
       if (emailNorm) queuedEmails.add(emailNorm)

@@ -13,7 +13,7 @@ import { dispatchOutreachBatch } from '../outreach/dispatch'
 import { renderDraft } from '../outreach/draft'
 import { draftContentSha256 } from '../outreach/draft-shell'
 import { normalizeEmail, isValidEmailSyntax } from '../outreach/email-address'
-import { evaluateEligibility } from '../outreach/eligibility'
+import { evaluateEligibility, leadIsReadyQueueCandidate } from '../outreach/eligibility'
 import {
   enqueueFromStoreCandidates,
   enqueueLeadSnapshots,
@@ -760,6 +760,13 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal(desk.next, null)
   })
 
+  it('treats a blank lead type as a marketing prospect', () => {
+    const blank = lead({ email: 'owner@example.test' })
+    blank.leadType = null
+    assert.equal(leadIsReadyQueueCandidate(blank), true)
+    blank.leadType = 'existing_client'
+    assert.equal(leadIsReadyQueueCandidate(blank), false)
+  })
   it('does not treat a plus-tag mailbox as the same as the root mailbox', () => {
     const decision = evaluateEligibility({
       lead: lead({ email: 'owner+news@example.com' }),
@@ -1163,6 +1170,10 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
+    const candidateQuery = readFileSync('src/lib/outreach/supabase-store.ts', 'utf8')
+    assert.match(candidateQuery, /lead_type\.is\.null/)
+    assert.doesNotMatch(candidateQuery, /gmail_thread_id', null/)
+    assert.match(consoleUi, /No uncontacted marketing prospects with an email address were left to draft/)
     assert.match(consoleUi, /AbortSignal\.timeout\(90000\)/)
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)

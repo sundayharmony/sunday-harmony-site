@@ -67,7 +67,15 @@ type ConsolePayload = {
   provider: { intended: string; idempotencyRecovery: boolean; note: string }
   scheduler?: { enabled: boolean; note: string }
   error?: string
-  topUp?: { enqueued: number; released: number; recovered: number }
+  topUp?: {
+    enqueued: number
+    released: number
+    recovered: number
+    ineligible?: number
+    blockedReview?: number
+    skipped?: number
+    reasons?: Record<string, number>
+  }
 }
 
 function formatWhen(value: string | null | undefined) {
@@ -129,8 +137,19 @@ export default function OutreachConsole() {
           topUp.recovered === 0 &&
           topUp.released === 0
         ) {
+          const reasons = Object.entries(topUp.reasons || {})
+            .filter(([, count]) => count > 0)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([reason, count]) => `${reason.replaceAll('_', ' ')} ×${count}`)
+          const parts: string[] = []
+          if (topUp.ineligible) parts.push(`${topUp.ineligible} not eligible`)
+          if (topUp.blockedReview) parts.push(`${topUp.blockedReview} held for review`)
+          if (topUp.skipped) parts.push(`${topUp.skipped} already handled`)
           setLastSend(
-            'No new eligible prospects were left to draft. Soft failures were already cleared when possible.'
+            parts.length
+              ? `No letter was added to the ready queue (${parts.join(', ')}${reasons.length ? `: ${reasons.join(', ')}` : ''}).`
+              : 'No uncontacted marketing prospects with an email address were left to draft.'
           )
         } else if (topUp && (topUp.enqueued > 0 || topUp.recovered > 0 || topUp.released > 0)) {
           const parts: string[] = []

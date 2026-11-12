@@ -594,15 +594,15 @@ export function createSupabaseOutreachStore(): OutreachStore {
       const limit = Math.min(Math.max(query?.limit ?? 100, 1), 200)
       const offset = Math.max(query?.offset ?? 0, 0)
       const load = async (untouched: boolean) => {
-        let request = db().from('leads').select(LEAD_CANDIDATE_COLUMNS).eq('lead_type', 'marketing_lead')
+        // Blank lead_type is still a marketing prospect. Requiring the literal
+        // value hid the older book and the desk reported that nobody was left.
+        let request = db()
+          .from('leads')
+          .select(LEAD_CANDIDATE_COLUMNS)
+          .or('lead_type.eq.marketing_lead,lead_type.is.null')
         if (untouched) {
-          request = request
-            .not('email', 'is', null)
-            .neq('email', '')
-            .is('last_contacted_at', null)
-            .is('gmail_thread_id', null)
+          request = request.not('email', 'is', null).is('last_contacted_at', null)
         }
-        // Newest prospects first. The oldest rows are the ones already queued.
         return request
           .order('created_at', { ascending: false })
           .order('id', { ascending: false })
