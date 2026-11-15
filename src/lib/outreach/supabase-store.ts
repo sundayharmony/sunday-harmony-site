@@ -583,6 +583,25 @@ export function createSupabaseOutreachStore(): OutreachStore {
         createdAt: asString(row.created_at),
       }))
     },
+    async listAuditEntityIds(action) {
+      const ids: string[] = []
+      const pageSize = 1000
+      for (let offset = 0; offset < 20000; offset += pageSize) {
+        const { data, error } = await db()
+          .from('outreach_audit_events')
+          .select('entity_id')
+          .eq('action', action)
+          .order('created_at', { ascending: true })
+          .range(offset, offset + pageSize - 1)
+        if (error) throw new Error(error.message)
+        const page = (data || []) as Array<Record<string, unknown>>
+        for (const row of page) {
+          if (typeof row.entity_id === 'string' && row.entity_id) ids.push(row.entity_id)
+        }
+        if (page.length < pageSize) break
+      }
+      return ids
+    },
     async getLead(id) {
       const { data } = await db()
         .from('leads')

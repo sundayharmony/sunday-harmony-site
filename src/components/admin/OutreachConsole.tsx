@@ -75,6 +75,8 @@ type ConsolePayload = {
     blockedReview?: number
     skipped?: number
     reasons?: Record<string, number>
+    websitesChecked?: number
+    websitesRemaining?: boolean
   }
 }
 
@@ -132,8 +134,10 @@ export default function OutreachConsole() {
       if (payload.error) setError(payload.error)
       let ready = payload.readyCount ?? 0
       let target = payload.readyTarget ?? ready
+      const websitesLeft = payload.topUp?.websitesRemaining === true
       const stillShort = payload.queueComplete === false && ready < target && payload.canOperate
-      if (!preserveError && !stillShort) {
+      const stillLooking = websitesLeft && payload.canOperate && payload.queueComplete === false
+      if (!preserveError && !stillShort && !stillLooking) {
         const topUp = payload.topUp
         if (
           topUp &&
@@ -173,13 +177,15 @@ export default function OutreachConsole() {
           setLastSend(`Queue topped up automatically (${parts.join(', ')}).`)
         }
       }
-      if (!stillShort) return
+      if (!stillShort && !stillLooking) return
       setFilling(true)
       if (!preserveError) {
         setLastSend(
-          target === 1
-            ? 'Drafting the unsent prospect who has an email.'
-            : `Drafting letters for ${target} unsent prospects who have an email.`
+          stillLooking && !stillShort
+            ? `Checking prospect websites. ${ready} ready so far.`
+            : target === 1
+              ? 'Drafting the unsent prospect who has an email.'
+              : `Drafting letters for ${target} unsent prospects who have an email.`
         )
       }
       try {
@@ -199,6 +205,8 @@ export default function OutreachConsole() {
             enqueued?: number
             recovered?: number
             released?: number
+            websitesChecked?: number
+            websitesRemaining?: boolean
           }
           if (typeof body.ready === 'number') ready = body.ready
           if (typeof body.target === 'number') target = body.target
@@ -209,23 +217,33 @@ export default function OutreachConsole() {
                   readyCount: ready,
                   readyTarget: target,
                   queueComplete: body.complete === true,
+                  topUp: {
+                    ...(current.topUp || { enqueued: 0, released: 0, recovered: 0 }),
+                    websitesRemaining: body.websitesRemaining === true,
+                    websitesChecked: body.websitesChecked,
+                  },
                 }
               : current
           )
+          const moreSites = body.websitesRemaining === true
           if (!preserveError) {
             setLastSend(
-              ready >= target
+              ready >= target && !moreSites
                 ? `${ready} ready. Every unsent prospect with an email is queued.`
-                : body.complete
-                  ? `${ready} ready.`
-                  : `Drafting outreach emails… ${ready} of ${target} ready.`
+                : moreSites
+                  ? `Drafting outreach emails… ${ready} ready. Still checking prospect websites.`
+                  : body.complete
+                    ? `${ready} ready.`
+                    : `Drafting outreach emails… ${ready} of ${target} ready.`
             )
           }
-          if (body.complete || ready >= target) break
-          if ((body.enqueued || 0) === 0 && (body.recovered || 0) === 0 && (body.released || 0) === 0) break
+          const progressed =
+            (body.enqueued || 0) + (body.recovered || 0) + (body.released || 0) + (body.websitesChecked || 0)
+          if (body.complete || progressed === 0) break
+          if (ready >= target && !moreSites) break
         }
         if (generation !== loadGeneration.current) return
-        const refreshed = await fetch('/api/admin/outreach', {
+        const refreshed = await fetch('/api/admin/outreach?preview=1', {
           cache: 'no-store',
           signal: AbortSignal.timeout(120000),
         })
@@ -340,7 +358,8 @@ export default function OutreachConsole() {
   const readyCount = data.readyCount ?? 0
   const deferredCount = data.deferredCount ?? 0
   const readyTarget = data.readyTarget ?? readyCount
-  const drafting = filling || (data.queueComplete === false && readyCount < readyTarget)
+  const websitesRemaining = data.topUp?.websitesRemaining === true && data.queueComplete === false
+  const drafting = filling || (data.queueComplete === false && (readyCount < readyTarget || websitesRemaining))
   const manualSendMax = data.manualSendMax ?? 50
   // Manual send ignores brief retry backoff, so deferred pending letters are still sendable.
   const sendableCount = readyCount + deferredCount

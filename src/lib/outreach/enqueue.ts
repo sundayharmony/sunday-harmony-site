@@ -37,6 +37,10 @@ export type EnqueueResult = {
   target: number
   /** True when the ready queue matches that target, or no further prospect can be drafted. */
   complete: boolean
+  /** Prospect websites read on this call. */
+  websitesChecked: number
+  /** True when more uncontacted websites still need a contact-address check. */
+  websitesRemaining: boolean
 }
 
 function bump(reasons: Record<string, number>, reason: string) {
@@ -62,6 +66,8 @@ export async function enqueueLeadSnapshots(
     ready: 0,
     target: 0,
     complete: false,
+    websitesChecked: 0,
+    websitesRemaining: false,
   }
   if (!campaign || !template) {
     bump(result.reasons, 'campaign_missing')
@@ -199,6 +205,8 @@ function emptyEnqueueResult(): EnqueueResult {
     ready: 0,
     target: 0,
     complete: false,
+    websitesChecked: 0,
+    websitesRemaining: false,
   }
 }
 
@@ -209,6 +217,8 @@ function mergeEnqueueResults(into: EnqueueResult, from: EnqueueResult) {
   into.skipped += from.skipped
   into.released += from.released
   into.recovered += from.recovered
+  into.websitesChecked += from.websitesChecked
+  if (from.websitesRemaining) into.websitesRemaining = true
   for (const [reason, count] of Object.entries(from.reasons)) {
     into.reasons[reason] = (into.reasons[reason] || 0) + count
   }
@@ -517,6 +527,9 @@ export async function promoteHeldLetters(store: OutreachStore, limit: number): P
 const CANDIDATE_PAGE_SIZE = 100
 /** Stop a refill that keeps receiving the same page. Skipped rows do not count as drafts. */
 const CANDIDATE_SCAN_LIMIT = 20000
+/** Websites read on one desk request. The next request continues past the ones already checked. */
+const WEBSITE_LOOKUP_BATCH = 24
+const WEBSITE_CHECKED_ACTION = 'outreach_website_email_checked'
 
 function finishReadyQueue(
   result: EnqueueResult,
@@ -546,6 +559,8 @@ export async function ensureReadyQueue(
     recoverStuck?: boolean
     /** Read a published address from the business website when the prospect has none. */
     discoverWebsiteEmail?: (website: string) => Promise<string | null>
+    /** How many unchecked websites this call may open. Tests use a small batch. */
+    websiteBatch?: number
   }
 ): Promise<EnqueueResult> {
   const size = options?.size ?? (await store.countUnsentProspectsWithEmail())
@@ -579,19 +594,27 @@ export async function ensureReadyQueue(
     result.recovered += promoted
     if (promoted > 0) claimable = await pendingReadyCount(store)
   }
-  if (claimable >= size || maxCandidates < 1) {
+  const discover = Boolean(options?.discoverWebsiteEmail)
+  if (maxCandidates < 1 || (claimable >= size && !discover)) {
     return finishReadyQueue(result, claimable, size, claimable >= size)
   }
 
   const queued = await store.listQueuedLeadKeys()
   const queuedLeadIds = new Set(queued.map((item) => item.leadId))
   const queuedEmails = new Set(queued.map((item) => item.emailNormalized).filter(Boolean))
+  const checkedWebsites = discover
+    ? new Set(await store.listAuditEntityIds(WEBSITE_CHECKED_ACTION))
+    : new Set<string>()
+  const websiteBatch = Math.max(options?.websiteBatch ?? WEBSITE_LOOKUP_BATCH, 1)
   const websiteLeads: LeadSnapshot[] = []
+  let uncheckedWebsites = 0
   let examined = 0
   let offset = 0
   let scanExhausted = false
 
-  while (claimable < size && examined < maxCandidates && offset < CANDIDATE_SCAN_LIMIT) {
+  while (offset < CANDIDATE_SCAN_LIMIT) {
+    if (!discover && (claimable >= size || examined >= maxCandidates)) break
+    if (discover && claimable < size && examined >= maxCandidates) break
     const page = await store.listEligibleLeadCandidates({
       untouched: true,
       limit: CANDIDATE_PAGE_SIZE,
@@ -603,19 +626,22 @@ export async function ensureReadyQueue(
     }
     let stoppedEarly = false
     for (const lead of page) {
-      if (claimable >= size || examined >= maxCandidates) {
-        stoppedEarly = true
-        break
-      }
       const emailNorm = resolveLeadEmail(lead)
       if (emailNorm) lead.email = emailNorm
       if (isReadyToContactProspect(lead) && !emailNorm) {
-        if (options?.discoverWebsiteEmail && usableWebsite(lead.website) && websiteLeads.length < 80) {
-          websiteLeads.push(lead)
+        if (discover && usableWebsite(lead.website) && !checkedWebsites.has(lead.id)) {
+          uncheckedWebsites += 1
+          if (websiteLeads.length < websiteBatch) websiteLeads.push(lead)
         }
         result.ineligible += 1
         bump(result.reasons, 'invalid_or_missing_email')
         continue
+      }
+      if (claimable >= size || examined >= maxCandidates) {
+        // The email batch is full. Keep walking only to find later websites.
+        if (discover && claimable >= size) continue
+        stoppedEarly = true
+        break
       }
       if (leadNeedsNoDraft(lead)) continue
       if (queuedLeadIds.has(lead.id) || (emailNorm && queuedEmails.has(emailNorm))) {
@@ -640,19 +666,19 @@ export async function ensureReadyQueue(
     }
   }
 
-  if (scanExhausted && claimable < size && options?.discoverWebsiteEmail && websiteLeads.length > 0) {
+  let websitesChecked = 0
+  if (scanExhausted && discover && websiteLeads.length > 0) {
     const deadline = Date.now() + 45_000
-    let checked = 0
     let found = 0
-    for (let index = 0; index < websiteLeads.length && claimable < size && Date.now() < deadline; index += 6) {
+    for (let index = 0; index < websiteLeads.length && Date.now() < deadline; index += 6) {
       const batch = websiteLeads.slice(index, index + 6)
       const discovered = await Promise.all(
         batch.map(async (lead) => {
           const website = usableWebsite(lead.website)
           if (!website) return { lead, email: null as string | null }
-          checked += 1
+          websitesChecked += 1
           try {
-            const email = await options.discoverWebsiteEmail?.(website)
+            const email = await options?.discoverWebsiteEmail?.(website)
             return { lead, email: email && normalizeEmail(email) }
           } catch {
             return { lead, email: null as string | null }
@@ -660,7 +686,16 @@ export async function ensureReadyQueue(
         })
       )
       for (const row of discovered) {
-        if (claimable >= size || !row.email) continue
+        await store.addAudit({
+          actorType: 'system',
+          actorId: options?.actor || null,
+          action: WEBSITE_CHECKED_ACTION,
+          entityType: 'lead',
+          entityId: row.lead.id,
+          payload: { found: Boolean(row.email) },
+        })
+        checkedWebsites.add(row.lead.id)
+        if (!row.email) continue
         if (queuedLeadIds.has(row.lead.id) || queuedEmails.has(row.email)) continue
         row.lead.email = row.email
         found += 1
@@ -684,9 +719,24 @@ export async function ensureReadyQueue(
         queuedEmails.add(row.email)
       }
     }
-    console.log('outreach website lookup', JSON.stringify({ checked, found, candidates: websiteLeads.length }))
+    console.log(
+      'outreach website lookup',
+      JSON.stringify({
+        checked: websitesChecked,
+        found,
+        remaining: Math.max(uncheckedWebsites - websitesChecked, 0),
+      })
+    )
   }
-  return finishReadyQueue(result, claimable, size, claimable >= size || scanExhausted)
+  const websitesRemaining = discover && scanExhausted && uncheckedWebsites > websitesChecked
+  result.websitesChecked = websitesChecked
+  result.websitesRemaining = websitesRemaining
+  return finishReadyQueue(
+    result,
+    claimable,
+    size,
+    !websitesRemaining && (claimable >= size || scanExhausted)
+  )
 }
 
 export async function enqueueFromStoreCandidates(

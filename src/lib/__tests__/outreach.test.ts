@@ -826,6 +826,49 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.equal((await store.getLead('ready-web'))?.email, 'jennifer@barefoot-market.test')
   })
 
+  it('keeps checking later prospect websites after the first ones have no address', async () => {
+    const leads = [0, 1, 2].map((index) => {
+      const prospect = lead({
+        id: `web-${index}`,
+        business: `Shop ${index}`,
+        pipelineStage: 'ready_to_contact',
+      })
+      prospect.email = ''
+      prospect.website = `https://shop-${index}.test`
+      return prospect
+    })
+    const store = createMemoryOutreachStore({ leads })
+    const seen: string[] = []
+    const discover = async (website: string) => {
+      seen.push(website)
+      return website.includes('shop-2') ? 'owner@shop-2.test' : null
+    }
+    const options = {
+      mxResolver: mxOk,
+      maxCandidates: 5,
+      refreshLimit: 0,
+      websiteBatch: 1,
+      discoverWebsiteEmail: discover,
+    }
+    const first = await ensureReadyQueue(store, options)
+    assert.equal(first.enqueued, 0)
+    assert.equal(first.websitesChecked, 1)
+    assert.equal(first.websitesRemaining, true)
+    assert.equal(first.complete, false)
+    const second = await ensureReadyQueue(store, options)
+    assert.equal(second.enqueued, 0)
+    assert.equal(second.websitesChecked, 1)
+    assert.equal(second.complete, false)
+    assert.equal(seen.length, 2)
+    assert.equal(seen[0]?.includes('shop-0'), true)
+    assert.equal(seen[1]?.includes('shop-1'), true)
+    const third = await ensureReadyQueue(store, options)
+    assert.equal(third.enqueued, 1)
+    assert.equal(third.websitesRemaining, false)
+    assert.equal(third.complete, true)
+    assert.equal((await store.listQueue())[0]?.emailNormalized, 'owner@shop-2.test')
+  })
+
   it('drafts a Ready to contact prospect whose only email is written in the notes', async () => {
     const prospect = lead({
       id: 'ready-notes',
@@ -1317,6 +1360,8 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(consoleUi, /post\('send', \{ count \}\)/)
     assert.match(consoleUi, /Queue topped up automatically/)
     assert.match(consoleUi, /Drafting letters for unsent prospects who have an email/)
+    assert.match(consoleUi, /websitesRemaining/)
+    assert.match(consoleUi, /preview=1/)
     assert.match(consoleUi, /continue: true/)
     assert.doesNotMatch(consoleUi, /Fill queue/)
     assert.doesNotMatch(consoleUi, /post\('enqueue'\)/)

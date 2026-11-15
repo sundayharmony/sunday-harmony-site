@@ -52,7 +52,7 @@ function humanizeDispatchDetails(details: string[]): string {
   return parts.slice(0, 4).join(', ')
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await requireSalesSession()
   if (session instanceof NextResponse) return session
   try {
@@ -68,8 +68,11 @@ export async function GET() {
       ready?: number
       target?: number
       complete?: boolean
+      websitesChecked?: number
+      websitesRemaining?: boolean
     } = { enqueued: 0, released: 0, recovered: 0 }
-    if (session.user.role === 'admin') {
+    const previewOnly = new URL(request.url).searchParams.get('preview') === '1'
+    if (!previewOnly && session.user.role === 'admin') {
       try {
         await alignPipelineStages()
       } catch (error) {
@@ -96,6 +99,8 @@ export async function GET() {
         ready: refill.ready,
         target: refill.target,
         complete: refill.complete,
+        websitesChecked: refill.websitesChecked,
+        websitesRemaining: refill.websitesRemaining,
       }
       console.log(
         'outreach top-up',
@@ -106,6 +111,11 @@ export async function GET() {
           ineligible: topUp.ineligible,
           blocked: topUp.blockedReview,
           skipped: topUp.skipped,
+          ready: topUp.ready,
+          target: topUp.target,
+          complete: topUp.complete,
+          websitesChecked: topUp.websitesChecked,
+          websitesRemaining: topUp.websitesRemaining,
           reasons: topUp.reasons,
         })
       )

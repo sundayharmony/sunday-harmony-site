@@ -85,6 +85,8 @@ export type OutreachStore = {
   listAttempts(queueId: string): Promise<OutreachAttempt[]>
   addAudit(row: Omit<AuditEvent, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): Promise<AuditEvent>
   listAudit(limit?: number): Promise<AuditEvent[]>
+  /** Entity ids already recorded for one audit action, oldest first. */
+  listAuditEntityIds(action: string): Promise<string[]>
   getLead(id: string): Promise<LeadSnapshot | null>
   /** Unsent prospects the desk can draft: uncontacted, with an email, not already emailed. */
   countUnsentProspectsWithEmail(): Promise<number>
@@ -405,6 +407,11 @@ export function createMemoryOutreachStore(options?: {
     },
     async listAudit(limit = 100) {
       return clone(audit.slice(0, limit))
+    },
+    async listAuditEntityIds(action) {
+      return audit
+        .filter((event) => event.action === action && event.entityId)
+        .map((event) => event.entityId as string)
     },
     async getLead(id) {
       const lead = leads.find((row) => row.id === id)
