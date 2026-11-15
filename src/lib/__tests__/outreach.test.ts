@@ -1402,13 +1402,15 @@ describe('leads import still succeeds and stays enqueue-only', () => {
     const source = readFileSync('src/app/api/internal/leads-import/route.ts', 'utf8')
     const hook = readFileSync('src/lib/outreach/import-hook.ts', 'utf8')
     const created = readFileSync('src/lib/db.ts', 'utf8')
+    const contact = readFileSync('src/app/api/contact/route.ts', 'utf8')
     const pipeline = readFileSync('src/lib/marketing-crm.ts', 'utf8')
     assert.match(source, /enqueueImportedLeadsBestEffort/)
     assert.match(hook, /Never sends/)
     assert.match(hook, /enqueueLeadSnapshots/)
     assert.doesNotMatch(hook, /OUTREACH_PAGE_ENQUEUE_CAP/)
     assert.doesNotMatch(hook, /sendWorkspaceEmail|sendEmail\(/)
-    assert.match(created, /enqueueImportedLeadsBestEffort/)
+    assert.doesNotMatch(created, /enqueueImportedLeadsBestEffort|import-hook/)
+    assert.match(contact, /enqueueImportedLeadsBestEffort/)
     assert.match(pipeline, /enqueueImportedLeadsBestEffort/)
     void importLeads
     void unsubPost

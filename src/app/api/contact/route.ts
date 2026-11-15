@@ -129,6 +129,8 @@ export async function POST(req: NextRequest) {
           actor_email: email,
           details: `New marketing lead from contact form: ${firstName} ${lastName} (${business})`,
         })
+        const { enqueueImportedLeadsBestEffort } = await import('@/lib/outreach/import-hook')
+        await enqueueImportedLeadsBestEffort([lead as unknown as Record<string, unknown>], 'lead-created')
       }
     } catch (dbErr) {
       console.error('Failed to save lead to DB (email was still sent):', dbErr)

@@ -286,10 +286,6 @@ export async function createLead(leadData: {
     .select()
     .single()
   if (error) { console.error('createLead error:', error); return null }
-  if (data) {
-    const { enqueueImportedLeadsBestEffort } = await import('@/lib/outreach/import-hook')
-    await enqueueImportedLeadsBestEffort([data as unknown as Record<string, unknown>], 'lead-created')
-  }
   return data
 }
 
