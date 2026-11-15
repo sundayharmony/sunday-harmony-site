@@ -27,7 +27,7 @@ describe('prospect file view mode', () => {
     assert.match(source, /Reschedule/)
     assert.doesNotMatch(source, /had a meeting/)
     const salesStart = source.indexOf('Sales actions')
-    const salesBlock = source.slice(salesStart, source.indexOf('{showOutreach &&', salesStart))
+    const salesBlock = source.slice(salesStart, source.indexOf("{isSales && prospect.stage === 'won'", salesStart))
     assert.match(salesBlock, /flex flex-col/)
     assert.match(salesBlock, /w-full min-w-0/)
   })

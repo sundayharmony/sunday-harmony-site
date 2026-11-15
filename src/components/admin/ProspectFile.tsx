@@ -72,20 +72,6 @@ type Prospect = {
   closeMethod: string | null
 }
 
-type Script = { id: string; label: string; channel: 'email' | 'copy'; subject: string; body: string }
-type ThreadMessage = { from: string; date: string; snippet: string }
-type OutreachLetter = {
-  id: string
-  subject: string
-  previewHtml: string
-  deliveryState: string
-  deliveryLabel: string
-  acceptedAt: string | null
-  deliveredAt: string | null
-  bouncedAt: string | null
-  contactedAt: string | null
-}
-
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
 const headerButtonClass =
   'inline-flex w-full sm:w-auto items-center justify-center px-4 py-2.5 rounded-xl border border-brand-border bg-white text-sm font-semibold text-brand-text hover:border-accent hover:text-accent transition-colors'
@@ -231,12 +217,7 @@ function MeetingScheduleFields({
 
 export default function ProspectFile({ id }: { id: string }) {
   const [prospect, setProspect] = useState<Prospect | null>(null)
-  const [scripts, setScripts] = useState<Script[]>([])
   const [workspaceConnected, setWorkspaceConnected] = useState(false)
-  const [scriptId, setScriptId] = useState('established')
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
-  const [messages, setMessages] = useState<ThreadMessage[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState(false)
@@ -255,19 +236,9 @@ export default function ProspectFile({ id }: { id: string }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Prospect | null>(null)
   const [stripePaid, setStripePaid] = useState(false)
-  const [outreachLetter, setOutreachLetter] = useState<OutreachLetter | null>(null)
 
-  function applyProspect(next: Prospect, nextScripts?: Script[]) {
+  function applyProspect(next: Prospect) {
     setProspect(next)
-    if (nextScripts) {
-      setScripts(nextScripts)
-      const first = nextScripts.find((script) => script.channel === 'email') || nextScripts[0]
-      if (first) {
-        setScriptId(first.id)
-        setSubject(first.subject)
-        setBody(first.body)
-      }
-    }
     if (!agreementTier) {
       const tier =
         packages.find((pkg) => pkg.tier === next.servicesPurchased)?.tier
@@ -298,7 +269,7 @@ export default function ProspectFile({ id }: { id: string }) {
         setError(typeof data.error === 'string' ? data.error : 'Could not open this prospect.')
         return
       }
-      applyProspect(data.prospect, data.scripts)
+      applyProspect(data.prospect)
       setMeetings(Array.isArray(data.meetings) ? data.meetings : [])
       setMeetingCardState(isProspectMeetingCardState(data.meetingCardState) ? data.meetingCardState : 'none')
       setAgreementStatus(isProspectAgreementStatus(data.agreementStatus) ? data.agreementStatus : 'none')
@@ -309,7 +280,6 @@ export default function ProspectFile({ id }: { id: string }) {
       )
       setWorkspaceConnected(Boolean(data.workspaceConnected))
       setStripePaid(Boolean(data.stripePaid))
-      setOutreachLetter(data.outreachLetter && typeof data.outreachLetter.subject === 'string' ? data.outreachLetter : null)
     })()
   }, [id])
 
@@ -334,10 +304,8 @@ export default function ProspectFile({ id }: { id: string }) {
   if (!prospect) return <p className="text-sm text-brand-muted">Loading prospect…</p>
 
   const total = scoreTotal(prospect.scoreFactors)
-  const selectedScript = scripts.find((script) => script.id === scriptId)
   const isSales = roleMayRunSalesActions(role)
   const isProcurement = role === 'lead_procurement'
-  const showOutreach = role === 'admin' || isProcurement || isSales
   const directClose = directCloseSkipsMeetingAndProposal({
     lastContactedAt: prospect.lastContactedAt,
     handedToSalesAt: prospect.handedToSalesAt,
@@ -417,7 +385,6 @@ export default function ProspectFile({ id }: { id: string }) {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Request failed')
       if (data.prospect) applyProspect(data.prospect)
-      if (data.messages) setMessages(data.messages)
       if (Array.isArray(data.meetings)) setMeetings(data.meetings)
       if (isProspectMeetingCardState(data.meetingCardState)) setMeetingCardState(data.meetingCardState)
       if (isProspectAgreementStatus(data.agreementStatus)) setAgreementStatus(data.agreementStatus)
@@ -845,100 +812,6 @@ export default function ProspectFile({ id }: { id: string }) {
               </div>
             )}
           </div>
-        </section>
-      )}
-
-      {showOutreach && (
-        <section className="bg-white border border-brand-border rounded-xl p-4 space-y-3">
-          <h2 className="text-sm font-bold text-brand-text">Outreach</h2>
-          {outreachLetter ? (
-            <div className="rounded-lg border border-brand-border p-3 space-y-2">
-              <p className="text-sm font-medium text-brand-text">{outreachLetter.subject}</p>
-              <p className="text-xs text-brand-muted">
-                {outreachLetter.deliveryLabel}
-                {outreachLetter.acceptedAt ? ` · Gmail accepted ${formatWhen(outreachLetter.acceptedAt)}` : ''}
-                {outreachLetter.deliveredAt ? ` · Delivered ${formatWhen(outreachLetter.deliveredAt)}` : ''}
-                {outreachLetter.bouncedAt ? ` · Bounced ${formatWhen(outreachLetter.bouncedAt)}` : ''}
-              </p>
-              {outreachLetter.previewHtml ? (
-                <iframe
-                  title="Sent outreach letter"
-                  srcDoc={outreachLetter.previewHtml}
-                  sandbox=""
-                  className="w-full h-64 sm:h-80 rounded-lg border border-brand-border bg-white"
-                />
-              ) : null}
-            </div>
-          ) : (
-            <p className="text-xs text-brand-muted">No queued or Gmail-accepted letter on file yet.</p>
-          )}
-          <p className="text-xs text-brand-muted">
-            {isProcurement
-              ? 'First contact scripts and reply checks before handing the lead to sales.'
-              : isSales
-                ? 'Email an Uncontacted lead from the sales mailbox. Sending it marks the lead Emailed and keeps it on your list.'
-                : 'Follow up from the sales mailbox and check for replies.'}
-          </p>
-          <label className="text-sm block">
-            Script
-            <select
-              className={`${inputClass} mt-1`}
-              value={scriptId}
-              onChange={(event) => {
-                const next = scripts.find((script) => script.id === event.target.value)
-                setScriptId(event.target.value)
-                if (next) {
-                  setSubject(next.subject)
-                  setBody(next.body)
-                }
-              }}
-            >
-              {scripts.map((script) => (
-                <option key={script.id} value={script.id}>{script.label}</option>
-              ))}
-            </select>
-          </label>
-          {selectedScript?.channel === 'email' ? (
-            <>
-              <label className="text-sm block">
-                Subject
-                <input className={`${inputClass} mt-1`} value={subject} onChange={(event) => setSubject(event.target.value)} />
-              </label>
-              <label className="text-sm block">
-                Message
-                <textarea className={`${inputClass} mt-1`} rows={8} value={body} onChange={(event) => setBody(event.target.value)} />
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={saving || !workspaceConnected} onClick={() => void post(`/api/admin/pipeline/${id}/gmail`, { subject, body })} className="px-4 py-2 text-sm font-semibold bg-accent text-white rounded-lg disabled:opacity-60">
-                  Send from sales@
-                </button>
-                <button type="button" disabled={saving || !prospect.gmailThreadId} onClick={() => void post(`/api/admin/pipeline/${id}/replies`)} className="px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg disabled:opacity-60">
-                  Check replies
-                </button>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="text-sm whitespace-pre-wrap text-brand-text">{body}</p>
-              <button
-                type="button"
-                className="mt-2 px-4 py-2 text-sm font-semibold border border-brand-border rounded-lg"
-                onClick={() => void navigator.clipboard.writeText(body)}
-              >
-                Copy introduction
-              </button>
-            </div>
-          )}
-          {messages.length > 0 && (
-            <ul className="space-y-2">
-              {messages.map((message, index) => (
-                <li key={`${message.date}-${index}`} className="text-xs text-brand-muted border-t border-brand-border pt-2">
-                  <span className="font-medium text-brand-text">{message.from}</span> · {message.date}
-                  <p>{message.snippet}</p>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
       )}
 

@@ -7,12 +7,9 @@ import {
   roleMayEditPipeline,
   roleMayUsePipeline,
   saveMarketingProspect,
-  scriptsForProspect,
   stripePaidForProspect,
 } from '@/lib/marketing-crm'
 import { marketingActor, marketingError } from '@/lib/marketing-http'
-import { buildOutreachLetterForLead } from '@/lib/outreach/console'
-import { resolveOutreachStore } from '@/lib/outreach/runtime'
 import { requireMarketingSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
@@ -31,15 +28,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Prospect not found' }, { status: 404 })
   }
   const sales = await prospectFileSalesPayload(prospect)
-  let outreachLetter = null
-  try {
-    outreachLetter = await buildOutreachLetterForLead(resolveOutreachStore(), id)
-  } catch {
-    outreachLetter = null
-  }
   return NextResponse.json({
     prospect,
-    scripts: scriptsForProspect(prospect, marketingActor(session)),
     meetings: sales.meetings,
     meetingHistory: sales.meetingHistory,
     meetingCardState: sales.meetingCardState,
@@ -47,7 +37,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     agreement: sales.agreement,
     workspaceConnected: isGoogleWorkspaceConfigured(),
     stripePaid: await stripePaidForProspect(prospect),
-    outreachLetter,
   })
 }
 
