@@ -17,18 +17,23 @@ export const OUTREACH_CREAM = '#f0ebe3'
 export const OUTREACH_LEASE_MS = 2 * 60 * 1000
 export const OUTREACH_MAX_ATTEMPTS = 5
 export const OUTREACH_BACKOFF_SECONDS = [60, 120, 240, 480, 960] as const
-/** Claimable letters kept ready so Send always has a preview and a refill. */
+/**
+ * Legacy batch size. The desk no longer stops at this number.
+ * Ready letters match every unsent prospect who already has an email.
+ */
 export const OUTREACH_READY_QUEUE_SIZE = 30
 /** Previously sent rows shown on the desk. Older history stays in the queue table. */
 export const OUTREACH_SENT_DESK_LIMIT = 40
 /**
- * New leads one ensureReadyQueue call may draft. Stops a page load from drafting the whole book.
- * Page load and post-send refill both use this cap so the desk can reach
- * OUTREACH_READY_QUEUE_SIZE without a separate Fill queue action.
+ * New leads one ensureReadyQueue call may draft. The desk repeats until every
+ * unsent prospect with an email has a letter, without drafting the whole book
+ * in one request.
  */
 export const OUTREACH_ENQUEUE_EXAMINE_CAP = 80
-/** @deprecated Prefer OUTREACH_ENQUEUE_EXAMINE_CAP; kept as an alias for desk page-load top-up. */
-export const OUTREACH_PAGE_ENQUEUE_CAP = OUTREACH_ENQUEUE_EXAMINE_CAP
+/** First page load drafts a short batch so the preview appears, then the desk continues. */
+export const OUTREACH_PAGE_ENQUEUE_CAP = 16
+/** Unsent letters rewritten on a desk load. Continuation fills skip this. */
+export const OUTREACH_COPY_REFRESH_LIMIT = 8
 /** Default manual send when no count is specified (cron / legacy). */
 export const OUTREACH_SEND_LIMIT = 1
 /** Upper bound for a single operator send action. */

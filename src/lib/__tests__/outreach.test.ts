@@ -308,15 +308,21 @@ describe('eligibility, suppression, and unverified reports', () => {
     assert.doesNotMatch(next.htmlBody, /Hi Not,/)
   })
 
-  it('keeps the ready target full and refills after one send', async () => {
+  it('keeps a letter ready for every unsent prospect who has an email', async () => {
     const leads = manyLeads(OUTREACH_READY_QUEUE_SIZE + 2)
-    const store = createMemoryOutreachStore({ leads })
+    const blank = lead({ id: 'no-email', business: 'No Email Cafe' })
+    blank.email = ''
+    const store = createMemoryOutreachStore({ leads: [...leads, blank] })
+    assert.equal(await store.countUnsentProspectsWithEmail(), leads.length)
     const filled = await ensureReadyQueue(store, { mxResolver: mxOk })
-    assert.equal(filled.enqueued, OUTREACH_READY_QUEUE_SIZE)
-    assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
+    assert.equal(filled.enqueued, leads.length)
+    assert.equal(filled.target, leads.length)
+    assert.equal(filled.complete, true)
+    assert.equal(await pendingReadyCount(store), leads.length)
     const again = await ensureReadyQueue(store, { mxResolver: mxOk })
     assert.equal(again.enqueued, 0)
-    assert.equal((await store.listQueue()).length, OUTREACH_READY_QUEUE_SIZE)
+    assert.equal(again.complete, true)
+    assert.equal((await store.listQueue()).length, leads.length)
 
     await store.updateSettings({
       killSwitch: false,
@@ -344,13 +350,16 @@ describe('eligibility, suppression, and unverified reports', () => {
         limit: 1,
       })
       assert.equal(sent.accepted, 1)
-      assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE - 1)
+      assert.equal(await pendingReadyCount(store), leads.length - 1)
       const refilled = await ensureReadyQueue(store, { mxResolver: mxOk })
-      assert.equal(refilled.enqueued, 1)
-      assert.equal(await pendingReadyCount(store), OUTREACH_READY_QUEUE_SIZE)
+      assert.equal(refilled.enqueued, 0)
+      assert.equal(refilled.target, leads.length - 1)
+      assert.equal(await pendingReadyCount(store), leads.length - 1)
       assert.equal((await store.listQueue()).filter((row) => row.status === 'accepted').length, 1)
       const desk = await buildOutreachConsole(store, 'admin')
-      assert.equal(desk.readyCount, OUTREACH_READY_QUEUE_SIZE)
+      assert.equal(desk.readyCount, leads.length - 1)
+      assert.equal(desk.readyTarget, leads.length - 1)
+      assert.equal(desk.queueComplete, true)
       assert.equal(desk.sent.length, 1)
       assert.ok(desk.next?.previewHtml)
       assert.notEqual(desk.next?.id, desk.sent[0]?.id)
@@ -563,6 +572,21 @@ describe('eligibility, suppression, and unverified reports', () => {
       if (originalAllow === undefined) delete process.env.OUTREACH_ACTIVATION_ALLOWED
       else process.env.OUTREACH_ACTIVATION_ALLOWED = originalAllow
     }
+  })
+
+  it('continues a short batch until every unsent prospect with an email is queued', async () => {
+    const leads = manyLeads(5)
+    const blank = lead({ id: 'blank-email', business: 'Blank Email Shop', email: '   ' })
+    const store = createMemoryOutreachStore({ leads: [...leads, blank] })
+    const first = await ensureReadyQueue(store, { mxResolver: mxOk, maxCandidates: 2, refreshLimit: 0 })
+    assert.equal(first.enqueued, 2)
+    assert.equal(first.target, 5)
+    assert.equal(first.complete, false)
+    const second = await ensureReadyQueue(store, { mxResolver: mxOk, maxCandidates: 10, refreshLimit: 0 })
+    assert.equal(second.enqueued, 3)
+    assert.equal(second.ready, 5)
+    assert.equal(second.complete, true)
+    assert.equal((await store.listQueue()).some((row) => row.leadId === 'blank-email'), false)
   })
 
   it('stops drafting once the examine cap is hit instead of walking the whole book', async () => {
@@ -1269,12 +1293,14 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(admin, /manualSendLimitFromBody/)
     assert.match(admin, /ensureReadyQueue/)
     assert.match(admin, /OUTREACH_PAGE_ENQUEUE_CAP/)
-    assert.match(admin, /OUTREACH_READY_QUEUE_SIZE/)
-    assert.match(admin, /refreshLimit: OUTREACH_READY_QUEUE_SIZE/)
+    assert.match(admin, /OUTREACH_COPY_REFRESH_LIMIT/)
+    assert.match(admin, /refreshLimit: OUTREACH_COPY_REFRESH_LIMIT/)
+    assert.match(admin, /queueComplete/)
     assert.match(admin, /recoverStuck: true/)
     assert.match(admin, /topUp/)
     assert.match(admin, /action === 'enqueue'/)
-    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP, 80)
+    assert.equal(OUTREACH_PAGE_ENQUEUE_CAP, 16)
+    assert.doesNotMatch(admin, /OUTREACH_READY_QUEUE_SIZE/)
     assert.match(admin, /dispatchOutreachBatch/)
     assert.doesNotMatch(admin, /user_metadata/)
     const consoleUi = readFileSync('src/components/admin/OutreachConsole.tsx', 'utf8')
@@ -1289,7 +1315,8 @@ describe('unsubscribe, MIME, CSRF, and routes', () => {
     assert.match(consoleUi, /Try again/)
     assert.match(consoleUi, /post\('send', \{ count \}\)/)
     assert.match(consoleUi, /Queue topped up automatically/)
-    assert.match(consoleUi, /drafts the next eligible prospects automatically/)
+    assert.match(consoleUi, /Drafting letters for unsent prospects who have an email/)
+    assert.match(consoleUi, /continue: true/)
     assert.doesNotMatch(consoleUi, /Fill queue/)
     assert.doesNotMatch(consoleUi, /post\('enqueue'\)/)
     assert.match(consoleUi, /How many emails to send/)

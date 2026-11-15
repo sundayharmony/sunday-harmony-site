@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   OUTREACH_ATTACHMENT_FILENAME,
   OUTREACH_CAMPAIGN_SLUG,
+  OUTREACH_COPY_REFRESH_LIMIT,
   OUTREACH_ENQUEUE_EXAMINE_CAP,
   OUTREACH_MAX_ATTEMPTS,
   OUTREACH_READY_QUEUE_SIZE,
@@ -30,6 +31,12 @@ export type EnqueueResult = {
   released: number
   /** Soft needs_review / expired claim rows returned to pending (ensureReadyQueue only). */
   recovered: number
+  /** Desk-ready letters after this call. */
+  ready: number
+  /** Unsent prospects who already have an email, or an explicit size override. */
+  target: number
+  /** True when the ready queue matches that target, or no further prospect can be drafted. */
+  complete: boolean
 }
 
 function bump(reasons: Record<string, number>, reason: string) {
@@ -52,6 +59,9 @@ export async function enqueueLeadSnapshots(
     reasons: {},
     released: 0,
     recovered: 0,
+    ready: 0,
+    target: 0,
+    complete: false,
   }
   if (!campaign || !template) {
     bump(result.reasons, 'campaign_missing')
@@ -186,6 +196,9 @@ function emptyEnqueueResult(): EnqueueResult {
     reasons: {},
     released: 0,
     recovered: 0,
+    ready: 0,
+    target: 0,
+    complete: false,
   }
 }
 
@@ -240,23 +253,33 @@ export function isDeskReadyPending(
   return true
 }
 
+const PENDING_COUNT_PAGE = 200
+
+/** Every pending summary, paged so a full unsent book is not truncated at the old 150-row cap. */
+export async function listDeskPendingSummaries(store: OutreachStore): Promise<QueueItem[]> {
+  const rows: QueueItem[] = []
+  for (let offset = 0; offset < 20000; offset += PENDING_COUNT_PAGE) {
+    const page = await store.listQueueSummaries({
+      statuses: ['pending'],
+      order: 'queue',
+      limit: PENDING_COUNT_PAGE,
+      offset,
+    })
+    rows.push(...page)
+    if (page.length < PENDING_COUNT_PAGE) break
+  }
+  return rows
+}
+
 export async function pendingReadyCount(store: OutreachStore, at?: Date): Promise<number> {
   const when = at ?? store.now()
-  const queue = await store.listQueueSummaries({
-    statuses: ['pending'],
-    order: 'queue',
-    limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
-  })
+  const queue = await listDeskPendingSummaries(store)
   return queue.filter((item) => isDeskReadyPending(item, when)).length
 }
 
 export async function pendingDeferredCount(store: OutreachStore, at?: Date): Promise<number> {
   const when = at ?? store.now()
-  const queue = await store.listQueueSummaries({
-    statuses: ['pending'],
-    order: 'queue',
-    limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
-  })
+  const queue = await listDeskPendingSummaries(store)
   return queue.filter((item) => !isClaimablePending(item, when) && isDeskReadyPending(item, when)).length
 }
 
@@ -495,6 +518,18 @@ const CANDIDATE_PAGE_SIZE = 100
 /** Stop a refill that keeps receiving the same page. Skipped rows do not count as drafts. */
 const CANDIDATE_SCAN_LIMIT = 20000
 
+function finishReadyQueue(
+  result: EnqueueResult,
+  claimable: number,
+  target: number,
+  complete: boolean
+): EnqueueResult {
+  result.ready = claimable
+  result.target = target
+  result.complete = complete
+  return result
+}
+
 export async function ensureReadyQueue(
   store: OutreachStore,
   options?: {
@@ -513,35 +548,40 @@ export async function ensureReadyQueue(
     discoverWebsiteEmail?: (website: string) => Promise<string | null>
   }
 ): Promise<EnqueueResult> {
-  const size = options?.size ?? OUTREACH_READY_QUEUE_SIZE
+  const size = options?.size ?? (await store.countUnsentProspectsWithEmail())
   const maxCandidates = options?.maxCandidates ?? OUTREACH_ENQUEUE_EXAMINE_CAP
-  const refreshWindow = options?.refreshLimit ?? size
+  const refreshWindow = options?.refreshLimit ?? OUTREACH_COPY_REFRESH_LIMIT
+  const recoverLimit = Math.min(Math.max(size, 1), Math.max(maxCandidates, 1))
   let released = 0
   let recovered = 0
   if (options?.releaseSoftRetries === false && options?.recoverStuck !== true) {
     // Cron/tests can leave backoff and soft review holds alone.
   } else if (options?.recoverStuck === false) {
-    released = await releaseSoftRetryBackoff(store, { limit: size })
+    released = await releaseSoftRetryBackoff(store, { limit: recoverLimit })
   } else {
-    const stuck = await recoverStuckQueueForDesk(store, { limit: size })
+    const stuck = await recoverStuckQueueForDesk(store, { limit: recoverLimit })
     released = stuck.released
     recovered = stuck.recovered
   }
-  await refreshReadyQueueCopy(
-    store,
-    refreshWindow,
-    options?.refreshLimit != null ? ['pending'] : undefined
-  )
+  if (refreshWindow > 0) {
+    await refreshReadyQueueCopy(
+      store,
+      refreshWindow,
+      options?.refreshLimit != null ? ['pending'] : undefined
+    )
+  }
   const result = emptyEnqueueResult()
   result.released = released
   result.recovered = recovered
   let claimable = await pendingReadyCount(store)
-  if (claimable < size) {
-    const promoted = await promoteHeldLetters(store, size - claimable)
+  if (claimable < size && maxCandidates > 0) {
+    const promoted = await promoteHeldLetters(store, Math.min(size - claimable, maxCandidates))
     result.recovered += promoted
     if (promoted > 0) claimable = await pendingReadyCount(store)
   }
-  if (claimable >= size || maxCandidates < 1) return result
+  if (claimable >= size || maxCandidates < 1) {
+    return finishReadyQueue(result, claimable, size, claimable >= size)
+  }
 
   const queued = await store.listQueuedLeadKeys()
   const queuedLeadIds = new Set(queued.map((item) => item.leadId))
@@ -549,6 +589,7 @@ export async function ensureReadyQueue(
   const websiteLeads: LeadSnapshot[] = []
   let examined = 0
   let offset = 0
+  let scanExhausted = false
 
   while (claimable < size && examined < maxCandidates && offset < CANDIDATE_SCAN_LIMIT) {
     const page = await store.listEligibleLeadCandidates({
@@ -556,9 +597,16 @@ export async function ensureReadyQueue(
       limit: CANDIDATE_PAGE_SIZE,
       offset,
     })
-    if (page.length === 0) break
+    if (page.length === 0) {
+      scanExhausted = true
+      break
+    }
+    let stoppedEarly = false
     for (const lead of page) {
-      if (claimable >= size || examined >= maxCandidates) break
+      if (claimable >= size || examined >= maxCandidates) {
+        stoppedEarly = true
+        break
+      }
       const emailNorm = resolveLeadEmail(lead)
       if (emailNorm) lead.email = emailNorm
       if (isReadyToContactProspect(lead) && !emailNorm) {
@@ -584,11 +632,15 @@ export async function ensureReadyQueue(
       queuedLeadIds.add(lead.id)
       if (emailNorm) queuedEmails.add(emailNorm)
     }
+    if (stoppedEarly) break
     offset += page.length
-    if (page.length < CANDIDATE_PAGE_SIZE) break
+    if (page.length < CANDIDATE_PAGE_SIZE) {
+      scanExhausted = true
+      break
+    }
   }
 
-  if (claimable < size && options?.discoverWebsiteEmail && websiteLeads.length > 0) {
+  if (scanExhausted && claimable < size && options?.discoverWebsiteEmail && websiteLeads.length > 0) {
     const deadline = Date.now() + 45_000
     let checked = 0
     let found = 0
@@ -634,7 +686,7 @@ export async function ensureReadyQueue(
     }
     console.log('outreach website lookup', JSON.stringify({ checked, found, candidates: websiteLeads.length }))
   }
-  return result
+  return finishReadyQueue(result, claimable, size, claimable >= size || scanExhausted)
 }
 
 export async function enqueueFromStoreCandidates(

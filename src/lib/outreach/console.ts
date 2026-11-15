@@ -2,11 +2,10 @@ import { resolveCompanyPresentationPdf } from './attachment'
 import {
   EMAIL_BOT_UNVERIFIED_REPORTS,
   OUTREACH_MANUAL_SEND_MAX,
-  OUTREACH_READY_QUEUE_SIZE,
   OUTREACH_SENT_DESK_LIMIT,
 } from './constants'
 import { draftContentSha256 } from './draft-shell'
-import { isClaimablePending, isDeskReadyPending } from './enqueue'
+import { isClaimablePending, isDeskReadyPending, listDeskPendingSummaries } from './enqueue'
 import { buildHandoff, canViewHandoff } from './handoff'
 import { currentBlockers, senderConfiguredHere, supabaseReadyForOutreach } from './runtime'
 import { outreachCron } from './scheduler'
@@ -53,14 +52,10 @@ function deskRow(
 
 export async function buildOutreachConsole(store: OutreachStore, role: string | null) {
   const now = store.now()
-  const [settings, campaign, pendingAll, sent, recon, attachment] = await Promise.all([
+  const [settings, campaign, pendingAll, sent, recon, attachment, unsentWithEmail] = await Promise.all([
     store.getSettings(),
     store.getCampaignBySlug('prospect-intro'),
-    store.listQueueSummaries({
-      statuses: ['pending'],
-      order: 'queue',
-      limit: Math.max(OUTREACH_READY_QUEUE_SIZE * 5, 50),
-    }),
+    listDeskPendingSummaries(store),
     store.listQueueSummaries({
       statuses: ['accepted', 'delivered', 'bounced'],
       order: 'recent',
@@ -68,6 +63,7 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     }),
     store.listReconciliationItems(),
     resolveCompanyPresentationPdf(),
+    store.countUnsentProspectsWithEmail(),
   ])
   const template = campaign ? await store.getLatestTemplate(campaign.id) : null
   const attachmentPresent = Boolean(attachment)
@@ -90,7 +86,8 @@ export async function buildOutreachConsole(store: OutreachStore, role: string | 
     attachmentPresent,
     readyCount: deskReady.length,
     deferredCount: deferredCount > 0 ? deferredCount : 0,
-    readyTarget: OUTREACH_READY_QUEUE_SIZE,
+    readyTarget: unsentWithEmail,
+    queueComplete: deskReady.length >= unsentWithEmail,
     manualSendMax: OUTREACH_MANUAL_SEND_MAX,
     next: nextItem,
     sent: sent.map((item) => deskRow(item, includeHandoff)),

@@ -1,3 +1,4 @@
+import { OUTREACH_PAGE_ENQUEUE_CAP } from './constants'
 import { ensureReadyQueue } from './enqueue'
 import { resolveOutreachStore } from './runtime'
 
@@ -6,7 +7,13 @@ export async function enqueueImportedLeadsBestEffort(rows: Array<Record<string, 
   try {
     if (rows.length === 0) return
     const store = resolveOutreachStore()
-    await ensureReadyQueue(store, { actor: 'leads-import' })
+    await ensureReadyQueue(store, {
+      actor: 'leads-import',
+      maxCandidates: Math.min(Math.max(rows.length, 1), OUTREACH_PAGE_ENQUEUE_CAP),
+      refreshLimit: 0,
+      releaseSoftRetries: false,
+      recoverStuck: false,
+    })
   } catch {
     /* Outreach tables may be unapplied. Import still succeeds. */
   }

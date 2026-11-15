@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import StatusBadge from '@/components/ui/StatusBadge'
-import { OUTREACH_READY_QUEUE_SIZE } from '@/lib/outreach/constants'
 
 type Blocker = { code: string; message: string }
 
@@ -40,6 +39,7 @@ type ConsolePayload = {
   readyCount?: number
   deferredCount?: number
   readyTarget?: number
+  queueComplete?: boolean
   manualSendMax?: number
   next: LetterPreview | null
   sent: DeskRow[]
@@ -100,15 +100,20 @@ export default function OutreachConsole() {
   const [sentPreview, setSentPreview] = useState<LetterPreview | null>(null)
   const [openSentId, setOpenSentId] = useState<string | null>(null)
   const [sendCount, setSendCount] = useState(1)
+  const [filling, setFilling] = useState(false)
+  const loadGeneration = useRef(0)
 
   const load = useCallback(async (preserveError = false) => {
+    const generation = loadGeneration.current + 1
+    loadGeneration.current = generation
     if (!preserveError) setError('')
     try {
       const response = await fetch('/api/admin/outreach', {
         cache: 'no-store',
-        // Desk refill can examine several leads; keep this above page-load work.
+        // The first batch is short. Later batches keep filling in the background.
         signal: AbortSignal.timeout(120000),
       })
+      if (generation !== loadGeneration.current) return
       if (response.status === 401 || response.status === 403) {
         setError('You do not have access to outreach review.')
         return
@@ -125,10 +130,10 @@ export default function OutreachConsole() {
       setData(payload)
       setAddress(payload.settings.physicalMailingAddress || '')
       if (payload.error) setError(payload.error)
-      // Only narrate automatic top-up on a fresh desk load, not after Send (that has its own status).
-      if (!preserveError) {
-        const ready = payload.readyCount ?? 0
-        const target = payload.readyTarget ?? OUTREACH_READY_QUEUE_SIZE
+      let ready = payload.readyCount ?? 0
+      let target = payload.readyTarget ?? ready
+      const stillShort = payload.queueComplete === false && ready < target && payload.canOperate
+      if (!preserveError && !stillShort) {
         const topUp = payload.topUp
         if (
           topUp &&
@@ -165,16 +170,82 @@ export default function OutreachConsole() {
           if (topUp.enqueued > 0) parts.push(`drafted ${topUp.enqueued}`)
           if (topUp.recovered > 0) parts.push(`recovered ${topUp.recovered}`)
           if (topUp.released > 0) parts.push(`released ${topUp.released} from retry wait`)
-          const missingEmails = topUp.reasons?.invalid_or_missing_email || 0
-          const missingNote =
-            ready < target && missingEmails > 0
-              ? ` ${missingEmails} Ready to contact prospects have no email address.`
-              : ''
-          setLastSend(`Queue topped up automatically (${parts.join(', ')}).${missingNote}`)
+          setLastSend(`Queue topped up automatically (${parts.join(', ')}).`)
         }
       }
+      if (!stillShort) return
+      setFilling(true)
+      if (!preserveError) {
+        setLastSend(
+          target === 1
+            ? 'Drafting the unsent prospect who has an email.'
+            : `Drafting letters for ${target} unsent prospects who have an email.`
+        )
+      }
+      try {
+        for (let guard = 0; guard < 80 && generation === loadGeneration.current; guard += 1) {
+          const more = await fetch('/api/admin/outreach', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'enqueue', continue: true }),
+            signal: AbortSignal.timeout(120000),
+          })
+          if (generation !== loadGeneration.current) return
+          if (!more.ok) break
+          const body = (await more.json()) as {
+            complete?: boolean
+            ready?: number
+            target?: number
+            enqueued?: number
+            recovered?: number
+            released?: number
+          }
+          if (typeof body.ready === 'number') ready = body.ready
+          if (typeof body.target === 'number') target = body.target
+          setData((current) =>
+            current
+              ? {
+                  ...current,
+                  readyCount: ready,
+                  readyTarget: target,
+                  queueComplete: body.complete === true,
+                }
+              : current
+          )
+          if (!preserveError) {
+            setLastSend(
+              ready >= target
+                ? `${ready} ready. Every unsent prospect with an email is queued.`
+                : body.complete
+                  ? `${ready} ready.`
+                  : `Drafting outreach emails… ${ready} of ${target} ready.`
+            )
+          }
+          if (body.complete || ready >= target) break
+          if ((body.enqueued || 0) === 0 && (body.recovered || 0) === 0 && (body.released || 0) === 0) break
+        }
+        if (generation !== loadGeneration.current) return
+        const refreshed = await fetch('/api/admin/outreach', {
+          cache: 'no-store',
+          signal: AbortSignal.timeout(120000),
+        })
+        if (generation !== loadGeneration.current || !refreshed.ok) return
+        const nextPayload = (await refreshed.json()) as ConsolePayload
+        if (nextPayload.settings && nextPayload.provider) {
+          setData(nextPayload)
+          const finalReady = nextPayload.readyCount ?? ready
+          if (!preserveError && (nextPayload.readyTarget ?? target) <= finalReady) {
+            setLastSend(`${finalReady} ready. Every unsent prospect with an email is queued.`)
+          }
+        }
+      } finally {
+        if (generation === loadGeneration.current) setFilling(false)
+      }
     } catch {
-      setError('Outreach is taking too long to load. Try again.')
+      if (generation === loadGeneration.current) {
+        setFilling(false)
+        setError('Outreach is taking too long to load. Try again.')
+      }
     }
   }, [])
 
@@ -268,7 +339,8 @@ export default function OutreachConsole() {
   const sent = data.sent ?? []
   const readyCount = data.readyCount ?? 0
   const deferredCount = data.deferredCount ?? 0
-  const readyTarget = data.readyTarget ?? OUTREACH_READY_QUEUE_SIZE
+  const readyTarget = data.readyTarget ?? readyCount
+  const drafting = filling || (data.queueComplete === false && readyCount < readyTarget)
   const manualSendMax = data.manualSendMax ?? 50
   // Manual send ignores brief retry backoff, so deferred pending letters are still sendable.
   const sendableCount = readyCount + deferredCount
@@ -282,8 +354,8 @@ export default function OutreachConsole() {
         <p className="text-[10px] font-bold tracking-[0.14em] uppercase text-brand-dim">Sales review</p>
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
         <p className="text-sm text-brand-muted mt-2">
-          Enter how many emails to send from the queue. {readyTarget} stay queued so the next preview is
-          always ready.
+          Enter how many emails to send from the queue. Every unsent prospect who has an email stays
+          queued, so the next letter is ready when you send.
         </p>
       </div>
 
@@ -291,8 +363,8 @@ export default function OutreachConsole() {
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <StatusBadge status={data.liveSend ? 'active' : 'paused'} />
           <span className="text-sm text-brand-text">
-            {readyCount} ready
-            {readyCount < readyTarget ? ` (target ${readyTarget})` : ''}
+            {readyCount < readyTarget ? `${readyCount} of ${readyTarget} ready` : `${readyCount} ready`}
+            {drafting ? ' · drafting the rest' : ''}
             {deferredCount > 0 ? ` · ${deferredCount} waiting on retry` : ''}
             {sent.length ? ` · ${sent.length} sent` : ''}
           </span>
@@ -322,9 +394,9 @@ export default function OutreachConsole() {
               </p>
             ) : (
               <p className="text-sm text-brand-muted mt-1">
-                {busy
-                  ? 'Topping up the ready queue…'
-                  : 'No letter is ready yet. Opening this page recovers soft failures and drafts the next eligible prospects automatically — refresh if the queue is still empty.'}
+                {busy || drafting
+                  ? 'Drafting letters for unsent prospects who have an email…'
+                  : 'No unsent prospect with an email is left to draft. Refresh if a new prospect was just added.'}
               </p>
             )}
           </div>

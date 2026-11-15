@@ -13,6 +13,7 @@ import type {
   Suppression,
 } from './types'
 import { OUTREACH_MAILING_ADDRESS } from './constants'
+import { leadIsReadyQueueCandidate } from './eligibility'
 import { leadRowToSnapshot } from './enqueue'
 
 function asString(value: unknown): string {
@@ -589,6 +590,26 @@ export function createSupabaseOutreachStore(): OutreachStore {
         .eq('id', id)
         .maybeSingle()
       return data ? leadRowToSnapshot(data as Record<string, unknown>) : null
+    },
+    async countUnsentProspectsWithEmail() {
+      let count = 0
+      const pageSize = 200
+      for (let offset = 0; offset < 20000; offset += pageSize) {
+        const { data, error } = await db()
+          .from('leads')
+          .select(LEAD_CANDIDATE_COLUMNS)
+          .in('pipeline_stage', ['ready_to_contact', 'researching', 'uncontacted'])
+          .order('id', { ascending: true })
+          .range(offset, offset + pageSize - 1)
+        if (error) throw new Error(error.message)
+        const page = (data || []) as Array<Record<string, unknown>>
+        for (const row of page) {
+          const snapshot = leadRowToSnapshot(row)
+          if (snapshot && leadIsReadyQueueCandidate(snapshot)) count += 1
+        }
+        if (page.length < pageSize) break
+      }
+      return count
     },
     async listEligibleLeadCandidates(query?: LeadCandidateQuery) {
       const limit = Math.min(Math.max(query?.limit ?? 100, 1), 200)

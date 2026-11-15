@@ -15,9 +15,10 @@ import { ensureReadyQueue } from '@/lib/outreach/enqueue'
 import { discoverEmailFromWebsite } from '@/lib/outreach/website-email'
 import { currentBlockers, defaultDisabledSettings, resolveOutreachStore } from '@/lib/outreach/runtime'
 import {
+  OUTREACH_COPY_REFRESH_LIMIT,
+  OUTREACH_ENQUEUE_EXAMINE_CAP,
   OUTREACH_MANUAL_SEND_MAX,
   OUTREACH_PAGE_ENQUEUE_CAP,
-  OUTREACH_READY_QUEUE_SIZE,
   OUTREACH_SEND_LIMIT,
 } from '@/lib/outreach/constants'
 import { requireAdminSession, requireSalesSession } from '@/lib/stripe-admin-auth'
@@ -64,6 +65,9 @@ export async function GET() {
       blockedReview?: number
       skipped?: number
       reasons?: Record<string, number>
+      ready?: number
+      target?: number
+      complete?: boolean
     } = { enqueued: 0, released: 0, recovered: 0 }
     if (session.user.role === 'admin') {
       try {
@@ -71,11 +75,12 @@ export async function GET() {
       } catch (error) {
         console.error('pipeline stage align failed', error instanceof Error ? error.message : 'unknown')
       }
-      // Automatic desk top-up: recover soft failures, then draft toward the ready target.
+      // Draft a short batch on open. The desk keeps calling until every unsent
+      // prospect who already has an email has a letter.
       const refill = await ensureReadyQueue(store, {
         actor: session.user.email || session.user.id,
         maxCandidates: OUTREACH_PAGE_ENQUEUE_CAP,
-        refreshLimit: OUTREACH_READY_QUEUE_SIZE,
+        refreshLimit: OUTREACH_COPY_REFRESH_LIMIT,
         releaseSoftRetries: true,
         recoverStuck: true,
         discoverWebsiteEmail: discoverEmailFromWebsite,
@@ -88,6 +93,9 @@ export async function GET() {
         blockedReview: refill.blockedReview,
         skipped: refill.skipped,
         reasons: refill.reasons,
+        ready: refill.ready,
+        target: refill.target,
+        complete: refill.complete,
       }
       console.log(
         'outreach top-up',
@@ -103,7 +111,15 @@ export async function GET() {
       )
     }
     const payload = await buildOutreachConsole(store, session.user.role ?? null)
-    return NextResponse.json({ ...payload, topUp })
+    const queueComplete =
+      typeof topUp.complete === 'boolean' ? topUp.complete : payload.queueComplete
+    return NextResponse.json({
+      ...payload,
+      topUp,
+      queueComplete,
+      readyCount: typeof topUp.ready === 'number' ? topUp.ready : payload.readyCount,
+      readyTarget: typeof topUp.target === 'number' ? topUp.target : payload.readyTarget,
+    })
   } catch (error) {
     const message = 'Outreach store is unavailable. Migration may be unapplied.'
     return NextResponse.json(
@@ -115,7 +131,8 @@ export async function GET() {
         canOperate: session.user.role === 'admin',
         attachmentPresent: false,
         readyCount: 0,
-        readyTarget: OUTREACH_READY_QUEUE_SIZE,
+        readyTarget: 0,
+        queueComplete: true,
         manualSendMax: OUTREACH_MANUAL_SEND_MAX,
         next: null,
         sent: [],
@@ -152,7 +169,15 @@ export async function POST(request: NextRequest) {
     const session = await requireSalesSession()
     if (session instanceof NextResponse) return session
     const store = resolveOutreachStore()
-    const result = await ensureReadyQueue(store, { actor: session.user.email || session.user.id })
+    const continuing = body.continue === true
+    const result = await ensureReadyQueue(store, {
+      actor: session.user.email || session.user.id,
+      maxCandidates: continuing ? OUTREACH_ENQUEUE_EXAMINE_CAP : OUTREACH_PAGE_ENQUEUE_CAP,
+      refreshLimit: continuing ? 0 : OUTREACH_COPY_REFRESH_LIMIT,
+      releaseSoftRetries: !continuing,
+      recoverStuck: !continuing,
+      discoverWebsiteEmail: discoverEmailFromWebsite,
+    })
     return NextResponse.json({ ok: true, enqueueOnly: true, sent: 0, liveSend: false, ...result })
   }
 
@@ -201,8 +226,11 @@ export async function POST(request: NextRequest) {
     })
     const refill = await ensureReadyQueue(store, {
       actor: actorId,
+      maxCandidates: OUTREACH_ENQUEUE_EXAMINE_CAP,
+      refreshLimit: 0,
       releaseSoftRetries: true,
       recoverStuck: true,
+      discoverWebsiteEmail: discoverEmailFromWebsite,
     })
     const detailSummary = humanizeDispatchDetails(result.details)
     return NextResponse.json({

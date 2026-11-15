@@ -1,4 +1,4 @@
-import { OUTREACH_READY_QUEUE_SIZE, OUTREACH_SEND_LIMIT } from './constants'
+import { OUTREACH_SEND_LIMIT } from './constants'
 
 export const OUTREACH_CRON_PATH = '/api/internal/outreach-dispatch'
 /** Kept for docs only. Production does not register this schedule. */
@@ -18,6 +18,6 @@ export function outreachCron(): {
     path: OUTREACH_CRON_PATH,
     schedule: OUTREACH_CRON_SCHEDULE,
     enabled: false,
-    note: `Automatic send is off. Use Send on this page. Choose how many to send per action; the queue refills so ${OUTREACH_READY_QUEUE_SIZE} stay ready.`,
+    note: 'Automatic send is off. Use Send on this page. Every unsent prospect who has an email stays queued.',
   }
 }
