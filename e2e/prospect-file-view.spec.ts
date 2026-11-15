@@ -25,7 +25,7 @@ const prospect = {
   source: 'outbound',
   lastContactedAt: null,
   followUpAt: '2026-11-06T14:00:00.000Z',
-  stage: 'ready_to_contact',
+  stage: 'uncontacted',
   estimatedValue: 599,
   notes: 'Opener: Los Claveles team — for conchas and tres leches, but still no branded website.',
   gmailThreadId: null,
@@ -110,12 +110,13 @@ test.describe('prospect file view mode', () => {
 
     await expect(page.getByRole('heading', { name: prospect.business })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible()
-    await expect(page.getByLabel(/Pipeline stage/i)).toHaveValue('ready_to_contact')
+    await expect(page.getByLabel(/Pipeline stage/i)).toHaveValue('uncontacted')
     const stageOptions = await page.getByTestId('pipeline-stage-select').locator('option').allTextContents()
-    expect(stageOptions).toContain('Ready to contact')
+    expect(stageOptions).toContain('Uncontacted')
+    expect(stageOptions).toContain('Emailed')
     expect(stageOptions).toContain('Contacted')
-    expect(stageOptions).not.toContain('Responded')
-    expect(stageOptions).not.toContain('Meeting scheduled')
+    expect(stageOptions).toContain('Offer made')
+    expect(stageOptions).toContain('Active client')
     await expect(page.getByText('Current status')).toBeVisible()
     await expect(page.getByText('Wilmington, DE')).toBeVisible()
     await expect(page.getByText('Business Essentials $599')).toBeVisible()
@@ -132,7 +133,7 @@ test.describe('prospect file view mode', () => {
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
     await expect(page.getByLabel(/Business name/i)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Save prospect' })).toBeVisible()
-    await expect(page.getByLabel(/Pipeline stage/i)).toHaveValue('ready_to_contact')
+    await expect(page.getByLabel(/Pipeline stage/i)).toHaveValue('uncontacted')
 
     await page.screenshot({
       path: '/opt/cursor/artifacts/prospect-file-edit-desktop.png',

@@ -680,7 +680,7 @@ export default function ProspectFile({ id }: { id: string }) {
           <div>
             <h2 className="text-sm font-bold text-brand-text">Sales actions</h2>
             <p className="text-xs text-brand-muted mt-1">
-              Contact a Ready to contact lead, send the agreement, then bill when the deal is Active. A meeting and a proposal are optional once the agreement is signed and the invoice is sent and paid.
+              Email an Uncontacted lead, then mark Contacted if the call is not answered. Bill when they accept and pay. A meeting and a proposal are optional once the agreement is signed and the invoice is sent and paid.
             </p>
           </div>
 
@@ -689,11 +689,7 @@ export default function ProspectFile({ id }: { id: string }) {
               <h3 className="text-sm font-semibold text-brand-text">Scheduled meeting</h3>
               <MeetingJoinList
                 meetings={meetings}
-                empty={
-                  prospect.stage === 'meeting_scheduled'
-                    ? 'The Meet link shows here once the consultation is booked.'
-                    : undefined
-                }
+                empty="The Meet link shows here once the consultation is booked."
               />
               <button
                 type="button"
@@ -880,7 +876,7 @@ export default function ProspectFile({ id }: { id: string }) {
             {isProcurement
               ? 'First contact scripts and reply checks before handing the lead to sales.'
               : isSales
-                ? 'Contact a Ready to contact lead from the sales mailbox. Sending it keeps that lead on your list.'
+                ? 'Email an Uncontacted lead from the sales mailbox. Sending it marks the lead Emailed and keeps it on your list.'
                 : 'Follow up from the sales mailbox and check for replies.'}
           </p>
           <label className="text-sm block">

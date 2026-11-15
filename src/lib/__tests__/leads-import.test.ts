@@ -245,8 +245,8 @@ describe('POST /api/internal/leads-import', () => {
     assert.equal(inserted[0].prospect_category, 'established')
     assert.equal(inserted[0].lead_type, 'marketing_lead')
     assert.equal(inserted[0].assigned_role, 'lead_procurement')
-    assert.equal(inserted[0].pipeline_stage, 'researching')
-    assert.equal(inserted[0].marketing_lead_status, 'new_lead')
+    assert.equal(inserted[0].pipeline_stage, 'ready_to_contact')
+    assert.equal(inserted[0].marketing_lead_status, 'qualified')
     assert.equal(inserted[0].status, 'new')
     assert.equal(inserted[0].prospect_score, 10)
     assert.equal(inserted[0].recommended_service, inserted[0].service)
@@ -336,7 +336,7 @@ describe('POST /api/internal/leads-import', () => {
     assert.equal(db.rows('activity_log').length, 0)
   })
 
-  it('defaults source to outbound and stage to researching', async () => {
+  it('defaults source to outbound and stage to uncontacted', async () => {
     process.env.LEADS_IMPORT_SECRET = SECRET
     const db = memorySupabase()
     setSupabaseForTests(db as unknown as SupabaseClient)
@@ -348,8 +348,8 @@ describe('POST /api/internal/leads-import', () => {
     assert.deepEqual(body.skipped, [])
     const row = db.rows('leads')[0]
     assert.equal(row.source, 'outbound')
-    assert.equal(row.pipeline_stage, 'researching')
-    assert.equal(row.marketing_lead_status, 'new_lead')
+    assert.equal(row.pipeline_stage, 'ready_to_contact')
+    assert.equal(row.marketing_lead_status, 'qualified')
     assert.equal(row.status, 'new')
     assert.equal(row.first_name, 'Sal')
     assert.equal(row.last_name, 'Jacobs')

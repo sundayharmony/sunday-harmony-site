@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   isGoogleWorkspaceConfigured,
 } from '@/lib/google-workspace'
-import { attachProspectMeetingLinks, listMarketingProspects, roleMayEditPipeline, roleMayUsePipeline, saveMarketingProspect } from '@/lib/marketing-crm'
+import { alignPipelineStages, attachProspectMeetingLinks, listMarketingProspects, roleMayEditPipeline, roleMayUsePipeline, saveMarketingProspect } from '@/lib/marketing-crm'
 import { marketingActor, marketingError } from '@/lib/marketing-http'
 import { boardLanes, FIELD_PURPOSES, SCORE_FACTORS, STAGE_LABELS, staffStagesVisibleToRole } from '@/lib/marketing-pipeline'
 import { requireMarketingSession } from '@/lib/stripe-admin-auth'
@@ -14,6 +14,11 @@ export async function GET() {
   if (session instanceof NextResponse) return session
   if (!roleMayUsePipeline(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  try {
+    await alignPipelineStages()
+  } catch (error) {
+    console.error('pipeline stage align failed', error instanceof Error ? error.message : 'unknown')
   }
   const prospects = await attachProspectMeetingLinks(
     await listMarketingProspects(session.user.role),

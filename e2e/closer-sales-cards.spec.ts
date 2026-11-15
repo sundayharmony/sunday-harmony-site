@@ -163,7 +163,7 @@ test.describe('closer sales cards', () => {
   test('shows an upcoming booked card and hides the empty schedule form', async ({ page }) => {
     await signIn(page)
     await mockProspect(page, {
-      prospect: { stage: 'meeting_scheduled', followUpAt: upcomingMeeting.startsAt },
+      prospect: { stage: 'emailed', followUpAt: upcomingMeeting.startsAt },
       meetings: [upcomingMeeting],
       meetingCardState: 'upcoming',
       agreementStatus: 'none',
@@ -215,7 +215,7 @@ test.describe('closer sales cards', () => {
   test('hides the schedule form after a past meeting', async ({ page }) => {
     await signIn(page)
     await mockProspect(page, {
-      prospect: { stage: 'proposal_sent', followUpAt: '2026-11-01T16:00:00.000Z' },
+      prospect: { stage: 'offer_made', followUpAt: '2026-11-01T16:00:00.000Z' },
       meetings: [],
       meetingCardState: 'past',
       agreementStatus: 'none',

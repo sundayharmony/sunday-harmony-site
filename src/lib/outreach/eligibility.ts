@@ -6,9 +6,11 @@ import { mxBlocksSend } from './mx'
 import type { LeadSnapshot, QueueItem, ReconciliationItem, Suppression } from './types'
 
 export const CONTACTED_PIPELINE_STAGES = [
+  'emailed',
   'contacted',
   'responded',
   'meeting_scheduled',
+  'offer_made',
   'proposal_sent',
   'negotiation',
   'won',
@@ -22,9 +24,11 @@ function outreachLeadType(lead: LeadSnapshot): string {
   return lead.leadType || 'marketing_lead'
 }
 
-/** Pipeline "Ready to contact" is the desk's source list, even if an older contact date is stored. */
+/** Uncontacted prospects are the desk's source list, even if an older contact date is stored. */
 export function isReadyToContactProspect(lead: LeadSnapshot): boolean {
-  return lead.pipelineStage === 'ready_to_contact' && OUTREACH_LEAD_TYPES.has(outreachLeadType(lead))
+  const stage = lead.pipelineStage
+  const uncontacted = stage === 'uncontacted' || stage === 'ready_to_contact'
+  return uncontacted && OUTREACH_LEAD_TYPES.has(outreachLeadType(lead))
 }
 
 /** Leads the ready queue may still draft. Already-contacted rows are left out. */

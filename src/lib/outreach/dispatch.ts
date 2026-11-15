@@ -9,7 +9,7 @@ import { normalizeBusinessName, normalizeEmail } from './email-address'
 import { outboundCopyHoldReason } from './greeting'
 import { resolveOutreachProvider } from './gmail-binding'
 import { lookupMx, type MxResolver } from './mx'
-import { stageAfterOutboundEmail, type PipelineStage } from '@/lib/marketing-pipeline'
+import { stageAfterOutboundEmail, stageFromStorage } from '@/lib/marketing-pipeline'
 import { queueItemPayload, shouldAutoRetry, type OutreachMailProvider } from './provider'
 import { senderConfiguredHere } from './runtime'
 import type { OutreachStore } from './store'
@@ -289,12 +289,8 @@ export async function dispatchOutreachBatch(input: {
         providerMessageId: result.providerMessageId,
         finishedAt: at.toISOString(),
       })
-      const currentStage = (lead.pipelineStage || 'researching') as PipelineStage
-      const nextStage = stageAfterOutboundEmail(
-        ['researching', 'ready_to_contact', 'contacted', 'responded', 'meeting_scheduled', 'proposal_sent', 'negotiation', 'won', 'lost_nurture'].includes(currentStage)
-          ? currentStage
-          : 'researching'
-      )
+      const currentStage = stageFromStorage(lead.pipelineStage || 'uncontacted')
+      const nextStage = stageAfterOutboundEmail(currentStage)
       await store.markLeadContacted({
         leadId: lead.id,
         contactedAt: at.toISOString(),

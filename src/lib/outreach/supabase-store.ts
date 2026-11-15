@@ -1,4 +1,4 @@
-import { legacyLeadStatusForStage, marketingStatusForStage, type PipelineStage } from '@/lib/marketing-pipeline'
+import { legacyLeadStatusForStage, marketingStatusForStage, stageFromStorage, stageToStorage, type PipelineStage } from '@/lib/marketing-pipeline'
 import { getSupabase } from '@/lib/supabase'
 import type { LeadCandidateQuery, OutreachStore, QueueSummaryQuery } from './store'
 import type {
@@ -632,12 +632,12 @@ export function createSupabaseOutreachStore(): OutreachStore {
       await db().from('leads').update({ email, updated_at: now }).eq('id', input.id).eq('email', '')
     },
     async markLeadContacted(input) {
-      const stage = input.pipelineStage as PipelineStage
+      const stage = stageFromStorage(input.pipelineStage) as PipelineStage
       await db()
         .from('leads')
         .update({
           last_contacted_at: input.contactedAt,
-          pipeline_stage: input.pipelineStage,
+          pipeline_stage: stageToStorage(stage),
           marketing_lead_status: marketingStatusForStage(stage),
           status: legacyLeadStatusForStage(stage),
           gmail_thread_id: input.gmailThreadId,

@@ -33,6 +33,8 @@ import {
   stageAfterProspectReply,
   STAGE_LABELS,
   stageFromLegacy,
+  stageFromStorage,
+  stageToStorage,
   stagesVisibleToRole,
   staffPipelineStage,
   staffStageChoices,
@@ -52,21 +54,31 @@ describe('marketing pipeline scores and stages', () => {
   })
 
   it('maps legacy rows and inbound website leads', () => {
-    assert.equal(stageFromLegacy({ marketingStatus: 'new_lead', source: 'inbound' }), 'responded')
-    assert.equal(stageFromLegacy({ marketingStatus: 'new_lead', source: 'outbound' }), 'researching')
-    assert.equal(stageFromLegacy({ marketingStatus: 'consultation_scheduled' }), 'meeting_scheduled')
-    assert.equal(stageFromLegacy({ legacyStatus: 'proposal' }), 'proposal_sent')
+    assert.equal(stageFromLegacy({ marketingStatus: 'new_lead', source: 'inbound' }), 'uncontacted')
+    assert.equal(stageFromLegacy({ marketingStatus: 'new_lead', source: 'outbound' }), 'uncontacted')
+    assert.equal(stageFromLegacy({ marketingStatus: 'consultation_scheduled' }), 'offer_made')
+    assert.equal(stageFromLegacy({ legacyStatus: 'proposal' }), 'offer_made')
     assert.equal(stageFromLegacy({ marketingStatus: 'converted' }), 'won')
     assert.equal(marketingStatusForStage('won'), 'converted')
-    assert.equal(STAGE_LABELS.won, 'Active')
+    assert.equal(STAGE_LABELS.won, 'Active client')
+    assert.equal(STAGE_LABELS.uncontacted, 'Uncontacted')
+    assert.equal(STAGE_LABELS.emailed, 'Emailed')
+    assert.equal(STAGE_LABELS.contacted, 'Contacted')
+    assert.equal(STAGE_LABELS.offer_made, 'Offer made')
     assert.equal(STAGE_LABELS.lost_nurture, 'Inactive')
-    assert.equal(marketingStatusForStage('responded'), 'contacted')
+    assert.equal(stageFromStorage('ready_to_contact'), 'uncontacted')
+    assert.equal(stageFromStorage('contacted'), 'emailed')
+    assert.equal(stageFromStorage('negotiation'), 'contacted')
+    assert.equal(stageFromStorage('proposal_sent'), 'offer_made')
+    assert.equal(stageToStorage('emailed'), 'responded')
+    assert.equal(stageToStorage('contacted'), 'negotiation')
+    assert.equal(marketingStatusForStage('emailed'), 'contacted')
   })
 
   it('treats follow-up dates as optional and only set by hand', () => {
-    assert.equal(followUpError('researching', ''), null)
-    assert.equal(followUpError('researching', null), null)
-    assert.equal(followUpError('negotiation', '2026-11-02T15:00:00.000Z'), null)
+    assert.equal(followUpError('uncontacted', ''), null)
+    assert.equal(followUpError('uncontacted', null), null)
+    assert.equal(followUpError('offer_made', '2026-11-02T15:00:00.000Z'), null)
     assert.match(followUpError('contacted', 'not-a-date') || '', /valid date/)
     assert.equal(followUpError('won', null), null)
     assert.equal(followUpError('lost_nurture', null), null)
@@ -79,19 +91,19 @@ describe('marketing pipeline scores and stages', () => {
   })
 
   it('advances early leads when a consultation is booked and leaves closed deals', () => {
-    assert.equal(stageAfterConsultation('responded'), 'meeting_scheduled')
-    assert.equal(stageAfterConsultation('proposal_sent'), null)
+    assert.equal(stageAfterConsultation('emailed'), null)
+    assert.equal(stageAfterConsultation('offer_made'), null)
     assert.equal(stageAfterConsultation('won'), null)
-    assert.equal(stageAfterOutboundEmail('ready_to_contact'), 'contacted')
-    assert.equal(stageAfterOutboundEmail('responded'), 'responded')
-    assert.equal(stageAfterProspectReply('contacted'), 'responded')
-    assert.equal(stageAfterProspectReply('proposal_sent'), null)
+    assert.equal(stageAfterOutboundEmail('uncontacted'), 'emailed')
+    assert.equal(stageAfterOutboundEmail('emailed'), 'emailed')
+    assert.equal(stageAfterOutboundEmail('contacted'), 'contacted')
+    assert.equal(stageAfterProspectReply('uncontacted'), 'emailed')
+    assert.equal(stageAfterProspectReply('offer_made'), null)
   })
 
-  it('hides Responded and Meeting scheduled from staff stage choices', () => {
-    assert.equal(staffPipelineStage('responded'), 'contacted')
-    assert.equal(staffPipelineStage('meeting_scheduled'), 'contacted')
-    assert.equal(staffPipelineStage('proposal_sent'), 'proposal_sent')
+  it('shows Uncontacted through Active client in the stage menu', () => {
+    assert.equal(staffPipelineStage('emailed'), 'emailed')
+    assert.equal(staffPipelineStage('offer_made'), 'offer_made')
     const admin = staffStageChoices('admin', 'contacted')
     assert.equal(admin.includes('responded' as typeof admin[number]), false)
     assert.equal(admin.includes('meeting_scheduled' as typeof admin[number]), false)
@@ -106,9 +118,9 @@ describe('marketing pipeline scores and stages', () => {
 
 describe('marketing role handoffs and navigation', () => {
   it('blocks a sales handoff until the qualified-lead checklist is complete', () => {
-    assert.equal(canHandOffToSales('lead_procurement', 'ready_to_contact'), true)
-    assert.equal(canHandOffToSales('sales_closer', 'ready_to_contact'), false)
-    assert.equal(canHandOffToSales('lead_procurement', 'researching'), false)
+    assert.equal(canHandOffToSales('lead_procurement', 'uncontacted'), true)
+    assert.equal(canHandOffToSales('sales_closer', 'uncontacted'), false)
+    assert.equal(canHandOffToSales('lead_procurement', 'emailed'), true)
     const gaps = procurementHandoffGaps({
       businessName: 'Abbs Trucking',
       decisionMaker: 'Abbs',
@@ -136,7 +148,7 @@ describe('marketing role handoffs and navigation', () => {
 
   it('blocks client relations until the close checklist includes a signed agreement and proposal', () => {
     assert.equal(canHandOffToRelations('sales_closer', 'won'), true)
-    assert.equal(canHandOffToRelations('sales_closer', 'negotiation'), false)
+    assert.equal(canHandOffToRelations('sales_closer', 'offer_made'), false)
     const gaps = salesHandoffGaps({
       servicesPurchased: 'Website',
       scope: 'Five pages',
@@ -216,23 +228,23 @@ describe('marketing role handoffs and navigation', () => {
   })
 
   it('moves a lead out of procurement after the sales handoff and into client relations only after the won handoff', () => {
-    const researching = { stage: 'researching' as const, handedToSalesAt: null, handedToRelationsAt: null }
-    assert.equal(roleCanSeeProspect('lead_procurement', researching), true)
-    assert.equal(roleCanSeeProspect('sales_closer', researching), false)
-    const ready = { stage: 'ready_to_contact' as const, handedToSalesAt: null, handedToRelationsAt: null }
-    assert.equal(roleCanSeeProspect('sales_closer', ready), true)
-    assert.equal(roleCanSeeProspect('lead_procurement', ready), true)
-    assert.equal(roleCanSeeProspect('sales_closer', { stage: 'contacted' as const, handedToSalesAt: null, handedToRelationsAt: null }), false)
+    const uncontacted = { stage: 'uncontacted' as const, handedToSalesAt: null, handedToRelationsAt: null }
+    assert.equal(roleCanSeeProspect('lead_procurement', uncontacted), true)
+    assert.equal(roleCanSeeProspect('sales_closer', uncontacted), true)
+    const emailed = { stage: 'emailed' as const, handedToSalesAt: null, handedToRelationsAt: null }
+    assert.equal(roleCanSeeProspect('sales_closer', emailed), false)
+    assert.equal(roleCanSeeProspect('lead_procurement', emailed), true)
+    assert.equal(roleCanSeeProspect('sales_closer', { stage: 'contacted' as const, handedToSalesAt: null, handedToRelationsAt: null }), true)
     assert.equal(
       roleCanSeeProspect('sales_closer', {
-        stage: 'contacted' as const,
+        stage: 'emailed' as const,
         handedToSalesAt: null,
         handedToRelationsAt: null,
         lastContactedAt: '2026-11-07T02:00:00.000Z',
       }),
       true
     )
-    const handed = { stage: 'contacted' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: null }
+    const handed = { stage: 'emailed' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: null }
     assert.equal(roleCanSeeProspect('lead_procurement', handed), false)
     assert.equal(roleCanSeeProspect('sales_closer', handed), true)
     const won = { stage: 'won' as const, handedToSalesAt: handed.handedToSalesAt, handedToRelationsAt: null }
@@ -242,11 +254,11 @@ describe('marketing role handoffs and navigation', () => {
   })
 
   it('keeps each role inside its stages', () => {
-    assert.equal(canMoveStage('lead_procurement', 'researching', 'ready_to_contact'), true)
+    assert.equal(canMoveStage('lead_procurement', 'uncontacted', 'emailed'), true)
     assert.equal(canMoveStage('lead_procurement', 'contacted', 'won'), false)
-    assert.equal(canMoveStage('sales_closer', 'proposal_sent', 'won'), true)
-    assert.equal(canMoveStage('sales_closer', 'researching', 'contacted'), false)
-    assert.equal(canMoveStage('admin', 'researching', 'won'), true)
+    assert.equal(canMoveStage('sales_closer', 'offer_made', 'won'), true)
+    assert.equal(canMoveStage('sales_closer', 'uncontacted', 'contacted'), true)
+    assert.equal(canMoveStage('admin', 'uncontacted', 'won'), true)
     assert.equal(canMoveStage('client_relations', 'won', 'lost_nurture'), false)
   })
 
@@ -351,7 +363,7 @@ describe('marketing role handoffs and navigation', () => {
     const won = { stage: 'won' as const, handedToSalesAt: '2026-11-02T15:00:00.000Z', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }
     assert.equal(closerMayBillProspect('sales_closer', won, true), true)
     assert.equal(closerMayBillProspect('sales_closer', { ...won, handedToRelationsAt: null }, true), true)
-    assert.equal(closerMayBillProspect('sales_closer', { ...won, stage: 'negotiation' }, true), false)
+    assert.equal(closerMayBillProspect('sales_closer', { ...won, stage: 'offer_made' }, true), false)
     assert.equal(closerMayBillProspect('sales_closer', { ...won, stage: 'lost_nurture' }, true), false)
     assert.equal(closerMayBillProspect('sales_closer', won, false), false)
     assert.equal(closerMayBillProspect('lead_procurement', won, true), false)
@@ -363,13 +375,13 @@ describe('marketing role handoffs and navigation', () => {
   it('gives each role only the pipeline lanes they own', () => {
     const procurement = boardLanes('lead_procurement')
     assert.equal(procurement.length, 1)
-    assert.deepEqual(procurement[0].stages, ['researching', 'ready_to_contact', 'contacted'])
+    assert.deepEqual(procurement[0].stages, ['uncontacted', 'emailed'])
 
     const sales = boardLanes('sales_closer')
     const salesStages = sales.flatMap((lane) => lane.stages)
     assert.equal(sales.length, 3)
-    assert.equal(salesStages.includes('researching'), false)
-    assert.equal(sales.some((lane) => lane.title === 'Ready to contact'), true)
+    assert.equal(salesStages.includes('uncontacted'), true)
+    assert.equal(sales.some((lane) => lane.title === 'Uncontacted'), true)
 
     const relations = boardLanes('client_relations')
     assert.equal(relations.length, 1)
@@ -377,8 +389,8 @@ describe('marketing role handoffs and navigation', () => {
 
     const adminStages = boardLanes('admin').flatMap((lane) => lane.stages)
     assert.equal(new Set(adminStages).size, adminStages.length)
-    assert.equal(salesStages.includes('responded'), false)
-    assert.equal(salesStages.includes('meeting_scheduled'), false)
+    assert.equal(salesStages.includes('emailed'), true)
+    assert.equal(salesStages.includes('offer_made'), true)
     assert.deepEqual([...adminStages].sort(), [...STAFF_PIPELINE_STAGES].sort())
     assert.deepEqual(boardLanes(null).flatMap((lane) => lane.stages), adminStages)
     assert.deepEqual(boardLanes('unknown').flatMap((lane) => lane.stages), adminStages)
@@ -387,8 +399,8 @@ describe('marketing role handoffs and navigation', () => {
   it('counts role metrics from pipeline rows', () => {
     const rows = [
       { stage: 'won' as const, hasContact: true, handedToSales: true, estimatedValue: 2500 },
-      { stage: 'meeting_scheduled' as const, hasContact: true, handedToSales: true, estimatedValue: 0 },
-      { stage: 'researching' as const, hasContact: false, handedToSales: false, estimatedValue: 0 },
+      { stage: 'offer_made' as const, hasContact: true, handedToSales: true, estimatedValue: 0 },
+      { stage: 'uncontacted' as const, hasContact: false, handedToSales: false, estimatedValue: 0 },
     ]
     const procurement = procurementMetrics(rows)
     assert.equal(procurement[0].value, '2')
@@ -403,30 +415,30 @@ describe('marketing role handoffs and navigation', () => {
   it('filters and sorts the pipeline list by search, stage, and follow-up', () => {
     const rows = [
       { id: '2', business: 'Zed Cafe', contactName: 'Zed', stage: 'contacted' as const, score: 4, followUpAt: '2026-11-08T14:00:00.000Z' },
-      { id: '1', business: 'Bean by Bardea', contactName: 'Bardea', stage: 'researching' as const, score: 9, followUpAt: '2026-11-06T14:00:00.000Z' },
-      { id: '3', business: 'Pasteleria', contactName: 'Ana', stage: 'researching' as const, score: 8, followUpAt: '2026-11-06T13:00:00.000Z' },
+      { id: '1', business: 'Bean by Bardea', contactName: 'Bardea', stage: 'uncontacted' as const, score: 9, followUpAt: '2026-11-06T14:00:00.000Z' },
+      { id: '3', business: 'Pasteleria', contactName: 'Ana', stage: 'uncontacted' as const, score: 8, followUpAt: '2026-11-06T13:00:00.000Z' },
     ]
     assert.equal(pipelineProspectMatchesQuery(rows[1], 'bardea'), true)
     assert.equal(pipelineProspectMatchesQuery(rows[1], 'pizza'), false)
     const searched = filterPipelineProspects(rows, { query: 'cafe' })
     assert.deepEqual(searched.map((row) => row.id), ['2'])
-    const researching = filterPipelineProspects(rows, { stage: 'researching' })
-    assert.deepEqual(researching.map((row) => row.business), ['Pasteleria', 'Bean by Bardea'])
+    const uncontacted = filterPipelineProspects(rows, { stage: 'uncontacted' })
+    assert.deepEqual(uncontacted.map((row) => row.business), ['Pasteleria', 'Bean by Bardea'])
     assert.ok(comparePipelineProspects(rows[2], rows[1]) < 0)
     assert.equal(prospectVisibleInBoardStage('sales_closer', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), false)
     assert.equal(prospectVisibleInBoardStage('admin', { stage: 'won', handedToRelationsAt: '2026-11-03T15:00:00.000Z' }, 'won'), true)
-    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'meeting_scheduled' }, 'contacted'), true)
-    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'responded' }, 'contacted'), true)
-    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'meeting_scheduled' }, 'meeting_scheduled'), false)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'offer_made' }, 'offer_made'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'emailed' }, 'emailed'), true)
+    assert.equal(prospectVisibleInBoardStage('admin', { stage: 'emailed' }, 'contacted'), false)
     assert.deepEqual(
       filterPipelineProspects(
         [
-          { id: 'r', business: 'Replied Bakery', contactName: 'Rae', stage: 'responded' as const, score: 8, followUpAt: null },
-          { id: 'm', business: 'Meet Cafe', contactName: 'Mo', stage: 'meeting_scheduled' as const, score: 7, followUpAt: null },
+          { id: 'r', business: 'Replied Bakery', contactName: 'Rae', stage: 'emailed' as const, score: 8, followUpAt: null },
+          { id: 'm', business: 'Meet Cafe', contactName: 'Mo', stage: 'contacted' as const, score: 7, followUpAt: null },
         ],
         { stage: 'contacted' }
       ).map((row) => row.id),
-      ['r', 'm']
+      ['m']
     )
   })
 

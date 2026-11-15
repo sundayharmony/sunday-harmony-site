@@ -371,9 +371,9 @@ export const closerSopModules: CloserSopModule[] = [
     summary: 'Score five factors from 0–2 (total 0–10). Move the live stage as the deal actually moves — never skip logging.',
     bullets: [
       `Five factors, each 0–2: ${SCORE_FACTORS.map((factor) => factor.label.replace(/^Has an? /i, '').replace(/^Appears /i, '')).join('; ')}.`,
-      '8–10 is high priority, 5–7 is medium, 0–4 is hold. Move to Ready to contact when research is done.',
+      '8–10 is high priority, 5–7 is medium, 0–4 is hold. New prospects start Uncontacted.',
       `Stages: ${STAFF_PIPELINE_STAGES.map((stage) => STAGE_LABELS[stage]).join(' → ')}.`,
-      'Researching = identified but not contacted. Ready to contact = qualified and researched. Contacted = outreach sent. Book a Google Meet from the meeting card without changing stage. Proposal sent = pricing presented. Negotiation = discussing the opportunity. Active (Won) = signed and paid. Inactive (Lost / Nurture) = not moving forward; keep for later.',
+      'Uncontacted = no email yet. Emailed = an email was sent. Contacted = called and they did not answer. Offer made = a conversation happened and they did not accept on the call. Active client = accepted and paid. Inactive = not moving forward.',
       'Confirm lane labels on the live Pipeline board. Log every contact; mark Lost / Nurture honestly when the timing is wrong.',
     ],
     links: [

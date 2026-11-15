@@ -11,7 +11,7 @@ import { evaluateEligibility, isReadyToContactProspect, leadIsReadyQueueCandidat
 import { findSingleEmail, normalizeBusinessName, normalizeEmail, resolveLeadEmail } from './email-address'
 import { extractGroundedFacts } from './facts'
 import { prospectObservationIsSafe } from './greeting'
-import { isPipelineStage, stageFromLegacy } from '@/lib/marketing-pipeline'
+import { stageFromLegacy, stageFromStorage } from '@/lib/marketing-pipeline'
 import { usableWebsite } from './website-email'
 import { lookupMx, type MxResolver } from './mx'
 import type { OutreachStore } from './store'
@@ -779,12 +779,17 @@ export async function refreshUnsentQueueCopy(
 
 function stageOfLeadRow(row: Record<string, unknown>): string | null {
   const raw = typeof row.pipeline_stage === 'string' ? row.pipeline_stage : ''
-  if (isPipelineStage(raw)) return raw
-  return stageFromLegacy({
-    marketingStatus: typeof row.marketing_lead_status === 'string' ? row.marketing_lead_status : null,
-    legacyStatus: typeof row.status === 'string' ? row.status : null,
-    source: typeof row.source === 'string' ? row.source : null,
-  })
+  const stage = raw
+    ? stageFromStorage(raw)
+    : stageFromLegacy({
+        marketingStatus: typeof row.marketing_lead_status === 'string' ? row.marketing_lead_status : null,
+        legacyStatus: typeof row.status === 'string' ? row.status : null,
+        source: typeof row.source === 'string' ? row.source : null,
+      })
+  const emailSent = typeof row.gmail_thread_id === 'string' && row.gmail_thread_id.trim() !== ''
+  if (emailSent && stage === 'uncontacted') return 'emailed'
+  if (!emailSent && raw === 'contacted') return 'uncontacted'
+  return stage
 }
 
 export function leadRowToSnapshot(row: Record<string, unknown>): LeadSnapshot | null {

@@ -130,7 +130,7 @@ describe('Lumen & Co. Floral continuity', () => {
       business: 'Lumen & Co. Floral',
       source: 'in_person',
       followUpAt: followUp,
-      stage: 'researching',
+      stage: 'uncontacted',
       location: 'Richmond, VA',
       industry: 'Retail florist',
       website: 'https://lumenandco.example',
@@ -141,11 +141,11 @@ describe('Lumen & Co. Floral continuity', () => {
 
     await assert.rejects(
       () => handOffProspect(id, 'sales_closer', procurement),
-      /not ready to hand to sales/
+      /Decision-maker/
     )
 
     await saveMarketingProspect(id, {
-      stage: 'ready_to_contact',
+      stage: 'uncontacted',
       contactName: 'Maya Ellison',
       opportunity: 'The website has no way to order, and Instagram has been quiet for months.',
       notes: 'Met Maya at the Carytown flower market. Sample continuity business, not a real customer.',
@@ -174,7 +174,7 @@ describe('Lumen & Co. Floral continuity', () => {
     )
 
     const handed = await handOffProspect(id, 'sales_closer', procurement)
-    assert.equal(handed.stage, 'ready_to_contact')
+    assert.equal(handed.stage, 'uncontacted')
     assert.ok(handed.handedToSalesAt)
     assert.equal(handed.assignedRole, 'sales_closer')
     assert.equal((await listMarketingProspects('lead_procurement')).some((row) => row.id === id), false)
@@ -348,7 +348,7 @@ describe('sales closer direct close', () => {
       business: 'Harbor Bread Co.',
       source: 'outbound',
       followUpAt: followUp,
-      stage: 'ready_to_contact',
+      stage: 'uncontacted',
       contactName: 'Noah Park',
       email: 'noah@harborbread.example',
       phone: '804-555-0199',

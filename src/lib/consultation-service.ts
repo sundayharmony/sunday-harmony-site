@@ -238,8 +238,8 @@ export async function bookConsultation(input: {
       service: 'Consultation',
       source: 'inbound',
       lead_type: 'marketing_lead',
-      marketing_lead_status: 'consultation_scheduled',
-      pipeline_stage: 'meeting_scheduled',
+      marketing_lead_status: 'contacted',
+      pipeline_stage: 'responded',
     })
   } else {
     const updates: Parameters<typeof updateLead>[1] = {}

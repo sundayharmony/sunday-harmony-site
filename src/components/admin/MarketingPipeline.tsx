@@ -214,7 +214,7 @@ export default function MarketingPipeline() {
     recommendedService: '',
     source: 'outbound',
     followUpAt: '',
-    stage: 'researching',
+    stage: 'uncontacted',
     estimatedValue: '',
     notes: '',
   })
@@ -250,11 +250,11 @@ export default function MarketingPipeline() {
 
   const canAdd = loaded && role !== 'client_relations'
   const subtitle = role === 'sales_closer'
-    ? 'Contact Ready to contact leads, send the agreement, and bill Active clients. A meeting and a proposal are optional once the invoice is sent and paid.'
+    ? 'Email Uncontacted leads, call the ones who do not answer, and bill Active clients. A meeting and a proposal are optional once the invoice is sent and paid.'
     : 'Each role works only the stages they own.'
   const dashboardMeetings: JoinableMeeting[] = (role === 'sales_closer' || role === 'admin')
     ? prospects
-      .filter((row) => row.meetLink || row.calendarLink || row.stage === 'meeting_scheduled')
+      .filter((row) => row.meetLink || row.calendarLink)
       .map((row) => ({
         id: row.id,
         prospectId: row.id,

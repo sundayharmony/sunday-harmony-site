@@ -2,41 +2,41 @@ export const MARKETING_ROLES = ['lead_procurement', 'sales_closer', 'client_rela
 export type MarketingRole = (typeof MARKETING_ROLES)[number]
 
 export const PIPELINE_STAGES = [
-  'researching',
-  'ready_to_contact',
+  'uncontacted',
+  'emailed',
   'contacted',
-  'responded',
-  'meeting_scheduled',
-  'proposal_sent',
-  'negotiation',
+  'offer_made',
   'won',
   'lost_nurture',
 ] as const
 export type PipelineStage = (typeof PIPELINE_STAGES)[number]
 
-/** Stages staff can pick. Older `responded` / `meeting_scheduled` rows still parse. */
-export const STAFF_PIPELINE_STAGES = [
-  'researching',
-  'ready_to_contact',
-  'contacted',
-  'proposal_sent',
-  'negotiation',
-  'won',
-  'lost_nurture',
-] as const satisfies readonly PipelineStage[]
+/** Stages staff can pick. Stored rows still use the older database values. */
+export const STAFF_PIPELINE_STAGES = PIPELINE_STAGES
 
-export type StaffPipelineStage = (typeof STAFF_PIPELINE_STAGES)[number]
+export type StaffPipelineStage = PipelineStage
 
 export const STAGE_LABELS: Record<PipelineStage, string> = {
-  researching: 'Researching',
-  ready_to_contact: 'Ready to contact',
+  uncontacted: 'Uncontacted',
+  emailed: 'Emailed',
   contacted: 'Contacted',
-  responded: 'Responded',
-  meeting_scheduled: 'Meeting scheduled',
-  proposal_sent: 'Proposal sent',
-  negotiation: 'Negotiation / follow-up',
-  won: 'Active',
+  offer_made: 'Offer made',
+  won: 'Active client',
   lost_nurture: 'Inactive',
+}
+
+/**
+ * The leads.pipeline_stage check already allows these values.
+ * Uncontacted is ready_to_contact, Emailed is responded, a call with no
+ * answer is negotiation, and Offer made is proposal_sent.
+ */
+const STORED_PIPELINE_STAGE: Record<PipelineStage, string> = {
+  uncontacted: 'ready_to_contact',
+  emailed: 'responded',
+  contacted: 'negotiation',
+  offer_made: 'proposal_sent',
+  won: 'won',
+  lost_nurture: 'lost_nurture',
 }
 
 export const PROSPECT_CATEGORIES = ['established', 'small', 'startup'] as const
@@ -98,7 +98,7 @@ export const FIELD_PURPOSES = {
   source: 'Where you found them',
   contactDate: 'Last outreach',
   followUp: 'Optional reminder. Set only when you actually need one.',
-  stage: 'Current status',
+  stage: 'Current status. Uncontacted, then Emailed, then Contacted if the call was not answered, then Offer made, then Active client.',
   value: 'Potential project revenue',
   notes: 'Conversation history stays in Gmail. These notes stay internal.',
 } as const
@@ -122,14 +122,12 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin/settings', icon: '\u2699\uFE0F', label: 'Settings' },
 ]
 
-const PROCUREMENT_STAGES = new Set<PipelineStage>(['researching', 'ready_to_contact', 'contacted'])
+const PROCUREMENT_STAGES = new Set<PipelineStage>(['uncontacted', 'emailed'])
 const SALES_STAGES = new Set<PipelineStage>([
-  'ready_to_contact',
+  'uncontacted',
+  'emailed',
   'contacted',
-  'responded',
-  'meeting_scheduled',
-  'proposal_sent',
-  'negotiation',
+  'offer_made',
   'won',
   'lost_nurture',
 ])
@@ -148,10 +146,39 @@ export function isStaffPipelineStage(value: unknown): value is StaffPipelineStag
   return typeof value === 'string' && (STAFF_PIPELINE_STAGES as readonly string[]).includes(value)
 }
 
-/** Map retired reply/meeting stages onto Contacted for staff UI. */
+/** Staff stages are the live stages. Older stored values are translated first. */
 export function staffPipelineStage(stage: PipelineStage): StaffPipelineStage {
-  if (stage === 'responded' || stage === 'meeting_scheduled') return 'contacted'
   return stage
+}
+
+export function stageToStorage(stage: PipelineStage): string {
+  return STORED_PIPELINE_STAGE[stage]
+}
+
+/** Read a stored pipeline_stage, including values saved before this stage list. */
+export function stageFromStorage(value: unknown): PipelineStage {
+  switch (value) {
+    case 'uncontacted':
+    case 'researching':
+    case 'ready_to_contact':
+      return 'uncontacted'
+    case 'emailed':
+    case 'responded':
+    case 'contacted':
+      return 'emailed'
+    case 'negotiation':
+      return 'contacted'
+    case 'offer_made':
+    case 'meeting_scheduled':
+    case 'proposal_sent':
+      return 'offer_made'
+    case 'won':
+      return 'won'
+    case 'lost_nurture':
+      return 'lost_nurture'
+    default:
+      return 'uncontacted'
+  }
 }
 
 export function staffStagesVisibleToRole(role?: string | null): StaffPipelineStage[] {
@@ -225,16 +252,12 @@ export function followUpError(_stage: PipelineStage, followUpAt?: string | null)
 
 export function marketingStatusForStage(stage: PipelineStage): string {
   switch (stage) {
-    case 'researching':
-      return 'new_lead'
-    case 'ready_to_contact':
+    case 'uncontacted':
       return 'qualified'
+    case 'emailed':
     case 'contacted':
-    case 'responded':
       return 'contacted'
-    case 'meeting_scheduled':
-    case 'proposal_sent':
-    case 'negotiation':
+    case 'offer_made':
       return 'consultation_scheduled'
     case 'won':
       return 'converted'
@@ -247,12 +270,10 @@ export function marketingStatusForStage(stage: PipelineStage): string {
 
 export function legacyLeadStatusForStage(stage: PipelineStage): string {
   switch (stage) {
+    case 'emailed':
     case 'contacted':
-    case 'responded':
-    case 'meeting_scheduled':
       return 'contacted'
-    case 'proposal_sent':
-    case 'negotiation':
+    case 'offer_made':
       return 'proposal'
     case 'won':
       return 'won'
@@ -272,43 +293,27 @@ export function stageFromLegacy(input: {
   const legacy = input.legacyStatus || ''
   if (marketing === 'converted' || legacy === 'won') return 'won'
   if (marketing === 'not_interested' || legacy === 'lost') return 'lost_nurture'
-  if (legacy === 'proposal') return 'proposal_sent'
-  if (marketing === 'consultation_scheduled') return 'meeting_scheduled'
-  if (marketing === 'qualified') return 'ready_to_contact'
-  if (marketing === 'contacted' || legacy === 'contacted') return 'contacted'
-  if (input.source === 'inbound' || input.source === 'website') return 'responded'
-  return 'researching'
+  if (legacy === 'proposal' || marketing === 'consultation_scheduled') return 'offer_made'
+  if (marketing === 'contacted' || legacy === 'contacted') return 'emailed'
+  return 'uncontacted'
 }
 
-const EARLY_FOR_MEETING = new Set<PipelineStage>([
-  'researching',
-  'ready_to_contact',
-  'contacted',
-  'responded',
-  'meeting_scheduled',
-])
-
-/** A booked consultation advances early pipeline rows and leaves later deals alone. */
-export function stageAfterConsultation(current?: string | null): PipelineStage | null {
-  if (!current) return 'meeting_scheduled'
-  if (!isPipelineStage(current)) return 'meeting_scheduled'
-  if (!EARLY_FOR_MEETING.has(current)) return null
-  return 'meeting_scheduled'
+/** Booking a meeting keeps the current stage. The follow-up date holds the appointment. */
+export function stageAfterConsultation(_current?: string | null): PipelineStage | null {
+  return null
 }
 
 export function stageAfterOutboundEmail(current: PipelineStage): PipelineStage {
-  if (current === 'researching' || current === 'ready_to_contact') return 'contacted'
+  if (current === 'uncontacted') return 'emailed'
   return current
 }
 
 export function stageAfterProspectReply(current: PipelineStage): PipelineStage | null {
-  const index = STAGE_INDEX.get(current) ?? 0
-  const responded = STAGE_INDEX.get('responded') ?? 0
-  if (index < responded) return 'responded'
+  if (current === 'uncontacted') return 'emailed'
   return null
 }
 
-/** Procurement stops seeing a lead after the sales handoff. Sales can open every Ready to contact lead. */
+/** Procurement stops seeing a lead after the sales handoff. Sales can open every Uncontacted lead. */
 export function roleCanSeeProspect(
   role: string | null | undefined,
   prospect: {
@@ -324,8 +329,8 @@ export function roleCanSeeProspect(
   }
   if (role === 'sales_closer') {
     if (!SALES_STAGES.has(prospect.stage)) return false
-    if (prospect.stage === 'ready_to_contact') return true
-    if (prospect.stage === 'contacted') {
+    if (prospect.stage === 'uncontacted') return true
+    if (prospect.stage === 'emailed') {
       return Boolean(prospect.handedToSalesAt || prospect.lastContactedAt)
     }
     return true
@@ -350,10 +355,10 @@ export type BoardLane = {
   stages: PipelineStage[]
 }
 
-const PROCUREMENT_LANE_STAGES: PipelineStage[] = ['researching', 'ready_to_contact', 'contacted']
+const PROCUREMENT_LANE_STAGES: PipelineStage[] = ['uncontacted', 'emailed']
 const SALES_WORK_STAGES: PipelineStage[] = [
-  'proposal_sent',
-  'negotiation',
+  'contacted',
+  'offer_made',
   'lost_nurture',
 ]
 
@@ -363,7 +368,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
     return [{
       id: 'procurement',
       title: 'Lead procurement',
-      detail: 'Research the business, make first contact, and hand a qualified lead to sales.',
+      detail: 'Find the business, send the first email, and hand the lead to sales.',
       stages: [...PROCUREMENT_LANE_STAGES],
     }]
   }
@@ -371,20 +376,20 @@ export function boardLanes(role?: string | null): BoardLane[] {
     return [
       {
         id: 'handed-to-sales',
-        title: 'Ready to contact',
-        detail: 'Qualified leads you can contact. After you contact one, it stays with you.',
-        stages: ['ready_to_contact', 'contacted'],
+        title: 'Uncontacted',
+        detail: 'People who have not been emailed, and people who have. A call with no answer moves to Contacted.',
+        stages: ['uncontacted', 'emailed'],
       },
       {
         id: 'sales',
         title: 'Sales',
-        detail: 'Proposals, negotiation, and leads that go Inactive.',
+        detail: 'Called with no answer, offers, and leads that go Inactive.',
         stages: [...SALES_WORK_STAGES],
       },
       {
         id: 'active',
         title: 'Active',
-        detail: 'Bill the client from Today, then hand the file to client relations.',
+        detail: 'Accepted the proposal and paid. Bill the client from Today, then hand the file to client relations.',
         stages: ['won'],
       },
     ]
@@ -401,19 +406,19 @@ export function boardLanes(role?: string | null): BoardLane[] {
     {
       id: 'procurement',
       title: 'Lead procurement',
-      detail: 'Research, first contact, and the handoff to sales.',
+      detail: 'Uncontacted people and the emails already sent.',
       stages: [...PROCUREMENT_LANE_STAGES],
     },
     {
       id: 'sales',
       title: 'Sales',
-      detail: 'Proposals, negotiation, and inactive leads.',
+      detail: 'Calls with no answer, offers, and inactive leads.',
       stages: [...SALES_WORK_STAGES],
     },
     {
       id: 'client-relations',
       title: 'Client relations',
-      detail: 'Active clients after the sale.',
+      detail: 'Active clients who accepted and paid.',
       stages: ['won'],
     },
   ]
@@ -629,7 +634,7 @@ export function salesHandoffGaps(input: SalesChecklistInput & DirectCloseInput):
 
 export function canHandOffToSales(role: string | null | undefined, stage: PipelineStage): boolean {
   if (role !== 'admin' && role !== 'lead_procurement') return false
-  return stage === 'ready_to_contact' || stage === 'contacted'
+  return stage === 'uncontacted' || stage === 'emailed'
 }
 
 export function canHandOffToRelations(role: string | null | undefined, stage: PipelineStage): boolean {
@@ -684,23 +689,20 @@ export type MetricProspect = {
 }
 
 const CONTACTED_OR_LATER = new Set<PipelineStage>([
+  'emailed',
   'contacted',
-  'responded',
-  'meeting_scheduled',
-  'proposal_sent',
-  'negotiation',
+  'offer_made',
   'won',
   'lost_nurture',
 ])
 
 const MEETING_OR_LATER = new Set<PipelineStage>([
-  'meeting_scheduled',
-  'proposal_sent',
-  'negotiation',
+  'contacted',
+  'offer_made',
   'won',
 ])
 
-const PROPOSAL_OR_LATER = new Set<PipelineStage>(['proposal_sent', 'negotiation', 'won'])
+const PROPOSAL_OR_LATER = new Set<PipelineStage>(['offer_made', 'won'])
 
 function percent(part: number, whole: number): string {
   if (whole <= 0) return '0%'

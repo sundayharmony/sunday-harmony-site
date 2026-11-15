@@ -10,6 +10,7 @@ import {
 import { buildOutreachConsole } from '@/lib/outreach/console'
 import { isSameOriginRequest } from '@/lib/outreach/csrf'
 import { dispatchOutreachBatch } from '@/lib/outreach/dispatch'
+import { alignPipelineStages } from '@/lib/marketing-crm'
 import { ensureReadyQueue } from '@/lib/outreach/enqueue'
 import { discoverEmailFromWebsite } from '@/lib/outreach/website-email'
 import { currentBlockers, defaultDisabledSettings, resolveOutreachStore } from '@/lib/outreach/runtime'
@@ -65,6 +66,11 @@ export async function GET() {
       reasons?: Record<string, number>
     } = { enqueued: 0, released: 0, recovered: 0 }
     if (session.user.role === 'admin') {
+      try {
+        await alignPipelineStages()
+      } catch (error) {
+        console.error('pipeline stage align failed', error instanceof Error ? error.message : 'unknown')
+      }
       // Automatic desk top-up: recover soft failures, then draft toward the ready target.
       const refill = await ensureReadyQueue(store, {
         actor: session.user.email || session.user.id,

@@ -954,7 +954,7 @@ describe('disabled dispatch, idempotency, and delivery honesty', () => {
       assert.equal(item.deliveredAt, null)
       assert.ok(item.contactedLeadUpdatedAt)
       assert.equal((await store.getLead('lead-1'))?.lastContactedAt, item.acceptedAt)
-      assert.equal((await store.getLead('lead-1'))?.pipelineStage, 'contacted')
+      assert.equal((await store.getLead('lead-1'))?.pipelineStage, 'emailed')
       assert.equal(provider.lastPayload?.attachment.filename.endsWith('.pdf'), true)
     } finally {
       if (originalKill === undefined) delete process.env.OUTREACH_KILL_SWITCH

@@ -59,6 +59,8 @@ import {
   scoreTotal,
   stageAfterConsultation,
   stageFromLegacy,
+  stageFromStorage,
+  stageToStorage,
   stageAfterOutboundEmail,
   stageAfterProspectReply,
 } from '@/lib/marketing-pipeline'
@@ -128,12 +130,21 @@ function text(value: unknown): string {
 
 function stageOf(row: LeadRow): PipelineStage {
   const raw = text(row.pipeline_stage)
-  if (isPipelineStage(raw)) return raw
-  return stageFromLegacy({
-    marketingStatus: text(row.marketing_lead_status),
-    legacyStatus: text(row.status),
-    source: text(row.source),
-  })
+  const stage = raw
+    ? stageFromStorage(raw)
+    : stageFromLegacy({
+        marketingStatus: text(row.marketing_lead_status),
+        legacyStatus: text(row.status),
+        source: text(row.source),
+      })
+  const emailSent = Boolean(text(row.gmail_thread_id))
+  if (emailSent && stage === 'uncontacted') return 'emailed'
+  if (!emailSent && raw === 'contacted') return 'uncontacted'
+  return stage
+}
+
+function storedStage(stage: PipelineStage): string {
+  return stageToStorage(stage)
 }
 
 export function mapProspect(row: LeadRow, creditApplicationId: string | null = null): MarketingProspect {
@@ -192,6 +203,82 @@ export function mapProspect(row: LeadRow, creditApplicationId: string | null = n
 function isMarketingRow(row: LeadRow): boolean {
   const type = text(row.lead_type) || 'marketing_lead'
   return type === 'marketing_lead' || type === 'existing_client' || type === 'completed_client'
+}
+
+const PIPELINE_ALIGN_ACTION = 'pipeline_stages_aligned_v1'
+
+/** Move stored stages onto Uncontacted, Emailed, and Offer made. Runs once. */
+export async function alignPipelineStages(): Promise<void> {
+  const db = getSupabase()
+  const marker = await db
+    .from('outreach_audit_events')
+    .select('id')
+    .eq('action', PIPELINE_ALIGN_ACTION)
+    .limit(1)
+  if (marker.error) {
+    console.error('pipeline stage align skipped', marker.error.message)
+    return
+  }
+  if (Array.isArray(marker.data) && marker.data.length > 0) return
+
+  const sent = await db.from('outreach_queue').select('lead_id').in('status', ['accepted', 'delivered'])
+  if (sent.error) throw new Error(sent.error.message)
+  const sentIds = [...new Set(
+    ((sent.data || []) as Array<{ lead_id?: string | null }>)
+      .map((row) => row.lead_id)
+      .filter((id): id is string => Boolean(id))
+  )]
+
+  const emailedPatch = {
+    pipeline_stage: 'responded',
+    marketing_lead_status: 'contacted',
+    status: 'contacted',
+  }
+  const uncontactedPatch = {
+    pipeline_stage: 'ready_to_contact',
+    marketing_lead_status: 'qualified',
+    status: 'new',
+  }
+  const offerPatch = {
+    pipeline_stage: 'proposal_sent',
+    marketing_lead_status: 'consultation_scheduled',
+    status: 'proposal',
+  }
+
+  const offers = await db.from('leads').update(offerPatch).in('pipeline_stage', ['negotiation'])
+  if (offers.error) throw new Error(offers.error.message)
+
+  const early = ['researching', 'ready_to_contact', 'contacted', 'responded']
+  const threaded = await db
+    .from('leads')
+    .update(emailedPatch)
+    .in('pipeline_stage', early)
+    .not('gmail_thread_id', 'is', null)
+    .neq('gmail_thread_id', '')
+  if (threaded.error) throw new Error(threaded.error.message)
+
+  for (let index = 0; index < sentIds.length; index += 100) {
+    const chunk = sentIds.slice(index, index + 100)
+    const byQueue = await db
+      .from('leads')
+      .update(emailedPatch)
+      .in('id', chunk)
+      .in('pipeline_stage', ['researching', 'ready_to_contact', 'contacted'])
+    if (byQueue.error) throw new Error(byQueue.error.message)
+  }
+
+  const rest = await db.from('leads').update(uncontactedPatch).in('pipeline_stage', ['researching', 'contacted'])
+  if (rest.error) throw new Error(rest.error.message)
+
+  const noted = await db.from('outreach_audit_events').insert({
+    actor_type: 'system',
+    actor_id: null,
+    action: PIPELINE_ALIGN_ACTION,
+    entity_type: 'leads',
+    entity_id: null,
+    payload: { sent: sentIds.length },
+  })
+  if (noted.error) throw new Error(noted.error.message)
 }
 
 async function loadRows(): Promise<LeadRow[]> {
@@ -275,7 +362,7 @@ export async function saveMarketingProspect(
     throw new Error('You cannot edit this prospect')
   }
 
-  const stage = isPipelineStage(input.stage) ? input.stage : existing?.stage || 'researching'
+  const stage = isPipelineStage(input.stage) ? input.stage : existing?.stage || 'uncontacted'
   if (existing && !canMoveStage(actor.role, existing.stage, stage)) {
     throw new Error('That stage belongs to the next role')
   }
@@ -320,7 +407,7 @@ export async function saveMarketingProspect(
     prospect_score: score,
     source: source as LeadSource,
     follow_up_at: followUpAt,
-    pipeline_stage: stage,
+    pipeline_stage: storedStage(stage),
     marketing_lead_status: marketingStatusForStage(stage),
     status: legacyLeadStatusForStage(stage),
     estimated_value: Number.isFinite(estimated as number) ? estimated : null,
@@ -352,8 +439,8 @@ export async function saveMarketingProspect(
     existing &&
     actor.role === 'sales_closer' &&
     !existing.handedToSalesAt &&
-    existing.stage === 'ready_to_contact' &&
-    stage !== 'ready_to_contact'
+    existing.stage === 'uncontacted' &&
+    stage !== 'uncontacted'
   ) {
     const now = new Date().toISOString()
     payload.handed_to_sales_at = now
@@ -395,7 +482,7 @@ export async function saveMarketingProspect(
 
 async function syncWorkspace(prospect: MarketingProspect): Promise<MarketingProspect | null> {
   const updates: Record<string, unknown> = {}
-  if (prospect.followUpAt && prospect.stage !== 'meeting_scheduled') {
+  if (prospect.followUpAt) {
     const event = await upsertFollowUpEvent({
       eventId: prospect.followUpEventId,
       summary: `Follow up: ${prospect.business}`,
@@ -676,7 +763,7 @@ export async function sendProspectEmail(
     .update({
       gmail_thread_id: sent.threadId,
       last_contacted_at: now,
-      pipeline_stage: stage,
+      pipeline_stage: storedStage(stage),
       marketing_lead_status: marketingStatusForStage(stage),
       status: legacyLeadStatusForStage(stage),
       updated_at: now,
@@ -702,7 +789,7 @@ export async function checkProspectReplies(id: string): Promise<{ prospect: Mark
       await getSupabase()
         .from('leads')
         .update({
-          pipeline_stage: stage,
+          pipeline_stage: storedStage(stage),
           marketing_lead_status: marketingStatusForStage(stage),
           status: legacyLeadStatusForStage(stage),
           updated_at: new Date().toISOString(),
@@ -740,7 +827,7 @@ export async function createProspectProposal(
       deadline,
     }),
   })
-  const stage: PipelineStage = prospect.stage === 'won' || prospect.stage === 'negotiation' ? prospect.stage : 'proposal_sent'
+  const stage: PipelineStage = prospect.stage === 'won' ? 'won' : 'offer_made'
   const { error } = await getSupabase()
     .from('leads')
     .update({
@@ -752,7 +839,7 @@ export async function createProspectProposal(
       scope_text: scope,
       deadline_text: deadline,
       estimated_value: Number(price.replace(/[^0-9.]/g, '')) || prospect.estimatedValue,
-      pipeline_stage: stage,
+      pipeline_stage: storedStage(stage),
       marketing_lead_status: marketingStatusForStage(stage),
       status: legacyLeadStatusForStage(stage),
       updated_at: new Date().toISOString(),
@@ -832,11 +919,10 @@ export async function scheduleProspectMeeting(
   const { error } = await getSupabase()
     .from('leads')
     .update({
-      pipeline_stage: nextStage,
+      pipeline_stage: storedStage(nextStage),
       marketing_lead_status: marketingStatusForStage(nextStage),
       status: legacyLeadStatusForStage(nextStage),
       follow_up_at: startsAt.toISOString(),
-      follow_up_event_id: event.eventId,
       last_contacted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -928,8 +1014,7 @@ export async function sendProspectAgreement(
   const sent = await sendDocumentToClient(created.document.id)
   if (!sent.success) throw new Error(sent.error || 'Could not email the agreement')
 
-  const stage: PipelineStage =
-    prospect.stage === 'won' || prospect.stage === 'negotiation' ? prospect.stage : 'proposal_sent'
+  const stage: PipelineStage = prospect.stage === 'won' ? 'won' : 'offer_made'
   const signHint = `Agreement ${created.document.document_number}`
 
   const { error } = await getSupabase()
@@ -939,7 +1024,7 @@ export async function sendProspectAgreement(
       scope_text: scope || prospect.scope,
       estimated_value: price || prospect.estimatedValue,
       proposal_doc_url: signHint,
-      pipeline_stage: stage,
+      pipeline_stage: storedStage(stage),
       marketing_lead_status: marketingStatusForStage(stage),
       status: legacyLeadStatusForStage(stage),
       updated_at: new Date().toISOString(),
@@ -1030,14 +1115,14 @@ export async function loadMarketingToday(role?: string | null) {
     .filter((prospect) => {
       if (role === 'sales_closer') {
         return (
-          prospect.stage === 'ready_to_contact' ||
-          (prospect.stage === 'contacted' && Boolean(prospect.handedToSalesAt || prospect.lastContactedAt))
+          prospect.stage === 'uncontacted' ||
+          (prospect.stage === 'emailed' && Boolean(prospect.handedToSalesAt || prospect.lastContactedAt))
         )
       }
       if (role === 'client_relations') return prospect.stage === 'won' && !onboardingComplete(prospect.onboarding)
-      if (role === 'lead_procurement') return prospect.stage === 'researching' || prospect.stage === 'ready_to_contact'
+      if (role === 'lead_procurement') return prospect.stage === 'uncontacted' || prospect.stage === 'emailed'
       return (
-        (Boolean(prospect.handedToSalesAt) && (prospect.stage === 'ready_to_contact' || prospect.stage === 'contacted'))
+        (Boolean(prospect.handedToSalesAt) && (prospect.stage === 'uncontacted' || prospect.stage === 'emailed'))
         || (prospect.stage === 'won' && !prospect.handedToRelationsAt)
         || (prospect.stage === 'won' && Boolean(prospect.handedToRelationsAt) && !onboardingComplete(prospect.onboarding))
       )

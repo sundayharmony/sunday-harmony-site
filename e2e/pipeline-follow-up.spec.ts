@@ -55,7 +55,7 @@ async function signInAndMockPipeline(page: Page) {
               id: 'research',
               title: 'Research',
               detail: 'First look',
-              stages: ['researching'],
+              stages: ['uncontacted'],
             },
           ],
         },

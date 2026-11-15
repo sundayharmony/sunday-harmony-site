@@ -3,12 +3,13 @@ import { logActivity } from '@/lib/db'
 import {
   followUpError,
   isLeadSource,
-  isPipelineStage,
   isProspectCategory,
   legacyLeadStatusForStage,
   marketingStatusForStage,
   normalizeScoreFactors,
   scoreTotal,
+  stageFromStorage,
+  stageToStorage,
   type PipelineStage,
 } from '@/lib/marketing-pipeline'
 import { enqueueImportedLeadsBestEffort } from '@/lib/outreach/import-hook'
@@ -122,7 +123,7 @@ function mapLeadRow(
   const business = clean(lead.business)
   const contact = splitContact(clean(lead.contactName))
   const source = clean(lead.source) || 'outbound'
-  const stage = (clean(lead.stage) || 'researching') as PipelineStage
+  const stage = stageFromStorage(clean(lead.stage) || 'uncontacted')
   const category = clean(lead.category)
   const factors = lead.scoreFactors === undefined ? undefined : normalizeScoreFactors(lead.scoreFactors)
   const recommended = clean(lead.recommendedService)
@@ -149,7 +150,7 @@ function mapLeadRow(
     prospect_score: factors ? scoreTotal(factors) : null,
     source,
     follow_up_at: followUpAt,
-    pipeline_stage: stage,
+    pipeline_stage: stageToStorage(stage),
     marketing_lead_status: marketingStatusForStage(stage),
     status: legacyLeadStatusForStage(stage),
     estimated_value: Number.isFinite(estimated as number) ? estimated : null,
@@ -190,10 +191,11 @@ function validateLead(lead: unknown):
     return { business, reason: 'Prospect category must be established, small, or startup' }
   }
   const stageRaw = clean(input.stage)
-  if (stageRaw && !isPipelineStage(stageRaw)) {
+  const knownStage = !stageRaw || stageFromStorage(stageRaw) !== 'uncontacted' || ['uncontacted', 'researching', 'ready_to_contact', ''].includes(stageRaw)
+  if (!knownStage) {
     return { business, reason: 'Invalid pipeline stage' }
   }
-  const stage = (stageRaw || 'researching') as PipelineStage
+  const stage = stageRaw ? stageFromStorage(stageRaw) : 'uncontacted'
   const followUpAt = clean(input.followUpAt) || null
   const followUpProblem = followUpError(stage, followUpAt)
   if (followUpProblem) {
