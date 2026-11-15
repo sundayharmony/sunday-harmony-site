@@ -477,6 +477,8 @@ export async function saveMarketingProspect(
     actor_email: actor.email || 'staff',
     details: `${id ? 'Updated' : 'Created'} marketing prospect ${saved.business} (${saved.stage})`,
   })
+  const { enqueueImportedLeadsBestEffort } = await import('@/lib/outreach/import-hook')
+  await enqueueImportedLeadsBestEffort([write.data as Record<string, unknown>], 'prospect-save')
   return { prospect: saved, warning }
 }
 

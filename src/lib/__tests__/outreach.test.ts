@@ -35,6 +35,7 @@ import { buildHandoff } from '../outreach/handoff'
 import { buildOutreachMime, mimeContainsAttachment, toQuotedPrintable } from '../outreach/mime'
 import { lookupMx } from '../outreach/mx'
 import { createGmailOutreachProvider, createMockProvider, queueItemPayload } from '../outreach/provider'
+import { enqueueImportedLeadsBestEffort } from '../outreach/import-hook'
 import { createMemoryOutreachStore, setOutreachStoreForTests } from '../outreach/store'
 import { createUnsubscribeToken, hashUnsubscribeToken, unsubscribeUrl } from '../outreach/unsubscribe'
 import { POST as importLeads } from '../../app/api/internal/leads-import/route'
@@ -1400,10 +1401,59 @@ describe('leads import still succeeds and stays enqueue-only', () => {
   it('hooks enqueue after import and never calls a live sender from that module', () => {
     const source = readFileSync('src/app/api/internal/leads-import/route.ts', 'utf8')
     const hook = readFileSync('src/lib/outreach/import-hook.ts', 'utf8')
+    const created = readFileSync('src/lib/db.ts', 'utf8')
+    const pipeline = readFileSync('src/lib/marketing-crm.ts', 'utf8')
     assert.match(source, /enqueueImportedLeadsBestEffort/)
     assert.match(hook, /Never sends/)
+    assert.match(hook, /enqueueLeadSnapshots/)
+    assert.doesNotMatch(hook, /OUTREACH_PAGE_ENQUEUE_CAP/)
     assert.doesNotMatch(hook, /sendWorkspaceEmail|sendEmail\(/)
+    assert.match(created, /enqueueImportedLeadsBestEffort/)
+    assert.match(pipeline, /enqueueImportedLeadsBestEffort/)
     void importLeads
     void unsubPost
+  })
+
+  it('drafts a letter for every new unsent prospect who has an email', async () => {
+    const store = createMemoryOutreachStore()
+    setOutreachStoreForTests(store)
+    try {
+      const rows: Array<Record<string, unknown>> = Array.from({ length: 20 }, (_, index) => ({
+        id: `new-${index + 1}`,
+        business: `New Shop ${index + 1}`,
+        email: `owner${index + 1}@new-shop-${index + 1}.test`,
+        first_name: 'Alex',
+        location_text: 'Hammonton, NJ',
+        industry: 'Cafe',
+        pipeline_stage: 'ready_to_contact',
+        lead_type: 'marketing_lead',
+      }))
+      rows.push(
+        {
+          id: 'no-mail',
+          business: 'No Mail Cafe',
+          email: '',
+          pipeline_stage: 'ready_to_contact',
+          lead_type: 'marketing_lead',
+        },
+        {
+          id: 'booked',
+          business: 'Booked Shop',
+          email: 'booked@example.test',
+          pipeline_stage: 'responded',
+          lead_type: 'marketing_lead',
+        }
+      )
+      await enqueueImportedLeadsBestEffort(rows)
+      const queue = await store.listQueue()
+      assert.equal(queue.length, 20)
+      assert.equal(queue.every((row) => row.status === 'pending'), true)
+      assert.equal(queue.some((row) => row.leadId === 'no-mail'), false)
+      assert.equal(queue.some((row) => row.leadId === 'booked'), false)
+      await enqueueImportedLeadsBestEffort(rows)
+      assert.equal((await store.listQueue()).length, 20)
+    } finally {
+      setOutreachStoreForTests(null)
+    }
   })
 })

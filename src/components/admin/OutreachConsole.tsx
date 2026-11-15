@@ -355,7 +355,8 @@ export default function OutreachConsole() {
         <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-1">Prospect outreach</h1>
         <p className="text-sm text-brand-muted mt-2">
           Enter how many emails to send from the queue. Every unsent prospect who has an email stays
-          queued, so the next letter is ready when you send.
+          queued. A new lead with an email is drafted when it is added. This count is read from that
+          list each time you open the page.
         </p>
       </div>
 
@@ -365,6 +366,7 @@ export default function OutreachConsole() {
           <span className="text-sm text-brand-text">
             {readyCount < readyTarget ? `${readyCount} of ${readyTarget} ready` : `${readyCount} ready`}
             {drafting ? ' · drafting the rest' : ''}
+            {!drafting && readyCount < readyTarget ? ' · the rest cannot be sent' : ''}
             {deferredCount > 0 ? ` · ${deferredCount} waiting on retry` : ''}
             {sent.length ? ` · ${sent.length} sent` : ''}
           </span>
