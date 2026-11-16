@@ -39,7 +39,10 @@ import {
   staffPipelineStage,
   staffStageChoices,
   comparePipelineProspects,
+  comparePipelineProspectsBy,
   filterPipelineProspects,
+  nextPipelineListSort,
+  parsePipelineListSort,
   pipelineProspectMatchesQuery,
   prospectVisibleInBoardStage,
 } from '../marketing-pipeline'
@@ -442,6 +445,92 @@ describe('marketing role handoffs and navigation', () => {
     )
   })
 
+  it('sorts list columns asc/desc and keeps nulls last with search and stage filters', () => {
+    const rows = [
+      {
+        id: 'a',
+        business: 'Alpha Grill',
+        contactName: 'Ann',
+        stage: 'contacted' as const,
+        score: 9,
+        followUpAt: '2026-11-10T12:00:00.000Z',
+        industry: 'Food',
+        location: 'Jersey City',
+        email: 'ann@alpha.test',
+        lastContactedAt: '2026-11-09T12:00:00.000Z',
+        source: 'outbound',
+        createdAt: '2026-11-01T12:00:00.000Z',
+      },
+      {
+        id: 'b',
+        business: 'Beta Salon',
+        contactName: '',
+        stage: 'uncontacted' as const,
+        score: null,
+        followUpAt: null,
+        industry: null,
+        location: 'Newark',
+        email: null,
+        lastContactedAt: null,
+        source: 'in_person',
+        createdAt: '2026-11-05T12:00:00.000Z',
+      },
+      {
+        id: 'c',
+        business: 'Cedar Cafe',
+        contactName: 'Cara',
+        stage: 'emailed' as const,
+        score: 4,
+        followUpAt: '2026-11-08T12:00:00.000Z',
+        industry: 'Beauty',
+        location: null,
+        email: 'cara@cedar.test',
+        lastContactedAt: '2026-11-07T12:00:00.000Z',
+        source: 'referral',
+        createdAt: null,
+      },
+    ]
+    assert.deepEqual(parsePipelineListSort({ sort: 'score', dir: 'desc' }), { key: 'score', dir: 'desc' })
+    assert.deepEqual(parsePipelineListSort({ sort: 'nope', dir: 'sideways' }), { key: 'followUp', dir: 'asc' })
+    assert.deepEqual(nextPipelineListSort({ key: 'business', dir: 'asc' }, 'business'), {
+      key: 'business',
+      dir: 'desc',
+    })
+    assert.deepEqual(nextPipelineListSort({ key: 'business', dir: 'asc' }, 'score'), {
+      key: 'score',
+      dir: 'desc',
+    })
+
+    const byBusiness = filterPipelineProspects(rows, { sortKey: 'business', sortDir: 'asc' })
+    assert.deepEqual(byBusiness.map((row) => row.id), ['a', 'b', 'c'])
+    const byScoreDesc = filterPipelineProspects(rows, { sortKey: 'score', sortDir: 'desc' })
+    assert.deepEqual(byScoreDesc.map((row) => row.id), ['a', 'c', 'b'])
+    const byScoreAsc = filterPipelineProspects(rows, { sortKey: 'score', sortDir: 'asc' })
+    assert.deepEqual(byScoreAsc.map((row) => row.id), ['c', 'a', 'b'])
+    const byEmail = filterPipelineProspects(rows, { sortKey: 'email', sortDir: 'asc' })
+    assert.deepEqual(byEmail.map((row) => row.id), ['a', 'c', 'b'])
+    const byLocation = filterPipelineProspects(rows, { sortKey: 'location', sortDir: 'asc' })
+    assert.deepEqual(byLocation.map((row) => row.id), ['a', 'b', 'c'])
+    const byCreated = filterPipelineProspects(rows, { sortKey: 'createdAt', sortDir: 'desc' })
+    assert.deepEqual(byCreated.map((row) => row.id), ['b', 'a', 'c'])
+    assert.ok(comparePipelineProspectsBy(rows[0], rows[1], 'industry', 'asc') < 0)
+
+    const searched = filterPipelineProspects(rows, {
+      query: 'jersey',
+      sortKey: 'business',
+      sortDir: 'asc',
+    })
+    assert.deepEqual(searched.map((row) => row.id), ['a'])
+    const staged = filterPipelineProspects(rows, {
+      stage: 'uncontacted',
+      sortKey: 'source',
+      sortDir: 'asc',
+    })
+    assert.deepEqual(staged.map((row) => row.id), ['b'])
+    assert.equal(pipelineProspectMatchesQuery(rows[0], 'food'), true)
+    assert.equal(pipelineProspectMatchesQuery(rows[2], 'cara@cedar'), true)
+  })
+
   it('lists pipeline businesses in a searchable list with a compact board fallback', () => {
     const ui = readFileSync('src/components/admin/MarketingPipeline.tsx', 'utf8')
     assert.match(ui, /Search businesses/)
@@ -451,5 +540,13 @@ describe('marketing role handoffs and navigation', () => {
     assert.match(ui, /sh-pipeline-view/)
     assert.match(ui, /max-h-\[min\(70vh,36rem\)\]/)
     assert.match(ui, /ProspectListRow/)
+    assert.match(ui, /SortHeaderButton/)
+    assert.match(ui, /PIPELINE_LIST_SORT_KEYS/)
+    assert.match(ui, /PIPELINE_LIST_SORT_LABELS/)
+    assert.match(ui, /writeSortToUrl/)
+    assert.match(ui, /Has email/)
+    assert.match(ui, /createdAt/)
+    assert.match(ui, /overflow-x-auto/)
+    assert.match(readFileSync('src/lib/marketing-pipeline.ts', 'utf8'), /Date added/)
   })
 })

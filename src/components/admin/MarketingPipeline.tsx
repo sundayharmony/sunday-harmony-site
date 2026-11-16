@@ -9,15 +9,22 @@ import {
   CATEGORY_LABELS,
   FIELD_PURPOSES,
   LEAD_SOURCES,
+  PIPELINE_LIST_SORT_KEYS,
+  PIPELINE_LIST_SORT_LABELS,
   PROSPECT_CATEGORIES,
   SOURCE_LABELS,
   STAGE_LABELS,
   comparePipelineProspects,
   filterPipelineProspects,
+  isLeadSource,
+  nextPipelineListSort,
+  parsePipelineListSort,
   pipelineProspectMatchesQuery,
   prospectVisibleInBoardStage,
   scoreBand,
   type LeadSource,
+  type PipelineListSortDir,
+  type PipelineListSortKey,
   type PipelineStage,
 } from '@/lib/marketing-pipeline'
 
@@ -30,6 +37,12 @@ type ProspectCard = {
   followUpAt: string | null
   handedToRelationsAt: string | null
   source: string
+  industry?: string | null
+  location?: string | null
+  email?: string | null
+  lastContactedAt?: string | null
+  createdAt?: string | null
+  website?: string | null
   meetLink?: string
   calendarLink?: string
 }
@@ -46,19 +59,62 @@ type PipelineView = 'list' | 'board'
 const PIPELINE_VIEW_KEY = 'sh-pipeline-view'
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-xl text-sm'
 const LANE_WASH = ['bg-accent-soft', 'bg-white', 'bg-neutral-100'] as const
+const LIST_GRID =
+  'min-w-[1080px] grid grid-cols-[minmax(140px,1.5fr)_minmax(110px,1fr)_minmax(96px,0.85fr)_minmax(56px,0.45fr)_minmax(110px,0.9fr)_minmax(100px,0.85fr)_minmax(100px,0.85fr)_minmax(92px,0.7fr)_minmax(110px,0.9fr)_minmax(96px,0.75fr)_minmax(100px,0.8fr)] gap-3 items-center'
 
-function formatFollowUp(iso: string | null): string {
-  if (!iso) return 'No follow-up'
+function formatDeskWhen(iso: string | null | undefined, empty: string): string {
+  if (!iso) return empty
   const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return 'No follow-up'
-  const when = date.toLocaleString('en-US', {
+  if (Number.isNaN(date.getTime())) return empty
+  return new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  })
-  return `Follow-up ${when}`
+  }).format(date)
+}
+
+function formatFollowUp(iso: string | null | undefined): string {
+  if (!iso) return 'No follow-up'
+  const when = formatDeskWhen(iso, '')
+  return when ? `Follow-up ${when}` : 'No follow-up'
+}
+
+function formatDateOnly(iso: string | null | undefined, empty = '—'): string {
+  if (!iso) return empty
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return empty
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}
+
+function emailStatus(email: string | null | undefined): string {
+  return (email || '').trim() ? 'Has email' : 'Not found'
+}
+
+function sourceLabel(source: string | null | undefined): string {
+  const key = (source || '').trim()
+  if (!key) return '—'
+  return isLeadSource(key) ? SOURCE_LABELS[key] : key
+}
+
+function readSortFromUrl(): { key: PipelineListSortKey; dir: PipelineListSortDir } {
+  if (typeof window === 'undefined') return parsePipelineListSort({})
+  const params = new URLSearchParams(window.location.search)
+  return parsePipelineListSort({ sort: params.get('sort'), dir: params.get('dir') })
+}
+
+function writeSortToUrl(sort: { key: PipelineListSortKey; dir: PipelineListSortDir }) {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  url.searchParams.set('sort', sort.key)
+  url.searchParams.set('dir', sort.dir)
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
 function scoreMarkClass(score: number): string {
@@ -120,23 +176,69 @@ function ProspectLink({ row, href }: { row: ProspectCard; href: string }) {
   )
 }
 
+function SortHeaderButton({
+  column,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  column: PipelineListSortKey
+  activeKey: PipelineListSortKey
+  dir: PipelineListSortDir
+  onSort: (column: PipelineListSortKey) => void
+}) {
+  const active = activeKey === column
+  return (
+    <div
+      role="columnheader"
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className="min-w-0"
+    >
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className={`inline-flex max-w-full items-center gap-0.5 truncate text-left uppercase tracking-wide transition-colors ${
+          active ? 'text-brand-text' : 'text-brand-dim hover:text-brand-text'
+        }`}
+      >
+        <span className="truncate">{PIPELINE_LIST_SORT_LABELS[column]}</span>
+        <span aria-hidden className="shrink-0 tabular-nums text-[10px]">
+          {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+        <span className="sr-only">
+          {active ? `sorted ${dir === 'asc' ? 'ascending' : 'descending'}` : 'sortable'}
+        </span>
+      </button>
+    </div>
+  )
+}
+
 function ProspectListRow({ row, href }: { row: ProspectCard; href: string }) {
   const action = meetingAction(row)
   return (
     <div className="border-b border-brand-border last:border-0 hover:bg-neutral-50/80">
       <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4">
-        <Link href={href} className="min-w-0 flex-1 grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_minmax(0,0.9fr)] sm:items-center sm:gap-3">
+        <Link href={href} className={`min-w-0 flex-1 ${LIST_GRID}`}>
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
-            <span className="mt-0.5 block truncate text-xs text-brand-muted sm:hidden">{row.contactName || 'No contact'}</span>
           </span>
-          <span className="hidden truncate text-xs text-brand-muted sm:block">{row.contactName || 'No contact'}</span>
-          <span className="text-xs font-medium text-brand-text">{STAGE_LABELS[row.stage]}</span>
-          <span className="flex items-center gap-2">
+          <span className="truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
+          <span className="truncate text-xs font-medium text-brand-text">{STAGE_LABELS[row.stage]}</span>
+          <span className="flex items-center">
             <ScoreMark score={row.score} />
-            <span className="text-xs text-brand-dim sm:hidden">{formatFollowUp(row.followUpAt)}</span>
+            {row.score == null ? <span className="text-xs text-brand-dim">—</span> : null}
           </span>
-          <span className="hidden truncate text-xs text-brand-dim sm:block">{formatFollowUp(row.followUpAt)}</span>
+          <span className="truncate text-xs text-brand-dim">{formatFollowUp(row.followUpAt)}</span>
+          <span className="truncate text-xs text-brand-muted">{(row.industry || '').trim() || '—'}</span>
+          <span className="truncate text-xs text-brand-muted">{(row.location || '').trim() || '—'}</span>
+          <span className="truncate text-xs text-brand-muted" title={(row.email || '').trim() || undefined}>
+            {emailStatus(row.email)}
+          </span>
+          <span className="truncate text-xs text-brand-dim">
+            {formatDeskWhen(row.lastContactedAt, '—')}
+          </span>
+          <span className="truncate text-xs text-brand-muted">{sourceLabel(row.source)}</span>
+          <span className="truncate text-xs text-brand-dim">{formatDateOnly(row.createdAt)}</span>
         </Link>
         {action && (
           <a
@@ -201,6 +303,9 @@ export default function MarketingPipeline() {
   const [query, setQuery] = useState('')
   const [stageFilter, setStageFilter] = useState<PipelineStage | ''>('')
   const [view, setView] = useState<PipelineView>('list')
+  const [sort, setSort] = useState<{ key: PipelineListSortKey; dir: PipelineListSortDir }>(() =>
+    parsePipelineListSort({})
+  )
   const [form, setForm] = useState({
     business: '',
     contactName: '',
@@ -241,11 +346,22 @@ export default function MarketingPipeline() {
     if (typeof window === 'undefined') return
     const stored = window.localStorage.getItem(PIPELINE_VIEW_KEY)
     if (stored === 'list' || stored === 'board') setView(stored)
+    const fromUrl = readSortFromUrl()
+    setSort(fromUrl)
+    writeSortToUrl(fromUrl)
   }, [])
 
   function changeView(next: PipelineView) {
     setView(next)
     if (typeof window !== 'undefined') window.localStorage.setItem(PIPELINE_VIEW_KEY, next)
+  }
+
+  function changeSort(column: PipelineListSortKey) {
+    setSort((current) => {
+      const next = nextPipelineListSort(current, column)
+      writeSortToUrl(next)
+      return next
+    })
   }
 
   const canAdd = loaded && role !== 'client_relations'
@@ -289,8 +405,14 @@ export default function MarketingPipeline() {
   )
 
   const filteredProspects = useMemo(
-    () => filterPipelineProspects(visibleProspects, { query, stage: stageFilter }),
-    [visibleProspects, query, stageFilter]
+    () =>
+      filterPipelineProspects(visibleProspects, {
+        query,
+        stage: stageFilter,
+        sortKey: sort.key,
+        sortDir: sort.dir,
+      }),
+    [visibleProspects, query, stageFilter, sort]
   )
 
   const laneRows = useMemo(() => {
@@ -464,22 +586,28 @@ export default function MarketingPipeline() {
 
       {view === 'list' ? (
         <section className="overflow-hidden rounded-2xl border border-brand-border bg-white">
-          <div className="hidden border-b border-brand-border bg-neutral-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-brand-dim sm:grid sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_minmax(0,0.9fr)] sm:gap-3">
-            <span>Business</span>
-            <span>Contact</span>
-            <span>Stage</span>
-            <span>Score</span>
-            <span>Follow-up</span>
+          <div className="overflow-x-auto">
+            <div className={`border-b border-brand-border bg-neutral-50 px-3 py-2 text-[11px] font-bold sm:px-4 ${LIST_GRID}`}>
+              {PIPELINE_LIST_SORT_KEYS.map((column) => (
+                <SortHeaderButton
+                  key={column}
+                  column={column}
+                  activeKey={sort.key}
+                  dir={sort.dir}
+                  onSort={changeSort}
+                />
+              ))}
+            </div>
+            {filteredProspects.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-brand-muted">
+                {loaded ? (total === 0 ? 'No prospects in your lanes yet.' : 'No businesses match that search.') : 'Loading the pipeline.'}
+              </p>
+            ) : (
+              filteredProspects.map((row) => (
+                <ProspectListRow key={row.id} row={row} href={cardHref(row)} />
+              ))
+            )}
           </div>
-          {filteredProspects.length === 0 ? (
-            <p className="px-4 py-8 text-sm text-brand-muted">
-              {loaded ? (total === 0 ? 'No prospects in your lanes yet.' : 'No businesses match that search.') : 'Loading the pipeline.'}
-            </p>
-          ) : (
-            filteredProspects.map((row) => (
-              <ProspectListRow key={row.id} row={row} href={cardHref(row)} />
-            ))
-          )}
         </section>
       ) : (
         <div className="space-y-5">

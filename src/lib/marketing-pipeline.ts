@@ -759,6 +759,118 @@ export type PipelineBoardProspect = {
   followUpAt: string | null
   handedToRelationsAt?: string | null
   source?: string
+  industry?: string | null
+  location?: string | null
+  email?: string | null
+  lastContactedAt?: string | null
+  createdAt?: string | null
+  website?: string | null
+}
+
+/** Sortable columns on the pipeline List view. */
+export const PIPELINE_LIST_SORT_KEYS = [
+  'business',
+  'contact',
+  'stage',
+  'score',
+  'followUp',
+  'industry',
+  'location',
+  'email',
+  'lastContacted',
+  'source',
+  'createdAt',
+] as const
+
+export type PipelineListSortKey = (typeof PIPELINE_LIST_SORT_KEYS)[number]
+export type PipelineListSortDir = 'asc' | 'desc'
+
+export const PIPELINE_LIST_SORT_LABELS: Record<PipelineListSortKey, string> = {
+  business: 'Business',
+  contact: 'Contact',
+  stage: 'Stage',
+  score: 'Score',
+  followUp: 'Follow-up',
+  industry: 'Industry',
+  location: 'Location',
+  email: 'Email',
+  lastContacted: 'Last contacted',
+  source: 'Source',
+  createdAt: 'Date added',
+}
+
+const DEFAULT_PIPELINE_LIST_SORT: { key: PipelineListSortKey; dir: PipelineListSortDir } = {
+  key: 'followUp',
+  dir: 'asc',
+}
+
+export function isPipelineListSortKey(value: string | null | undefined): value is PipelineListSortKey {
+  return Boolean(value && (PIPELINE_LIST_SORT_KEYS as readonly string[]).includes(value))
+}
+
+export function parsePipelineListSort(input: {
+  sort?: string | null
+  dir?: string | null
+}): { key: PipelineListSortKey; dir: PipelineListSortDir } {
+  const key = isPipelineListSortKey(input.sort) ? input.sort : DEFAULT_PIPELINE_LIST_SORT.key
+  const dir = input.dir === 'desc' || input.dir === 'asc' ? input.dir : DEFAULT_PIPELINE_LIST_SORT.dir
+  return { key, dir }
+}
+
+export function nextPipelineListSort(
+  current: { key: PipelineListSortKey; dir: PipelineListSortDir },
+  clicked: PipelineListSortKey
+): { key: PipelineListSortKey; dir: PipelineListSortDir } {
+  if (current.key === clicked) {
+    return { key: clicked, dir: current.dir === 'asc' ? 'desc' : 'asc' }
+  }
+  // Score and dates are most useful newest/highest first on first click.
+  if (clicked === 'score' || clicked === 'lastContacted' || clicked === 'createdAt') {
+    return { key: clicked, dir: 'desc' }
+  }
+  return { key: clicked, dir: 'asc' }
+}
+
+function blankSortValue(value: unknown): boolean {
+  if (value == null) return true
+  if (typeof value === 'string') return value.trim() === ''
+  if (typeof value === 'number') return !Number.isFinite(value)
+  return false
+}
+
+function compareNullableValues(
+  a: unknown,
+  b: unknown,
+  dir: PipelineListSortDir,
+  comparePresent: (left: NonNullable<typeof a>, right: NonNullable<typeof b>) => number
+): number {
+  const aBlank = blankSortValue(a)
+  const bBlank = blankSortValue(b)
+  if (aBlank && bBlank) return 0
+  if (aBlank) return 1
+  if (bBlank) return -1
+  const base = comparePresent(a as NonNullable<typeof a>, b as NonNullable<typeof b>)
+  return dir === 'asc' ? base : -base
+}
+
+function parseSortTime(value: string | null | undefined): number | null {
+  if (!value) return null
+  const ms = Date.parse(value)
+  return Number.isFinite(ms) ? ms : null
+}
+
+function stageSortIndex(stage: PipelineStage): number {
+  const index = PIPELINE_STAGES.indexOf(stage)
+  return index >= 0 ? index : PIPELINE_STAGES.length
+}
+
+function sourceSortLabel(source: string | null | undefined): string {
+  const key = (source || '').trim()
+  if (!key) return ''
+  if ((LEAD_SOURCES as readonly string[]).includes(key)) {
+    return SOURCE_LABELS[key as LeadSource]
+  }
+  return key
 }
 
 export function prospectVisibleInBoardStage(
@@ -772,12 +884,15 @@ export function prospectVisibleInBoardStage(
 }
 
 export function pipelineProspectMatchesQuery(
-  prospect: Pick<PipelineBoardProspect, 'business' | 'contactName' | 'source'>,
+  prospect: Pick<
+    PipelineBoardProspect,
+    'business' | 'contactName' | 'source' | 'industry' | 'location' | 'email'
+  >,
   query: string
 ): boolean {
   const needle = query.trim().toLowerCase()
   if (!needle) return true
-  return [prospect.business, prospect.contactName, prospect.source]
+  return [prospect.business, prospect.contactName, prospect.source, prospect.industry, prospect.location, prospect.email]
     .some((value) => (value || '').toLowerCase().includes(needle))
 }
 
@@ -785,25 +900,130 @@ export function comparePipelineProspects(
   a: Pick<PipelineBoardProspect, 'business' | 'score' | 'followUpAt'>,
   b: Pick<PipelineBoardProspect, 'business' | 'score' | 'followUpAt'>
 ): number {
-  const aFollow = a.followUpAt ? Date.parse(a.followUpAt) : Number.POSITIVE_INFINITY
-  const bFollow = b.followUpAt ? Date.parse(b.followUpAt) : Number.POSITIVE_INFINITY
-  const aTime = Number.isNaN(aFollow) ? Number.POSITIVE_INFINITY : aFollow
-  const bTime = Number.isNaN(bFollow) ? Number.POSITIVE_INFINITY : bFollow
-  if (aTime !== bTime) return aTime - bTime
-  const aScore = a.score == null || Number.isNaN(a.score) ? -1 : a.score
-  const bScore = b.score == null || Number.isNaN(b.score) ? -1 : b.score
-  if (aScore !== bScore) return bScore - aScore
-  return a.business.localeCompare(b.business)
+  return comparePipelineProspectsBy(
+    { id: '', contactName: '', stage: 'uncontacted', ...a },
+    { id: '', contactName: '', stage: 'uncontacted', ...b },
+    'followUp',
+    'asc'
+  )
+}
+
+export function comparePipelineProspectsBy(
+  a: Pick<
+    PipelineBoardProspect,
+    | 'id'
+    | 'business'
+    | 'contactName'
+    | 'stage'
+    | 'score'
+    | 'followUpAt'
+    | 'industry'
+    | 'location'
+    | 'email'
+    | 'lastContactedAt'
+    | 'source'
+    | 'createdAt'
+  >,
+  b: Pick<
+    PipelineBoardProspect,
+    | 'id'
+    | 'business'
+    | 'contactName'
+    | 'stage'
+    | 'score'
+    | 'followUpAt'
+    | 'industry'
+    | 'location'
+    | 'email'
+    | 'lastContactedAt'
+    | 'source'
+    | 'createdAt'
+  >,
+  key: PipelineListSortKey,
+  dir: PipelineListSortDir
+): number {
+  let primary = 0
+  switch (key) {
+    case 'business':
+      primary = compareNullableValues(a.business, b.business, dir, (left, right) =>
+        String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
+      )
+      break
+    case 'contact':
+      primary = compareNullableValues(a.contactName, b.contactName, dir, (left, right) =>
+        String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
+      )
+      break
+    case 'stage':
+      primary = compareNullableValues(a.stage, b.stage, dir, (left, right) =>
+        stageSortIndex(left as PipelineStage) - stageSortIndex(right as PipelineStage)
+      )
+      break
+    case 'score':
+      primary = compareNullableValues(a.score, b.score, dir, (left, right) => Number(left) - Number(right))
+      break
+    case 'followUp':
+      primary = compareNullableValues(parseSortTime(a.followUpAt), parseSortTime(b.followUpAt), dir, (left, right) =>
+        Number(left) - Number(right)
+      )
+      break
+    case 'industry':
+      primary = compareNullableValues(a.industry, b.industry, dir, (left, right) =>
+        String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
+      )
+      break
+    case 'location':
+      primary = compareNullableValues(a.location, b.location, dir, (left, right) =>
+        String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
+      )
+      break
+    case 'email':
+      primary = compareNullableValues(
+        (a.email || '').trim() || null,
+        (b.email || '').trim() || null,
+        dir,
+        (left, right) => String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
+      )
+      break
+    case 'lastContacted':
+      primary = compareNullableValues(
+        parseSortTime(a.lastContactedAt),
+        parseSortTime(b.lastContactedAt),
+        dir,
+        (left, right) => Number(left) - Number(right)
+      )
+      break
+    case 'source':
+      primary = compareNullableValues(sourceSortLabel(a.source), sourceSortLabel(b.source), dir, (left, right) =>
+        String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
+      )
+      break
+    case 'createdAt':
+      primary = compareNullableValues(parseSortTime(a.createdAt), parseSortTime(b.createdAt), dir, (left, right) =>
+        Number(left) - Number(right)
+      )
+      break
+    default:
+      primary = 0
+  }
+  if (primary !== 0) return primary
+  return a.business.localeCompare(b.business, undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id)
 }
 
 export function filterPipelineProspects<T extends PipelineBoardProspect>(
   prospects: T[],
-  input: { query?: string; stage?: PipelineStage | '' }
+  input: {
+    query?: string
+    stage?: PipelineStage | ''
+    sortKey?: PipelineListSortKey
+    sortDir?: PipelineListSortDir
+  }
 ): T[] {
   const stage = input.stage || ''
+  const sort = parsePipelineListSort({ sort: input.sortKey, dir: input.sortDir })
   return prospects
     .filter((prospect) => pipelineProspectMatchesQuery(prospect, input.query || ''))
     .filter((prospect) => !stage || staffPipelineStage(prospect.stage) === stage)
     .slice()
-    .sort(comparePipelineProspects)
+    .sort((a, b) => comparePipelineProspectsBy(a, b, sort.key, sort.dir))
 }
