@@ -6,6 +6,7 @@ import CloserBilling from '@/components/admin/CloserBilling'
 import MeetingJoinList from '@/components/admin/MeetingJoinList'
 import type { JoinableMeeting } from '@/lib/joinable-meetings'
 import { packages } from '@/lib/data'
+import { prospectNoteSections } from '@/lib/prospect-notes'
 import {
   isProspectAgreementStatus,
   isProspectMeetingCardState,
@@ -103,6 +104,26 @@ function websiteHref(value: string): string {
 function sourceLabel(source: string): string {
   const key = source === 'inbound' ? 'website' : source
   return isLeadSource(key) ? SOURCE_LABELS[key] : source
+}
+
+function InternalNotes({ notes }: { notes: string }) {
+  const sections = prospectNoteSections(notes)
+  if (!sections) {
+    return <Fact label="Internal notes" wide>{notes}</Fact>
+  }
+  return (
+    <div className="sm:col-span-2 rounded-xl border border-brand-border bg-neutral-50 p-3 sm:p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">Internal notes</p>
+      <div className="mt-3 space-y-4">
+        {sections.map((section, index) => (
+          <div key={`${section.label}-${index}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-muted">{section.label}</p>
+            <p className="mt-1 text-sm leading-6 text-brand-text">{section.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function Fact({
@@ -574,7 +595,7 @@ export default function ProspectFile({ id }: { id: string }) {
         <label className="text-sm sm:col-span-2">
           <span className="font-medium">Internal notes</span>
           <span className="block text-xs text-brand-muted mb-1">{FIELD_PURPOSES.notes}</span>
-          <textarea className={inputClass} rows={3} value={prospect.notes} onChange={(event) => patch({ notes: event.target.value })} />
+          <textarea className={`${inputClass} leading-6`} rows={12} value={prospect.notes} onChange={(event) => patch({ notes: event.target.value })} />
         </label>
         <p className="text-xs text-brand-muted sm:col-span-2">
           Last outreach: {prospect.lastContactedAt ? new Date(prospect.lastContactedAt).toLocaleString() : 'None yet'}
@@ -629,7 +650,7 @@ export default function ProspectFile({ id }: { id: string }) {
               </ul>
             </div>
           )}
-          <Fact label="Internal notes" wide>{prospect.notes}</Fact>
+          <InternalNotes notes={prospect.notes} />
           <Fact label="Last outreach" wide>{prospect.lastContactedAt ? formatWhen(prospect.lastContactedAt) : 'None yet'}</Fact>
           {canHandOffToSales(role, prospect.stage) && (
             <div className="sm:col-span-2">

@@ -44,4 +44,11 @@ describe('prospect file view mode', () => {
     assert.match(stageBlock, /staffStageChoices/)
     assert.doesNotMatch(stageBlock, /\{editing/)
   })
+
+  it('shows lead-sheet notes as separate labeled sections', () => {
+    assert.match(source, /function InternalNotes/)
+    assert.match(source, /prospectNoteSections\(notes\)/)
+    assert.match(source, /<InternalNotes notes=\{prospect\.notes\} \/>/)
+    assert.match(source, /rows=\{12\}/)
+  })
 })
