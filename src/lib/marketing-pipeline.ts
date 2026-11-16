@@ -778,8 +778,6 @@ export const PIPELINE_LIST_SORT_KEYS = [
   'location',
   'email',
   'lastContacted',
-  'source',
-  'createdAt',
 ] as const
 
 export type PipelineListSortKey = (typeof PIPELINE_LIST_SORT_KEYS)[number]
@@ -795,8 +793,6 @@ export const PIPELINE_LIST_SORT_LABELS: Record<PipelineListSortKey, string> = {
   location: 'Location',
   email: 'Email',
   lastContacted: 'Last contacted',
-  source: 'Source',
-  createdAt: 'Date added',
 }
 
 const DEFAULT_PIPELINE_LIST_SORT: { key: PipelineListSortKey; dir: PipelineListSortDir } = {
@@ -824,8 +820,8 @@ export function nextPipelineListSort(
   if (current.key === clicked) {
     return { key: clicked, dir: current.dir === 'asc' ? 'desc' : 'asc' }
   }
-  // Score and dates are most useful newest/highest first on first click.
-  if (clicked === 'score' || clicked === 'lastContacted' || clicked === 'createdAt') {
+  // Score and last contacted are most useful newest/highest first on first click.
+  if (clicked === 'score' || clicked === 'lastContacted') {
     return { key: clicked, dir: 'desc' }
   }
   return { key: clicked, dir: 'asc' }
@@ -862,15 +858,6 @@ function parseSortTime(value: string | null | undefined): number | null {
 function stageSortIndex(stage: PipelineStage): number {
   const index = PIPELINE_STAGES.indexOf(stage)
   return index >= 0 ? index : PIPELINE_STAGES.length
-}
-
-function sourceSortLabel(source: string | null | undefined): string {
-  const key = (source || '').trim()
-  if (!key) return ''
-  if ((LEAD_SOURCES as readonly string[]).includes(key)) {
-    return SOURCE_LABELS[key as LeadSource]
-  }
-  return key
 }
 
 export function prospectVisibleInBoardStage(
@@ -921,8 +908,6 @@ export function comparePipelineProspectsBy(
     | 'location'
     | 'email'
     | 'lastContactedAt'
-    | 'source'
-    | 'createdAt'
   >,
   b: Pick<
     PipelineBoardProspect,
@@ -936,8 +921,6 @@ export function comparePipelineProspectsBy(
     | 'location'
     | 'email'
     | 'lastContactedAt'
-    | 'source'
-    | 'createdAt'
   >,
   key: PipelineListSortKey,
   dir: PipelineListSortDir
@@ -991,16 +974,6 @@ export function comparePipelineProspectsBy(
         parseSortTime(b.lastContactedAt),
         dir,
         (left, right) => Number(left) - Number(right)
-      )
-      break
-    case 'source':
-      primary = compareNullableValues(sourceSortLabel(a.source), sourceSortLabel(b.source), dir, (left, right) =>
-        String(left).localeCompare(String(right), undefined, { sensitivity: 'base' })
-      )
-      break
-    case 'createdAt':
-      primary = compareNullableValues(parseSortTime(a.createdAt), parseSortTime(b.createdAt), dir, (left, right) =>
-        Number(left) - Number(right)
       )
       break
     default:

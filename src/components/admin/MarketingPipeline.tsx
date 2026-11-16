@@ -58,20 +58,19 @@ type PipelineView = 'list' | 'board'
 const PIPELINE_VIEW_KEY = 'sh-pipeline-view'
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-xl text-sm'
 const LANE_WASH = ['bg-accent-soft', 'bg-white', 'bg-neutral-100'] as const
-/** Primary row fits laptop content width without horizontal scroll. */
-const LIST_PRIMARY_GRID =
-  'grid w-full min-w-0 grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.85fr)_auto_minmax(0,1fr)] gap-x-2 gap-y-1 items-center sm:gap-x-3'
-/** Secondary facts wrap under the primary row so every field stays visible. */
-const LIST_SECONDARY_GRID =
-  'grid w-full min-w-0 grid-cols-2 gap-x-2 gap-y-1 sm:grid-cols-3 lg:grid-cols-6'
-const LIST_PRIMARY_KEYS = ['business', 'contact', 'stage', 'score', 'followUp'] as const satisfies readonly PipelineListSortKey[]
-const LIST_SECONDARY_KEYS = [
+/** Single-row list: nine columns fit laptop content width without horizontal scroll. */
+const LIST_GRID =
+  'grid w-full min-w-0 grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)_minmax(0,0.75fr)_auto_minmax(0,0.85fr)_minmax(0,0.75fr)_minmax(0,0.85fr)_minmax(0,0.7fr)_minmax(0,0.95fr)] gap-x-2 items-center sm:gap-x-3'
+const LIST_KEYS = [
+  'business',
+  'contact',
+  'stage',
+  'score',
+  'followUp',
   'industry',
   'location',
   'email',
   'lastContacted',
-  'source',
-  'createdAt',
 ] as const satisfies readonly PipelineListSortKey[]
 
 function formatDeskWhen(iso: string | null | undefined, empty: string): string {
@@ -98,26 +97,8 @@ function formatFollowUpCompact(iso: string | null | undefined): string {
   return formatDeskWhen(iso, 'No follow-up')
 }
 
-function formatDateOnly(iso: string | null | undefined, empty = '—'): string {
-  if (!iso) return empty
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return empty
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
-
 function emailStatus(email: string | null | undefined): string {
   return (email || '').trim() ? 'Has email' : 'Not found'
-}
-
-function sourceLabel(source: string | null | undefined): string {
-  const key = (source || '').trim()
-  if (!key) return '—'
-  return isLeadSource(key) ? SOURCE_LABELS[key] : key
 }
 
 function readSortFromUrl(): { key: PipelineListSortKey; dir: PipelineListSortDir } {
@@ -230,42 +211,25 @@ function SortHeaderButton({
   )
 }
 
-function SecondaryFact({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="min-w-0 truncate text-xs text-brand-muted">
-      <span className="font-semibold text-brand-dim">{label}: </span>
-      {value}
-    </span>
-  )
-}
-
 function ProspectListRow({ row, href }: { row: ProspectCard; href: string }) {
   const action = meetingAction(row)
   return (
     <div className="border-b border-brand-border last:border-0 hover:bg-neutral-50/80">
-      <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <Link href={href} className={`min-w-0 ${LIST_PRIMARY_GRID}`}>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
-            </span>
-            <span className="truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
-            <span className="truncate text-xs font-medium text-brand-text">{STAGE_LABELS[row.stage]}</span>
-            <span className="flex items-center">
-              <ScoreMark score={row.score} />
-              {row.score == null ? <span className="text-xs text-brand-dim">—</span> : null}
-            </span>
-            <span className="truncate text-xs text-brand-dim">{formatFollowUpCompact(row.followUpAt)}</span>
-          </Link>
-          <div className={LIST_SECONDARY_GRID}>
-            <SecondaryFact label="Industry" value={(row.industry || '').trim() || '—'} />
-            <SecondaryFact label="Location" value={(row.location || '').trim() || '—'} />
-            <SecondaryFact label="Email" value={emailStatus(row.email)} />
-            <SecondaryFact label="Last contacted" value={formatDeskWhen(row.lastContactedAt, '—')} />
-            <SecondaryFact label="Source" value={sourceLabel(row.source)} />
-            <SecondaryFact label="Date added" value={formatDateOnly(row.createdAt)} />
-          </div>
-        </div>
+      <div className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
+        <Link href={href} className={`min-w-0 flex-1 ${LIST_GRID}`}>
+          <span className="min-w-0 truncate text-sm font-semibold text-brand-text">{row.business}</span>
+          <span className="truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
+          <span className="truncate text-xs font-medium text-brand-text">{STAGE_LABELS[row.stage]}</span>
+          <span className="flex items-center">
+            <ScoreMark score={row.score} />
+            {row.score == null ? <span className="text-xs text-brand-dim">—</span> : null}
+          </span>
+          <span className="truncate text-xs text-brand-dim">{formatFollowUpCompact(row.followUpAt)}</span>
+          <span className="truncate text-xs text-brand-muted">{(row.industry || '').trim() || '—'}</span>
+          <span className="truncate text-xs text-brand-muted">{(row.location || '').trim() || '—'}</span>
+          <span className="truncate text-xs text-brand-muted">{emailStatus(row.email)}</span>
+          <span className="truncate text-xs text-brand-muted">{formatDeskWhen(row.lastContactedAt, '—')}</span>
+        </Link>
         {action && (
           <a
             href={action.href}
@@ -612,29 +576,16 @@ export default function MarketingPipeline() {
 
       {view === 'list' ? (
         <section className="overflow-hidden rounded-2xl border border-brand-border bg-white">
-          <div className="border-b border-brand-border bg-neutral-50 px-3 py-2 text-[11px] font-bold sm:px-4">
-            <div className={LIST_PRIMARY_GRID}>
-              {LIST_PRIMARY_KEYS.map((column) => (
-                <SortHeaderButton
-                  key={column}
-                  column={column}
-                  activeKey={sort.key}
-                  dir={sort.dir}
-                  onSort={changeSort}
-                />
-              ))}
-            </div>
-            <div className={`mt-1.5 ${LIST_SECONDARY_GRID}`}>
-              {LIST_SECONDARY_KEYS.map((column) => (
-                <SortHeaderButton
-                  key={column}
-                  column={column}
-                  activeKey={sort.key}
-                  dir={sort.dir}
-                  onSort={changeSort}
-                />
-              ))}
-            </div>
+          <div className={`border-b border-brand-border bg-neutral-50 px-3 py-2 text-[11px] font-bold sm:px-4 ${LIST_GRID}`}>
+            {LIST_KEYS.map((column) => (
+              <SortHeaderButton
+                key={column}
+                column={column}
+                activeKey={sort.key}
+                dir={sort.dir}
+                onSort={changeSort}
+              />
+            ))}
           </div>
           {filteredProspects.length === 0 ? (
             <p className="px-4 py-8 text-sm text-brand-muted">

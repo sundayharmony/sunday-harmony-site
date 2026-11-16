@@ -511,9 +511,11 @@ describe('marketing role handoffs and navigation', () => {
     assert.deepEqual(byEmail.map((row) => row.id), ['a', 'c', 'b'])
     const byLocation = filterPipelineProspects(rows, { sortKey: 'location', sortDir: 'asc' })
     assert.deepEqual(byLocation.map((row) => row.id), ['a', 'b', 'c'])
-    const byCreated = filterPipelineProspects(rows, { sortKey: 'createdAt', sortDir: 'desc' })
-    assert.deepEqual(byCreated.map((row) => row.id), ['b', 'a', 'c'])
+    const byLastContacted = filterPipelineProspects(rows, { sortKey: 'lastContacted', sortDir: 'desc' })
+    assert.deepEqual(byLastContacted.map((row) => row.id), ['a', 'c', 'b'])
     assert.ok(comparePipelineProspectsBy(rows[0], rows[1], 'industry', 'asc') < 0)
+    assert.deepEqual(parsePipelineListSort({ sort: 'source', dir: 'asc' }), { key: 'followUp', dir: 'asc' })
+    assert.deepEqual(parsePipelineListSort({ sort: 'createdAt', dir: 'desc' }), { key: 'followUp', dir: 'desc' })
 
     const searched = filterPipelineProspects(rows, {
       query: 'jersey',
@@ -523,7 +525,7 @@ describe('marketing role handoffs and navigation', () => {
     assert.deepEqual(searched.map((row) => row.id), ['a'])
     const staged = filterPipelineProspects(rows, {
       stage: 'uncontacted',
-      sortKey: 'source',
+      sortKey: 'location',
       sortDir: 'asc',
     })
     assert.deepEqual(staged.map((row) => row.id), ['b'])
@@ -533,6 +535,7 @@ describe('marketing role handoffs and navigation', () => {
 
   it('lists pipeline businesses in a searchable list with a compact board fallback', () => {
     const ui = readFileSync('src/components/admin/MarketingPipeline.tsx', 'utf8')
+    const helpers = readFileSync('src/lib/marketing-pipeline.ts', 'utf8')
     assert.match(ui, /Search businesses/)
     assert.match(ui, /All stages/)
     assert.match(ui, /\['list', 'List'\]/)
@@ -541,17 +544,25 @@ describe('marketing role handoffs and navigation', () => {
     assert.match(ui, /max-h-\[min\(70vh,36rem\)\]/)
     assert.match(ui, /ProspectListRow/)
     assert.match(ui, /SortHeaderButton/)
-    assert.match(ui, /LIST_PRIMARY_KEYS/)
-    assert.match(ui, /LIST_SECONDARY_KEYS/)
-    assert.match(ui, /LIST_PRIMARY_GRID/)
-    assert.match(ui, /LIST_SECONDARY_GRID/)
+    assert.match(ui, /LIST_KEYS/)
+    assert.match(ui, /LIST_GRID/)
+    assert.doesNotMatch(ui, /LIST_PRIMARY_KEYS/)
+    assert.doesNotMatch(ui, /LIST_SECONDARY_KEYS/)
+    assert.doesNotMatch(ui, /LIST_PRIMARY_GRID/)
+    assert.doesNotMatch(ui, /LIST_SECONDARY_GRID/)
     assert.match(ui, /PIPELINE_LIST_SORT_LABELS/)
     assert.match(ui, /writeSortToUrl/)
     assert.match(ui, /Has email/)
-    assert.match(ui, /createdAt/)
+    assert.doesNotMatch(ui, /Date added/)
+    assert.doesNotMatch(ui, /SecondaryFact/)
     assert.doesNotMatch(ui, /min-w-\[1080px\]/)
     assert.doesNotMatch(ui, /overflow-x-auto">\s*<div className=\{`border-b/)
     assert.match(ui, /md:overflow-x-auto md:pb-2/)
-    assert.match(readFileSync('src/lib/marketing-pipeline.ts', 'utf8'), /Date added/)
+    assert.doesNotMatch(helpers, /Date added/)
+    assert.doesNotMatch(helpers, /PIPELINE_LIST_SORT_KEYS = \[[^\]]*source/)
+    assert.doesNotMatch(helpers, /PIPELINE_LIST_SORT_KEYS = \[[^\]]*createdAt/)
+    assert.doesNotMatch(helpers, /source: 'Source'/)
+    assert.doesNotMatch(helpers, /createdAt: 'Date added'/)
+    assert.match(helpers, /lastContacted/)
   })
 })
