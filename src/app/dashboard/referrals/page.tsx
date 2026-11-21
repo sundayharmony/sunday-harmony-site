@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import StatCard from '@/components/ui/StatCard'
+import ReferralLinkQrPanel from '@/components/referrals/ReferralLinkQrPanel'
 import { formatCommissionCents, publicCommissionLabel } from '@/lib/referrals'
 
 type ReferralRow = {
@@ -55,7 +56,6 @@ function ReferralsContent() {
   const [data, setData] = useState<DashboardPayload | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
   const [connectBusy, setConnectBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -92,17 +92,6 @@ function ReferralsContent() {
       await load()
     })()
   }, [searchParams, load])
-
-  const copyLink = async () => {
-    if (!data?.profile.link) return
-    try {
-      await navigator.clipboard.writeText(data.profile.link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      setCopied(false)
-    }
-  }
 
   const startConnect = async () => {
     setConnectBusy(true)
@@ -154,26 +143,16 @@ function ReferralsContent() {
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
       )}
 
-      <div className="bg-white border border-brand-border rounded-xl p-5 mb-6">
-        <div className="text-[11px] font-bold tracking-[0.1em] uppercase text-brand-dim mb-2">Your referral link</div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            readOnly
-            value={data.profile.link}
-            className="flex-1 py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-sm text-brand-text"
-          />
-          <button
-            type="button"
-            onClick={copyLink}
-            className="px-4 py-3 bg-brand-text text-white text-sm font-semibold rounded-[10px]"
-          >
-            {copied ? 'Copied' : 'Copy Link'}
-          </button>
-        </div>
-        <p className="text-xs text-brand-muted mt-2">
-          Code {data.profile.code}
-          {data.profile.status !== 'active' ? ' · Referrals are currently paused for this account' : ''}
-        </p>
+      <div className="mb-6">
+        <ReferralLinkQrPanel
+          title="Your referral link"
+          link={data.profile.link}
+          code={data.profile.code}
+          active={data.profile.status === 'active'}
+          inactiveHint="Referrals are currently paused for this account. The QR code stays off until this link is active again."
+          hint="Share this link or the QR code. You earn $50 when someone you refer completes their credit repair payment."
+          downloadLabelPrefix="referral"
+        />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
