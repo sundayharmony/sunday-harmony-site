@@ -21,7 +21,6 @@ export const heroSubtext =
 
 export const heroStats = [
   { value: 'A+', label: 'Service' },
-  { value: '4+', label: 'Years of Experience' },
 ]
 
 /** Hero panel: real expectations for the free audit (replaces decorative “metrics” widget). */
