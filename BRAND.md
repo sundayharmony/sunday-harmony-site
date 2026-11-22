@@ -21,7 +21,7 @@ Typeface: Montserrat. Logos: `public/logo-black.png` and `public/logo-white.png`
 
 Homepage type, motion, and spacing live in the same file (`brandType`, `brandMotion`, `brandSpace`). Public marketing pages apply them through `homeThemeVars()` inside `HomeMotion` (gold scroll line, desktop wheel smoothing). Admin, client, and partner portals keep their own layout.
 
-Do not decorate public pages with still-life photos. A photograph belongs only when it shows the actual service: identity, a website, print, or social branding.
+Photographs belong only where they show the service. The homepage uses three licensed files in `public/work/`: a logo being drawn, a website on a laptop, and a printed shop card. Do not repeat them on other pages.
 
 | Group | What to edit | Use |
 |---|---|---|

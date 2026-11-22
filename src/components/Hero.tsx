@@ -1,15 +1,42 @@
+import Image from 'next/image'
 import { siteConfig } from '@/lib/data'
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
 import styles from '@/components/home/home.module.css'
 
-const beats = [
-  { title: 'Identity', line: 'Logo, colors, and cards.' },
-  { title: 'Website', line: 'A page that can take a lead.' },
-  { title: 'Print', line: 'Pieces they can hand over.' },
-  { title: 'Social', line: 'The same look, posted.' },
+const shots = [
+  {
+    src: '/work/identity.jpg',
+    width: 1600,
+    height: 1067,
+    title: 'Identity',
+    alt: 'Hands sketching logo marks in pen on paper at a warm wood desk.',
+    credit: (
+      <>
+        Photo by <a href="https://customneon.co.uk/">Claireneon</a>,{' '}
+        <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>
+      </>
+    ),
+  },
+  {
+    src: '/work/website.jpg',
+    width: 1600,
+    height: 1067,
+    title: 'Website',
+    alt: 'A laptop on a bright table, open to a website, with coffee beside it.',
+  },
+  {
+    src: '/work/print.jpg',
+    width: 1000,
+    height: 612,
+    title: 'Print',
+    alt: 'A printed business card for Lake Washington Pharmacy, with a small mark, the shop name, and a Seattle address.',
+    contain: true,
+  },
 ]
 
 export default function Hero() {
+  const [lead, ...rest] = shots
+
   return (
     <section className={styles.hero} id="hero">
       <div className={styles.grid} />
@@ -32,15 +59,39 @@ export default function Hero() {
               </a>
             </div>
           </div>
-          <ul className={styles.story}>
-            {beats.map((beat) => (
-              <li key={beat.title}>
-                <strong>{beat.title}</strong>
-                <span>{beat.line}</span>
-              </li>
-            ))}
-          </ul>
+          <figure className={styles.frame}>
+            <Image
+              className={styles.heroPhoto}
+              src={lead.src}
+              alt={lead.alt}
+              width={lead.width}
+              height={lead.height}
+              priority
+              sizes="(min-width: 1024px) 46vw, 100vw"
+            />
+            <figcaption>
+              {lead.title}
+              <small>{lead.credit}</small>
+            </figcaption>
+          </figure>
         </div>
+        <ul className={styles.pair}>
+          {rest.map((shot) => (
+            <li key={shot.title}>
+              <figure className={shot.contain ? `${styles.frame} ${styles.frameContain}` : styles.frame}>
+                <Image
+                  className={styles.heroPhoto}
+                  src={shot.src}
+                  alt={shot.alt}
+                  width={shot.width}
+                  height={shot.height}
+                  sizes="(min-width: 768px) 50vw, 100vw"
+                />
+                <figcaption>{shot.title}</figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   )
