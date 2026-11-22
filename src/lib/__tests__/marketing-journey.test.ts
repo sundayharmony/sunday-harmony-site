@@ -210,7 +210,7 @@ describe('Lumen & Co. Floral continuity', () => {
       /Move the prospect to Active/
     )
 
-    await saveMarketingProspect(id, {
+    const closed = await saveMarketingProspect(id, {
       stage: 'won',
       servicesPurchased: 'Social Essentials retainer',
       scope: 'Eight Instagram posts a month and a landing page with an order link.',
@@ -220,6 +220,12 @@ describe('Lumen & Co. Floral continuity', () => {
       expectations: 'Maya wants a weekly photo plan before the holiday rush.',
       paymentStatus: 'Deposit received',
     }, sales)
+    assert.equal(closed.prospect.consultationBookedAt, null)
+    assert.ok(closed.prospect.clientId)
+    const openedEarly = db.rows('clients').find((row) => row.id === closed.prospect.clientId)
+    assert.deepEqual(openedEarly?.deliverables, ['Content calendar', 'Landing page'])
+    assert.match(String(openedEarly?.notes), /Dec 15, 2026/)
+    assert.equal(db.rows('tasks').filter((row) => row.client_id === closed.prospect.clientId).length, 2)
     await assert.rejects(
       () => handOffProspect(id, 'client_relations', sales),
       /Agreement marked signed/
@@ -264,7 +270,7 @@ describe('Lumen & Co. Floral continuity', () => {
 
     const relationsToday = await loadMarketingToday('client_relations')
     assert.equal(relationsToday.handoffs[0]?.business, 'Lumen & Co. Floral')
-    assert.equal(relationsToday.handoffs[0]?.href, '/admin/clients')
+    assert.equal(relationsToday.handoffs[0]?.href, '/admin/marketing?section=clients')
 
     const procurementToday = await loadMarketingToday('lead_procurement')
     assert.equal(procurementToday.handoffs.some((row) => row.business === 'Lumen & Co. Floral'), false)

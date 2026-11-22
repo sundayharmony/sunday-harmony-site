@@ -1,3 +1,5 @@
+import { MARKETING_READ_MAILBOX, OUTREACH_SENDER_EMAIL } from '@/lib/outreach/constants'
+
 export const GOOGLE_WORKSPACE_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/gmail.send',
@@ -19,7 +21,7 @@ export function isGoogleWorkspaceConfigured(): boolean {
 }
 
 export function workspaceMailbox(): string {
-  return process.env.GOOGLE_CALENDAR_ID?.trim() || 'sales@sundayharmony.com'
+  return process.env.GOOGLE_CALENDAR_ID?.trim() || MARKETING_READ_MAILBOX
 }
 
 function requiredEnv(name: string): string {
@@ -85,10 +87,12 @@ export function buildRfc822Message(input: {
   to: string
   subject: string
   body: string
+  replyTo?: string
 }): string {
   const subject = `=?UTF-8?B?${Buffer.from(input.subject, 'utf8').toString('base64')}?=`
   return [
     `From: ${input.from}`,
+    ...(input.replyTo ? [`Reply-To: ${input.replyTo}`] : []),
     `To: ${input.to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
@@ -150,9 +154,15 @@ export async function sendWorkspaceEmail(
   fetchImpl: FetchLike = fetch
 ): Promise<{ id: string; threadId: string }> {
   const token = await getGoogleAccessToken(fetchImpl)
-  const mailbox = workspaceMailbox()
+  // shortcut: Gmail keeps the sales@ From unless contact@ is a send-as alias on that token.
   const raw = encodeBase64Url(
-    buildRfc822Message({ from: mailbox, to: input.to, subject: input.subject, body: input.body })
+    buildRfc822Message({
+      from: `Sunday Harmony <${OUTREACH_SENDER_EMAIL}>`,
+      replyTo: workspaceMailbox(),
+      to: input.to,
+      subject: input.subject,
+      body: input.body,
+    })
   )
   const payload = await googleJson<{ id?: string; threadId?: string }>(
     token,

@@ -86,6 +86,7 @@ describe('google workspace mappers', () => {
 
   it('sends Gmail through the Workspace token and stores the thread id', async () => {
     const calls: string[] = []
+    let raw = ''
     const fetchImpl = async (url: string, init?: RequestInit) => {
       calls.push(`${init?.method || 'GET'} ${url}`)
       if (url.includes('oauth2.googleapis.com')) {
@@ -93,6 +94,7 @@ describe('google workspace mappers', () => {
       }
       const body = JSON.parse(String(init?.body || '{}')) as { raw?: string }
       assert.ok(body.raw)
+      raw = Buffer.from(body.raw, 'base64url').toString('utf8')
       return new Response(JSON.stringify({ id: 'msg-1', threadId: 'thread-9' }), { status: 200 })
     }
     process.env.GOOGLE_CALENDAR_CLIENT_ID = 'id'
@@ -103,6 +105,8 @@ describe('google workspace mappers', () => {
       { to: 'owner@example.com', subject: 'Hello', body: 'Body' },
       fetchImpl
     )
+    assert.match(raw, /From: Sunday Harmony <contact@sundayharmony.com>/)
+    assert.match(raw, /Reply-To: sales@sundayharmony.com/)
     assert.equal(sent.threadId, 'thread-9')
     assert.ok(calls.some((call) => call.includes('gmail.googleapis.com')))
     assert.match(proposalDocumentText({

@@ -2,7 +2,7 @@ import { isGoogleWorkspaceConfigured, workspaceMailbox } from '@/lib/google-work
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { evaluateActivationBlockers } from './activation'
 import { loadCompanyPresentationPdf } from './attachment'
-import { OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from './constants'
+import { MARKETING_READ_MAILBOX, OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from './constants'
 import { draftContentSha256 } from './draft-shell'
 import { createMemoryOutreachStore, getOutreachStore, setOutreachStoreForTests, type OutreachStore } from './store'
 import { createSupabaseOutreachStore } from './supabase-store'
@@ -31,7 +31,7 @@ export function resetEphemeralOutreachStore() {
 }
 
 export function senderConfiguredHere(): boolean {
-  return isGoogleWorkspaceConfigured() && workspaceMailbox().toLowerCase() === OUTREACH_SENDER_EMAIL
+  return isGoogleWorkspaceConfigured() && workspaceMailbox().toLowerCase() === MARKETING_READ_MAILBOX
 }
 
 export function supabaseReadyForOutreach(): boolean {

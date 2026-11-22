@@ -7,7 +7,7 @@ import {
 } from '@/lib/joinable-meetings'
 import { getCreditFundingApplicationByEmail } from '@/lib/credit-funding-db'
 import { emailIlikePattern } from '@/lib/email-match'
-import { createClient, getClientById, getTasksByClientIds, logActivity, updateClient, type Client } from '@/lib/db'
+import { createClient, createTask, getClientById, getClients, getTasksByClientIds, logActivity, updateClient, type Client } from '@/lib/db'
 import {
   createMeetingEvent,
   createProposalDocument,
@@ -43,7 +43,9 @@ import {
   isPipelineStage,
   isProspectCategory,
   legacyLeadStatusForStage,
+  marketingKpiCounts,
   marketingStatusForStage,
+  STAGE_LABELS,
   normalizeOnboarding,
   normalizeScoreFactors,
   onboardingComplete,
@@ -120,6 +122,8 @@ export type MarketingProspect = {
   createdAt: string
   creditApplicationId: string | null
   closeMethod: string | null
+  consultationBookedAt: string | null
+  repliedAt: string | null
 }
 
 type LeadRow = Record<string, unknown>
@@ -197,6 +201,8 @@ export function mapProspect(row: LeadRow, creditApplicationId: string | null = n
     createdAt: text(row.created_at),
     creditApplicationId,
     closeMethod: text(row.close_method) || null,
+    consultationBookedAt: text(row.consultation_booked_at) || null,
+    repliedAt: text(row.replied_at) || null,
   }
 }
 
@@ -344,6 +350,14 @@ export type ProspectInput = {
   agreementSigned?: boolean
   proposalDocUrl?: string | null
   closeMethod?: string | null
+  consultationBookedAt?: string | null
+}
+
+function consultationStamp(value: unknown): string | null {
+  if (value == null || value === '') return null
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) throw new Error('Consultation date must be a real date')
+  return date.toISOString()
 }
 
 function clean(value: unknown): string {
@@ -434,6 +448,9 @@ export async function saveMarketingProspect(
         ? existing?.closeMethod || null
         : input.closeMethod ? 'nonstandard' : null,
     updated_at: new Date().toISOString(),
+    ...(input.consultationBookedAt !== undefined
+      ? { consultation_booked_at: consultationStamp(input.consultationBookedAt) }
+      : {}),
   }
   if (
     existing &&
@@ -468,6 +485,11 @@ export async function saveMarketingProspect(
       console.error('workspace sync error:', error)
       warning = error instanceof Error ? error.message : 'Saved in the CRM. Google Workspace did not update.'
     }
+  }
+  if (saved.stage === 'won') {
+    const closed = await openClientForClosedLead(saved)
+    saved = closed.prospect
+    if (closed.warning) warning = [warning, closed.warning].filter(Boolean).join(' ')
   }
 
   logActivity({
@@ -516,11 +538,60 @@ function deliverableList(value: string): string[] {
 
 function clientNotes(prospect: MarketingProspect): string {
   return [
+    prospect.deadline ? `Deadline: ${prospect.deadline}` : '',
     prospect.expectations ? `Expectations: ${prospect.expectations}` : '',
     prospect.scope ? `Scope: ${prospect.scope}` : '',
     prospect.promises ? `Promises: ${prospect.promises}` : '',
     prospect.notes,
   ].filter(Boolean).join('\n')
+}
+
+function deadlineDate(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Date.parse(trimmed)
+  if (Number.isNaN(parsed)) return null
+  return new Date(parsed).toISOString().slice(0, 10)
+}
+
+async function createDeliverableTasks(clientId: string, prospect: MarketingProspect): Promise<void> {
+  const items = deliverableList(prospect.deliverables)
+  const titles = items.length > 0 ? items : prospect.deadline.trim() ? [`Deadline: ${prospect.deadline.trim()}`] : []
+  const due = deadlineDate(prospect.deadline)
+  for (const title of titles) {
+    await createTask({
+      client_id: clientId,
+      title,
+      description: prospect.deadline.trim() ? `Deadline: ${prospect.deadline.trim()}` : '',
+      status: 'not_started',
+      priority: 'medium',
+      due_date: due,
+      category: 'deliverable',
+    })
+  }
+}
+
+async function openClientForClosedLead(
+  prospect: MarketingProspect
+): Promise<{ prospect: MarketingProspect; warning?: string }> {
+  if (prospect.stage !== 'won') return { prospect }
+  if (!prospect.email.trim()) return { prospect, warning: 'Add an email to open the client file.' }
+  try {
+    const file = await ensureMarketingClient(prospect)
+    if (prospect.clientId !== file.id) await linkProspectClient(prospect.id, file.id)
+    await updateClient(file.id, {
+      deliverables: deliverableList(prospect.deliverables),
+      notes: clientNotes(prospect),
+    })
+    if (file.created) await createDeliverableTasks(file.id, prospect)
+    const next = await getMarketingProspect(prospect.id)
+    return { prospect: next || prospect }
+  } catch (error) {
+    return {
+      prospect,
+      warning: error instanceof Error ? error.message : 'Could not open the client file',
+    }
+  }
 }
 
 function marketingPackageFor(prospect: MarketingProspect): { package_tier: Exclude<PackageTier, 'free'>; monthly_price: number } {
@@ -788,18 +859,18 @@ export async function checkProspectReplies(id: string): Promise<{ prospect: Mark
   let current = prospect
   if (thread.replied) {
     const stage = stageAfterProspectReply(prospect.stage)
-    if (stage) {
-      await getSupabase()
-        .from('leads')
-        .update({
-          pipeline_stage: storedStage(stage),
-          marketing_lead_status: marketingStatusForStage(stage),
-          status: legacyLeadStatusForStage(stage),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-      current = (await getMarketingProspect(id)) || prospect
+    const now = new Date().toISOString()
+    const patch: Record<string, unknown> = {
+      replied_at: prospect.repliedAt || now,
+      updated_at: now,
     }
+    if (stage) {
+      patch.pipeline_stage = storedStage(stage)
+      patch.marketing_lead_status = marketingStatusForStage(stage)
+      patch.status = legacyLeadStatusForStage(stage)
+    }
+    await getSupabase().from('leads').update(patch).eq('id', id)
+    current = (await getMarketingProspect(id)) || prospect
   }
   return { prospect: current, replied: thread.replied, messages: thread.messages }
 }
@@ -1092,9 +1163,62 @@ export function scriptsForProspect(prospect: MarketingProspect, actor: Marketing
 }
 
 function attentionHref(prospect: MarketingProspect, role?: string | null): string {
-  if (role === 'client_relations') return '/admin/clients'
-  if (prospect.stage === 'won' && prospect.handedToRelationsAt) return '/admin/clients'
+  if (role === 'client_relations') return '/admin/marketing?section=clients'
+  if (prospect.stage === 'won' && prospect.handedToRelationsAt) return '/admin/marketing?section=clients'
   return `/admin/pipeline/${prospect.id}`
+}
+
+function deskProspect(prospect: MarketingProspect) {
+  return {
+    id: prospect.id,
+    business: prospect.business,
+    contactName: prospect.contactName,
+    email: prospect.email,
+    stage: prospect.stage,
+    stageLabel: STAGE_LABELS[prospect.stage],
+    deadline: prospect.deadline,
+    deliverables: prospect.deliverables,
+    clientId: prospect.clientId,
+    consultationBookedAt: prospect.consultationBookedAt,
+  }
+}
+
+export async function loadMarketingDesk(role?: string | null) {
+  const prospects = await listMarketingProspects(role)
+  const clients = (await getClients()).filter((client) => isMarketingClient(client))
+  const recordedRevenue = clients
+    .filter((client) => stripeHasConfirmedPayment(client))
+    .reduce((sum, client) => sum + (Number(client.monthly_price) || 0), 0)
+  const kpis = marketingKpiCounts(
+    prospects.map((prospect) => ({
+      stage: prospect.stage,
+      gmailThreadId: prospect.gmailThreadId,
+      repliedAt: prospect.repliedAt,
+      consultationBookedAt: prospect.consultationBookedAt,
+    })),
+    recordedRevenue
+  )
+  const clientIds = prospects.map((prospect) => prospect.clientId).filter((id): id is string => Boolean(id))
+  const tasks = await getTasksByClientIds(clientIds, {
+    columns: 'id, client_id, title, status, due_date',
+    limit: 500,
+  })
+  return {
+    role: role || 'admin',
+    kpis,
+    leads: prospects.filter((prospect) => prospect.stage !== 'won').map(deskProspect),
+    clients: prospects.filter((prospect) => prospect.stage === 'won').map(deskProspect),
+    deadlines: prospects
+      .filter((prospect) => prospect.stage === 'won' && (prospect.deadline || prospect.deliverables || prospect.clientId))
+      .map(deskProspect),
+    tasks: tasks.map((task) => ({
+      id: task.id,
+      clientId: task.client_id,
+      title: task.title,
+      status: task.status,
+      dueDate: task.due_date,
+    })),
+  }
 }
 
 export async function loadMarketingToday(role?: string | null) {

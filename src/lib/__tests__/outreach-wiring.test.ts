@@ -15,7 +15,7 @@ import { createMemoryOutreachStore } from '../outreach/store'
 import { htmlHasRealUnsubscribe } from '../outreach/tokens'
 import { createUnsubscribeToken, hashUnsubscribeToken } from '../outreach/unsubscribe'
 import type { LeadSnapshot } from '../outreach/types'
-import { OUTREACH_CTA_URL, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
+import { MARKETING_READ_MAILBOX, OUTREACH_CTA_URL, OUTREACH_SENDER_EMAIL } from '../outreach/constants'
 
 function lead(partial: Partial<LeadSnapshot> = {}): LeadSnapshot {
   return {
@@ -50,7 +50,7 @@ function googleEnv() {
   process.env.GOOGLE_CALENDAR_CLIENT_ID = 'test-client'
   process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'test-secret'
   process.env.GOOGLE_CALENDAR_REFRESH_TOKEN = 'test-refresh'
-  process.env.GOOGLE_CALENDAR_ID = OUTREACH_SENDER_EMAIL
+  process.env.GOOGLE_CALENDAR_ID = MARKETING_READ_MAILBOX
   process.env.OUTREACH_KILL_SWITCH = 'false'
   process.env.OUTREACH_ACTIVATION_ALLOWED = 'true'
   return () => {

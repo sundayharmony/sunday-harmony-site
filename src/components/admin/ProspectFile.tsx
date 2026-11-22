@@ -71,6 +71,7 @@ type Prospect = {
   expectations: string
   creditApplicationId: string | null
   closeMethod: string | null
+  consultationBookedAt: string | null
 }
 
 const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm'
@@ -436,7 +437,7 @@ export default function ProspectFile({ id }: { id: string }) {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link href="/admin/pipeline" className="text-xs font-semibold text-accent hover:underline">← Pipeline</Link>
+          <Link href="/admin/marketing?section=pipeline" className="text-xs font-semibold text-accent hover:underline">← Marketing</Link>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-2">{prospect.business}</h1>
           <p className="text-sm text-brand-muted">{prospect.contactName || 'Decision-maker not set'} · {scoreBandLabel(total)} ({total}/10)</p>
         </div>
@@ -671,6 +672,24 @@ export default function ProspectFile({ id }: { id: string }) {
               Email an Uncontacted lead, then mark Contacted if the call is not answered. Bill when they accept and pay. A meeting and a proposal are optional once the agreement is signed and the invoice is sent and paid.
             </p>
           </div>
+          <label className="block text-sm max-w-xs">
+            Consultation booked
+            <input
+              type="date"
+              className={`${inputClass} mt-1`}
+              value={prospect.consultationBookedAt ? prospect.consultationBookedAt.slice(0, 10) : ''}
+              onChange={(event) => {
+                const value = event.target.value
+                const next = {
+                  ...prospect,
+                  consultationBookedAt: value ? `${value}T12:00:00.000Z` : null,
+                }
+                setProspect(next)
+                void save(next)
+              }}
+            />
+          </label>
+          <p className="text-xs text-brand-muted">Leave this empty until a consultation is actually booked. The KPI stays at 0.</p>
 
           {meetingCardState === 'upcoming' ? (
             <div className="rounded-xl border border-brand-border bg-white p-4 space-y-3 w-full min-w-0">
@@ -933,11 +952,6 @@ export default function ProspectFile({ id }: { id: string }) {
             )}
             {prospect.driveFolderUrl && (
               <a href={prospect.driveFolderUrl} className="px-4 py-2 text-sm font-semibold text-accent hover:underline" target="_blank" rel="noreferrer">Open Drive folder</a>
-            )}
-            {prospect.creditApplicationId && (
-              <Link href={`/admin/credit-funding?id=${prospect.creditApplicationId}`} className="px-4 py-2 text-sm font-semibold text-accent hover:underline">
-                Open in Credit & Funding
-              </Link>
             )}
           </div>
         </section>

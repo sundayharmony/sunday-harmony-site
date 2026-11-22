@@ -1,5 +1,7 @@
 export const OUTREACH_CAMPAIGN_SLUG = 'prospect-intro'
-export const OUTREACH_SENDER_EMAIL = 'sales@sundayharmony.com'
+/** Mailbox Sunday Harmony reads. Marketing mail is sent from OUTREACH_SENDER_EMAIL. */
+export const MARKETING_READ_MAILBOX = 'sales@sundayharmony.com'
+export const OUTREACH_SENDER_EMAIL = 'contact@sundayharmony.com'
 export const OUTREACH_SENDER_DISPLAY = 'Sunday Harmony Consulting'
 export const OUTREACH_SIGNER_NAME = 'Mac'
 export const OUTREACH_COMPANY_NAME = 'Sunday Harmony Consulting'

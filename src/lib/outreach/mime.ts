@@ -1,4 +1,4 @@
-import { OUTREACH_SENDER_EMAIL } from './constants'
+import { MARKETING_READ_MAILBOX, OUTREACH_SENDER_EMAIL } from './constants'
 import type { OutreachSendPayload } from './provider'
 import { oneClickUrlFromPageUrl } from './unsubscribe'
 
@@ -51,6 +51,7 @@ export function buildOutreachMime(payload: OutreachSendPayload): string {
   const pdf = payload.attachment.content.toString('base64').replace(/(.{76})/g, '$1\r\n')
   return [
     `From: ${from}`,
+    `Reply-To: ${MARKETING_READ_MAILBOX}`,
     `To: ${payload.to}`,
     `Subject: ${encodeUtf8Subject(payload.subject)}`,
     'MIME-Version: 1.0',

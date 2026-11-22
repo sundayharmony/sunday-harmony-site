@@ -12,12 +12,18 @@ import type {
   ReconciliationItem,
   Suppression,
 } from './types'
-import { OUTREACH_MAILING_ADDRESS } from './constants'
+import { MARKETING_READ_MAILBOX, OUTREACH_MAILING_ADDRESS, OUTREACH_SENDER_EMAIL } from './constants'
 import { leadIsReadyQueueCandidate } from './eligibility'
 import { leadRowToSnapshot } from './enqueue'
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function marketingSender(value: string): string {
+  const email = value.trim().toLowerCase()
+  if (!email || email === MARKETING_READ_MAILBOX) return OUTREACH_SENDER_EMAIL
+  return value.trim()
 }
 
 const QUEUE_SUMMARY_COLUMNS =
@@ -36,7 +42,7 @@ function mapSettings(row: Record<string, unknown>): OutreachSettings {
       typeof row.physical_mailing_address === 'string' && row.physical_mailing_address.trim()
         ? row.physical_mailing_address
         : OUTREACH_MAILING_ADDRESS,
-    senderEmail: asString(row.sender_email) || 'sales@sundayharmony.com',
+    senderEmail: marketingSender(asString(row.sender_email)),
     senderDisplayName: asString(row.sender_display_name) || 'Sunday Harmony Consulting',
     signerName: asString(row.signer_name) || 'Mac',
     companyName: asString(row.company_name) || 'Sunday Harmony Consulting',

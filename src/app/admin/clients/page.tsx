@@ -13,6 +13,7 @@ import {
   isCreditRepairPackage,
 } from '@/lib/billing-packages'
 import { isCreditRepairBillingClient } from '@/lib/credit-repair-billing'
+import { isMarketingClient } from '@/lib/people'
 import ClientRelationsBoard from '@/components/admin/ClientRelationsBoard'
 
 interface Client {
@@ -34,7 +35,7 @@ interface Client {
 }
 
 const packageOptions = BILLING_PACKAGE_KEYS.filter(
-  (key) => key === 'credit_repair' || key === 'spark' || key === 'business_launch' || key === 'growth' || key === 'scale'
+  (key) => key === 'social_essentials' || key === 'spark' || key === 'business_launch' || key === 'growth' || key === 'scale'
 )
 const tierPrices = TIER_LIST_PRICES
 
@@ -55,6 +56,10 @@ export default function ClientsPage() {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
   const [showBillingAdvanced, setShowBillingAdvanced] = useState(false)
+  const marketingClients = useMemo(
+    () => clients.filter((client) => isMarketingClient(client)),
+    [clients]
+  )
   const [viewerRole, setViewerRole] = useState<string | null>(null)
   const PAGE_SIZE = 15
 
@@ -83,12 +88,12 @@ export default function ClientsPage() {
   }, [])
 
   useEffect(() => {
-    if (loading || selected || clients.length === 0) return
+    if (loading || selected || marketingClients.length === 0) return
     const id = new URLSearchParams(window.location.search).get('client')
     if (!id) return
-    const match = clients.find((client) => client.id === id)
+    const match = marketingClients.find((client) => client.id === id)
     if (match) setSelected(match)
-  }, [loading, clients, selected])
+  }, [loading, marketingClients, selected])
 
   const refreshClientsAndReselect = async (id: string) => {
     try {
@@ -96,7 +101,7 @@ export default function ClientsPage() {
       if (!r.ok) return
       const d: Client[] = await r.json()
       setClients(d)
-      const next = d.find(c => c.id === id)
+      const next = d.find(c => c.id === id && isMarketingClient(c))
       if (next) {
         setSelected(next)
         setNotes(next.notes ? String(next.notes) : '')
@@ -238,18 +243,18 @@ export default function ClientsPage() {
     await updateClient(selected.id, { quick_wins: updated })
   }
 
-  const active = clients.filter(c => c.status === 'active')
-  const billingMetrics = useMemo(() => computeBillingMetrics(clients), [clients])
+  const active = marketingClients.filter(c => c.status === 'active')
+  const billingMetrics = useMemo(() => computeBillingMetrics(marketingClients), [marketingClients])
 
   const filtered = useMemo(() => {
     return search.trim()
-      ? clients.filter(c =>
+      ? marketingClients.filter(c =>
           c.name.toLowerCase().includes(search.toLowerCase()) ||
           c.business.toLowerCase().includes(search.toLowerCase()) ||
           c.email.toLowerCase().includes(search.toLowerCase())
         )
-      : clients
-  }, [clients, search])
+      : marketingClients
+  }, [marketingClients, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -258,14 +263,14 @@ export default function ClientsPage() {
 
   useEffect(() => {
     const clientParam = new URLSearchParams(window.location.search).get('client')
-    if (clientParam && clients.length > 0) {
-      const match = clients.find(c => c.id === clientParam)
+    if (clientParam && marketingClients.length > 0) {
+      const match = marketingClients.find(c => c.id === clientParam)
       if (match) {
         setSelected(match)
         setNotes(match.notes ? String(match.notes) : '')
       }
     }
-  }, [clients])
+  }, [marketingClients])
 
   const exportCSV = () => {
     const headers = ['Name', 'Business', 'Email', 'Phone', 'Industry', 'Package', 'Monthly Price', 'Status', 'Start Date', 'Notes']

@@ -110,9 +110,7 @@ export type AdminNavItem = { href: string; label: string; icon: string }
 export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin', icon: '\u{1F4C5}', label: 'Today' },
   { href: '/admin/calendar', icon: '\u{1F5D3}', label: 'Calendar' },
-  { href: '/admin/pipeline', icon: '\u{1F4C8}', label: 'Pipeline' },
-  { href: '/admin/outreach', icon: '\u{1F4E7}', label: 'Outreach' },
-  { href: '/admin/clients', icon: '\u{1F91D}', label: 'Clients' },
+  { href: '/admin/marketing', icon: '\u{1F4C8}', label: 'Marketing' },
   { href: '/admin/credit-funding', icon: '\u{1F4B3}', label: 'Credit & Funding' },
   { href: '/admin/referrals', icon: '\u{1F381}', label: 'Referrals' },
   { href: '/admin/case-study', icon: '\u{1F5BC}\uFE0F', label: 'Case Study' },
@@ -455,8 +453,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
       item.href === '/admin/calendar' ||
-      item.href === '/admin/pipeline' ||
-      item.href === '/admin/outreach' ||
+      item.href === '/admin/marketing' ||
       item.href === '/admin/todos' ||
       item.href === '/admin/sales-kit' ||
       item.href === '/admin/training' ||
@@ -468,8 +465,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin'
       || item.href === '/admin/calendar'
-      || item.href === '/admin/pipeline'
-      || item.href === '/admin/outreach'
+      || item.href === '/admin/marketing'
       || item.href === '/admin/todos'
       || item.href === '/admin/sales-kit'
       || item.href === '/admin/training'
@@ -481,8 +477,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
     return ADMIN_NAV.filter((item) =>
       item.href === '/admin' ||
       item.href === '/admin/calendar' ||
-      item.href === '/admin/pipeline' ||
-      item.href === '/admin/clients' ||
+      item.href === '/admin/marketing' ||
       item.href === '/admin/todos' ||
       item.href === '/admin/content-kit' ||
       item.href === '/admin/messages' ||
@@ -515,6 +510,8 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
   ) return true
   if (role === 'lead_procurement' || role === 'sales_closer') {
     return (
+      path === '/admin/marketing' ||
+      path.startsWith('/admin/marketing/') ||
       path === '/admin/pipeline' ||
       path.startsWith('/admin/pipeline/') ||
       path === '/admin/outreach' ||
@@ -527,6 +524,8 @@ export function marketingRoleAllowedPath(role: string, path: string): boolean {
   }
   if (role === 'client_relations') {
     return (
+      path === '/admin/marketing' ||
+      path.startsWith('/admin/marketing/') ||
       path === '/admin/pipeline' ||
       path === '/admin/clients' ||
       path.startsWith('/admin/clients/') ||
@@ -797,6 +796,71 @@ export function comparePipelineProspects(
   const bScore = b.score == null || Number.isNaN(b.score) ? -1 : b.score
   if (aScore !== bScore) return bScore - aScore
   return a.business.localeCompare(b.business)
+}
+
+export type MarketingKpiInput = {
+  leadVolume: number
+  emailsSent: number
+  responsesRecorded: number
+  consultationsBooked: number
+  closed: number
+  recordedRevenue: number
+}
+
+export type MarketingKpiView = {
+  leadVolume: number
+  responseRate: string
+  responsesRecorded: number
+  emailsSent: number
+  consultationsBooked: number
+  closeRate: string
+  closed: number
+  costPerLead: 'Unavailable'
+  revenue: string
+}
+
+function kpiMoney(amount: number): string {
+  const value = Number.isFinite(amount) ? Math.max(0, amount) : 0
+  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+}
+
+/** Counts only saved facts. Consultations stay 0 until a date is stored. Cost per lead stays unavailable. */
+export function marketingKpis(input: MarketingKpiInput): MarketingKpiView {
+  const leadVolume = Math.max(0, input.leadVolume || 0)
+  const emailsSent = Math.max(0, input.emailsSent || 0)
+  const responsesRecorded = Math.max(0, input.responsesRecorded || 0)
+  const consultationsBooked = Math.max(0, input.consultationsBooked || 0)
+  const closed = Math.max(0, input.closed || 0)
+  return {
+    leadVolume,
+    responseRate: percent(responsesRecorded, emailsSent),
+    responsesRecorded,
+    emailsSent,
+    consultationsBooked,
+    closeRate: percent(closed, leadVolume),
+    closed,
+    costPerLead: 'Unavailable',
+    revenue: kpiMoney(input.recordedRevenue),
+  }
+}
+
+export function marketingKpiCounts(
+  rows: Array<{
+    stage: PipelineStage
+    gmailThreadId?: string | null
+    repliedAt?: string | null
+    consultationBookedAt?: string | null
+  }>,
+  recordedRevenue: number
+): MarketingKpiView {
+  return marketingKpis({
+    leadVolume: rows.length,
+    emailsSent: rows.filter((row) => Boolean(row.gmailThreadId)).length,
+    responsesRecorded: rows.filter((row) => Boolean(row.repliedAt)).length,
+    consultationsBooked: rows.filter((row) => Boolean(row.consultationBookedAt)).length,
+    closed: rows.filter((row) => row.stage === 'won').length,
+    recordedRevenue,
+  })
 }
 
 export function filterPipelineProspects<T extends PipelineBoardProspect>(

@@ -14,6 +14,7 @@ import {
   roleCanSeeProspect,
   followUpError,
   homeForRole,
+  marketingKpiCounts,
   marketingRoleAllowedPath,
   roleMayOpenProspectFile,
   marketingStatusForStage,
@@ -265,14 +266,13 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Calendar', 'Pipeline', 'Outreach', 'Clients', 'Credit & Funding', 'Referrals', 'Case Study', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Messages', 'Settings']
+      ['Today', 'Calendar', 'Marketing', 'Credit & Funding', 'Referrals', 'Case Study', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
       '/admin',
       '/admin/calendar',
-      '/admin/pipeline',
-      '/admin/outreach',
+      '/admin/marketing',
       '/admin/todos',
       '/admin/sales-kit',
       '/admin/training',
@@ -282,8 +282,7 @@ describe('marketing role handoffs and navigation', () => {
     assert.deepEqual(navForRole('sales_closer').map((item) => item.href), [
       '/admin',
       '/admin/calendar',
-      '/admin/pipeline',
-      '/admin/outreach',
+      '/admin/marketing',
       '/admin/todos',
       '/admin/sales-kit',
       '/admin/training',
@@ -294,8 +293,7 @@ describe('marketing role handoffs and navigation', () => {
     assert.deepEqual(navForRole('client_relations').map((item) => item.href), [
       '/admin',
       '/admin/calendar',
-      '/admin/pipeline',
-      '/admin/clients',
+      '/admin/marketing',
       '/admin/todos',
       '/admin/content-kit',
       '/admin/messages',
@@ -324,6 +322,9 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/messages'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/messages'), true)
     assert.equal(homeForRole('credit_manager'), '/admin')
+    assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/marketing'), true)
+    assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/marketing'), true)
+    assert.equal(marketingRoleAllowedPath('client_relations', '/admin/marketing'), true)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/outreach'), true)
     assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/outreach'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/outreach'), false)
@@ -452,5 +453,35 @@ describe('marketing role handoffs and navigation', () => {
     assert.match(ui, /sh-pipeline-view/)
     assert.match(ui, /max-h-\[min\(70vh,36rem\)\]/)
     assert.match(ui, /ProspectListRow/)
+  })
+
+  it('counts marketing KPIs from saved replies, consultations, closes, and paid revenue', () => {
+    const view = marketingKpiCounts([
+      { stage: 'uncontacted', gmailThreadId: null, repliedAt: null, consultationBookedAt: null },
+      { stage: 'emailed', gmailThreadId: 'thread-1', repliedAt: null, consultationBookedAt: null },
+      { stage: 'won', gmailThreadId: 'thread-2', repliedAt: '2026-11-01T00:00:00.000Z', consultationBookedAt: null },
+    ], 0)
+    assert.equal(view.leadVolume, 3)
+    assert.equal(view.emailsSent, 2)
+    assert.equal(view.responsesRecorded, 1)
+    assert.equal(view.responseRate, '50%')
+    assert.equal(view.consultationsBooked, 0)
+    assert.equal(view.closed, 1)
+    assert.equal(view.closeRate, '33%')
+    assert.equal(view.costPerLead, 'Unavailable')
+    assert.equal(view.revenue, '$0')
+    const booked = marketingKpiCounts([
+      { stage: 'offer_made', consultationBookedAt: '2026-11-20T12:00:00.000Z' },
+    ], 250)
+    assert.equal(booked.consultationsBooked, 1)
+    assert.equal(booked.revenue, '$250')
+    const desk = readFileSync('src/components/admin/MarketingDesk.tsx', 'utf8')
+    assert.match(desk, /Leads/)
+    assert.match(desk, /Outreach/)
+    assert.match(desk, /Pipeline/)
+    assert.match(desk, /Clients/)
+    assert.match(desk, /Deadlines/)
+    assert.match(desk, /KPIs/)
+    assert.doesNotMatch(desk, /credit-funding/)
   })
 })
