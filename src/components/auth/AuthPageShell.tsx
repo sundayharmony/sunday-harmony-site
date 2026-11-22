@@ -23,7 +23,7 @@ export default function AuthPageShell({ title, subtitle, children, backHref = '/
           {children}
         </div>
         <div className="text-center mt-6">
-          <Link href={backHref} className="text-xs text-brand-dim hover:text-accent transition-colors">
+          <Link href={backHref} className="text-xs text-brand-dim hover:text-accent-ink transition-colors">
             {backLabel}
           </Link>
         </div>

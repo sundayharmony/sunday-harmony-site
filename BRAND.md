@@ -6,16 +6,17 @@ Change colors here, then match the two files that cannot import this list.
 |---|---|---|
 | Accent | `#b8943f` | Buttons, labels, highlights |
 | Accent soft | `#f0ebe3` | Soft panels |
+| Accent ink | `#7f6427` | Gold text on light backgrounds (`text-accent-ink`). Plain `#b8943f` fails contrast as text there; keep it for fills, borders, and text on dark |
 | Text | `#0a0a0a` | Headings and body |
 | Muted | `#525252` | Secondary copy |
-| Dim | `#a3a3a3` | Hints |
+| Dim | `#737373` | Hints (darkened from `#a3a3a3` to pass WCAG AA contrast) |
 | Border | `#e5e5e5` | Hairline borders |
 | Background | `#ffffff` | Pages |
 | Background soft | `#fafafa` | Alternating sections |
 
 Source of truth for the app build: `src/lib/brand-tokens.ts`.
 
-Also set the same accent hex on `:root` in `src/styles/globals.css` (`--brand-accent`, `--brand-accent-soft`, `--brand-text`). Tailwind reads `brand-tokens.ts`.
+Also set the same accent hex on `:root` in `src/styles/globals.css` (`--brand-accent`, `--brand-accent-soft`, `--brand-accent-ink`, `--brand-text`). Tailwind reads `brand-tokens.ts`.
 
 Typeface: Montserrat. Logos: `public/logo-black.png` and `public/logo-white.png`.
 

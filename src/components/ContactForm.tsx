@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import { siteConfig, serviceOptions } from '@/lib/data'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import { currentVisitIsPaid } from '@/lib/lead-attribution'
 
 interface FormData {
   firstName: string
@@ -18,7 +19,7 @@ interface FormData {
 
 function contactLeadSource(): 'website' | 'ads' | 'referral' {
   const params = new URLSearchParams(window.location.search)
-  if (params.get('gclid') || params.get('utm_medium') === 'cpc') return 'ads'
+  if (currentVisitIsPaid()) return 'ads'
   if (params.get('ref') || document.cookie.split(';').some((part) => part.trim().startsWith('sh_ref='))) {
     return 'referral'
   }
@@ -72,7 +73,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
             {sent ? (
               <div className="text-center py-10">
                 <div className="text-5xl mb-3.5 text-brand-text">✓</div>
-                <h3 className="text-brand-text text-xl font-bold mb-2">Thank you!</h3>
+                <h3 ref={(el) => el?.focus()} tabIndex={-1} className="text-brand-text text-xl font-bold mb-2 outline-none">Thank you!</h3>
                 <p className="text-brand-muted text-sm leading-relaxed">
                   We&apos;ll be in touch within 24 hours with your free audit.
                 </p>
@@ -196,7 +197,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
                 </div>
 
                 {error && (
-                  <div className="text-brand-red text-sm mb-4">{error}</div>
+                  <div role="alert" className="text-brand-red text-sm mb-4">{error}</div>
                 )}
 
                 <button
@@ -257,7 +258,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
                   <div className="text-[15px] text-brand-text font-medium">
                     <a
                       href={item.href}
-                      className="hover:text-accent transition-colors"
+                      className="hover:text-accent-ink transition-colors"
                       {...('external' in item && item.external
                         ? { target: '_blank', rel: 'noopener noreferrer' }
                         : {})}

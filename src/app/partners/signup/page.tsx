@@ -122,7 +122,7 @@ export default function PartnerSignupPage() {
         </button>
         <p className="mt-4 text-xs text-brand-dim text-center leading-relaxed">
           Your referral link stays off until Sunday Harmony approves the account.{' '}
-          <Link href="/login" className="text-accent hover:underline">Sign in</Link>
+          <Link href="/login" className="text-accent-ink hover:underline">Sign in</Link>
         </p>
       </form>
     </AuthPageShell>

@@ -7,7 +7,7 @@ import { packages, packagePriceDisplay, packageDisclaimer, type Package } from '
 const taglineColor: Record<string, string> = {
   blue: 'text-brand-muted',
   green: 'text-brand-muted',
-  gold: 'text-accent',
+  gold: 'text-accent-ink',
   purple: 'text-brand-muted',
 }
 
@@ -175,7 +175,7 @@ export default function Packages() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-brand-text leading-tight">{option.tier}</h3>
-                    <p className="whitespace-nowrap text-xs font-semibold text-accent">{facePrice(pkg)}</p>
+                    <p className="whitespace-nowrap text-xs font-semibold text-accent-ink">{facePrice(pkg)}</p>
                   </div>
                 </div>
                 <p className="text-sm text-brand-muted leading-relaxed mb-4">{option.body}</p>
@@ -192,7 +192,7 @@ export default function Packages() {
                   id={`package-reveal-${pkg.tier}`}
                   aria-expanded={open}
                   tabIndex={open ? -1 : 0}
-                  className="mt-auto w-full pt-5 text-left text-xs font-semibold text-accent hover:underline"
+                  className="mt-auto w-full pt-5 text-left text-xs font-semibold text-accent-ink hover:underline"
                   onClick={(event) => {
                     event.stopPropagation()
                     setOpenTier(pkg.tier)

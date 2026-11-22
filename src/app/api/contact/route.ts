@@ -21,9 +21,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unable to process submission' }, { status: 400 })
     }
 
+    // Every field must be text; fields without their own check below are capped here.
+    const FIELD_LIMITS: Record<string, number> = { service: 200, industry: 200, budget: 100 }
+    for (const key of ['firstName', 'lastName', 'email', 'phone', 'business', 'service', 'industry', 'budget', 'message']) {
+      const value = body[key]
+      if (value === undefined || value === null || value === '') continue
+      if (typeof value !== 'string' || value.length > (FIELD_LIMITS[key] ?? 5000)) {
+        return NextResponse.json({ error: 'Please check the form and try again.' }, { status: 400 })
+      }
+    }
+
     const { firstName, lastName, email, phone, business, service, message } = body
 
-    // Input length validation Ã¢ÂÂ prevent oversized payloads
+    // Input length validation: prevent oversized payloads
     if (typeof firstName === 'string' && firstName.length > 100) {
       return NextResponse.json({ error: 'First name is too long' }, { status: 400 })
     }

@@ -26,7 +26,7 @@ export default function CreditPrivacyPage() {
       minimalHeader
       hero={
         <>
-          <Link href={CREDIT_INTAKE_PATH} className="text-sm text-accent hover:underline mb-6 inline-block">
+          <Link href={CREDIT_INTAKE_PATH} className="text-sm text-accent-ink hover:underline mb-6 inline-block">
             ← Back to intake
           </Link>
           <p className="text-sm text-brand-dim">Last updated: August 26, 2026</p>
@@ -46,7 +46,7 @@ export default function CreditPrivacyPage() {
             <ul className="space-y-2">
               {section.content.map((item) => (
                 <li key={item} className="text-sm text-brand-muted leading-relaxed flex gap-2">
-                  <span className="text-accent mt-1">•</span>
+                  <span className="text-accent-ink mt-1">•</span>
                   <span>{item}</span>
                 </li>
               ))}

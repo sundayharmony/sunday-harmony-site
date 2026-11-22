@@ -154,7 +154,7 @@ function ResetPasswordForm() {
       </form>
 
       <div className="text-center mt-6">
-        <Link href="/forgot-password" className="text-xs text-brand-dim hover:text-accent transition-colors">
+        <Link href="/forgot-password" className="text-xs text-brand-dim hover:text-accent-ink transition-colors">
           Request a new code
         </Link>
       </div>
