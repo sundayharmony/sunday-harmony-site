@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { CreditAttentionList, type CreditAttentionApplication } from '@/components/admin/CreditAttentionList'
 import CloserBilling from '@/components/admin/CloserBilling'
 import MeetingJoinList from '@/components/admin/MeetingJoinList'
 import type { JoinableMeeting } from '@/lib/joinable-meetings'
@@ -146,8 +147,25 @@ function Section({
   )
 }
 
+function creditApplications(data: { applications?: unknown }): CreditAttentionApplication[] {
+  if (!Array.isArray(data.applications)) return []
+  return data.applications.flatMap((row) => {
+    if (!row || typeof row !== 'object') return []
+    const app = row as Partial<CreditAttentionApplication>
+    if (!app.applicationId || !app.name) return []
+    return [{
+      personId: app.personId || app.applicationId,
+      name: app.name,
+      email: app.email || '',
+      status: app.status || '',
+      applicationId: app.applicationId,
+    }]
+  })
+}
+
 export default function TodayBoard() {
   const [board, setBoard] = useState<MarketingToday | null>(null)
+  const [creditQueue, setCreditQueue] = useState<CreditAttentionApplication[] | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -160,8 +178,12 @@ export default function TodayBoard() {
           setError(typeof data.error === 'string' ? data.error : 'Could not load today.')
           return
         }
+        if (data.kind !== 'marketing' && Array.isArray(data.applications)) {
+          setCreditQueue(creditApplications(data))
+          return
+        }
         if (data.kind !== 'marketing') {
-          setError('Open Credit & Funding for the credit queue.')
+          setError('Could not load today.')
           return
         }
         setBoard(data)
@@ -170,6 +192,18 @@ export default function TodayBoard() {
       }
     })()
   }, [])
+
+  if (creditQueue) {
+    return (
+      <div>
+        <div className="mb-6">
+          <h1 className="font-serif text-3xl font-extrabold text-brand-text mb-1">Today</h1>
+          <p className="text-sm text-brand-muted">What needs action.</p>
+        </div>
+        <CreditAttentionList applications={creditQueue} />
+      </div>
+    )
+  }
 
   if (error) return <p className="text-sm text-brand-red">{error}</p>
   if (!board) {

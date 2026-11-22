@@ -91,13 +91,13 @@ export default function DisputeConfirmStep({
   async function generate() {
     const usingBypass = identityReady !== true && bypassMissingIdentity && canBypassIdentity
     if (identityReady !== true && !usingBypass) {
-      setError('Add Government Photo ID, Proof of Residence, and Social Security Card — or email a request — before generating letters.')
+      setError('Add a government photo ID, a photo of mail, and a Social Security card, or email a request, before generating letters.')
       document.getElementById('letter-identity-prep')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       return
     }
     if (usingBypass) {
       const ok = window.confirm(
-        'Generate letters without every required document? Missing ID, residence proof, or Social Security card will not be attached to the letter packet.'
+        'Generate letters without every required document? A missing government ID, photo of mail, or Social Security card will not be attached to the letter packet.'
       )
       if (!ok) return
     }
@@ -286,7 +286,7 @@ export default function DisputeConfirmStep({
         </button>
         {identityReady === false && !bypassMissingIdentity && (
           <p className="w-full text-sm text-amber-800">
-            Add Government Photo ID, Proof of Residence, and Social Security Card — or email a request — first.
+            Add a government photo ID, a photo of mail, and a Social Security card, or email a request, first.
             {canBypassIdentity ? ' Or enable the bypass above.' : ''}
           </p>
         )}

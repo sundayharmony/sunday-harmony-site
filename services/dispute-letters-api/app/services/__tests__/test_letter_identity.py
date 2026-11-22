@@ -1,7 +1,7 @@
 from app.services.letter_identity import pick_letter_identity_docs
 
 
-def test_pick_prefers_proof_of_address_and_keeps_photo_ids():
+def test_pick_uses_mail_photo_and_keeps_photo_ids():
     selected = pick_letter_identity_docs(
         [
             {"id": "1", "document_type": "photo_id", "storage_path": "id-front.jpg", "scan_status": "clean"},
@@ -15,7 +15,7 @@ def test_pick_prefers_proof_of_address_and_keeps_photo_ids():
     assert [doc["storage_path"] for doc in selected] == [
         "id-front.jpg",
         "id-back.jpg",
-        "lease.jpg",
+        "mail.jpg",
         "ssn.jpg",
     ]
 
@@ -51,13 +51,13 @@ def test_pick_prefers_letter_working_copy_over_original():
             },
             {
                 "id": "addr",
-                "document_type": "proof_of_address",
-                "storage_path": "lease.jpg",
+                "document_type": "mail_proof",
+                "storage_path": "mail.jpg",
                 "scan_status": "clean",
             },
         ]
     )
     assert [doc["storage_path"] for doc in selected] == [
         f"apps/x/letter-current_{original_id}_cropped.jpg",
-        "lease.jpg",
+        "mail.jpg",
     ]

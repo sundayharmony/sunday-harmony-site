@@ -94,10 +94,10 @@ describe('credit expert assignment', () => {
   })
 
   it('shows waiting-queue status as a badge next to the name', () => {
-    const page = readFileSync('src/app/admin/credit-funding/page.tsx', 'utf8')
-    const waitingAt = page.indexOf('Waiting on you')
+    const page = readFileSync('src/components/admin/CreditAttentionList.tsx', 'utf8')
+    const waitingAt = page.indexOf('app.name')
     assert.ok(waitingAt >= 0)
-    const waitingBlock = page.slice(waitingAt, waitingAt + 900)
+    const waitingBlock = page.slice(waitingAt, waitingAt + 500)
     assert.match(waitingBlock, /StatusBadge status=\{app\.status\}/)
     assert.doesNotMatch(
       waitingBlock,

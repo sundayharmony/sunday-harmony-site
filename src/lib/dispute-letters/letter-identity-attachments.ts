@@ -19,7 +19,7 @@ export type LetterIdentityDoc = {
 
 export type LetterIdentityPicks = {
   photoIds: LetterIdentityDoc[]
-  proofOfAddress: LetterIdentityDoc | null
+  mailPhoto: LetterIdentityDoc | null
   ssnCard: LetterIdentityDoc | null
 }
 
@@ -44,11 +44,11 @@ export const LETTER_IDENTITY_REQUIREMENTS: readonly LetterIdentityRequirement[] 
   },
   {
     key: 'proof_of_residence',
-    label: 'Proof of Residence',
-    types: ['proof_of_address', 'mail_proof'],
-    uploadType: 'proof_of_address',
+    label: 'Photo of mail',
+    types: ['mail_proof'],
+    uploadType: 'mail_proof',
     defaultRequestNote:
-      'Please send a utility bill, bank statement, or lease dated within the last 90 days that shows your name and current address.',
+      'Please send a photo of a piece of mail that shows your name and current address.',
   },
   {
     key: 'ssn_card',
@@ -66,7 +66,7 @@ export type LetterPacketAttachment = {
 }
 
 const PHOTO_ID_STEM = 'Government Photo ID'
-const ADDRESS_STEM = 'Proof of Address'
+const ADDRESS_STEM = 'Photo of Mail'
 const SSN_STEM = 'Social Security Card'
 
 function isUsableIdentityDoc(doc: LetterIdentityDoc): boolean {
@@ -109,19 +109,16 @@ function resolveLetterIdentityDocs(usable: LetterIdentityDoc[], documentType: st
 export function pickLetterIdentityDocuments(docs: LetterIdentityDoc[]): LetterIdentityPicks {
   const usable = docs.filter(isUsableIdentityDoc)
   const photoIds = resolveLetterIdentityDocs(usable, 'photo_id')
-  const proofOfAddress =
-    resolveLetterIdentityDocs(usable, 'proof_of_address')[0] ||
-    resolveLetterIdentityDocs(usable, 'mail_proof')[0] ||
-    null
+  const mailPhoto = resolveLetterIdentityDocs(usable, 'mail_proof')[0] || null
   const ssnCard = resolveLetterIdentityDocs(usable, 'ssn_card')[0] || null
-  return { photoIds, proofOfAddress, ssnCard }
+  return { photoIds, mailPhoto, ssnCard }
 }
 
 export function selectedLetterIdentityDocuments(docs: LetterIdentityDoc[]): LetterIdentityDoc[] {
   const picked = pickLetterIdentityDocuments(docs)
   return [
     ...picked.photoIds,
-    ...(picked.proofOfAddress ? [picked.proofOfAddress] : []),
+    ...(picked.mailPhoto ? [picked.mailPhoto] : []),
     ...(picked.ssnCard ? [picked.ssnCard] : []),
   ]
 }
@@ -131,14 +128,9 @@ export function letterDocsForRequirement(
   requirement: LetterIdentityRequirement
 ): LetterIdentityDoc[] {
   const usable = docs.filter(isUsableIdentityDoc)
-  if (requirement.key === 'proof_of_residence') {
-    const resolved = [
-      ...resolveLetterIdentityDocs(usable, 'proof_of_address'),
-      ...resolveLetterIdentityDocs(usable, 'mail_proof'),
-    ]
-    return resolved.slice(0, 1)
-  }
-  return resolveLetterIdentityDocs(usable, requirement.uploadType)
+  const resolved = resolveLetterIdentityDocs(usable, requirement.uploadType)
+  if (requirement.key === 'proof_of_residence') return resolved.slice(0, 1)
+  return resolved
 }
 
 export function missingLetterIdentityRequirements(docs: LetterIdentityDoc[]): LetterIdentityRequirement[] {
@@ -177,7 +169,7 @@ function mimeForIdentityDoc(doc: LetterIdentityDoc): string {
 
 function stemForIdentityDoc(doc: LetterIdentityDoc): string {
   if (doc.document_type === 'photo_id') return PHOTO_ID_STEM
-  if (doc.document_type === 'proof_of_address' || doc.document_type === 'mail_proof') return ADDRESS_STEM
+  if (doc.document_type === 'mail_proof') return ADDRESS_STEM
   if (doc.document_type === 'ssn_card') return SSN_STEM
   return 'Identity Document'
 }

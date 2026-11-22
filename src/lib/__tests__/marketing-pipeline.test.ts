@@ -302,6 +302,7 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/settings',
     ])
     assert.deepEqual(navForRole('credit_manager').map((item) => item.href), [
+      '/admin',
       '/admin/calendar',
       '/admin/credit-funding',
       '/admin/todos',
@@ -322,7 +323,7 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/messages'), true)
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/messages'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/messages'), true)
-    assert.equal(homeForRole('credit_manager'), '/admin/credit-funding')
+    assert.equal(homeForRole('credit_manager'), '/admin')
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/outreach'), true)
     assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/outreach'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/outreach'), false)

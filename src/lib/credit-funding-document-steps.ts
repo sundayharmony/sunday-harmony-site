@@ -34,20 +34,6 @@ export const IDENTITY_DOCUMENTS: DocumentStepItem[] = [
     required: false,
     icon: '\u{1F4C3}',
   },
-  {
-    type: 'proof_of_address',
-    label: DOCUMENT_LABELS.proof_of_address,
-    description: 'Utility bill, bank statement, or lease dated within the last 90 days.',
-    required: false,
-    icon: '\u{1F3E0}',
-  },
-  {
-    type: 'selfie_with_id',
-    label: DOCUMENT_LABELS.selfie_with_id,
-    description: 'Clear photo of you holding your government ID next to your face.',
-    required: false,
-    icon: '\u{1F933}',
-  },
 ]
 
 const BUSINESS_DOC_DESCRIPTIONS: Partial<Record<DocumentType, string>> = {

@@ -60,16 +60,14 @@ def _resolve_docs_for_type(usable: list[dict], document_type: str) -> list[dict]
 
 
 def pick_letter_identity_docs(docs: list[dict]) -> list[dict]:
-    """Photo ID(s) + proof of address + SSN card, preferring letter working copies."""
+    """Photo ID(s) + a photo of mail + SSN card, preferring letter working copies."""
     usable = [
         doc
         for doc in docs
         if doc.get("scan_status") != "rejected" and doc.get("storage_path")
     ]
     photo_ids = _resolve_docs_for_type(usable, "photo_id")
-    proof = _resolve_docs_for_type(usable, "proof_of_address")
-    if not proof:
-        proof = _resolve_docs_for_type(usable, "mail_proof")
+    proof = _resolve_docs_for_type(usable, "mail_proof")
     ssn = _resolve_docs_for_type(usable, "ssn_card")
     selected = [*photo_ids]
     if proof:
@@ -80,7 +78,7 @@ def pick_letter_identity_docs(docs: list[dict]) -> list[dict]:
 
 
 def load_application_enclosure_files(application_uuid: str | None) -> list[tuple[str, bytes]]:
-    """Best-effort load of photo ID + proof of address + SSN from credit-funding storage."""
+    """Best-effort load of photo ID + a photo of mail + SSN from credit-funding storage."""
     if not application_uuid:
         return []
     try:

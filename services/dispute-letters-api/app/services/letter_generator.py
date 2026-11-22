@@ -350,7 +350,7 @@ Basis of Dispute:
 15) After the sign-off name, section heading: Enclosures
     Then always include these bullets (the mailing packet attaches these copies):
     ● Copy of government-issued photo identification
-    ● Proof of current residential address
+    ● Photo of mail showing your name and current address
     Do NOT mention account screenshots, credit score pages, or score dashboards.
 
 Rules:
@@ -612,7 +612,7 @@ Respectfully,
 
 Enclosures
 ● Copy of government-issued photo identification
-● Proof of current residential address
+● Photo of mail showing your name and current address
 """
 
 

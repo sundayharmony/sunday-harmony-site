@@ -121,7 +121,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (role === 'credit_manager' && mfaVerified && path === '/login') {
-    return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+    return NextResponse.redirect(new URL('/admin', req.url))
   }
 
   if (isMarketingRole(role) && path === '/login') {
@@ -137,11 +137,8 @@ export async function middleware(req: NextRequest) {
     }
 
     if (role === 'credit_manager') {
-      if (path === '/admin') {
-        return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
-      }
       if (!creditManagerAllowed(path)) {
-        return NextResponse.redirect(new URL('/admin/credit-funding', req.url))
+        return NextResponse.redirect(new URL('/admin', req.url))
       }
       return NextResponse.next()
     }

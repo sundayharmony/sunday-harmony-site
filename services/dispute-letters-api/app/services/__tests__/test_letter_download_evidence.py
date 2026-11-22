@@ -24,9 +24,9 @@ def test_download_uses_identity_documents(monkeypatch):
     uploaded = mod.letter_files_for_download(
         "sess",
         letter,
-        uploaded=[("Proof of Address.jpg", b"addr")],
+        uploaded=[("Photo of Mail.jpg", b"addr")],
         application_uuid="app-1",
     )
 
     assert [name for name, _ in files] == ["Government Photo ID.jpg"]
-    assert [name for name, _ in uploaded] == ["Proof of Address.jpg"]
+    assert [name for name, _ in uploaded] == ["Photo of Mail.jpg"]

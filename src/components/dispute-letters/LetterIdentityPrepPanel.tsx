@@ -153,8 +153,8 @@ export default function LetterIdentityPrepPanel({
   if (state && !state.linked) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        Link this report to a Credit &amp; Funding application to attach Government Photo ID, Proof of
-        Residence, and Social Security Card to the letters.
+        Link this report to a Credit &amp; Funding application to attach a government photo ID, a photo of
+        mail, and a Social Security card to the letters.
       </div>
     )
   }
@@ -164,7 +164,7 @@ export default function LetterIdentityPrepPanel({
       <div>
         <h3 className="font-semibold text-brand-text">Documents on the letters</h3>
         <p className="mt-1 text-sm text-brand-dim">
-          Letters need a Government Photo ID, Proof of Residence, and Social Security Card. Crop the
+          Letters need a government photo ID, a photo of mail, and a Social Security card. Crop the
           original client upload if you only need a tighter photo — the original stays on file.
         </p>
       </div>

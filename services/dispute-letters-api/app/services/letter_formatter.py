@@ -749,6 +749,7 @@ def _is_enclosure_bullet(text: str) -> bool:
     lowered = text.lower()
     return (
         "photo identification" in lowered
+        or "photo of mail" in lowered
         or "residential address" in lowered
         or "proof of current" in lowered
         or "screenshot" in lowered

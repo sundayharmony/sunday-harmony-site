@@ -119,12 +119,12 @@ def test_pdf_contains_date_and_enclosures():
         SAMPLE
         + "\n\nRespectfully,\n\nJane Consumer\n\nEnclosures\n"
         + "● Copy of government-issued photo identification\n"
-        + "● Proof of current residential address\n"
+        + "● Photo of mail showing your name and current address\n"
         + "● Screenshots of the disputed account(s) from my consumer credit report\n"
     )
     payload = letter_to_pdf(
         sample,
-        enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Proof of Address.png", MINI_PNG)],
+        enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Photo of Mail.png", MINI_PNG)],
     )
     assert payload.startswith(b"%PDF")
     assert len(payload) > 2000
@@ -136,7 +136,7 @@ def test_pdf_contains_date_and_enclosures():
     kept = _blocks_for_enclosures(layout["blocks"], has_images=True)
     bullets = [block.get("text", "") for block in kept if block.get("kind") == "bullet"]
     assert any("photo identification" in b.lower() for b in bullets)
-    assert any("residential address" in b.lower() for b in bullets)
+    assert any("photo of mail" in b.lower() for b in bullets)
     assert any("screenshots of the disputed account" in b.lower() for b in bullets)
 
 
@@ -157,18 +157,18 @@ def test_docx_embeds_identity_images_at_end():
         SAMPLE
         + "\n\nRespectfully,\n\nJane Consumer\n\nEnclosures\n"
         + "● Copy of government-issued photo identification\n"
-        + "● Proof of current residential address\n"
+        + "● Photo of mail showing your name and current address\n"
     )
     document = letter_to_docx(
         sample,
-        enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Proof of Address.png", MINI_PNG)],
+        enclosure_files=[("Government Photo ID.png", MINI_PNG), ("Photo of Mail.png", MINI_PNG)],
     )
     # Cursive signature image + two enclosure identity images.
     assert len(document.inline_shapes) == 3
     text = "\n".join(p.text for p in document.paragraphs)
     assert "Enclosures" in text
     assert "photo identification" in text.lower()
-    assert "proof of current residential address" in text.lower()
+    assert "photo of mail showing your name and current address" in text.lower()
     layout = letter_layout(sample)
     assert any(block.get("variant") == "closing" for block in layout["blocks"])
     assert any(block.get("variant") == "signature" for block in layout["blocks"])
