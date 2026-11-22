@@ -149,20 +149,28 @@ export async function failDisputeSessionIfStillAnalyzing(
   return Array.isArray(data) && data.length > 0
 }
 
+/** Drop a full SSN from the saved report. Letters load it from the intake record. */
+export function reportJsonWithoutFullSsn(report: ParsedReport): ParsedReport {
+  const digits = (report.consumer?.ssn || '').replace(/\D/g, '')
+  if (digits.length < 9) return report
+  return { ...report, consumer: { ...report.consumer, ssn: '' } }
+}
+
 export async function updateDisputeSessionReport(
   sessionId: string,
   report: ParsedReport,
   fileType?: string
 ): Promise<void> {
+  const stored = reportJsonWithoutFullSsn(report)
   const payload: Record<string, unknown> = {
-    report_json: report,
+    report_json: stored,
     status: 'ready',
     error_message: null,
     updated_at: new Date().toISOString(),
   }
   if (fileType) payload.file_type = fileType
-  if (report.credit_intelligence) {
-    payload.intelligence_json = report.credit_intelligence
+  if (stored.credit_intelligence) {
+    payload.intelligence_json = stored.credit_intelligence
   }
 
   const { error } = await getSupabase().from('dispute_sessions').update(payload).eq('id', sessionId)
@@ -185,7 +193,7 @@ export async function updateDisputeSessionIntelligence(
 
   const reportJson = (existing?.report_json as ParsedReport | null) || null
   const nextReport = reportJson
-    ? { ...reportJson, credit_intelligence: intelligence }
+    ? reportJsonWithoutFullSsn({ ...reportJson, credit_intelligence: intelligence })
     : null
 
   const payload: Record<string, unknown> = {

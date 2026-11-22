@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -54,10 +55,21 @@ def set_session_status(session_id: str, status: str, *, error_message: str | Non
     client.table("dispute_sessions").update(payload).eq("id", session_id).execute()
 
 
+def report_json_for_storage(report: ParsedReport) -> dict:
+    """Drop a full SSN from the saved report. Letters load it from the intake record."""
+    payload = report.model_dump()
+    consumer = payload.get("consumer")
+    if isinstance(consumer, dict):
+        digits = re.sub(r"\D", "", str(consumer.get("ssn") or ""))
+        if len(digits) >= 9:
+            consumer["ssn"] = ""
+    return payload
+
+
 def update_session_report(session_id: str, report: ParsedReport, *, file_type: str = "") -> bool:
     client = get_supabase()
     payload: dict = {
-        "report_json": report.model_dump(),
+        "report_json": report_json_for_storage(report),
         "status": "ready",
         "error_message": None,
         "updated_at": datetime.now(timezone.utc).isoformat(),
