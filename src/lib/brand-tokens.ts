@@ -5,9 +5,11 @@
 export const brandColors = {
   accent: '#b8943f',
   accentSoft: '#f0ebe3',
+  /** Accent for text on light backgrounds (4.7:1 or better on white and the beige panels). Keep `accent` for fills, borders and text on dark. */
+  accentInk: '#7f6427',
   text: '#0a0a0a',
   muted: '#525252',
-  dim: '#a3a3a3',
+  dim: '#737373',
   bg: '#ffffff',
   bgSoft: '#fafafa',
   border: '#e5e5e5',

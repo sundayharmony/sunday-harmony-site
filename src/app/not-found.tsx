@@ -11,7 +11,7 @@ export default function NotFound() {
   return (
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6" aria-label="Page not found error">
       <div className="text-center max-w-md">
-        <div className="text-6xl font-extrabold text-accent mb-4">404</div>
+        <div className="text-6xl font-extrabold text-accent-ink mb-4">404</div>
         <h1 className="font-serif text-2xl font-extrabold text-brand-text mb-3">
           Page Not Found
         </h1>

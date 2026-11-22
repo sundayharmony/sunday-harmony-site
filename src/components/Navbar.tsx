@@ -10,7 +10,7 @@ import { isSiteNavLinkActive, siteNavLinks } from '@/lib/navigation'
 const linkBase =
   'inline-flex items-center text-[11px] lg:text-[12px] xl:text-[13px] tracking-wide transition-colors whitespace-nowrap shrink-0 rounded-full px-2.5 py-1'
 const inactiveLinkClass = `${linkBase} font-medium text-brand-muted hover:text-brand-text`
-const activeLinkClass = `${linkBase} font-semibold text-accent bg-accent-soft ring-1 ring-accent`
+const activeLinkClass = `${linkBase} font-semibold text-accent-ink bg-accent-soft ring-1 ring-accent`
 
 function MenuIcon({ open }: { open: boolean }) {
   return (
@@ -166,7 +166,7 @@ export default function Navbar() {
                 aria-current={active ? 'page' : undefined}
                 className={`text-lg py-3.5 border-b border-brand-border rounded-xl px-4 ${
                   active
-                    ? 'font-semibold text-accent bg-accent-soft ring-1 ring-accent'
+                    ? 'font-semibold text-accent-ink bg-accent-soft ring-1 ring-accent'
                     : 'font-medium text-brand-muted'
                 }`}
               >

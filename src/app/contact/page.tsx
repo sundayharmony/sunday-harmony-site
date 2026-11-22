@@ -86,13 +86,13 @@ export default function ContactPage() {
           <div className="absolute -top-1/3 -right-1/6 w-[700px] h-[700px] rounded-full bg-[radial-gradient(circle,rgba(184,148,63,0.12)_0%,transparent_70%)] pointer-events-none" />
           <div className="relative z-10 max-w-[1180px] mx-auto px-7 py-16 sm:py-20 grid lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-16 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent tracking-wide mb-7">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent-ink tracking-wide mb-7">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                 Get in touch
               </div>
               <h1 className="font-serif text-[clamp(40px,6vw,66px)] font-extrabold leading-[1.03] text-brand-text mb-6">
                 Start the conversation.
-                <span className="block mt-1 italic text-accent">Your business deserves a clear plan.</span>
+                <span className="block mt-1 italic text-accent-ink">Your business deserves a clear plan.</span>
               </h1>
               <p className="text-lg text-brand-muted leading-relaxed mb-9 max-w-[540px]">
                 Tell us where you are stuck. We will send a free audit of your online presence—plain English, prioritized next steps, and no obligation to hire us.
@@ -115,7 +115,7 @@ export default function ContactPage() {
                 {['Free, no obligation', 'Reply within ~1 business day', 'Brand, strategy & systems'].map((item) => (
                   <li key={item} className="flex items-center gap-2">
                     <span
-                      className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft border border-brand-border text-[11px] font-bold text-accent"
+                      className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft border border-brand-border text-[11px] font-bold text-accent-ink"
                       aria-hidden
                     >
                       ✓
@@ -173,8 +173,8 @@ export default function ContactPage() {
                   Those paths use dedicated intakes so we collect the right details the first time.
                 </p>
                 <div className="flex flex-col gap-2 text-sm font-semibold">
-                  <a href="/funding" className="text-accent hover:underline">Business funding →</a>
-                  <a href="/credit?focus=credit" className="text-accent hover:underline">Personal credit →</a>
+                  <a href="/funding" className="text-accent-ink hover:underline">Business funding →</a>
+                  <a href="/credit?focus=credit" className="text-accent-ink hover:underline">Personal credit →</a>
                 </div>
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function ContactPage() {
           <div className="relative max-w-[1100px] mx-auto px-7">
             <div className="section-label">How it works</div>
             <h2 className="font-serif text-[clamp(30px,4.6vw,48px)] font-extrabold leading-[1.1] mb-16 max-w-[640px]">
-              From hello to <span className="italic text-accent">a useful audit</span>
+              From hello to <span className="italic text-accent-ink">a useful audit</span>
             </h2>
             <ol className="relative grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
               <div
@@ -195,7 +195,7 @@ export default function ContactPage() {
               />
               {steps.map((step, index) => (
                 <li key={step.title} className="relative">
-                  <div className="relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-accent bg-brand-text font-serif text-xl font-extrabold text-accent">
+                  <div className="relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-accent bg-brand-text font-serif text-xl font-extrabold text-accent-ink">
                     {index + 1}
                   </div>
                   <h3 className="text-lg font-bold mb-2">{step.title}</h3>
@@ -221,7 +221,7 @@ export default function ContactPage() {
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-semibold text-brand-text [&::-webkit-details-marker]:hidden">
                     {item.q}
                     <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border bg-white text-lg leading-none text-accent transition-transform group-open:rotate-45"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border bg-white text-lg leading-none text-accent-ink transition-transform group-open:rotate-45"
                       aria-hidden
                     >
                       +
@@ -261,7 +261,7 @@ export default function ContactPage() {
                         </div>
                         <a
                           href={item.href}
-                          className="text-[15px] text-brand-text font-medium hover:text-accent transition-colors"
+                          className="text-[15px] text-brand-text font-medium hover:text-accent-ink transition-colors"
                           {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                         >
                           {item.display}

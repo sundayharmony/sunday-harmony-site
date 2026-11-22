@@ -14,6 +14,7 @@ const config: Config = {
         accent: {
           DEFAULT: brandColors.accent,
           soft: brandColors.accentSoft,
+          ink: brandColors.accentInk,
           foreground: '#0a0a0a',
         },
         brand: {
@@ -32,7 +33,7 @@ const config: Config = {
           red: '#b91c1c',
           text: '#0a0a0a',
           muted: '#525252',
-          dim: '#a3a3a3',
+          dim: brandColors.dim,
         },
       },
       fontFamily: {

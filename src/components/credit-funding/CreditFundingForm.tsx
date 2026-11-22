@@ -720,7 +720,7 @@ export default function CreditFundingForm({
         )}
         <p className="text-sm text-brand-muted mt-6">
           Track your application status anytime from your{' '}
-          <Link href="/dashboard/credit-funding" className="text-accent font-semibold hover:underline">
+          <Link href="/dashboard/credit-funding" className="text-accent-ink font-semibold hover:underline">
             client portal
           </Link>{' '}
           (log in with the email you used to apply).
@@ -1122,7 +1122,7 @@ export default function CreditFundingForm({
                 <button
                   type="button"
                   onClick={() => setFundingDetailsOpen(true)}
-                  className="text-sm font-semibold text-accent hover:underline"
+                  className="text-sm font-semibold text-accent-ink hover:underline"
                 >
                   Add funding details
                 </button>
@@ -1249,7 +1249,7 @@ export default function CreditFundingForm({
                 />
                 <span className="text-sm text-brand-muted">
                   I have read and agree to the{' '}
-                  <Link href="/credit/privacy" target="_blank" className="text-accent hover:underline">
+                  <Link href="/credit/privacy" target="_blank" className="text-accent-ink hover:underline">
                     Privacy Policy
                   </Link>{' '}
                   and authorize Sunday Harmony to process my information for credit repair and funding evaluation purposes.

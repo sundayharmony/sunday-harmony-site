@@ -258,7 +258,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
                   <div className="text-[15px] text-brand-text font-medium">
                     <a
                       href={item.href}
-                      className="hover:text-accent transition-colors"
+                      className="hover:text-accent-ink transition-colors"
                       {...('external' in item && item.external
                         ? { target: '_blank', rel: 'noopener noreferrer' }
                         : {})}

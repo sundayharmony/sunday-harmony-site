@@ -6,6 +6,7 @@
 :root {
   --brand-accent: #b8943f;
   --brand-accent-soft: #f0ebe3;
+  --brand-accent-ink: #7f6427;
   --brand-text: #0a0a0a;
   --nav-bar-height: 3.5rem;
   --nav-total-height: calc(var(--nav-bar-height) + env(safe-area-inset-top, 0px));
@@ -51,12 +52,17 @@ body {
   background-clip: text;
 }
 
+/* Dark sections keep the brighter gold; the ink shade is for light backgrounds. */
+.bg-brand-text .section-label {
+  color: var(--brand-accent);
+}
+
 .section-label {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--brand-accent);
+  color: var(--brand-accent-ink);
   margin-bottom: 14px;
   display: flex;
   align-items: center;

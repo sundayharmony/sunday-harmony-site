@@ -135,7 +135,7 @@ export default function ConsultationBooker({
   if (booked) {
     return (
       <div className="rounded-3xl border border-brand-border bg-white p-8 sm:p-10 text-center">
-        <div className="text-4xl mb-3 text-accent">✓</div>
+        <div className="text-4xl mb-3 text-accent-ink">✓</div>
         <h2 className="font-serif text-3xl font-extrabold text-brand-text mb-3">You are on the calendar.</h2>
         <p className="text-brand-muted leading-relaxed max-w-[460px] mx-auto">
           {booked}. The Google Meet link is in your email. Check the inbox you entered, including promotions or spam, if it is not in front.
@@ -157,7 +157,7 @@ export default function ConsultationBooker({
       {data && !data.calendarConnected ? (
         <p className="text-sm text-brand-muted leading-relaxed">
           Online booking is not open yet.{' '}
-          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent">
+          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent-ink">
             Send a message
           </a>{' '}
           and we will find a time with you.
@@ -167,7 +167,7 @@ export default function ConsultationBooker({
       {data?.calendarConnected && data.days.length === 0 ? (
         <p className="text-sm text-brand-muted leading-relaxed">
           No open times right now.{' '}
-          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent">
+          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent-ink">
             Send a message
           </a>{' '}
           and we will write back.
@@ -248,7 +248,7 @@ export default function ConsultationBooker({
             <div>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <p className="text-sm font-semibold text-brand-text">{selectedDay.label}</p>
-                <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent hover:underline">
+                <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent-ink hover:underline">
                   Change date
                 </button>
               </div>
@@ -282,10 +282,10 @@ export default function ConsultationBooker({
                   <span className="text-brand-muted font-medium"> · {selectedSlot.label}</span>
                 </p>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => setStep('time')} className="text-xs font-semibold text-accent hover:underline">
+                  <button type="button" onClick={() => setStep('time')} className="text-xs font-semibold text-accent-ink hover:underline">
                     Change time
                   </button>
-                  <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent hover:underline">
+                  <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent-ink hover:underline">
                     Change date
                   </button>
                 </div>

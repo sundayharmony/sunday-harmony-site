@@ -182,13 +182,13 @@ export default async function FundingPage({
           <div className="absolute -top-1/3 -right-1/6 w-[700px] h-[700px] rounded-full bg-[radial-gradient(circle,rgba(184,148,63,0.12)_0%,transparent_70%)] pointer-events-none" />
           <div className="relative z-10 max-w-[1180px] mx-auto px-7 py-16 sm:py-20 grid lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-16 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent tracking-wide mb-7">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent-ink tracking-wide mb-7">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                 Business funding
               </div>
               <h1 className="font-serif text-[clamp(40px,6vw,66px)] font-extrabold leading-[1.03] text-brand-text mb-6">
                 Fund the business.
-                <span className="block mt-1 italic text-accent">Fuel the next stage.</span>
+                <span className="block mt-1 italic text-accent-ink">Fuel the next stage.</span>
               </h1>
               <p className="text-lg text-brand-muted leading-relaxed mb-9 max-w-[540px]">
                 A plain-English look at how business funding works and what reviewers look at, then a short intake when you are ready. Not a loan approval, and not a credit-repair application.
@@ -210,7 +210,7 @@ export default async function FundingPage({
               <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-brand-muted">
                 {['No Social Security number', 'Documents optional', 'Review before any next step'].map((item) => (
                   <li key={item} className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft border border-brand-border text-[11px] font-bold text-accent" aria-hidden>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft border border-brand-border text-[11px] font-bold text-accent-ink" aria-hidden>
                       ✓
                     </span>
                     {item}
@@ -299,7 +299,7 @@ export default async function FundingPage({
                 <p className="text-sm text-brand-muted leading-relaxed mb-4">
                   Sunday Harmony reviews the business and talks the options through with you.
                 </p>
-                <a href="#intake" className="text-sm font-semibold text-accent hover:underline">
+                <a href="#intake" className="text-sm font-semibold text-accent-ink hover:underline">
                   Get funded →
                 </a>
               </div>
@@ -315,7 +315,7 @@ export default async function FundingPage({
           <div className="relative max-w-[1100px] mx-auto px-7">
             <div className="section-label">How it works</div>
             <h2 className="font-serif text-[clamp(30px,4.6vw,48px)] font-extrabold leading-[1.1] mb-16 max-w-[640px]">
-              From first details to <span className="italic text-accent">a clear next step</span>
+              From first details to <span className="italic text-accent-ink">a clear next step</span>
             </h2>
             <ol className="relative grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
               <div
@@ -324,7 +324,7 @@ export default async function FundingPage({
               />
               {steps.map((step, index) => (
                 <li key={step.title} className="relative">
-                  <div className="relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-accent bg-brand-text font-serif text-xl font-extrabold text-accent">
+                  <div className="relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-accent bg-brand-text font-serif text-xl font-extrabold text-accent-ink">
                     {index + 1}
                   </div>
                   <h3 className="text-lg font-bold mb-2">{step.title}</h3>
@@ -350,7 +350,7 @@ export default async function FundingPage({
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-semibold text-brand-text [&::-webkit-details-marker]:hidden">
                     {item.q}
                     <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border bg-white text-lg leading-none text-accent transition-transform group-open:rotate-45"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand-border bg-white text-lg leading-none text-accent-ink transition-transform group-open:rotate-45"
                       aria-hidden
                     >
                       +
