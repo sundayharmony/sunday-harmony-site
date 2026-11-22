@@ -98,7 +98,8 @@ describe('marketing pipeline scores and stages', () => {
     assert.equal(stageAfterOutboundEmail('uncontacted'), 'emailed')
     assert.equal(stageAfterOutboundEmail('emailed'), 'emailed')
     assert.equal(stageAfterOutboundEmail('contacted'), 'contacted')
-    assert.equal(stageAfterProspectReply('uncontacted'), 'emailed')
+    assert.equal(stageAfterProspectReply('uncontacted'), 'contacted')
+    assert.equal(stageAfterProspectReply('emailed'), 'contacted')
     assert.equal(stageAfterProspectReply('offer_made'), null)
   })
 

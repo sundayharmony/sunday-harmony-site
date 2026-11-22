@@ -1180,7 +1180,33 @@ function deskProspect(prospect: MarketingProspect) {
     deliverables: prospect.deliverables,
     clientId: prospect.clientId,
     consultationBookedAt: prospect.consultationBookedAt,
+    repliedAt: prospect.repliedAt,
   }
+}
+
+/** Checks every sent Gmail thread that has no recorded reply yet. */
+export async function sweepProspectReplies(limit = 200): Promise<{ checked: number; replied: number; failed: number }> {
+  const { data, error } = await getSupabase()
+    .from('leads')
+    .select('id')
+    .not('gmail_thread_id', 'is', null)
+    .neq('gmail_thread_id', '')
+    .is('replied_at', null)
+    .neq('pipeline_stage', 'won')
+    .order('updated_at', { ascending: true })
+    .limit(limit)
+  if (error) throw new Error(error.message)
+  const ids = (data || []).map((row) => String(row.id))
+  let replied = 0
+  let failed = 0
+  for (let index = 0; index < ids.length; index += 5) {
+    const results = await Promise.allSettled(ids.slice(index, index + 5).map((id) => checkProspectReplies(id)))
+    for (const result of results) {
+      if (result.status === 'rejected') failed += 1
+      else if (result.value.replied) replied += 1
+    }
+  }
+  return { checked: ids.length, replied, failed }
 }
 
 export async function loadMarketingDesk(role?: string | null) {
@@ -1206,6 +1232,10 @@ export async function loadMarketingDesk(role?: string | null) {
   return {
     role: role || 'admin',
     kpis,
+    replies: prospects
+      .filter((prospect) => prospect.repliedAt && prospect.stage !== 'won')
+      .sort((a, b) => String(b.repliedAt).localeCompare(String(a.repliedAt)))
+      .map(deskProspect),
     leads: prospects.filter((prospect) => prospect.stage !== 'won').map(deskProspect),
     clients: prospects.filter((prospect) => prospect.stage === 'won').map(deskProspect),
     deadlines: prospects

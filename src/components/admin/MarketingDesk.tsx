@@ -19,6 +19,7 @@ type DeskPerson = {
   deliverables: string
   clientId: string | null
   consultationBookedAt: string | null
+  repliedAt: string | null
 }
 
 type DeskTask = {
@@ -32,6 +33,7 @@ type DeskTask = {
 type DeskPayload = {
   role: string
   kpis: MarketingKpiView
+  replies: DeskPerson[]
   leads: DeskPerson[]
   clients: DeskPerson[]
   deadlines: DeskPerson[]
@@ -40,6 +42,7 @@ type DeskPayload = {
 }
 
 const SECTIONS = [
+  { id: 'replies', label: 'Replies' },
   { id: 'leads', label: 'Leads' },
   { id: 'outreach', label: 'Outreach' },
   { id: 'pipeline', label: 'Pipeline' },
@@ -59,22 +62,43 @@ export default function MarketingDesk() {
   const requested = params.get('section')
   const [data, setData] = useState<DeskPayload | null>(null)
   const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [checkNote, setCheckNote] = useState('')
 
-  useEffect(() => {
-    void fetch('/api/admin/marketing')
+  const load = () =>
+    fetch('/api/admin/marketing')
       .then(async (res) => {
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error || 'Could not load the marketing desk')
         setData(body)
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Could not load the marketing desk'))
+
+  useEffect(() => {
+    void load()
   }, [])
+
+  const checkReplies = async () => {
+    setChecking(true)
+    setCheckNote('')
+    try {
+      const res = await fetch('/api/admin/marketing', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'Could not check replies')
+      setCheckNote(`Checked ${body.checked} threads. ${body.replied} new replies.${body.failed ? ` ${body.failed} could not be read.` : ''}`)
+      await load()
+    } catch (err) {
+      setCheckNote(err instanceof Error ? err.message : 'Could not check replies')
+    } finally {
+      setChecking(false)
+    }
+  }
 
   const role = data?.role || ''
   const sections = SECTIONS.filter((section) => section.id !== 'outreach' || role !== 'client_relations')
   const section: SectionId = isSection(requested) && sections.some((item) => item.id === requested)
     ? requested
-    : 'leads'
+    : 'replies'
 
   return (
     <div>
@@ -100,6 +124,22 @@ export default function MarketingDesk() {
         })}
       </nav>
       {error && <p className="mb-4 text-sm text-red-700">{error}</p>}
+      {section === 'replies' && (
+        <div>
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={() => void checkReplies()}
+              disabled={checking}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-brand-border bg-white px-4 py-2 text-sm font-semibold text-brand-text disabled:opacity-60"
+            >
+              {checking ? 'Checking Gmail…' : 'Check replies now'}
+            </button>
+            <p className="text-sm text-brand-muted">{checkNote || 'Gmail is also checked once a day. Answer every reply the same day.'}</p>
+          </div>
+          <PersonList people={data?.replies || []} empty="No replies recorded yet." showReplied />
+        </div>
+      )}
       {section === 'leads' && <PersonList people={data?.leads || []} empty="No open leads." />}
       {section === 'outreach' && <OutreachConsole />}
       {section === 'pipeline' && <MarketingPipeline />}
@@ -112,7 +152,7 @@ export default function MarketingDesk() {
   )
 }
 
-function PersonList({ people, empty }: { people: DeskPerson[]; empty: string }) {
+function PersonList({ people, empty, showReplied = false }: { people: DeskPerson[]; empty: string; showReplied?: boolean }) {
   if (people.length === 0) return <p className="text-sm text-brand-muted">{empty}</p>
   return (
     <ul className="space-y-3">
@@ -122,7 +162,10 @@ function PersonList({ people, empty }: { people: DeskPerson[]; empty: string }) 
             <div>
               <p className="font-semibold text-brand-text">{person.business}</p>
               <p className="text-sm text-brand-muted">{[person.contactName, person.email].filter(Boolean).join(' · ') || 'No contact yet'}</p>
-              <p className="text-xs text-brand-muted mt-1">{person.stageLabel}</p>
+              <p className="text-xs text-brand-muted mt-1">
+                {person.stageLabel}
+                {showReplied && person.repliedAt ? ` · replied ${new Date(person.repliedAt).toLocaleString()}` : ''}
+              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Link href={`/admin/pipeline/${person.id}`} className="text-sm font-semibold text-accent hover:underline">Open lead</Link>

@@ -308,8 +308,9 @@ export function stageAfterOutboundEmail(current: PipelineStage): PipelineStage {
   return current
 }
 
+/** A reply means a two-way conversation, so the lead moves to Contacted. */
 export function stageAfterProspectReply(current: PipelineStage): PipelineStage | null {
-  if (current === 'uncontacted') return 'emailed'
+  if (current === 'uncontacted' || current === 'emailed') return 'contacted'
   return null
 }
 
