@@ -41,6 +41,45 @@ describe('CSP and XSS hardening', () => {
     assert.doesNotMatch(workerDirective || '', /cdn\.jsdelivr\.net/)
   })
 
+  it('allows the Google Ads tag and its conversion pings in each directive', () => {
+    const csp = loadSecurityHeaders('production')['Content-Security-Policy']
+    const directive = (name: string) =>
+      csp.split('; ').find((part) => part.startsWith(`${name} `))?.split(/\s+/).slice(1) ?? []
+
+    const expected: Record<string, string[]> = {
+      'script-src': [
+        'https://www.googletagmanager.com',
+        'https://www.googleadservices.com',
+        'https://www.google.com',
+      ],
+      'img-src': [
+        'https://www.googletagmanager.com',
+        'https://www.googleadservices.com',
+        'https://googleads.g.doubleclick.net',
+        'https://pagead2.googlesyndication.com',
+        'https://www.google.com',
+      ],
+      'connect-src': [
+        'https://www.googletagmanager.com',
+        'https://www.googleadservices.com',
+        'https://googleads.g.doubleclick.net',
+        'https://pagead2.googlesyndication.com',
+        'https://www.google.com',
+        'https://ad.doubleclick.net',
+      ],
+      'frame-src': ['https://www.googletagmanager.com', 'https://td.doubleclick.net'],
+    }
+    for (const [name, hosts] of Object.entries(expected)) {
+      const sources = directive(name)
+      for (const host of hosts) {
+        assert.ok(sources.includes(host), `${name} is missing ${host}`)
+      }
+    }
+    // No broad wildcards for Google: exact hosts only.
+    assert.doesNotMatch(csp, /https:\/\/\*\.google/)
+    assert.doesNotMatch(csp, /https:\/\/\*\.doubleclick/)
+  })
+
   it('has no raw HTML sink in the dispute-letter preview', () => {
     const source = readFileSync(
       'src/components/dispute-letters/DisputeLettersResultStep.tsx',
