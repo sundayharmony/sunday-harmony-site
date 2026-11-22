@@ -6,7 +6,6 @@ import { Suspense } from 'react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import HomeMotion from '@/components/home/HomeMotion'
-import WorkPhoto from '@/components/home/WorkPhoto'
 
 function CancelForm() {
   const params = useSearchParams()
@@ -38,8 +37,7 @@ function CancelForm() {
 
   return (
     <div className="max-w-[560px] mx-auto px-7 py-20">
-      <WorkPhoto id="cancel-light" />
-      <div className="section-label mt-8">Consultation</div>
+      <div className="section-label">Consultation</div>
       <h1 className="font-serif text-4xl font-extrabold text-brand-text mb-4">Cancel this time</h1>
       {!token ? (
         <p className="text-brand-muted">This page needs the link from your confirmation email.</p>

@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import HomeMotion from '@/components/home/HomeMotion'
-import WorkPhoto from '@/components/home/WorkPhoto'
 import ConsultationBooker from '@/components/contact/ConsultationBooker'
 import { loadPublicSlots } from '@/lib/consultation-service'
 
@@ -35,8 +34,7 @@ export default async function BookConsultationPage() {
       <main id="main" className="pt-[var(--nav-total-height)]">
         <section className="py-16 sm:py-20 bg-white">
           <div className="max-w-[720px] mx-auto px-7">
-            <WorkPhoto id="book-tea" />
-            <div className="section-label mt-8">Book a consultation</div>
+            <div className="section-label">Book a consultation</div>
             <h1 className="font-serif text-[clamp(36px,5vw,56px)] font-extrabold leading-[1.05] text-brand-text mb-3">
               Pick a day. <span className="gold-text">Then a time.</span>
             </h1>
