@@ -86,13 +86,22 @@ describe('sales materials', () => {
     
     const essentials = options.find(o => o.tier === 'Business Essentials')
     assert.ok(essentials)
-    assert.match(essentials.startingPrice, /599/)
+    assert.match(essentials.startingPrice, /899/)
     assert.equal(essentials.priceType, 'one-time')
     
     const partner = options.find(o => o.tier === 'Marketing Partner')
     assert.ok(partner)
-    assert.match(partner.startingPrice, /799/)
+    assert.match(partner.startingPrice, /1,200/)
     assert.equal(partner.priceType, 'monthly')
+
+    const ad = socialPostTemplates.find((post) => post.id === 'packages')
+    assert.ok(ad)
+    assert.match(ad.caption, /from \$899 one-time/)
+    assert.match(ad.caption, /from \$2,499 one-time/)
+    assert.match(ad.caption, /\$1,200\/month/)
+    assert.match(ad.caption, /Custom Solutions:/)
+    assert.doesNotMatch(ad.caption, /\$[0-9][^:\n]*Custom Solutions|Custom Solutions[^:\n]*\$/)
+    assert.doesNotMatch(ad.caption, /credit repair/i)
     
     const custom = options.find(o => o.tier === 'Custom Solutions')
     assert.ok(custom)

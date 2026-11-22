@@ -8,8 +8,10 @@ import {
 describe('billing lifecycle helpers', () => {
   it('uses catalog prices for contracted monthly totals', () => {
     assert.equal(contractedMonthlyPriceForTier('free'), 0)
-    assert.equal(contractedMonthlyPriceForTier('spark'), 599)
-    assert.equal(contractedMonthlyPriceForTier('growth'), 799)
+    assert.equal(contractedMonthlyPriceForTier('spark'), 899)
+    assert.equal(contractedMonthlyPriceForTier('business_launch'), 2499)
+    assert.equal(contractedMonthlyPriceForTier('growth'), 1200)
+    assert.equal(contractedMonthlyPriceForTier('scale'), 0)
   })
 
   it('activates billing without forcing paid status on paid tiers', () => {

@@ -299,8 +299,18 @@ function packageLine(tier: string, fallback: string): string {
   const price = packagePriceDisplay(pkg)
   if (pkg.priceSuffix === 'quote') return `${pkg.tier} — ${price}. ${pkg.tagline}`
   const suffix = pkg.priceSuffix === 'monthly' ? '/mo' : ' one-time'
-  const investment = /^from /i.test(price) ? `${price}${suffix}` : `from ${price}${suffix}`
+  const investment = /^from /i.test(price) || pkg.priceSuffix === 'monthly'
+    ? `${price}${suffix}`
+    : `from ${price}${suffix}`
   return `${pkg.tier} — ${investment}. ${pkg.tagline}`
+}
+
+function quizPrice(tier: string): string {
+  const pkg = packages.find((item) => item.tier === tier)!
+  const price = packagePriceDisplay(pkg)
+  if (pkg.priceSuffix === 'monthly') return `${pkg.tier}, ${price}/mo`
+  if (pkg.priceSuffix === 'one-time') return `${pkg.tier}, ${price.replace(/^From /, 'from ')} one-time`
+  return `${pkg.tier}, ${price}`
 }
 
 export const closerSopModules: CloserSopModule[] = [
@@ -332,9 +342,9 @@ export const closerSopModules: CloserSopModule[] = [
     sopSections: '04',
     summary: 'Sell a solution, not a laundry list. Primary close is Business Launch; add Marketing Partner when they need steady monthly help.',
     bullets: [
-      packageLine('Business Essentials', 'Business Essentials from $599 one-time — brand foundation.'),
-      packageLine('Business Launch', 'Business Launch from $1,799 one-time — brand identity plus a website up to 5 pages, GBP, and launch graphics.'),
-      packageLine('Marketing Partner', 'Marketing Partner from $799/mo — monthly strategy, social, website updates, and GBP upkeep.'),
+      packageLine('Business Essentials', 'Business Essentials — brand foundation.'),
+      packageLine('Business Launch', 'Business Launch — brand identity plus a website up to 5 pages, GBP, and launch graphics.'),
+      packageLine('Marketing Partner', 'Marketing Partner — monthly strategy, social, website updates, and GBP upkeep.'),
       packageLine('Custom Solutions', 'Custom Solutions by quote — e-commerce, print, apparel, wraps, ads, and systems.'),
       'Map what they need: better website / from zero → Launch. No branding yet → Essentials. Ongoing support → Partner. Promo or specialty work → Custom / production quote.',
       'Prices are starting points. The free audit shapes the final quote. Printing, hosting, domains, plugins, stock, ad spend, and video are not included unless quoted. Monthly work is month-to-month with 30 days’ written notice.',
@@ -418,10 +428,10 @@ export const closerSopQuiz: CloserQuizQuestion[] = [
     id: 'launch-price',
     prompt: 'Name the primary one-time package we lead with, and its starting price.',
     options: [
-      { id: 'a', label: 'Business Essentials, from $599 one-time' },
-      { id: 'b', label: 'Marketing Partner, from $799/mo' },
-      { id: 'c', label: 'Business Launch, from $1,799 one-time' },
-      { id: 'd', label: 'Custom Solutions, from $1,799/mo' },
+      { id: 'a', label: quizPrice('Business Essentials') },
+      { id: 'b', label: quizPrice('Marketing Partner') },
+      { id: 'c', label: quizPrice('Business Launch') },
+      { id: 'd', label: 'Custom Solutions, from $4,500/mo' },
     ],
     correctId: 'c',
   },

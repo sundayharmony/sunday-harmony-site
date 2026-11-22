@@ -2,6 +2,8 @@
 // Toolkit Data — All research, competitors, scripts, roadmap
 // ══════════════════════════════════════════════════════════
 
+import { packagePriceDisplay, packages, type Package } from '@/lib/data'
+
 // ══════════ PHASE 1 — MARKET SIZING ══════════
 export const marketData = [
   { label: 'Global Agency Market (2025)', value: '$20.6B' },
@@ -107,66 +109,39 @@ export interface DetailedPackage {
   margin: string
 }
 
-export const detailedPackages: DetailedPackage[] = [
-  { tier: 'Business Essentials', tagline: 'Your brand foundation', priceLabel: 'From $599', color: '#4a9e7d', icon: '✦',
-    ideal: 'Businesses launching or refreshing a cohesive brand identity.',
-    services: [
-      { name: 'Logo design or redesign', included: true },
-      { name: 'Logo variations for different uses', included: true },
-      { name: 'Color palette and typography', included: true },
-      { name: 'Basic brand guidelines', included: true },
-      { name: 'Business card design', included: true },
-      { name: 'Social profile branding', included: true },
-      { name: 'All files delivered', included: true },
-    ],
-    quickWin: 'Logo and brand kit delivered within 2 weeks.',
-    margin: 'One-time from $599. Scope-dependent margin.',
-  },
-  { tier: 'Business Launch', tagline: 'Brand and web ready to go', priceLabel: 'From $1,799', color: '#3a8bc2', icon: '◆', popular: true,
-    ideal: 'Businesses ready to launch or relaunch with a polished presence.',
-    services: [
-      { name: 'Complete brand identity', included: true },
-      { name: 'Responsive website (up to 5 pages)', included: true },
-      { name: 'Contact and lead forms', included: true },
-      { name: 'Basic SEO setup', included: true },
-      { name: 'Google Business Profile setup', included: true },
-      { name: 'Social profile setup', included: true },
-      { name: '3 promo graphics', included: true },
-      { name: 'Launch assets delivered', included: true },
-    ],
-    quickWin: 'Website live and profiles set up within 4 weeks.',
-    margin: 'One-time from $1,799. Scope-dependent margin.',
-  },
-  { tier: 'Marketing Partner', tagline: 'Ongoing marketing support', price: 799, color: '#c9a96e', icon: '★',
-    ideal: 'Businesses that want steady marketing without the in-house overhead.',
-    services: [
-      { name: 'Monthly strategy and planning', included: true },
-      { name: 'Strategy call and report', included: true },
-      { name: 'Up to 12 social posts per month', included: true },
-      { name: '3 campaign graphics per month', included: true },
-      { name: '3 hours of website updates', included: true },
-      { name: 'SEO and Google Business Profile upkeep', included: true },
-      { name: 'Dedicated client relations contact', included: true },
-    ],
-    quickWin: 'First strategy call and content calendar in week one.',
-    margin: 'Monthly from $799. At 10 clients = $7,990/mo MRR.',
-  },
-  { tier: 'Custom Solutions', tagline: 'Built around your goals', priceLabel: 'Custom', color: '#7b68c9', icon: '◇',
-    ideal: 'Businesses with specialized needs or larger projects.',
-    services: [
-      { name: 'E-commerce and web apps', included: true },
-      { name: 'Print and collateral', included: true },
-      { name: 'Apparel and merchandise', included: true },
-      { name: 'Vehicle wraps', included: true },
-      { name: 'SEO and paid ads', included: true },
-      { name: 'Business systems and workflows', included: true },
-      { name: 'Campaigns and launches', included: true },
-      { name: 'Milestone payments available', included: true },
-    ],
-    quickWin: 'Scoping call and proposal within one week.',
-    margin: 'Custom quote. Price to the work, not a menu.',
-  },
-]
+const PACKAGE_OPS: Record<string, { color: string; quickWin: string }> = {
+  'Business Essentials': { color: '#4a9e7d', quickWin: 'Logo and brand kit delivered within 2 weeks.' },
+  'Business Launch': { color: '#3a8bc2', quickWin: 'Website live and profiles set up within 4 weeks.' },
+  'Marketing Partner': { color: '#c9a96e', quickWin: 'First strategy call and content calendar in week one.' },
+  'Custom Solutions': { color: '#7b68c9', quickWin: 'Scoping call and proposal within one week.' },
+}
+
+function packageMargin(pkg: Package): string {
+  if (pkg.priceSuffix === 'quote') return 'Custom quote. Price to the work, not a menu.'
+  if (pkg.priceSuffix === 'monthly') {
+    const monthly = pkg.price ?? 0
+    return `Monthly $${monthly.toLocaleString()}. At 10 clients = $${(monthly * 10).toLocaleString()}/mo MRR.`
+  }
+  const label = packagePriceDisplay(pkg).replace(/^From /, 'from ')
+  return `One-time ${label}. Scope-dependent margin.`
+}
+
+export const detailedPackages: DetailedPackage[] = packages.map((pkg) => {
+  const ops = PACKAGE_OPS[pkg.tier]
+  return {
+    tier: pkg.tier,
+    tagline: pkg.tagline,
+    price: pkg.price,
+    priceLabel: pkg.priceLabel,
+    color: ops.color,
+    icon: pkg.icon,
+    popular: pkg.popular,
+    ideal: pkg.ideal,
+    services: pkg.features.map((feature) => ({ name: feature.text, included: feature.included })),
+    quickWin: ops.quickWin,
+    margin: packageMargin(pkg),
+  }
+})
 
 export const footInDoorOffer = {
   name: 'Free Google Business Audit',

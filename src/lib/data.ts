@@ -3,6 +3,12 @@
 // All content, packages, services, and team info in one place
 // ══════════════════════════════════════════════════════════
 
+import { TIER_LIST_PRICES } from '@/lib/stripe-catalog'
+
+function fromListPrice(amount: number): string {
+  return `From $${amount.toLocaleString()}`
+}
+
 export const siteConfig = {
   name: 'Sunday Harmony',
   tagline: 'Brand, strategy, and systems.',
@@ -78,7 +84,8 @@ export const packages: Package[] = [
   {
     tier: 'Business Essentials',
     tagline: 'Your brand foundation',
-    priceLabel: 'From $599',
+    price: TIER_LIST_PRICES.spark,
+    priceLabel: fromListPrice(TIER_LIST_PRICES.spark),
     priceSuffix: 'one-time',
     color: 'green',
     icon: '✦',
@@ -96,7 +103,8 @@ export const packages: Package[] = [
   {
     tier: 'Business Launch',
     tagline: 'Brand and web ready to go',
-    priceLabel: 'From $1,799',
+    price: TIER_LIST_PRICES.business_launch,
+    priceLabel: fromListPrice(TIER_LIST_PRICES.business_launch),
     priceSuffix: 'one-time',
     color: 'blue',
     icon: '◆',
@@ -116,7 +124,7 @@ export const packages: Package[] = [
   {
     tier: 'Marketing Partner',
     tagline: 'Ongoing marketing support',
-    price: 799,
+    price: TIER_LIST_PRICES.growth,
     priceSuffix: 'monthly',
     color: 'gold',
     icon: '★',

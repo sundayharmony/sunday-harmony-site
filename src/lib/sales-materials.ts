@@ -1,7 +1,7 @@
 // Sales Materials — Data for admin sales toolkit
 // Company presentation, proposal template, service agreement, outreach emails, social posts
 
-import { packages as marketingPackages } from '@/lib/data'
+import { packagePriceDisplay, packages as marketingPackages } from '@/lib/data'
 
 export interface SalesMaterial {
   id: string
@@ -229,6 +229,14 @@ export interface SocialPostTemplate {
   hashtags: string
 }
 
+function packageAdLine(tier: string, detail: string): string {
+  const pkg = marketingPackages.find((item) => item.tier === tier)
+  if (!pkg || pkg.priceSuffix === 'quote') return `${tier}: ${detail}`
+  const price = packagePriceDisplay(pkg)
+  if (pkg.priceSuffix === 'monthly') return `${tier}, ${price}/month: ${detail}`
+  return `${tier}, ${price.replace(/^From /, 'from ')} one-time: ${detail}`
+}
+
 export const socialPostTemplates: SocialPostTemplate[] = [
   {
     id: 'brand-story',
@@ -386,13 +394,13 @@ No long-term contracts. We show our work. Start with step one, link in bio.`,
     designDirection: 'Slide 1: cream background, serif headline, four packages listed with gold bullets. Slides 2–5: one package per slide; name in serif, "from" price in gold Montserrat bold, 4–5 key inclusions. Marketing Partner slide inverted (black background) as the featured plan. Small footnote on the last slide: "Printing, hosting, ad spend, and video not included unless quoted."',
     caption: `Wherever your business is, there's a starting point:
 
-Business Essentials, from $599 one-time: logo, colors, fonts, brand guidelines, business card, and social branding.
+${packageAdLine('Business Essentials', 'logo, colors, fonts, brand guidelines, business card, and social branding.')}
 
-Business Launch, from $1,799 one-time: brand identity, a website up to 5 pages, Google Business Profile, and launch graphics.
+${packageAdLine('Business Launch', 'brand identity, a website up to 5 pages, Google Business Profile, and launch graphics.')}
 
-Marketing Partner, from $799/month: monthly strategy, social posts and graphics, website updates, and Google upkeep.
+${packageAdLine('Marketing Partner', 'monthly strategy, social posts and graphics, website updates, and Google upkeep.')}
 
-Custom Solutions: e-commerce, print, apparel, vehicle wraps, ads, and more.
+${packageAdLine('Custom Solutions', 'e-commerce, print, apparel, vehicle wraps, ads, and more.')}
 
 Not sure which fits? Your free audit will tell you. Link in bio.`,
     hashtags: '#MarketingPackages #BrandingPackage #WebsiteDesign #SmallBusinessMarketing #StartupBranding #SundayHarmony #SmallBusinessMarketing',

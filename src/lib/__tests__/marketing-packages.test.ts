@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { packagePriceDisplay, packages, services } from '../data'
 import { detailedPackages } from '../toolkit-data'
-import { formatTierListPrice, TIER_LABELS } from '../stripe-catalog'
+import { formatTierListPrice, TIER_LABELS, TIER_LIST_PRICES } from '../stripe-catalog'
 
 function source(path: string): string {
   return readFileSync(path, 'utf8')
@@ -25,9 +25,12 @@ describe('marketing packages', () => {
       packages.map((pkg) => pkg.tier),
       ['Business Essentials', 'Business Launch', 'Marketing Partner', 'Custom Solutions']
     )
-    assert.equal(packages.find((pkg) => pkg.tier === 'Business Essentials')?.priceLabel, 'From $599')
-    assert.equal(packages.find((pkg) => pkg.tier === 'Business Launch')?.priceLabel, 'From $1,799')
-    assert.equal(packages.find((pkg) => pkg.tier === 'Marketing Partner')?.price, 799)
+    assert.equal(packages.find((pkg) => pkg.tier === 'Business Essentials')?.price, TIER_LIST_PRICES.spark)
+    assert.equal(packages.find((pkg) => pkg.tier === 'Business Essentials')?.priceLabel, 'From $899')
+    assert.equal(packages.find((pkg) => pkg.tier === 'Business Launch')?.price, TIER_LIST_PRICES.business_launch)
+    assert.equal(packages.find((pkg) => pkg.tier === 'Business Launch')?.priceLabel, 'From $2,499')
+    assert.equal(packages.find((pkg) => pkg.tier === 'Marketing Partner')?.price, 1200)
+    assert.equal(packages.find((pkg) => pkg.tier === 'Marketing Partner')?.priceLabel, undefined)
 
     const custom = packages.find((pkg) => pkg.tier === 'Custom Solutions')
     assert.equal(custom?.price, undefined)
@@ -73,9 +76,11 @@ describe('marketing packages', () => {
 
   it('keeps Social Essentials as a billing label for existing clients', () => {
     assert.equal(TIER_LABELS.social_essentials, 'Social Essentials')
-    assert.equal(formatTierListPrice('spark'), '$599')
-    assert.equal(formatTierListPrice('business_launch'), '$1,799')
+    assert.equal(formatTierListPrice('spark'), '$899')
+    assert.equal(formatTierListPrice('business_launch'), '$2,499')
+    assert.equal(formatTierListPrice('growth'), '$1,200')
     assert.equal(formatTierListPrice('scale'), 'Custom')
+    assert.equal(TIER_LIST_PRICES.scale, 0)
     assert.match(source('src/app/dashboard/package/page.tsx'), /social_essentials/)
   })
 
@@ -84,9 +89,10 @@ describe('marketing packages', () => {
       detailedPackages.map((pkg) => pkg.tier),
       ['Business Essentials', 'Business Launch', 'Marketing Partner', 'Custom Solutions']
     )
-    assert.equal(detailedPackages[0]?.priceLabel, 'From $599')
-    assert.equal(detailedPackages[1]?.priceLabel, 'From $1,799')
-    assert.equal(detailedPackages[2]?.price, 799)
-    assert.equal(detailedPackages[3]?.priceLabel, 'Custom')
+    assert.equal(detailedPackages[0]?.priceLabel, 'From $899')
+    assert.equal(detailedPackages[1]?.priceLabel, 'From $2,499')
+    assert.equal(detailedPackages[2]?.price, 1200)
+    assert.equal(detailedPackages[3]?.priceLabel, 'Custom quote')
+    assert.equal(detailedPackages[3]?.price, undefined)
   })
 })

@@ -37,12 +37,12 @@ export const TIER_LABELS: Record<PackageTier, string> = {
 export const TIER_LIST_PRICES: Record<PackageTier, number> = {
   free: 0,
   social_essentials: 250,
-  /** Business Essentials: one-time, from $599 */
-  spark: 599,
-  /** Business Launch: one-time, from $1,799 */
-  business_launch: 1799,
-  /** Marketing Partner: monthly, from $799 */
-  growth: 799,
+  /** Business Essentials: one-time, from $899 */
+  spark: 899,
+  /** Business Launch: one-time, from $2,499 */
+  business_launch: 2499,
+  /** Marketing Partner: flat monthly */
+  growth: 1200,
   /** Custom Solutions: staff types the quote. 0 means no placeholder price. */
   scale: 0,
 }

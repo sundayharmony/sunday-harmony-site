@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { clientFacingPackageSummary } from '@/lib/billing-packages'
+import { packages as publicPackages } from '@/lib/data'
+import { TIER_LIST_PRICES } from '@/lib/stripe-catalog'
 
 interface ClientData {
   id: string
@@ -16,6 +18,29 @@ interface ClientData {
   repair_fee_cents?: number | null
   deliverables: string[]
   quick_wins: { text: string; done: boolean }[]
+}
+
+const DASH_META = {
+  'Business Essentials': { tier: 'spark', color: '#4a9e7d' },
+  'Business Launch': { tier: 'business_launch', color: '#3a8bc2' },
+  'Marketing Partner': { tier: 'growth', color: '#c9a96e' },
+  'Custom Solutions': { tier: 'scale', color: '#7b68c9' },
+} as const
+
+function publicPlan(name: keyof typeof DASH_META) {
+  const pkg = publicPackages.find((item) => item.tier === name)!
+  const meta = DASH_META[name]
+  return {
+    tier: meta.tier,
+    name: pkg.tier,
+    price: pkg.price ?? 0,
+    priceLabel: pkg.priceLabel,
+    priceSuffix: pkg.priceSuffix,
+    color: meta.color,
+    tagline: pkg.tagline,
+    features: pkg.features.map((feat) => feat.text),
+    ideal: pkg.ideal,
+  }
 }
 
 const packages: {
@@ -46,7 +71,7 @@ const packages: {
   {
     tier: 'social_essentials',
     name: 'Social Essentials',
-    price: 250,
+    price: TIER_LIST_PRICES.social_essentials,
     priceSuffix: 'monthly',
     color: '#4a9e7d',
     tagline: 'Stay Active Online',
@@ -56,81 +81,10 @@ const packages: {
     ],
     ideal: 'Legacy plan.',
   },
-  {
-    tier: 'spark',
-    name: 'Business Essentials',
-    price: 599,
-    priceSuffix: 'one-time',
-    color: '#4a9e7d',
-    tagline: 'Your brand foundation',
-    features: [
-      'Logo design or redesign',
-      'Logo variations for different uses',
-      'Color palette and typography',
-      'Basic brand guidelines',
-      'Business card design',
-      'Social profile branding',
-      'All files delivered',
-    ],
-    ideal: 'Businesses launching or refreshing a cohesive brand identity.',
-  },
-  {
-    tier: 'business_launch',
-    name: 'Business Launch',
-    price: 1799,
-    priceSuffix: 'one-time',
-    color: '#3a8bc2',
-    tagline: 'Brand and web ready to go',
-    features: [
-      'Complete brand identity',
-      'Responsive website (up to 5 pages)',
-      'Contact and lead forms',
-      'Basic SEO setup',
-      'Google Business Profile setup',
-      'Social profile setup',
-      '3 promo graphics',
-      'Launch assets delivered',
-    ],
-    ideal: 'Businesses ready to launch or relaunch with a polished presence.',
-  },
-  {
-    tier: 'growth',
-    name: 'Marketing Partner',
-    price: 799,
-    priceSuffix: 'monthly',
-    color: '#c9a96e',
-    tagline: 'Ongoing marketing support',
-    features: [
-      'Monthly strategy and planning',
-      'Strategy call and report',
-      'Up to 12 social posts per month',
-      '3 campaign graphics per month',
-      '3 hours of website updates',
-      'SEO and Google Business Profile upkeep',
-      'Dedicated client relations contact',
-    ],
-    ideal: 'Businesses that want steady marketing without the in-house overhead.',
-  },
-  {
-    tier: 'scale',
-    name: 'Custom Solutions',
-    price: 0,
-    priceLabel: 'Custom',
-    priceSuffix: 'quote',
-    color: '#7b68c9',
-    tagline: 'Built around your goals',
-    features: [
-      'E-commerce and web apps',
-      'Print and collateral',
-      'Apparel and merchandise',
-      'Vehicle wraps',
-      'SEO and paid ads',
-      'Business systems and workflows',
-      'Campaigns and launches',
-      'Milestone payments available',
-    ],
-    ideal: 'Businesses with specialized needs or larger projects.',
-  },
+  publicPlan('Business Essentials'),
+  publicPlan('Business Launch'),
+  publicPlan('Marketing Partner'),
+  publicPlan('Custom Solutions'),
 ]
 
 export default function PackagePage() {

@@ -38,9 +38,10 @@ describe('closer SOP training data', () => {
     assert.ok(existsSync(pdf), 'Closer Training Manual PDF is missing')
 
     const copy = closerSopModules.map((module) => `${module.title} ${module.summary} ${module.bullets.join(' ')}`).join('\n')
-    assert.match(copy, /from \$599/i)
-    assert.match(copy, /from \$1,799/i)
-    assert.match(copy, /\$799\/mo/)
+    assert.match(copy, /from \$899/i)
+    assert.match(copy, /from \$2,499/i)
+    assert.match(copy, /\$1,200\/mo/)
+    assert.doesNotMatch(copy, /from \$1,200\/mo/i)
     assert.match(copy, /Custom quote|per quote|by quote/i)
     assert.doesNotMatch(copy, /Bidstack/i)
     assert.ok(closerSopModules.some((module) => module.links.some((link) => link.href === '/admin/pipeline')))
