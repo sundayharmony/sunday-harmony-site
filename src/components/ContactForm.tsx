@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import { siteConfig, serviceOptions } from '@/lib/data'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import { currentVisitIsPaid } from '@/lib/lead-attribution'
 
 interface FormData {
   firstName: string
@@ -18,7 +19,7 @@ interface FormData {
 
 function contactLeadSource(): 'website' | 'ads' | 'referral' {
   const params = new URLSearchParams(window.location.search)
-  if (params.get('gclid') || params.get('utm_medium') === 'cpc') return 'ads'
+  if (currentVisitIsPaid()) return 'ads'
   if (params.get('ref') || document.cookie.split(';').some((part) => part.trim().startsWith('sh_ref='))) {
     return 'referral'
   }

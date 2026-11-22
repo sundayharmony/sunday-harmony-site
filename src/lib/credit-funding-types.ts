@@ -15,7 +15,7 @@ export const CFPB_PORTAL_URL = 'https://portal.consumerfinance.gov/consumer/s/lo
 
 /** Affiliate / signup URLs shown on Step 4 when a listed provider is selected. */
 export const CREDIT_PROVIDER_SIGNUP_LINKS: Record<ListedCreditProvider, string> = {
-  IdentityIQ: 'https://protect.identityiq.com/idp/idprotect/identityiq-google-branded/?aff_id=1582&aff_sub=identityiq%20trial&gad_source=1&gad_campaignid=14899793009&gbraid=0AAAAADqklV352qWLWjQJ9WVZDYqRzi1eK&gclid=CjwKCAjw3ejRBhAdEiwADkqPn6jMk2A1HW5dnbF1KhqidkCpOe-SHR_WouvL6B02jMH4MkJj0SsNuRoC_u0QAvD_BwE',
+  IdentityIQ: 'https://protect.identityiq.com/idp/idprotect/identityiq-google-branded/?aff_id=1582&aff_sub=identityiq%20trial',
   'Credit Hero Score': 'https://www.creditheroscore.com/signup.asp',
   SmartCredit: 'https://www.smartcredit.com/join/',
 }

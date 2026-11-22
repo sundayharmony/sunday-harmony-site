@@ -37,7 +37,7 @@ describe('campaign ads library', () => {
   })
 
   it('keeps live ads aligned with homepage copy', () => {
-    const heroPage = source('src/components/Hero.tsx')
+    const heroPage = source('src/components/home/HomeDesign.tsx')
     const ctaPage = source('src/components/CtaBanner.tsx')
     const liveHero = getCampaignAd('hero-homepage')
     const liveCta = getCampaignAd('cta-homepage')
@@ -85,30 +85,23 @@ describe('campaign ads library', () => {
     }
   })
 
-  it('publishes a new mid-page homepage ad in the same CTA style', () => {
+  it('keeps the mid-page ad in the library and the homepage on consulting only', () => {
     const mid = getCampaignAd(HOMEPAGE_MID_AD_ID)
     assert.equal(mid.source, 'new')
     assert.match(mid.headline, /searching/i)
 
     const home = source('src/app/page.tsx')
-    const banner = source('src/components/CampaignAdBanner.tsx')
-    const hero = source('src/components/Hero.tsx')
-    const services = source('src/components/Services.tsx')
+    const design = source('src/components/home/HomeDesign.tsx')
     const packages = source('src/components/Packages.tsx')
     const sidebar = source('src/components/admin/AdminSidebar.tsx')
     const overview = source('src/app/admin/page.tsx')
     const redirects = source('next.config.js')
 
-    assert.match(home, /CampaignAdBanner/)
-    assert.match(home, /HOMEPAGE_MID_AD_ID/)
-    assert.match(home, /<Hero/)
-    assert.match(home, /<Services/)
+    assert.match(home, /<HomeDesign/)
     assert.doesNotMatch(home, /<Packages/)
-    assert.match(hero, /from '@\/lib\/data'/)
-    assert.match(services, /from '@\/lib\/data'/)
+    assert.match(design, /from '@\/lib\/data'/)
+    assert.match(design, /href="\/contact"/)
     assert.match(packages, /from '@\/lib\/data'/)
-    assert.match(banner, /AuditCtaButton/)
-    assert.match(banner, /adCtaHref/)
     assert.doesNotMatch(sidebar, /\/admin\/ads/)
     assert.doesNotMatch(sidebar, /\/admin\/revenue/)
     assert.doesNotMatch(overview, /\/admin\/ads/)
@@ -118,6 +111,7 @@ describe('campaign ads library', () => {
     assert.throws(() => source('src/app/admin/ads/page.tsx'))
     assert.throws(() => source('src/app/admin/revenue/page.tsx'))
     assert.throws(() => source('src/components/admin/campaign-ads/AdPreviewCard.tsx'))
+    assert.throws(() => source('src/components/CampaignAdBanner.tsx'))
   })
 
   it('sends marketing ads to the contact page', () => {
@@ -150,17 +144,8 @@ describe('campaign ads library', () => {
     assert.match(homepageCredit.headline, /Stop guessing at your credit/)
     assert.match(homepageCredit.ctaLabel, /Free Credit Analysis/)
 
-    const home = source('src/app/page.tsx')
-    const paths = source('src/components/HarmonyPaths.tsx')
-    const banner = source('src/components/CampaignAdBanner.tsx')
-    assert.match(home, /HOMEPAGE_CREDIT_AD_ID/)
-    assert.match(home, /HarmonyPaths/)
-    assert.match(paths, /Build the business/)
-    assert.match(paths, /href: '\/funding'/)
-    assert.match(paths, /focus=credit/)
-    assert.match(paths, /href: '\/credit/)
-    assert.match(banner, /ad\.ctaLabel/)
-    assert.match(banner, /adCtaHref/)
+    const nav = source('src/lib/navigation.ts')
+    assert.match(nav, /href: '\/build-fund'/)
   })
 
   it('does not restore the removed Gemini marketing-graphics stack', () => {
