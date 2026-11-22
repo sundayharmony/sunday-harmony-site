@@ -19,4 +19,12 @@ Also set the same accent hex on `:root` in `src/styles/globals.css` (`--brand-ac
 
 Typeface: Montserrat. Logos: `public/logo-black.png` and `public/logo-white.png`.
 
+Homepage type, motion, and spacing live in the same file (`brandType`, `brandMotion`, `brandSpace`). The public homepage applies them through `homeThemeVars()`. Change the book, not the homepage styles. Other pages keep their current layout.
+
+| Group | What to edit | Homepage use |
+|---|---|---|
+| Type | `brandType` | Display, titles, body, labels |
+| Motion | `brandMotion` | Hover timing, scroll progress, Lenis |
+| Space | `brandSpace` | Page padding, section gaps, max width |
+
 Voice: plain English, no score guarantees, no local-city claim. Consulting is the public face. Credit repair and funding are separate doors.

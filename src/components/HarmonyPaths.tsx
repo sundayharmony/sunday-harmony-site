@@ -1,7 +1,13 @@
+'use client'
+
 import Link from 'next/link'
+import { motion, useReducedMotion } from 'motion/react'
+import { brandMotion } from '@/lib/brand-tokens'
+import styles from '@/components/home/home.module.css'
 
 const paths = [
   {
+    index: '01',
     eyebrow: 'Consulting',
     title: 'Build the business',
     body: 'Brand, strategy, and the systems the company runs on.',
@@ -9,6 +15,7 @@ const paths = [
     primary: true,
   },
   {
+    index: '02',
     eyebrow: 'Business funding',
     title: 'Fund the business',
     body: 'Capital for owners who are ready for the next step.',
@@ -16,6 +23,7 @@ const paths = [
     primary: false,
   },
   {
+    index: '03',
     eyebrow: 'Personal credit',
     title: 'Strengthen personal credit',
     body: 'A clear read on your credit and a plan to improve creditworthiness.',
@@ -25,37 +33,40 @@ const paths = [
 ] as const
 
 export default function HarmonyPaths() {
+  const reduce = useReducedMotion()
+
   return (
-    <section className="py-16 bg-white" id="paths" aria-labelledby="harmony-paths-heading">
-      <div className="max-w-[1100px] mx-auto px-7">
-        <h2 id="harmony-paths-heading" className="sr-only">
+    <section className={styles.section} id="paths" aria-labelledby="harmony-paths-heading">
+      <div className={styles.inner}>
+        <h2 id="harmony-paths-heading" className={styles.title}>
           Choose a path
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={styles.paths}>
           {paths.map((path) => (
-            <Link
+            <motion.div
               key={path.title}
-              href={path.href}
-              className={`block rounded-2xl border bg-white p-7 transition-all hover:shadow-sm hover:-translate-y-0.5 ${
-                path.primary ? 'border-brand-text' : 'border-brand-border hover:border-neutral-300'
-              }`}
+              className={styles.pathShift}
+              whileHover={reduce ? undefined : { x: 8 }}
+              transition={{ duration: brandMotion.durationMs / 1000, ease: brandMotion.ease }}
             >
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-dim">{path.eyebrow}</p>
-                {path.primary ? (
-                  <span className="shrink-0 px-2.5 py-1 rounded-full bg-accent-soft border border-brand-border text-[10px] font-bold tracking-wide text-accent">
-                    Main practice
+              <Link href={path.href} className={styles.path}>
+                <span className={styles.indexNum}>{path.index}</span>
+                <span>
+                  <span className={styles.pathTop}>
+                    <p className={styles.eyebrow}>{path.eyebrow}</p>
+                    {path.primary ? <span className={styles.badge}>Main practice</span> : null}
                   </span>
-                ) : null}
-              </div>
-              <h3 className="font-serif text-[26px] font-extrabold text-brand-text leading-tight mb-2">{path.title}</h3>
-              <p className="text-sm text-brand-muted leading-relaxed">{path.body}</p>
-            </Link>
+                  <h3 className={styles.pathTitle}>{path.title}</h3>
+                  <p className={styles.pathBody}>{path.body}</p>
+                </span>
+                <span className={styles.arrow} aria-hidden="true">
+                  →
+                </span>
+              </Link>
+            </motion.div>
           ))}
         </div>
-        <p className="mt-6 text-sm text-brand-dim">
-          Owners who need funding, and people who want a clear read on their credit.
-        </p>
+        <p className={styles.note}>Owners who need funding, and people who want a clear read on their credit.</p>
       </div>
     </section>
   )

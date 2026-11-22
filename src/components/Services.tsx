@@ -1,40 +1,41 @@
+'use client'
+
+import { motion, useReducedMotion } from 'motion/react'
 import { services } from '@/lib/data'
-import SectionHeader from '@/components/ui/SectionHeader'
+import { brandMotion } from '@/lib/brand-tokens'
+import styles from '@/components/home/home.module.css'
 
 export default function Services() {
-  return (
-    <section className="py-24 bg-brand-bg-soft" id="services">
-      <div className="max-w-[1100px] mx-auto px-7">
-        <SectionHeader
-          label="Consulting"
-          title={
-            <>
-              How we <span className="gold-text">build the business</span>
-            </>
-          }
-          description="Three pillars: sharpen the brand, show up with intention, and keep outreach steady — without a laundry list of tactics."
-        />
+  const reduce = useReducedMotion()
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-12 max-w-[960px] mx-auto">
+  return (
+    <section className={`${styles.section} ${styles.soft}`} id="services">
+      <div className={styles.inner}>
+        <div className={styles.label}>Consulting</div>
+        <h2 className={styles.title}>
+          How we <em>build the business</em>
+        </h2>
+        <p className={styles.deck}>
+          Three pillars: sharpen the brand, show up with intention, and keep outreach steady — without a laundry list of
+          tactics.
+        </p>
+        <div className={styles.cards}>
           {services.map((service) => (
-            <div
+            <motion.article
               key={service.title}
-              className="bg-white border border-brand-border rounded-2xl p-9 transition-all hover:shadow-sm hover:border-neutral-300 hover:-translate-y-0.5"
+              className={styles.card}
+              whileHover={reduce ? undefined : { y: -4 }}
+              transition={{ duration: brandMotion.durationMs / 1000, ease: brandMotion.ease }}
             >
-              <div className="w-12 h-12 rounded-xl bg-accent-soft border border-brand-border flex items-center justify-center text-[22px] mb-5">
-                {service.icon}
-              </div>
-              <h3 className="text-lg font-bold text-brand-text mb-2.5">{service.title}</h3>
-              <p className="text-sm text-brand-muted leading-relaxed">{service.description}</p>
-            </div>
+              <div className={styles.icon}>{service.icon}</div>
+              <h3>{service.title}</h3>
+              <p>{service.description}</p>
+            </motion.article>
           ))}
         </div>
-
-        <div className="text-center mt-10">
-          <a href="/services" className="text-sm font-semibold text-accent hover:underline">
-            See packages and how we work →
-          </a>
-        </div>
+        <a href="/services" className={styles.more}>
+          See packages and how we work →
+        </a>
       </div>
     </section>
   )

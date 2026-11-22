@@ -1,5 +1,8 @@
-const GOLD = '#b8943f'
-const INK = '#0a0a0a'
+import { brandColors } from '@/lib/brand-tokens'
+
+const GOLD = brandColors.accent
+const INK = brandColors.text
+const SOFT = brandColors.accentSoft
 const LINE = 'rgba(10,10,10,0.14)'
 
 function Windows({
@@ -35,7 +38,7 @@ function Windows({
           width={w}
           height={h}
           rx={2}
-          fill={lit ? GOLD : '#f0ebe3'}
+          fill={lit ? GOLD : SOFT}
           opacity={lit ? 0.9 : 1}
           className={lit ? 'hero-twinkle' : undefined}
           style={lit ? { animationDelay: `${((r + c) % 5) * 0.6}s` } : undefined}
@@ -113,7 +116,7 @@ export default function HeroHarmonyVisual() {
         <g className="hero-rise hero-rise-2">
           <rect x="172" y="286" width="82" height="134" rx="3" fill="white" stroke="rgba(10,10,10,0.18)" />
           <Windows x={184} y={300} cols={3} rows={3} w={14} h={14} gapX={9} gapY={12} litEvery={4} />
-          <rect x="204" y="384" width="22" height="36" rx="2" fill="#f0ebe3" stroke={LINE} />
+          <rect x="204" y="384" width="22" height="36" rx="2" fill={SOFT} stroke={LINE} />
         </g>
 
         <g className="hero-rise">
@@ -129,11 +132,11 @@ export default function HeroHarmonyVisual() {
                 stroke="rgba(10,10,10,0.18)"
               />
             ))}
-            <path d="M34 314 L52 296 H132 L150 314 Z" fill="#f0ebe3" stroke="rgba(10,10,10,0.18)" />
+            <path d="M34 314 L52 296 H132 L150 314 Z" fill={SOFT} stroke="rgba(10,10,10,0.18)" />
           </g>
           <rect x="44" y="338" width="96" height="82" fill="white" stroke="rgba(10,10,10,0.18)" />
-          <rect x="52" y="352" width="26" height="28" rx="2" fill="#f0ebe3" stroke={LINE} />
-          <rect x="112" y="352" width="20" height="28" rx="2" fill="#f0ebe3" stroke={LINE} />
+          <rect x="52" y="352" width="26" height="28" rx="2" fill={SOFT} stroke={LINE} />
+          <rect x="112" y="352" width="20" height="28" rx="2" fill={SOFT} stroke={LINE} />
           <rect x="86" y="372" width="22" height="48" rx="2" fill={INK} opacity="0.88" />
           <circle cx="102" cy="398" r="1.8" fill={GOLD} />
           <circle cx="92" cy="362" r="5" fill={GOLD} className="hero-twinkle" />
