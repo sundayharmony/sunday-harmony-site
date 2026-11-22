@@ -57,6 +57,13 @@
       "computedHash": "85084a8b4df7be945ebb539c6b0a83dca7d29d3f8fb375f9af282ca320364fbe",
       "installMode": "copy"
     },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "commit": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "83485963700bcf11d5bf78118facb301676b69d918fee2e45a95e7f1a2840f6c"
+    },
     "marketing-loops": {
       "source": "coreyhaines31/marketingskills",
       "commit": "5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1",
@@ -136,6 +143,13 @@
       "skillPath": "skills/revops/SKILL.md",
       "computedHash": "7be8c12ed8228ca60a4a171fd084d7b70dbc1f6417bac066e3f633b53bb0fed4",
       "installMode": "copy"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "5994e4cfd86144903d2ba750f862b9e36af15e3297aac983679e347b99f6cb71"
     }
   }
 }
