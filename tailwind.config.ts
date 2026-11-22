@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss'
-import { brandColors } from './src/lib/brand-tokens'
+import { brandColors, brandMotion } from './src/lib/brand-tokens'
 
 /**
  * Colors come from src/lib/brand-tokens.ts.
@@ -15,14 +15,15 @@ const config: Config = {
           DEFAULT: brandColors.accent,
           soft: brandColors.accentSoft,
           ink: brandColors.accentInk,
-          foreground: '#0a0a0a',
+          foreground: brandColors.text,
         },
         brand: {
-          bg: '#ffffff',
-          'bg-soft': '#fafafa',
-          card: 'rgba(0, 0, 0, 0.02)',
-          'card-hover': 'rgba(0, 0, 0, 0.05)',
-          border: '#e5e5e5',
+          bg: brandColors.bg,
+          'bg-soft': brandColors.bgSoft,
+          paper: brandColors.paper,
+          card: 'rgba(27, 26, 23, 0.02)',
+          'card-hover': 'rgba(27, 26, 23, 0.05)',
+          border: brandColors.border,
           /** @deprecated use text-accent / border-accent — kept for gradual migration */
           gold: brandColors.accent,
           'gold-light': '#c4a052',
@@ -31,14 +32,22 @@ const config: Config = {
           blue: '#1d4ed8',
           purple: '#5b21b6',
           red: '#b91c1c',
-          text: '#0a0a0a',
-          muted: '#525252',
+          text: brandColors.text,
+          muted: brandColors.muted,
           dim: brandColors.dim,
         },
       },
       fontFamily: {
         sans: ['var(--font-montserrat)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-montserrat)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-fraunces)', 'Georgia', 'serif'],
+      },
+      /** One easing and pace for every hover and state change (brandMotion). */
+      transitionTimingFunction: {
+        DEFAULT: brandMotion.easeCss,
+        out: brandMotion.easeCss,
+      },
+      transitionDuration: {
+        DEFAULT: `${brandMotion.durationMs}ms`,
       },
     },
   },

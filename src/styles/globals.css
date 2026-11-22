@@ -5,9 +5,13 @@
 /* ══════════ SINGLE ACCENT (sync with tailwind.config.ts accent.*) ══════════ */
 :root {
   --brand-accent: #b8943f;
-  --brand-accent-soft: #f0ebe3;
+  --brand-accent-soft: #f0e6d3;
   --brand-accent-ink: #7f6427;
-  --brand-text: #0a0a0a;
+  --brand-text: #1b1a17;
+  --brand-bg: #fbf7f0;
+  --brand-paper: #fffdf8;
+  --brand-border: #e6dbc6;
+  --brand-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --nav-bar-height: 3.5rem;
   --nav-total-height: calc(var(--nav-bar-height) + env(safe-area-inset-top, 0px));
 }
@@ -27,7 +31,7 @@ html {
 
 body {
   font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
-  background: #ffffff;
+  background: var(--brand-bg);
   color: var(--brand-text);
   -webkit-font-smoothing: antialiased;
 }
@@ -36,10 +40,10 @@ body {
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: var(--brand-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: #d4d4d4;
+  background: #d9c7a3;
   border-radius: 4px;
 }
 
@@ -254,5 +258,49 @@ body {
   .partner-toolkit a {
     color: #0a0a0a !important;
     text-decoration: underline;
+  }
+}
+
+/* ══════════ SYSTEM DESIGN RULES (BRAND.md → Design rules) ══════════
+   Applies to public pages, portals, and admin alike. */
+
+/* Headings: Fraunces at 600 with tight tracking. h3 and smaller stay in Montserrat inside portals. */
+h1,
+h2,
+.font-serif {
+  font-family: var(--font-fraunces), Georgia, serif;
+  letter-spacing: -0.015em;
+}
+:is(h1, h2, .font-serif):is(.font-bold, .font-extrabold, .font-black) {
+  font-weight: 600;
+}
+
+/* Cards and panels sit on paper, not stark white, over the cream ground. */
+.bg-white {
+  background-color: var(--brand-paper);
+}
+
+/* Primary actions are pills. */
+:is(a, button):is(.bg-brand-text, .bg-accent, .bg-neutral-900, .bg-black):is(.rounded, .rounded-md, .rounded-lg, .rounded-xl) {
+  border-radius: 9999px;
+}
+
+/* Raised cards ease up instead of snapping. */
+.hover-lift {
+  transition: transform 500ms var(--brand-ease), box-shadow 500ms var(--brand-ease), border-color 500ms var(--brand-ease);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    border-color: var(--brand-accent);
+    box-shadow: 0 18px 40px -24px rgba(27, 26, 23, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
   }
 }

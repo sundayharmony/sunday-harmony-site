@@ -1,4 +1,5 @@
 .page {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ink: #1b1a17;
   --cream: #fbf7f0;
   --paper: #fffdf8;
@@ -297,6 +298,30 @@
   padding: 8px var(--pad) 28px;
   scrollbar-width: thin;
 }
+.railPinned {
+  padding-bottom: 0;
+  margin-bottom: clamp(56px, 8vw, 112px);
+}
+.railSticky {
+  position: sticky;
+  top: var(--nav-bar-height);
+  height: calc(100vh - var(--nav-bar-height));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.railSticky .railHead {
+  width: min(1240px, calc(100% - 2 * var(--pad)));
+}
+.railPinned .rail {
+  overflow: visible;
+  scroll-snap-type: none;
+  will-change: transform;
+}
+.railPinned .tile {
+  flex-basis: min(42vw, 560px);
+}
 .rail:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: -2px;
@@ -581,11 +606,59 @@
   gap: 8px;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.5s var(--ease-out-soft),
+    box-shadow 0.5s var(--ease-out-soft),
+    transform 0.5s var(--ease-out-soft);
 }
-.plan:hover {
+.plan:hover,
+.plan:focus-visible {
   border-color: var(--gold);
-  transform: translateY(-2px);
+  box-shadow: 0 18px 40px -24px rgba(27, 26, 23, 0.35);
+  transform: translateY(-6px);
+}
+.planMore {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.5s var(--ease-out-soft),
+    opacity 0.4s var(--ease-out-soft);
+}
+.planMoreInner {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.plan:hover .planMore,
+.plan:focus-visible .planMore {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.planList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--body);
+}
+.planCta {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gold-text);
+}
+/* Touch screens have no hover: show the details up front. */
+@media (hover: none) {
+  .planMore {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
 }
 .planName,
 .planLine {
@@ -640,6 +713,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .planMore,
   .btnDark,
   .btnLine,
   .btnGold,

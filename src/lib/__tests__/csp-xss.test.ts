@@ -58,6 +58,10 @@ describe('CSP and XSS hardening', () => {
         'https://googleads.g.doubleclick.net',
         'https://pagead2.googlesyndication.com',
         'https://www.google.com',
+        'https://www.google-analytics.com',
+        'https://region1.google-analytics.com',
+        'https://analytics.google.com',
+        'https://region1.analytics.google.com',
       ],
       'connect-src': [
         'https://www.googletagmanager.com',
@@ -66,6 +70,10 @@ describe('CSP and XSS hardening', () => {
         'https://pagead2.googlesyndication.com',
         'https://www.google.com',
         'https://ad.doubleclick.net',
+        'https://www.google-analytics.com',
+        'https://region1.google-analytics.com',
+        'https://analytics.google.com',
+        'https://region1.analytics.google.com',
       ],
       'frame-src': ['https://www.googletagmanager.com', 'https://td.doubleclick.net'],
     }

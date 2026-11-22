@@ -4,21 +4,25 @@
 
 export const brandColors = {
   accent: '#b8943f',
-  accentSoft: '#f0ebe3',
+  accentSoft: '#f0e6d3',
   /** Accent for text on light backgrounds (4.7:1 or better on white and the beige panels). Keep `accent` for fills, borders and text on dark. */
   accentInk: '#7f6427',
-  text: '#0a0a0a',
-  muted: '#525252',
+  text: '#1b1a17',
+  muted: '#4a463e',
   dim: '#6a665e',
-  bg: '#ffffff',
-  bgSoft: '#fafafa',
-  border: '#e5e5e5',
-  dark: '#171717',
+  bg: '#fbf7f0',
+  bgSoft: '#f6efe2',
+  /** Cards and inputs on the cream ground. */
+  paper: '#fffdf8',
+  border: '#e6dbc6',
+  dark: '#1b1a17',
   white: '#ffffff',
 } as const
 
 export const brandFonts = {
   family: 'Montserrat, ui-sans-serif, system-ui, sans-serif',
+  /** Headings everywhere (h1, h2, font-serif). Self-hosted from src/fonts, OFL. */
+  display: 'Fraunces, Georgia, serif',
   weights: {
     light: 300,
     regular: 400,
@@ -79,12 +83,12 @@ export const brandBackgrounds = {
 
 /** Public page palette from the approved homepage design (2026-11-22). Portals keep brandColors. */
 export const publicColors = {
-  text: '#1b1a17',
-  muted: '#4a463e',
-  bg: '#fbf7f0',
-  bgSoft: '#f6efe2',
-  accentSoft: '#f0e6d3',
-  border: '#e6dbc6',
+  text: brandColors.text,
+  muted: brandColors.muted,
+  bg: brandColors.bg,
+  bgSoft: brandColors.bgSoft,
+  accentSoft: brandColors.accentSoft,
+  border: brandColors.border,
   goldText: '#8a6416',
 } as const
 

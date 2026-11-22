@@ -82,7 +82,7 @@ export default function Packages() {
 
   return (
     <div>
-      <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 lg:grid-cols-4">
         {offerings.map((option) => {
           const pkg = packages.find((item) => item.tier === option.tier)
           if (!pkg) return null
@@ -92,7 +92,7 @@ export default function Packages() {
           return (
             <article
               key={pkg.tier}
-              className="group relative grid items-start"
+              className="group relative grid items-stretch transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:hover:-translate-y-1.5"
               onPointerEnter={(event) => {
                 if (hoverPointer(event.pointerType)) setOpenTier(pkg.tier)
               }}
@@ -103,9 +103,10 @@ export default function Packages() {
               }}
             >
               <div
-                className={`col-start-1 row-start-1 flex flex-col rounded-2xl bg-white ${
-                  pkg.popular ? 'border-2 border-brand-text shadow-sm' : 'border border-brand-border'
-                } ${open ? '' : 'hidden'}`}
+                aria-hidden={!open}
+                className={`col-start-1 row-start-1 flex flex-col rounded-2xl bg-white shadow-[0_18px_40px_-24px_rgba(27,26,23,0.35)] transition-[opacity,transform,visibility] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                  pkg.popular ? 'border-2 border-brand-text' : 'border border-accent/60'
+                } ${open ? 'visible opacity-100 translate-y-0' : 'invisible pointer-events-none opacity-0 translate-y-2'}`}
               >
                 {pkg.popular && (
                   <div className="py-1.5 text-center text-[10px] font-bold tracking-[0.14em] uppercase bg-brand-text text-white rounded-t-2xl">
@@ -164,8 +165,9 @@ export default function Packages() {
               </div>
 
               <div
-                className={`col-start-1 row-start-1 z-10 flex flex-col rounded-2xl border border-brand-border bg-white p-6 shadow-sm sm:p-7 ${
-                  open ? 'hidden' : ''
+                aria-hidden={open}
+                className={`col-start-1 row-start-1 z-10 flex flex-col rounded-2xl border border-brand-border bg-white p-6 shadow-sm sm:p-7 transition-[opacity,transform,visibility] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+                  open ? 'invisible pointer-events-none opacity-0 -translate-y-2' : 'visible opacity-100 translate-y-0'
                 }`}
                 onClick={() => setOpenTier(pkg.tier)}
               >
