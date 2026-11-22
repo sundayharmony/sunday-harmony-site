@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { packageDisclaimer, packagePriceDisplay, packages, type Package } from '@/lib/data'
-import PhotoRail from './PhotoRail'
 import styles from './home.module.css'
 
 function priceNote(pkg: Package): string {
@@ -16,7 +15,6 @@ function priceHref(pkg: Package): string {
 export default function HomeLower() {
   return (
     <>
-      <PhotoRail />
       <section className={styles.section} id="prices">
         <div className={styles.inner}>
           <h2 className="sr-only">Prices</h2>

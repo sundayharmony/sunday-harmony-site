@@ -162,19 +162,38 @@
   font-size: var(--home-small);
 }
 
-.visual {
-  border: 1px solid var(--home-border);
-  border-radius: 1.5rem;
-  overflow: hidden;
-  background: var(--home-accent-soft);
+.story {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.heroPhoto {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 700 / 480;
-  object-fit: cover;
+.story li {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  min-height: 7.25rem;
+  padding: 1rem;
+  border: 1px solid var(--home-border);
+  border-radius: 1.15rem;
+  background: var(--home-bg);
+}
+
+.story strong {
+  font-size: clamp(1.35rem, 2vw, 1.7rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.story span {
+  color: var(--home-muted);
+  font-size: var(--home-small);
+  line-height: 1.35;
 }
 
 .section {

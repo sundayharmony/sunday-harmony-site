@@ -1,12 +1,10 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import HomeMotion from '@/components/home/HomeMotion'
-import WorkBand from '@/components/home/WorkBand'
 import Packages from '@/components/Packages'
-import { storyShot } from '@/lib/work-photos'
+import HeroHarmonyVisual from '@/components/HeroHarmonyVisual'
 import { processSteps, services } from '@/lib/data'
 
 export const metadata: Metadata = {
@@ -100,20 +98,14 @@ export default function ServicesPage() {
               <div className="absolute -top-6 -left-6 h-24 w-24 rounded-full border border-brand-border bg-white/80 backdrop-blur-md" />
               <div className="absolute -bottom-8 -right-4 h-20 w-20 rounded-full border border-brand-border bg-white/80 backdrop-blur-md" />
               <div className="relative rounded-3xl border border-brand-border bg-white/90 backdrop-blur-sm shadow-sm overflow-hidden">
-                <Image
-                  src={storyShot('window').src}
-                  alt={storyShot('window').alt}
-                  width={storyShot('window').width}
-                  height={storyShot('window').height}
-                  className="block h-auto w-full object-cover"
-                  sizes="(min-width: 1024px) 520px, 100vw"
-                />
+                <HeroHarmonyVisual />
               </div>
+              <span className="sr-only">
+                Decorative illustration: a small storefront growing into a city skyline along a rising path, with icons for revenue, savings, ideas, and systems.
+              </span>
             </div>
           </div>
         </section>
-
-        <WorkBand id="services-guides" />
 
         <section className="py-20 bg-white" id="pillars">
           <div className="max-w-[1100px] mx-auto px-7">

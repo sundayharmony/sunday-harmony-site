@@ -19,15 +19,14 @@ Also set the same accent hex on `:root` in `src/styles/globals.css` (`--brand-ac
 
 Typeface: Montserrat. Logos: `public/logo-black.png` and `public/logo-white.png`.
 
-Homepage type, motion, and spacing live in the same file (`brandType`, `brandMotion`, `brandSpace`). Public marketing pages apply them through `homeThemeVars()` inside `HomeMotion` (gold scroll line, desktop wheel smoothing, the photo rail). Admin, client, and partner portals keep their own layout.
+Homepage type, motion, and spacing live in the same file (`brandType`, `brandMotion`, `brandSpace`). Public marketing pages apply them through `homeThemeVars()` inside `HomeMotion` (gold scroll line, desktop wheel smoothing). Admin, client, and partner portals keep their own layout.
 
-Photographs for the public pages are the files in `public/work/`, named from `src/lib/work-photos.ts`. The frames stay warm. Do not restyle them into a cold gray.
+Do not decorate public pages with still-life photos. A photograph belongs only when it shows the actual service: identity, a website, print, or social branding.
 
 | Group | What to edit | Use |
 |---|---|---|
 | Type | `brandType` | Display, titles, body, labels |
-| Motion | `brandMotion` | Hover timing, scroll progress, Lenis, the photo rail |
+| Motion | `brandMotion` | Hover timing, scroll progress, Lenis |
 | Space | `brandSpace` | Page padding, section gaps, max width |
-| Photos | `work-photos.ts` | Public page photographs and alt text |
 
 Voice: plain English, no score guarantees, no local-city claim. Consulting is the public face. Credit repair and funding are separate doors.

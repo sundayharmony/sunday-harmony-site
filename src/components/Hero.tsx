@@ -1,10 +1,13 @@
-import Image from 'next/image'
 import { siteConfig } from '@/lib/data'
 import AuditCtaButton from '@/components/ui/AuditCtaButton'
-import { storyShot } from '@/lib/work-photos'
 import styles from '@/components/home/home.module.css'
 
-const hand = storyShot('hand')
+const beats = [
+  { title: 'Identity', line: 'Logo, colors, and cards.' },
+  { title: 'Website', line: 'A page that can take a lead.' },
+  { title: 'Print', line: 'Pieces they can hand over.' },
+  { title: 'Social', line: 'The same look, posted.' },
+]
 
 export default function Hero() {
   return (
@@ -29,17 +32,14 @@ export default function Hero() {
               </a>
             </div>
           </div>
-          <div className={styles.visual}>
-            <Image
-              className={styles.heroPhoto}
-              src={hand.src}
-              alt={hand.alt}
-              width={hand.width}
-              height={hand.height}
-              priority
-              sizes="(min-width: 1024px) 46vw, 100vw"
-            />
-          </div>
+          <ul className={styles.story}>
+            {beats.map((beat) => (
+              <li key={beat.title}>
+                <strong>{beat.title}</strong>
+                <span>{beat.line}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

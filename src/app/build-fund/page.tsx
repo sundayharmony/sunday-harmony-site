@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import HomeMotion from '@/components/home/HomeMotion'
-import WorkPhoto from '@/components/home/WorkPhoto'
 import {
   FUND_CHOOSER_PATH,
   PARTNER_INTAKE_FIRST_PARAM,
@@ -82,10 +81,6 @@ export default async function BuildFundPage({
             <p className="text-lg text-brand-muted leading-relaxed max-w-[540px] mx-auto">
               Two paths to financial strength. Pick the one that fits where you are today.
             </p>
-          </div>
-
-          <div className="max-w-[720px] mx-auto mb-12">
-            <WorkPhoto id="fund-kitchen" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">

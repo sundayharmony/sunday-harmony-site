@@ -3,7 +3,6 @@ import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import HomeMotion from '@/components/home/HomeMotion'
-import WorkBand from '@/components/home/WorkBand'
 import ContactHeroVisual from '@/components/contact/ContactHeroVisual'
 import { heroAuditHighlights, siteConfig } from '@/lib/data'
 
@@ -138,8 +137,6 @@ export default function ContactPage() {
             </div>
           </div>
         </section>
-
-        <WorkBand id="contact-note" />
 
         <section className="py-20 bg-white" id="audit">
           <div className="max-w-[1100px] mx-auto px-7">
