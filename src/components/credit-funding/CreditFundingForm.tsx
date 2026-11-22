@@ -30,6 +30,7 @@ import {
   BUSINESS_DOCUMENTS,
 } from '@/lib/credit-funding-document-steps'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import TurnstileWidget, { TURNSTILE_WAIT_MESSAGE, turnstileTokenForSubmit, type TurnstileHandle } from '@/components/TurnstileWidget'
 import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
@@ -248,6 +249,7 @@ export default function CreditFundingForm({
   const [submitted, setSubmitted] = useState(false)
   const [applicationId, setApplicationId] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const turnstile = useRef<TurnstileHandle>(null)
   const stagedUploads = useStagedDocumentUploads()
   const intakeIdempotencyKey = useRef(
     typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `intake-${Date.now()}`
@@ -548,6 +550,12 @@ export default function CreditFundingForm({
     setSubmitting(true)
     setSubmitError('')
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) {
+        setSubmitError(TURNSTILE_WAIT_MESSAGE)
+        setSubmitting(false)
+        return
+      }
       const res = await fetch('/api/credit-funding/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -562,8 +570,10 @@ export default function CreditFundingForm({
           zipCode: form.zipCode,
           password: form.accountPassword,
           shHpField: form.shHpField,
+          turnstileToken,
         }),
       })
+      turnstile.current?.reset()
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setSubmitError(typeof data.error === 'string' ? data.error : 'Could not create your account.')
@@ -582,6 +592,7 @@ export default function CreditFundingForm({
       }
       router.push('/dashboard/credit-funding')
     } catch {
+      turnstile.current?.reset()
       setSubmitError('Could not create your account.')
       setSubmitting(false)
     }
@@ -617,6 +628,8 @@ export default function CreditFundingForm({
     }
 
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) throw new Error(TURNSTILE_WAIT_MESSAGE)
       setUploadProgress(40)
 
       const fd = new FormData()
@@ -657,6 +670,7 @@ export default function CreditFundingForm({
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
       fd.append('sh_hp_field', form.shHpField)
+      fd.append('turnstileToken', turnstileToken)
       for (const [key, value] of Object.entries(secretsOnFile)) {
         fd.append(key, String(value))
       }
@@ -701,6 +715,7 @@ export default function CreditFundingForm({
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Submission failed')
     } finally {
+      turnstile.current?.reset()
       setSubmitting(false)
     }
   }
@@ -1284,6 +1299,14 @@ export default function CreditFundingForm({
               </div>
             )}
           </div>
+        )}
+
+        {step === stepFlow.length - 1 && (
+          <TurnstileWidget
+            ref={turnstile}
+            action={intakePhase === 'start' ? 'credit_start' : 'credit_intake'}
+            className="mt-6"
+          />
         )}
 
         {submitError && (

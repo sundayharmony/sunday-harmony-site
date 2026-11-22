@@ -44,6 +44,8 @@ import {
 import { inviteTokenMatchesStoredExpiry, verifyApplicationInviteToken } from '@/lib/credit-funding-invite'
 import { BUSINESS_DOCUMENT_TYPES, type DocumentType } from '@/lib/credit-funding-types'
 import { hasHoneypotValue } from '@/lib/honeypot'
+import { creditEmailRateLimit } from '@/lib/public-form-guards'
+import { readTurnstileToken, turnstileFailureResponse, verifyTurnstile } from '@/lib/turnstile'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -222,6 +224,16 @@ export async function POST(req: NextRequest) {
     // Key/version bump clears counters that filled up during the schema outage.
     const rl = await rateLimitDurable(`credit-funding-intake:v2:${ip}`, 20, 60 * 60 * 1000)
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
+    const human = await verifyTurnstile({ token: readTurnstileToken(formData), action: 'credit_intake', remoteIp: ip })
+    if (!human.ok) return turnstileFailureResponse(human)
+
+    // Anonymous intake creates a portal user and emails a setup code, so cap it per address.
+    // Invited and signed-in draft flows are already tied to a known person.
+    if (!inviteToken && !ownedDraft) {
+      const perEmail = await creditEmailRateLimit(payload.email)
+      if (!perEmail.allowed) return rateLimitResponse(perEmail.resetIn)
+    }
 
     let application: Awaited<ReturnType<typeof createCreditFundingApplication>> | null = null
 

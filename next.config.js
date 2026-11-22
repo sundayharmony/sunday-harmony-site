@@ -1,6 +1,8 @@
 const path = require('path')
 
 const SUPABASE_HOST = 'https://*.supabase.co'
+// Cloudflare Turnstile widget script and challenge iframe on public lead forms.
+const TURNSTILE_HOST = 'https://challenges.cloudflare.com'
 
 // Google Ads tag (gtag.js) and its conversion pings.
 const GOOGLE_ADS_HOSTS = 'https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com'
@@ -14,6 +16,7 @@ function buildContentSecurityPolicy() {
     'https://js.stripe.com',
     'https://vercel.live',
     GOOGLE_ADS_HOSTS,
+    TURNSTILE_HOST,
   ]
 
   return [
@@ -23,7 +26,7 @@ function buildContentSecurityPolicy() {
     "font-src 'self' https://fonts.gstatic.com",
     `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com ${GOOGLE_ADS_HOSTS}`,
     `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live ${GOOGLE_ADS_HOSTS}`,
-    `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com https://td.doubleclick.net https://www.googletagmanager.com`,
+    `frame-src ${SUPABASE_HOST} ${TURNSTILE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com https://td.doubleclick.net https://www.googletagmanager.com`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",

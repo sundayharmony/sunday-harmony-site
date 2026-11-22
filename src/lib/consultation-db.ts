@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase'
+import { emailIlikePattern } from './email-match'
 import type { ConsultationSettings, WeeklyWindow } from './consultation-slots'
 
 export type ConsultationBookingRow = {
@@ -185,6 +186,23 @@ export async function listUpcomingBookings(now = new Date()): Promise<Consultati
     return []
   }
   return (data || []) as ConsultationBookingRow[]
+}
+
+/** Upcoming scheduled bookings for one email (case-insensitive). Used for the one-open-booking rule. */
+export async function countOpenBookingsForEmail(email: string, now = new Date()): Promise<number> {
+  const pattern = emailIlikePattern(email)
+  if (!pattern) return 0
+  const { count, error } = await getSupabase()
+    .from('consultation_bookings')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'scheduled')
+    .ilike('guest_email', pattern)
+    .gte('ends_at', now.toISOString())
+  if (error) {
+    if (error.code !== '42P01') console.error('countOpenBookingsForEmail error:', error)
+    return 0
+  }
+  return count ?? 0
 }
 
 export async function insertConsultationBooking(row: {

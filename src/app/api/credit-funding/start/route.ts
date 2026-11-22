@@ -16,6 +16,8 @@ import {
   validateCreditAccountStart,
 } from '@/lib/credit-funding-validation'
 import { hasHoneypotValue } from '@/lib/honeypot'
+import { CREDIT_START_CONFLICT, creditEmailRateLimit } from '@/lib/public-form-guards'
+import { readTurnstileToken, turnstileFailureResponse, verifyTurnstile } from '@/lib/turnstile'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -37,20 +39,19 @@ export async function POST(req: NextRequest) {
     const invalid = validateCreditAccountStart(payload, password)
     if (invalid) return NextResponse.json({ error: invalid }, { status: 400 })
 
-    const rl = await rateLimitDurable(`credit-start:${getClientIp(req)}`, 8, 60 * 60 * 1000)
+    const ip = getClientIp(req)
+    const rl = await rateLimitDurable(`credit-start:${ip}`, 8, 60 * 60 * 1000)
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
 
-    if (await getUserByEmail(payload.email)) {
-      return NextResponse.json(
-        { error: 'An account with this email already exists. Sign in to continue.' },
-        { status: 409 }
-      )
-    }
-    if (await getBlockingIncompleteApplicationByEmail(payload.email)) {
-      return NextResponse.json(
-        { error: 'This email already has an application. Sign in to continue.' },
-        { status: 409 }
-      )
+    const human = await verifyTurnstile({ token: readTurnstileToken(body), action: 'credit_start', remoteIp: ip })
+    if (!human.ok) return turnstileFailureResponse(human)
+
+    const perEmail = await creditEmailRateLimit(payload.email)
+    if (!perEmail.allowed) return rateLimitResponse(perEmail.resetIn)
+
+    // Same status and body for both cases so this endpoint does not reveal which emails have accounts.
+    if ((await getUserByEmail(payload.email)) || (await getBlockingIncompleteApplicationByEmail(payload.email))) {
+      return NextResponse.json(CREDIT_START_CONFLICT.body, { status: CREDIT_START_CONFLICT.status })
     }
 
     const draft = await createClientStartDraft(payload)
