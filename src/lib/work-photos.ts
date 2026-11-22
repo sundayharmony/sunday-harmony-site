@@ -1,87 +1,74 @@
 /**
- * Public-page photographs. `src` stays empty until a generated file is dropped in.
- * Alt text is the accessible name; `label` is the short caption under the frame.
+ * Real photographs used on public pages. Files are clean crops of generated
+ * studio photos (the free-plan frames had a center watermark, so only the
+ * unmarked regions are published).
  */
-export const workPhotos = [
-  {
-    id: 'fit-table',
-    label: 'On the table',
-    alt: 'Sunlit wooden table with warm cream business cards, a paper color palette, and a small plant.',
-    src: '',
-  },
-  {
-    id: 'work-cards',
-    label: 'Cards',
-    alt: 'A hand holding warm cream business cards with a simple gold-edged mark, over linen in afternoon light.',
-    src: '',
-  },
-  {
-    id: 'work-window',
-    label: 'The window',
-    alt: 'A small shop window with a hand-lettered welcome sign, warm wood, and soft daylight on the glass.',
-    src: '',
-  },
-  {
-    id: 'work-board',
-    label: 'The board',
-    alt: 'Hands arranging a mood board of warm paper, cloth swatches, and a pencil logo sketch.',
-    src: '',
-  },
-  {
-    id: 'about-desk',
-    label: 'The desk',
-    alt: 'A welcoming studio desk with brand guidelines open beside a plant and morning light.',
-    src: '',
-  },
-  {
-    id: 'services-guides',
-    label: 'Guidelines',
-    alt: 'Brand guidelines, warm color chips, and a logo sketch laid out on cream paper.',
-    src: '',
-  },
-  {
-    id: 'contact-note',
-    label: 'A note',
-    alt: 'A handwritten note and a brand booklet on a sunlit desk, set for a conversation.',
-    src: '',
-  },
-  {
-    id: 'book-tea',
-    label: 'Before the call',
-    alt: 'An open paper calendar and a cup of tea beside brand samples in a bright, warm room.',
-    src: '',
-  },
-  {
-    id: 'fund-kitchen',
+const shots = {
+  hand: {
+    src: '/work/hand.webp',
+    width: 700,
+    height: 480,
     label: 'At the table',
-    alt: 'Warm printed brand pages spread on a kitchen table in late-day light, ready to review.',
-    src: '',
+    alt: 'A hand beside a ceramic vase of small white flowers and a book on a sunlit wood table.',
   },
-  {
-    id: 'credit-linen',
-    label: 'Printed work',
-    alt: 'Careful printed brand pieces resting on warm linen, with soft window light and no harsh contrast.',
-    src: '',
+  table: {
+    src: '/work/table.webp',
+    width: 812,
+    height: 484,
+    label: 'Paper',
+    alt: 'A stack of warm blank paper and a ceramic cup on a sunlit oak table, with a leaf shadow across the wood.',
   },
-  {
-    id: 'funding-paper',
-    label: 'Paper samples',
-    alt: 'Warm paper samples and a simple logo print stacked on a light wood desk.',
-    src: '',
+  linen: {
+    src: '/work/linen.webp',
+    width: 892,
+    height: 564,
+    label: 'Linen',
+    alt: 'Oatmeal linen folded over blank warm paper on a wood table.',
   },
-  {
-    id: 'privacy-shelf',
-    label: 'The shelf',
-    alt: 'A neat shelf of warm brand booklets and envelopes in a bright, quiet studio corner.',
-    src: '',
+  cards: {
+    src: '/work/cards.webp',
+    width: 792,
+    height: 484,
+    label: 'Cards',
+    alt: 'The edge of a thick stack of warm cotton cards resting on linen.',
   },
-  {
-    id: 'cancel-light',
-    label: 'Studio light',
-    alt: 'A quiet studio corner with warm paper, a pencil, and soft daylight on a wooden sill.',
-    src: '',
+  window: {
+    src: '/work/window.webp',
+    width: 820,
+    height: 444,
+    label: 'Window',
+    alt: 'A weathered white shop window with a leafy plant in warm afternoon light.',
   },
-] as const
+} as const
+
+export type StoryShotId = keyof typeof shots
+
+export const storyShotIds = ['table', 'linen', 'cards', 'window'] as const satisfies readonly StoryShotId[]
+
+export function storyShot(id: StoryShotId) {
+  return shots[id]
+}
+
+const pageShots = {
+  'fit-table': 'table',
+  'work-cards': 'cards',
+  'work-window': 'window',
+  'work-board': 'linen',
+  'about-desk': 'hand',
+  'services-guides': 'cards',
+  'contact-note': 'linen',
+  'book-tea': 'hand',
+  'fund-kitchen': 'table',
+  'credit-linen': 'linen',
+  'funding-paper': 'table',
+  'privacy-shelf': 'window',
+  'cancel-light': 'window',
+} as const
+
+export const workPhotos = (Object.keys(pageShots) as (keyof typeof pageShots)[]).map((id) => ({
+  id,
+  ...shots[pageShots[id]],
+}))
 
 export type WorkPhotoId = (typeof workPhotos)[number]['id']
 

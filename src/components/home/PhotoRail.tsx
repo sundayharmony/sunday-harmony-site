@@ -1,27 +1,12 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import Link from 'next/link'
-import { packageDisclaimer, packagePriceDisplay, packages, type Package } from '@/lib/data'
+import Image from 'next/image'
 import { railOffset, railTravel } from '@/lib/rail-motion'
+import { storyShot, storyShotIds } from '@/lib/work-photos'
 import styles from './home.module.css'
 
-function priceNote(pkg: Package): string {
-  if (pkg.priceSuffix === 'monthly') return 'per month'
-  if (pkg.priceSuffix === 'one-time') return 'one-time'
-  return 'quoted'
-}
-
-function cardHref(pkg: Package): string {
-  return pkg.priceSuffix === 'quote' ? '/book' : '/services#packages'
-}
-
-function cardCta(pkg: Package): string {
-  if (pkg.popular) return 'Start with Launch'
-  return pkg.ctaLabel ?? "See what's included"
-}
-
-export default function PackageRail() {
+export default function PhotoRail() {
   const stage = useRef<HTMLElement>(null)
   const track = useRef<HTMLUListElement>(null)
   const frame = useRef<HTMLDivElement>(null)
@@ -105,59 +90,41 @@ export default function PackageRail() {
       paint()
     })
 
-    const onFocusIn = (event: Event) => {
-      if (section.dataset.rail !== 'scroll') return
-      const card = (event.target as HTMLElement | null)?.closest('li')
-      if (!card || !row.contains(card)) return
-      const cards = [...row.children]
-      const index = cards.indexOf(card)
-      if (index < 0) return
-      measure()
-      const progress = cards.length <= 1 ? 0 : index / (cards.length - 1)
-      window.scrollTo({ top: top + progress * span, behavior: 'auto' })
-    }
-
     apply()
     reduce.addEventListener('change', apply)
-    row.addEventListener('focusin', onFocusIn)
 
     return () => {
       disposed = true
       stop()
       reduce.removeEventListener('change', apply)
-      row.removeEventListener('focusin', onFocusIn)
     }
   }, [])
 
   return (
-    <section className={styles.stage} id="packages" ref={stage} data-rail="stack">
+    <section className={styles.stage} id="work" ref={stage} data-rail="stack">
+      <h2 className="sr-only">The work</h2>
       <div className={styles.railSticky}>
-        <div className={styles.inner}>
-          <div className={styles.label}>Ways to start</div>
-          <h2 className={styles.title}>
-            The price is on <em>the card.</em>
-          </h2>
-          <p className={styles.deck}>
-            Essentials is the brand. Launch adds the site. Marketing Partner stays month to month. Custom is quoted.
-            Not sure which one? Start with the free audit.
-          </p>
-          <div className={styles.railView} ref={frame}>
-            <ul className={styles.rail} ref={track}>
-              {packages.map((pkg) => (
-                <li key={pkg.tier} className={pkg.popular ? styles.railCardPopular : styles.railCard}>
-                  {pkg.popular ? <p className={styles.badge}>Most owners start here</p> : null}
-                  <p className={styles.eyebrow}>{pkg.tagline}</p>
-                  <h3>{pkg.tier}</h3>
-                  <p className={styles.railPrice}>
-                    {packagePriceDisplay(pkg)} <span>{priceNote(pkg)}</span>
-                  </p>
-                  <p>{pkg.ideal}</p>
-                  <Link href={cardHref(pkg)}>{cardCta(pkg)}</Link>
+        <div className={styles.railView} ref={frame}>
+          <ul className={styles.rail} ref={track}>
+            {storyShotIds.map((id) => {
+              const photo = storyShot(id)
+              return (
+                <li key={id} className={styles.shot}>
+                  <figure>
+                    <Image
+                      className={styles.shotImg}
+                      src={photo.src}
+                      alt={photo.alt}
+                      width={photo.width}
+                      height={photo.height}
+                      sizes="(min-width: 1024px) 46rem, 86vw"
+                    />
+                    <figcaption>{photo.label}</figcaption>
+                  </figure>
                 </li>
-              ))}
-            </ul>
-          </div>
-          <p className={styles.note}>{packageDisclaimer}</p>
+              )
+            })}
+          </ul>
         </div>
       </div>
     </section>
