@@ -7,11 +7,14 @@ export default function WorkPhoto({ id }: { id: WorkPhotoId }) {
 
   return (
     <figure className={styles.photo} data-photo-id={photo.id}>
-      {photo.src ? (
-        <Image className={styles.photoImg} src={photo.src} alt={photo.alt} width={1600} height={1200} sizes="(min-width: 768px) 360px, 100vw" />
-      ) : (
-        <div className={styles.photoSlot} role="img" aria-label={photo.alt} />
-      )}
+      <Image
+        className={styles.photoImg}
+        src={photo.src}
+        alt={photo.alt}
+        width={photo.width}
+        height={photo.height}
+        sizes="(min-width: 768px) 720px, 100vw"
+      />
       <figcaption>{photo.label}</figcaption>
     </figure>
   )

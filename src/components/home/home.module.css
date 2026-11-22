@@ -24,7 +24,6 @@
   position: relative;
   display: flex;
   align-items: center;
-  min-height: calc(100svh - var(--nav-total-height));
   padding: calc(var(--nav-total-height) + 1.75rem) var(--home-pad-x) 2.5rem;
   overflow: hidden;
   background: var(--home-hero-bg);
@@ -167,7 +166,15 @@
   border: 1px solid var(--home-border);
   border-radius: 1.5rem;
   overflow: hidden;
-  background: var(--home-bg);
+  background: var(--home-accent-soft);
+}
+
+.heroPhoto {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 700 / 480;
+  object-fit: cover;
 }
 
 .section {
@@ -493,7 +500,7 @@
   display: grid;
   gap: var(--home-gap);
   margin: 0;
-  padding: 0;
+  padding: 0 var(--home-pad-x) 2.5rem;
   list-style: none;
 }
 
@@ -555,7 +562,7 @@
 }
 
 .stage[data-rail='scroll'] {
-  height: 220vh;
+  height: 280vh;
 }
 
 .stage[data-rail='scroll'] .railSticky {
@@ -571,13 +578,97 @@
 .stage[data-rail='scroll'] .rail {
   display: flex;
   width: max-content;
+  padding: 0 0 0 var(--home-pad-x);
   will-change: transform;
 }
 
 .stage[data-rail='scroll'] .railCard,
-.stage[data-rail='scroll'] .railCardPopular {
-  flex: 0 0 min(78vw, 26rem);
-  width: min(78vw, 26rem);
+.stage[data-rail='scroll'] .railCardPopular,
+.stage[data-rail='scroll'] .shot {
+  flex: 0 0 min(86vw, 46rem);
+  width: min(86vw, 46rem);
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot figure {
+  margin: 0;
+}
+
+.shotImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border: 1px solid var(--home-border);
+  border-radius: 1.15rem;
+  background: var(--home-accent-soft);
+}
+
+.shot figcaption {
+  margin-top: 0.55rem;
+  color: var(--home-dim);
+  font-size: var(--home-label);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.prices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--home-border);
+  border-left: 1px solid var(--home-border);
+}
+
+.prices a {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  min-height: 8.5rem;
+  padding: 1.15rem 1rem 1.05rem;
+  border-right: 1px solid var(--home-border);
+  border-bottom: 1px solid var(--home-border);
+  color: var(--home-text);
+  text-decoration: none;
+}
+
+.prices a span {
+  color: var(--home-muted);
+  font-size: var(--home-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.prices strong {
+  font-size: clamp(1.45rem, 3vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.prices small {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--home-muted);
+  font-size: var(--home-small);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.pricePopular a {
+  background: var(--home-accent-soft);
+}
+
+.note {
+  margin: 0.85rem 0 0;
 }
 
 .faqs {
@@ -611,12 +702,8 @@
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .rail {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .stage[data-rail='scroll'] .rail {
-    grid-template-columns: none;
+  .prices {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
