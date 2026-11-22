@@ -309,7 +309,7 @@ const proofAds: CampaignAd[] = [
     channels: ['meta', 'linkedin'],
     source: 'new',
     headline: 'Clarity over guesswork.',
-    body: 'A+ service, years in the work, and 150+ businesses that wanted a partner, not another black box.',
+    body: 'A+ service and years in the work, for owners who want a partner, not another black box.',
     ctaLabel: freeAuditCta,
     footer: siteConfig.tagline,
     stats: proofStats,

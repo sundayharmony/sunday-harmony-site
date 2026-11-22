@@ -20,8 +20,8 @@ const sampleLeads = [
     location: 'Hammonton, NJ',
     category: 'startup',
     opportunity: 'No Hammonton landing page or title mention',
-    recommendedService: 'Business Launch $1,799',
-    estimatedValue: 1799,
+    recommendedService: 'Business Launch $2,499',
+    estimatedValue: 2499,
     scoreFactors: {
       weakness: 2,
       operating: 2,
@@ -44,8 +44,8 @@ const sampleLeads = [
     location: 'Hammonton, NJ',
     category: 'established',
     opportunity: 'Title/H1 say septic only, so plumbing and heating searches miss them',
-    recommendedService: 'Marketing Partner $799/mo',
-    estimatedValue: 9588,
+    recommendedService: 'Marketing Partner $1,200/mo',
+    estimatedValue: 14400,
     scoreFactors: {
       weakness: 2,
       operating: 2,
@@ -67,8 +67,8 @@ const sampleLeads = [
     location: 'Hammonton, NJ',
     category: 'established',
     opportunity: 'Only 4 reviews in 36 years',
-    recommendedService: 'Marketing Partner $799/mo',
-    estimatedValue: 9588,
+    recommendedService: 'Marketing Partner $1,200/mo',
+    estimatedValue: 14400,
     scoreFactors: {
       weakness: 2,
       operating: 2,
@@ -353,7 +353,7 @@ describe('POST /api/internal/leads-import', () => {
     assert.equal(row.status, 'new')
     assert.equal(row.first_name, 'Sal')
     assert.equal(row.last_name, 'Jacobs')
-    assert.equal(row.estimated_value, 9588)
+    assert.equal(row.estimated_value, 14400)
   })
 
   it('skips a lead whose externalId is already in the CRM', async () => {

@@ -20,13 +20,13 @@ const prospect = {
   category: 'established',
   opportunity:
     'Mexican pasteleria/panaderia with ~200 Google reviews but Facebook-as-website and no Instagram/email found.',
-  recommendedService: 'Business Essentials $599',
+  recommendedService: 'Business Essentials $899',
   scoreFactors: { weakness: 2, operating: 2, need: 2, decision_maker: 2, ability: 1 },
   source: 'outbound',
   lastContactedAt: null,
   followUpAt: '2026-11-06T14:00:00.000Z',
   stage: 'uncontacted',
-  estimatedValue: 599,
+  estimatedValue: 899,
   notes: 'Opener: Los Claveles team — for conchas and tres leches, but still no branded website.',
   gmailThreadId: null,
   driveFolderUrl: null,
@@ -119,7 +119,7 @@ test.describe('prospect file view mode', () => {
     expect(stageOptions).toContain('Active client')
     await expect(page.getByText('Current status')).toBeVisible()
     await expect(page.getByText('Wilmington, DE')).toBeVisible()
-    await expect(page.getByText('Business Essentials $599')).toBeVisible()
+    await expect(page.getByText('Business Essentials $899')).toBeVisible()
     await expect(page.getByLabel(/Business name/i)).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Save prospect' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Close' })).toHaveCount(0)
