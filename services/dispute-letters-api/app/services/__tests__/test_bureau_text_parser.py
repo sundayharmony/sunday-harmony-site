@@ -239,8 +239,7 @@ def test_narrative_and_summary_do_not_invent_accounts():
     assert parse_bureau_text(NARRATIVE, file_name="notes.pdf") is None
 
 
-def test_extract_from_text_stays_local_when_api_key_is_set(monkeypatch):
-    monkeypatch.setenv("CURSOR_API_KEY", "test-key")
+def test_extract_from_text_stays_local():
     report = extract_from_text(
         EXPERIAN_TEXT, "pdf", False, "high", file_name="Jane Public Experian.pdf"
     )

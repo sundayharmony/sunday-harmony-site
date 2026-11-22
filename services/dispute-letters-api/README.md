@@ -8,7 +8,6 @@ Python FastAPI service for Cursor AI credit report analysis and dispute letter g
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `CURSOR_API_KEY` | Yes | Cursor agent API key for report analysis |
 | `DISPUTE_LETTERS_API_SECRET` | Yes | Shared secret with Vercel (Bearer token) |
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key for DB + storage |
@@ -22,7 +21,6 @@ cd services/dispute-letters-api
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-$env:CURSOR_API_KEY="..."
 $env:DISPUTE_LETTERS_API_SECRET="dev-secret"
 $env:SUPABASE_URL="..."
 $env:SUPABASE_SERVICE_ROLE_KEY="..."

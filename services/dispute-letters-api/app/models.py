@@ -178,7 +178,7 @@ class Tradeline(BaseModel):
 
 
 class ParsedReport(BaseModel):
-    source: str = "cursor_agent"
+    source: str = "fallback_parser"
     reference: str = ""
     report_date: str = ""
     analysis_summary: str = ""

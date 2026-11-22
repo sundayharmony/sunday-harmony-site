@@ -42,9 +42,9 @@ describe('friendlyDisputeLettersUpstreamError', () => {
 
   it('passes through ordinary upstream messages', () => {
     const msg = friendlyDisputeLettersUpstreamError(
-      JSON.stringify({ error: 'CURSOR_API_KEY is required' }),
+      JSON.stringify({ error: 'Report upload failed' }),
       503
     )
-    assert.equal(msg, 'CURSOR_API_KEY is required')
+    assert.equal(msg, 'Report upload failed')
   })
 })

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import os
 import re
 from pathlib import Path
 
@@ -400,59 +398,12 @@ def _intelligence_notes_for_plan(plan: LetterPlan, report) -> list[str]:
     return notes
 
 
-def _letter_agent_enabled() -> bool:
-    """The local FCRA template is the default. The Cursor agent is opt-in and time-boxed."""
-    return os.environ.get("DISPUTE_LETTER_AGENT", "").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _letter_agent_timeout_sec() -> float:
-    raw = os.environ.get("DISPUTE_LETTER_AGENT_TIMEOUT_SEC", "").strip()
-    try:
-        value = float(raw) if raw else 15.0
-    except ValueError:
-        value = 15.0
-    return min(max(value, 3.0), 30.0)
-
-
 async def generate_letter_async(plan: LetterPlan, consumer: ConsumerInfo, report=None) -> str:
-    notes = _intelligence_notes_for_plan(plan, report) if report is not None else []
-    prompt = build_letter_prompt(plan, consumer, intelligence_notes=notes or None)
-    api_key = os.environ.get("CURSOR_API_KEY", "").strip()
-    if api_key and _letter_agent_enabled():
-        try:
-            text = await asyncio.wait_for(
-                _generate_via_sdk_async(prompt),
-                timeout=_letter_agent_timeout_sec(),
-            )
-            if text.strip():
-                return normalize_letter_source(text)
-        except Exception:
-            pass
     return normalize_letter_source(_template_fallback(plan, consumer))
 
 
-async def _generate_via_sdk_async(prompt: str) -> str:
-    from app.services.cursor_client import agent_prompt, result_text
-
-    result = await agent_prompt(prompt)
-    text = result_text(result).strip()
-    if text.startswith("```"):
-        text = text.strip("`").removeprefix("markdown").strip()
-    return text
-
-
 def generate_letter(plan: LetterPlan, consumer: ConsumerInfo, report=None) -> str:
-    return asyncio.run(generate_letter_async(plan, consumer, report))
-
-
-def _generate_via_sdk(prompt: str, api_key: str) -> str:
-    from app.services.cursor_client import agent_prompt_blocking, result_text
-
-    result = agent_prompt_blocking(prompt)
-    text = result_text(result).strip()
-    if text.startswith("```"):
-        text = text.strip("`").removeprefix("markdown").strip()
-    return text
+    return normalize_letter_source(_template_fallback(plan, consumer))
 
 
 def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:

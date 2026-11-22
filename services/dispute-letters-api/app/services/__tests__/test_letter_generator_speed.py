@@ -1,4 +1,4 @@
-"""Letters use the local template unless the agent is explicitly enabled."""
+"""Letters always come from the local FCRA template."""
 
 from __future__ import annotations
 
@@ -29,33 +29,9 @@ def _plan() -> LetterPlan:
     )
 
 
-def test_letters_skip_the_agent_even_when_the_api_key_is_set(monkeypatch):
-    monkeypatch.setenv("CURSOR_API_KEY", "test-key")
-    monkeypatch.delenv("DISPUTE_LETTER_AGENT", raising=False)
-
-    async def _agent(_prompt: str) -> str:
-        raise AssertionError("agent should not run for the default letter path")
-
-    monkeypatch.setattr("app.services.letter_generator._generate_via_sdk_async", _agent)
+def test_letters_use_the_local_template():
     text = asyncio.run(
         generate_letter_async(_plan(), ConsumerInfo(name="Jane Consumer", addresses=["123 Main St"]))
     )
     assert "formally dispute" in text.lower()
     assert "KIKOFF" in text
-
-
-def test_enabled_agent_falls_back_when_it_times_out(monkeypatch):
-    monkeypatch.setenv("CURSOR_API_KEY", "test-key")
-    monkeypatch.setenv("DISPUTE_LETTER_AGENT", "1")
-    monkeypatch.setenv("DISPUTE_LETTER_AGENT_TIMEOUT_SEC", "3")
-
-    async def _agent(_prompt: str) -> str:
-        await asyncio.sleep(30)
-        return "should not be used"
-
-    monkeypatch.setattr("app.services.letter_generator._generate_via_sdk_async", _agent)
-    text = asyncio.run(
-        generate_letter_async(_plan(), ConsumerInfo(name="Jane Consumer", addresses=["123 Main St"]))
-    )
-    assert "KIKOFF" in text
-    assert "should not be used" not in text

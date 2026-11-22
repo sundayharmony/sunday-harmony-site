@@ -41,7 +41,6 @@ from app.models import (
 )
 from app.services.credit_health import enrich_tradeline, sort_by_priority
 from app.services.credit_intelligence import build_credit_intelligence
-from app.services.cursor_client import bridge_manager
 from app.services.letter_jobs import (
     get_letter_job_state,
     letter_job_running,
@@ -56,7 +55,7 @@ from app.services.letter_formatter import (
     letters_zip_bytes,
 )
 from app.services.letter_router import build_plan
-from app.services.report_analyzer import analyze_report_async, cursor_api_configured
+from app.services.report_analyzer import analyze_report_async
 from app.services.report_refresh import recover_scores_from_storage, refresh_report_health
 from app.storage import write_temp_report
 from app.supabase_client import ping_supabase, supabase_env_configured
@@ -68,7 +67,6 @@ load_dotenv()
 async def app_lifespan(_app: FastAPI):
     init_db()
     yield
-    await bridge_manager.stop()
 
 
 app = FastAPI(title="Dispute Letters API", lifespan=app_lifespan)
@@ -162,7 +160,6 @@ def ready() -> dict:
 def config() -> dict:
     sb = ping_supabase()
     return {
-        "cursor_api_configured": cursor_api_configured(),
         "supabase_configured": supabase_env_configured(),
         "supabase_ok": bool(sb.get("ok")),
         "supabase_error": None if sb.get("ok") else sb.get("error"),

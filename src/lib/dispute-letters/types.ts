@@ -268,10 +268,6 @@ export interface DisputeSessionListItem {
   updated_at: string
 }
 
-export interface AppConfig {
-  cursor_api_configured: boolean
-}
-
 export const BUREAU_LABELS: Record<BureauCode, string> = {
   TUC: 'TransUnion',
   EXP: 'Experian',

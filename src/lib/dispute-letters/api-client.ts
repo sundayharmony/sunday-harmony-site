@@ -130,18 +130,17 @@ export async function proxyDisputeLettersStream(
 }
 
 export async function fetchDisputeLettersConfig(): Promise<{
-  cursor_api_configured: boolean
   supabase_configured?: boolean
   supabase_ok?: boolean
   supabase_error?: string | null
 }> {
   if (!isDisputeLettersApiConfigured()) {
-    return { cursor_api_configured: false }
+    return {}
   }
   try {
     return await disputeLettersJson('/config')
   } catch {
-    return { cursor_api_configured: false }
+    return {}
   }
 }
 

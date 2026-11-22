@@ -1,5 +1,4 @@
 import type {
-  AppConfig,
   GeneratedLetter,
   LetterPlan,
   ParsedReport,
@@ -26,12 +25,6 @@ async function parseError(res: Response): Promise<string> {
   } catch {
     return res.statusText || 'Request failed'
   }
-}
-
-export async function fetchDisputeConfig(): Promise<AppConfig> {
-  const res = await fetch('/api/admin/dispute-letters/config')
-  if (!res.ok) return { cursor_api_configured: false }
-  return res.json()
 }
 
 function sleep(ms: number) {

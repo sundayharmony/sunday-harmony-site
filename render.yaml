@@ -11,8 +11,6 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
-      - key: CURSOR_API_KEY
-        sync: false
       - key: DISPUTE_LETTERS_API_SECRET
         sync: false
       - key: SUPABASE_URL

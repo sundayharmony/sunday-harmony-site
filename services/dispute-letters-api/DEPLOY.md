@@ -13,7 +13,6 @@ Render still offers a **Free** web service: no card required, sleeps after ~15 m
 
    | Variable | Value |
    |----------|-------|
-   | `CURSOR_API_KEY` | Cursor API key used for report analysis |
    | `DISPUTE_LETTERS_API_SECRET` | Long random string (**same** value as Vercel) |
    | `SUPABASE_URL` | Supabase project URL |
    | `SUPABASE_SERVICE_ROLE_KEY` | Service role key |
@@ -47,7 +46,6 @@ Render still offers a **Free** web service: no card required, sleeps after ~15 m
    | `SUPABASE_URL` | Same as Vercel `NEXT_PUBLIC_SUPABASE_URL` (e.g. `https://hvsoeezsbvwsrdobvgaz.supabase.co`) |
    | `SUPABASE_SERVICE_ROLE_KEY` | Same as Vercel `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SECRET_KEY` |
    | `DISPUTE_LETTERS_API_SECRET` | **Identical** to Vercel `DISPUTE_LETTERS_API_SECRET` |
-   | `CURSOR_API_KEY` | Cursor API key |
 
 2. **Manual Deploy** the Render service after saving env vars.
 3. Verify:
@@ -85,7 +83,6 @@ That error was from the old SSE path. After the start+poll deploy, uploads no lo
 cd services/dispute-letters-api
 python -m venv .venv
 pip install -r requirements.txt
-export CURSOR_API_KEY=...
 export DISPUTE_LETTERS_API_SECRET=dev-secret
 export SUPABASE_URL=...
 export SUPABASE_SERVICE_ROLE_KEY=...
@@ -100,7 +97,6 @@ Point local Next.js `DISPUTE_LETTERS_API_URL` at `http://127.0.0.1:8000`. This d
 cd services/dispute-letters-api
 docker build -t dispute-letters-api .
 docker run -p 8000:8000 \
-  -e CURSOR_API_KEY=... \
   -e DISPUTE_LETTERS_API_SECRET=dev-secret \
   -e SUPABASE_URL=... \
   -e SUPABASE_SERVICE_ROLE_KEY=... \

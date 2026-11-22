@@ -13,9 +13,4 @@ describe('credit report assessment', () => {
     assert.match(panel, /await load\(sessionId\)/)
   })
 
-  it('closes the Cursor SDK client with aclose instead of close', () => {
-    const client = readFileSync('services/dispute-letters-api/app/services/cursor_client.py', 'utf8')
-    assert.match(client, /aclose_sdk_client/)
-    assert.doesNotMatch(client, /client\.close\(/)
-  })
 })
