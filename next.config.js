@@ -2,6 +2,9 @@ const path = require('path')
 
 const SUPABASE_HOST = 'https://*.supabase.co'
 
+// Google Ads tag (gtag.js) and its conversion pings.
+const GOOGLE_ADS_HOSTS = 'https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com'
+
 function buildContentSecurityPolicy() {
   const scriptSources = [
     "'self'",
@@ -10,6 +13,7 @@ function buildContentSecurityPolicy() {
     'https://va.vercel-scripts.com',
     'https://js.stripe.com',
     'https://vercel.live',
+    GOOGLE_ADS_HOSTS,
   ]
 
   return [
@@ -17,9 +21,9 @@ function buildContentSecurityPolicy() {
     `script-src ${scriptSources.join(' ')}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com`,
-    `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live`,
-    `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com`,
+    `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com ${GOOGLE_ADS_HOSTS}`,
+    `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live ${GOOGLE_ADS_HOSTS}`,
+    `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com https://td.doubleclick.net https://www.googletagmanager.com`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",

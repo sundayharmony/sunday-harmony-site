@@ -29,4 +29,13 @@ describe('google ads lead conversion', () => {
       assert.match(source(path), /reportGoogleAdsLeadConversion/)
     }
   })
+
+  it('lets the content security policy load the Google Ads tag', () => {
+    const config = source('next.config.js')
+    for (const host of ['https://www.googletagmanager.com', 'https://googleads.g.doubleclick.net', 'https://www.google.com']) {
+      assert.ok(config.includes(host), host)
+    }
+    assert.match(config, /scriptSources = \[[\s\S]*GOOGLE_ADS_HOSTS[\s\S]*\]/)
+    assert.match(config, /connect-src[^`]*GOOGLE_ADS_HOSTS/)
+  })
 })

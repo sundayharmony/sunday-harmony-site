@@ -53,7 +53,7 @@ export function captureFirstTouch(): void {
   const attr = attributionFromParams(new URLSearchParams(window.location.search))
   if (!attr || !shouldSaveTouch(readAttributionCookie(document.cookie), attr)) return
   const value = encodeAttribution(attr)
-  document.cookie = `${ATTRIBUTION_COOKIE}=${value}; Max-Age=${MAX_AGE_SECONDS}; Path=/; SameSite=Lax`
+  document.cookie = `${ATTRIBUTION_COOKIE}=${value}; Max-Age=${MAX_AGE_SECONDS}; Path=/; SameSite=Lax; Secure`
 }
 
 /** Ads from this URL or the saved first touch. */
