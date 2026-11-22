@@ -2,11 +2,11 @@ export const creditPrivacySections = [
   {
     title: '1. Information We Collect',
     content: [
-      'Personal identification information including full legal name, date of birth, government-issued ID, and proof of address.',
+      'Personal identification information including full legal name, date of birth, government-issued ID, and a photo of mail showing your address.',
       'Contact information including email address, phone number, and mailing address.',
       'Financial information including income, funding goals, credit profile data, and business revenue where applicable.',
       'Business information including legal entity name, industry, entity type, and business contact details when you apply for business funding.',
-      'Uploaded documents such as photo ID, proof of address, mail verification, credit reports you provide, bank statements, tax returns, and other supporting materials.',
+      'Uploaded documents such as government ID, a photo of mail, credit reports you provide, bank statements, tax returns, and other supporting materials.',
       'Credit monitoring credentials (username and password) for authorized third-party credit report providers you select.',
     ],
   },

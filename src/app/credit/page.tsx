@@ -3,6 +3,8 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import HomeMotion from '@/components/home/HomeMotion'
+import WorkBand from '@/components/home/WorkBand'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 import CreditHeroVisual from '@/components/credit/CreditHeroVisual'
 import { CREDIT_INTAKE_PATH } from '@/lib/credit-intake-routes'
@@ -163,7 +165,7 @@ export default async function CreditPage({
   }
 
   return (
-    <>
+    <HomeMotion>
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)]">
         {intakeFirst ? <IntakeSection first /> : null}
@@ -223,6 +225,8 @@ export default async function CreditPage({
             </div>
           </div>
         </section>
+
+        <WorkBand id="credit-linen" />
 
         <section className="py-20 bg-white" id="factors">
           <div className="max-w-[1100px] mx-auto px-7">
@@ -356,6 +360,6 @@ export default async function CreditPage({
         {intakeFirst ? null : <IntakeSection first={false} />}
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }

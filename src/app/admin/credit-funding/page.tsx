@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { CreditAttentionHome } from '@/components/admin/CreditAttentionList'
 import StatusBadge from '@/components/ui/StatusBadge'
+import CreditClientHistory from '@/components/credit-funding/CreditClientHistory'
 import AdminApplicationWorkflow, {
   type WorkflowStepPayload,
 } from '@/components/credit-funding/AdminApplicationWorkflow'
@@ -29,7 +31,6 @@ import {
 } from '@/lib/credit-funding-types'
 import { formatSsnFull } from '@/lib/ssn-utils'
 import { fundingAppFromProfile } from '@/lib/fundingapp-fields'
-import { applicationIsWaiting } from '@/lib/people'
 import { parseDisputeLetterStep } from '@/lib/dispute-letters/workflow'
 import {
   countUnreadApplicantMessages,
@@ -272,7 +273,8 @@ function CreditFundingAdminContent() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'intake' | 'intelligence' | 'funding' | 'messages'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'analysis' | 'disputes' | 'history'>('overview')
+  const [historySessionId, setHistorySessionId] = useState<string | null>(null)
   const [messagesLastReadAt, setMessagesLastReadAt] = useState<string | null>(null)
   const [newMsg, setNewMsg] = useState('')
   const [editFields, setEditFields] = useState({
@@ -440,7 +442,7 @@ function CreditFundingAdminContent() {
   const unreadMessageLabel = formatUnreadBadgeCount(unreadMessageCount)
 
   useEffect(() => {
-    if (activeTab !== 'messages' || !selected?.id) return
+    if (activeTab !== 'overview' || !selected?.id) return
     const iso = markCfMessagesRead(selected.id, messages)
     setMessagesLastReadAt(iso)
   }, [activeTab, selected?.id, messages])
@@ -489,21 +491,23 @@ function CreditFundingAdminContent() {
         const tabParam = searchParams.get('tab')
         const lettersParam = parseDisputeLetterStep(searchParams.get('letters'))
         if (tabParam === 'messages') {
-          setActiveTab('messages')
-        } else if (tabParam === 'intelligence' || lettersParam) {
-          setActiveTab('intelligence')
-        } else if (tabParam === 'intake') {
-          setActiveTab('intake')
-        } else if (tabParam === 'funding') {
-          setActiveTab('funding')
-        } else if (tabParam === 'overview') {
+          setActiveTab('overview')
+        } else if (tabParam === 'documents') {
+          setActiveTab('documents')
+        } else if (tabParam === 'history') {
+          setActiveTab('history')
+        } else if (tabParam === 'disputes' || lettersParam) {
+          setActiveTab('disputes')
+        } else if (tabParam === 'analysis' || tabParam === 'intelligence') {
+          setActiveTab('analysis')
+        } else if (tabParam === 'intake' || tabParam === 'funding' || tabParam === 'overview') {
           setActiveTab('overview')
         } else if (
           app.status === 'under_review' ||
           app.status === 'credit_analysis_complete' ||
           app.status === 'funding_review'
         ) {
-          setActiveTab('intelligence')
+          setActiveTab('analysis')
         } else {
           setActiveTab('overview')
         }
@@ -860,11 +864,6 @@ function CreditFundingAdminContent() {
     }
   }
 
-  const showDocRequestPanel =
-    selected?.status === 'documents_pending' ||
-    selected?.status === 'additional_information_requested' ||
-    selected?.status === 'submitted'
-
   const selectedNeedsFunding = selected
     ? needsFundingWorkflow(selected.credit_goals || [], selected.funding_use || '', {
         ownsBusiness: Boolean(selected.owns_business),
@@ -872,12 +871,6 @@ function CreditFundingAdminContent() {
         serviceType: selected.service_type,
       })
     : false
-
-  const showDocumentsProminent =
-    selected?.status === 'under_review' ||
-    selected?.status === 'credit_analysis_complete' ||
-    selected?.status === 'funding_review' ||
-    showDocRequestPanel
 
   const showFundingSummary =
     selected?.status === 'approved' ||
@@ -1033,7 +1026,7 @@ function CreditFundingAdminContent() {
           setDocReqLabel(DOC_LABELS_MAP[e.target.value] || e.target.value)
         }}>
           <option value="">Select document type</option>
-          {DOCUMENT_TYPES.map((t) => (
+          {DOCUMENT_TYPES.filter((t) => t !== 'selfie_with_id' && t !== 'proof_of_address').map((t) => (
             <option key={t} value={t}>{DOC_LABELS_MAP[t]}</option>
           ))}
         </select>
@@ -1078,7 +1071,6 @@ function CreditFundingAdminContent() {
 
   const inputClass = 'w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-xl text-sm'
   const isCreditExpert = role === 'credit_manager'
-  const waiting = applications.filter((app) => applicationIsWaiting(app.status))
   const emptyListCopy = loading
     ? 'Loading…'
     : !isAdmin && applications.length === 0
@@ -1109,18 +1101,8 @@ function CreditFundingAdminContent() {
           <p className="mt-1 max-w-xl text-sm text-brand-muted">
             {isCreditExpert
               ? 'You only see the clients assigned to you.'
-              : 'Applications, credit analysis, and funding assessments'}
+              : 'Search, filter, and open a client profile.'}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-brand-text">
-              {applications.length} {isCreditExpert ? 'assigned' : 'clients'}
-            </span>
-            {waiting.length > 0 && (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-text shadow-[0_8px_20px_-16px_rgba(10,10,10,0.7)]">
-                {waiting.length} waiting on you
-              </span>
-            )}
-          </div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           <button
@@ -1154,29 +1136,7 @@ function CreditFundingAdminContent() {
         </div>
       </div>
 
-      {waiting.length > 0 && (
-        <section className="mb-6 rounded-2xl bg-accent-soft/70 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-brand-text">Waiting on you</h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {waiting.map((app) => (
-              <button
-                key={app.id}
-                type="button"
-                onClick={() => selectApplication(app.id)}
-                className="rounded-2xl bg-white px-3.5 py-3 text-left shadow-[0_12px_28px_-18px_rgba(10,10,10,0.55)] hover:ring-2 hover:ring-accent"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-brand-text">{app.full_name}</div>
-                    <div className="mt-0.5 truncate text-xs text-brand-muted">{app.email}</div>
-                  </div>
-                  <StatusBadge status={app.status} />
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+      {role === 'admin' && <CreditAttentionHome />}
 
       <CreditExpertsPanel />
 
@@ -1536,10 +1496,10 @@ function CreditFundingAdminContent() {
                 {(
                   [
                     { id: 'overview', label: 'Overview' },
-                    { id: 'intake', label: 'Intake' },
-                    { id: 'intelligence', label: 'Analysis' },
-                    { id: 'funding', label: 'Funding' },
-                    { id: 'messages', label: 'Messages' },
+                    { id: 'documents', label: 'Documents' },
+                    { id: 'analysis', label: 'Analysis' },
+                    { id: 'disputes', label: 'Disputes' },
+                    { id: 'history', label: 'History' },
                   ] as const
                 ).map((tab) => (
                   <button
@@ -1553,10 +1513,10 @@ function CreditFundingAdminContent() {
                     }`}
                   >
                     {tab.label}
-                    {tab.id === 'messages' && unreadMessageCount > 0 ? (
+                    {tab.id === 'overview' && unreadMessageCount > 0 ? (
                       <span
                         className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold leading-none ${
-                          activeTab === 'messages'
+                          activeTab === 'overview'
                             ? 'bg-white text-red-600'
                             : 'bg-red-500 text-white'
                         }`}
@@ -1583,25 +1543,10 @@ function CreditFundingAdminContent() {
                     </div>
                   )}
 
-                  {showDocRequestPanel && renderDocRequestPanel()}
-
-                  {showDocumentsProminent && !showDocRequestPanel && (
-                    <div className="mb-5 p-4 bg-neutral-50 rounded-xl border border-brand-border">
-                      {renderDocumentList()}
-                    </div>
-                  )}
-
                   {showFundingSummary && selected.funding_scores && (
                     <div className="mb-5 p-4 bg-green-50/50 rounded-xl border border-green-200/80">
-                      <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="mb-2">
                         <h4 className="text-sm font-bold">Staff assessment summary</h4>
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('funding')}
-                          className="text-xs font-semibold text-accent hover:underline"
-                        >
-                          Edit in Funding →
-                        </button>
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-center mb-3">
                         {[
@@ -1625,22 +1570,6 @@ function CreditFundingAdminContent() {
                           <span className="font-semibold">Next Steps:</span> {selected.next_steps}
                         </p>
                       )}
-                    </div>
-                  )}
-
-                  {!showFundingSummary && (
-                    <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-dashed border-brand-border bg-neutral-50 px-4 py-3">
-                      <p className="text-sm text-brand-muted">
-                        Run credit analysis in <span className="font-semibold text-brand-text">Analysis</span>, then
-                        save staff scores in <span className="font-semibold text-brand-text">Funding</span>.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('funding')}
-                        className="shrink-0 text-xs font-semibold text-accent hover:underline"
-                      >
-                        Open Funding →
-                      </button>
                     </div>
                   )}
 
@@ -1706,35 +1635,41 @@ function CreditFundingAdminContent() {
                     Save notes
                   </button>
 
-                  {!showDocRequestPanel && (
-                    <details className="mb-5 group">
-                      <summary className="text-sm font-bold cursor-pointer hover:text-accent list-none flex items-center gap-1">
-                        <span className="group-open:rotate-90 transition-transform inline-block text-brand-dim">›</span>
-                        Request document from client
-                      </summary>
-                      <div className="mt-3">{renderDocRequestPanel()}</div>
-                    </details>
-                  )}
+                  <div className="mb-6">
+                    <h3 className="mb-3 text-sm font-bold text-brand-text">Staff scores</h3>
+                    <StaffFundingScoresEditor
+                      fundingScores={fundingScores}
+                      onChange={setFundingScores}
+                      onSave={() => patchApplication({ funding_scores: fundingScores })}
+                      saving={saving}
+                    />
+                  </div>
 
-                  {!showDocumentsProminent && (
-                    <details className="mb-5 group" open={documents.length > 0}>
-                      <summary className="text-sm font-bold cursor-pointer hover:text-accent list-none flex items-center gap-1">
-                        <span className="group-open:rotate-90 transition-transform inline-block text-brand-dim">›</span>
-                        Uploaded documents ({documents.length})
-                      </summary>
-                      <div className="mt-3">{renderDocumentList()}</div>
-                    </details>
-                  )}
-
-                  {showDocumentsProminent && showDocRequestPanel && (
-                    <div className="mb-5 p-4 bg-neutral-50 rounded-xl border border-brand-border">
-                      {renderDocumentList()}
+                  <div className="mb-6">
+                    <h3 className="mb-3 text-sm font-bold text-brand-text">Messages</h3>
+                    <div className="max-h-[300px] overflow-y-auto space-y-2 mb-4">
+                      {messages.length === 0 ? (
+                        <p className="text-sm text-brand-dim">No messages yet.</p>
+                      ) : (
+                        messages.map((m) => (
+                          <div key={m.id} className={`p-3 rounded-lg text-sm ${m.from_role === 'admin' ? 'bg-accent-soft/40' : 'bg-neutral-50'}`}>
+                            <p className="text-xs text-brand-dim">{m.from_name} · {new Date(m.created_at).toLocaleString()}</p>
+                            <p className="text-brand-muted whitespace-pre-wrap">{m.text}</p>
+                          </div>
+                        ))
+                      )}
                     </div>
-                  )}
+                    <form onSubmit={sendMessage} className="flex flex-col gap-2 sm:flex-row">
+                      <input className={`flex-1 ${inputClass}`} placeholder="Reply to applicant…" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} />
+                      <button type="submit" disabled={saving || !newMsg.trim()} className="px-4 py-2 bg-brand-text text-white text-sm font-semibold rounded-lg disabled:opacity-50">
+                        Send
+                      </button>
+                    </form>
+                  </div>
                 </>
               )}
 
-              {activeTab === 'intake' && (
+              {activeTab === 'overview' && (
                 <div>
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <p className="text-sm text-brand-muted max-w-xl">
@@ -1861,9 +1796,20 @@ function CreditFundingAdminContent() {
                 </div>
               )}
 
-              {activeTab === 'intelligence' && selected && (
+              {activeTab === 'documents' && (
+                <div>
+                  {renderDocRequestPanel()}
+                  <div className="p-4 bg-neutral-50 rounded-xl border border-brand-border">
+                    {renderDocumentList()}
+                  </div>
+                </div>
+              )}
+
+              {(activeTab === 'analysis' || activeTab === 'disputes') && selected && (
                 <CreditIntelligencePanel
                   applicationId={selected.id}
+                  section={activeTab}
+                  onOpenAnalysis={() => setActiveTab('analysis')}
                   intakeCreditReports={documents
                     .filter((doc) => doc.document_type === 'credit_report' && !isLetterWorkingCopyPath(doc.storage_path))
                     .map((doc) => ({
@@ -1890,42 +1836,20 @@ function CreditFundingAdminContent() {
                     self_reported_inquiries: String(selected.credit_profile?.inquiries || ''),
                     document_types: documents.map((d) => d.document_type),
                   }}
-                  initialView={intelligenceDeepLink.initialView}
+                  initialView={activeTab === 'disputes' ? 'letters' : intelligenceDeepLink.initialView}
                   initialLetterStep={intelligenceDeepLink.initialLetterStep}
-                  initialSessionId={intelligenceDeepLink.initialSessionId}
+                  initialSessionId={historySessionId || intelligenceDeepLink.initialSessionId}
                 />
               )}
 
-              {activeTab === 'funding' && selected && (
-                <StaffFundingScoresEditor
-                  fundingScores={fundingScores}
-                  onChange={setFundingScores}
-                  onSave={() => patchApplication({ funding_scores: fundingScores })}
-                  saving={saving}
+              {activeTab === 'history' && selected && (
+                <CreditClientHistory
+                  applicationId={selected.id}
+                  onOpen={(sessionId) => {
+                    setHistorySessionId(sessionId)
+                    setActiveTab('disputes')
+                  }}
                 />
-              )}
-
-              {activeTab === 'messages' && (
-                <div>
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 mb-4">
-                    {messages.length === 0 ? (
-                      <p className="text-sm text-brand-dim">No messages yet.</p>
-                    ) : (
-                      messages.map((m) => (
-                        <div key={m.id} className={`p-3 rounded-lg text-sm ${m.from_role === 'admin' ? 'bg-accent-soft/40' : 'bg-neutral-50'}`}>
-                          <p className="text-xs text-brand-dim">{m.from_name} · {new Date(m.created_at).toLocaleString()}</p>
-                          <p className="text-brand-muted whitespace-pre-wrap">{m.text}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <form onSubmit={sendMessage} className="flex gap-2">
-                    <input className={`flex-1 ${inputClass}`} placeholder="Reply to applicant…" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} />
-                    <button type="submit" disabled={saving || !newMsg.trim()} className="px-4 py-2 bg-brand-text text-white text-sm font-semibold rounded-lg disabled:opacity-50">
-                      Send
-                    </button>
-                  </form>
-                </div>
               )}
             </div>
           )}

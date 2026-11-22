@@ -1545,7 +1545,7 @@ export const DISPUTE_OPS_TASK_TEMPLATES = [
     title: 'Mail Round 1 packet',
     steps: [
       'Print bureau + furnisher letters',
-      'Attach photo ID and proof of address',
+      'Attach government ID and a photo of mail',
       'Mail certified / priority and log tracking',
       'Set deadline (delivery + 30 days) and mark awaiting response',
     ],

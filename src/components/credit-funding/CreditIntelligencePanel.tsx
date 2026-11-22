@@ -63,6 +63,8 @@ export default function CreditIntelligencePanel({
   initialView = 'analysis',
   initialLetterStep = 'health',
   initialSessionId = null,
+  section,
+  onOpenAnalysis,
 }: {
   applicationId: string
   fundingContext: FundingContextPayload
@@ -70,6 +72,8 @@ export default function CreditIntelligencePanel({
   initialView?: PanelView
   initialLetterStep?: DisputeLetterStep
   initialSessionId?: string | null
+  section?: 'analysis' | 'disputes'
+  onOpenAnalysis?: () => void
 }) {
   const [sessions, setSessions] = useState<DisputeSessionListItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(initialSessionId)
@@ -118,10 +122,10 @@ export default function CreditIntelligencePanel({
   }, [load])
 
   useEffect(() => {
-    setView(initialView)
+    setView(section === 'disputes' ? 'letters' : section === 'analysis' ? 'analysis' : initialView)
     setLetterStep(initialLetterStep)
     if (initialSessionId) setActiveId(initialSessionId)
-  }, [initialView, initialLetterStep, initialSessionId])
+  }, [initialView, initialLetterStep, initialSessionId, section])
 
   function selectSession(id: string) {
     setActiveId(id)
@@ -480,12 +484,15 @@ export default function CreditIntelligencePanel({
 
   return (
     <div className="space-y-5">
-      <CreditReportsOnFile applicationId={applicationId} intakeReports={intakeCreditReports} />
+      {section !== 'disputes' && (
+        <CreditReportsOnFile applicationId={applicationId} intakeReports={intakeCreditReports} />
+      )}
 
+      {section !== 'disputes' && (
       <div className="rounded-xl border border-brand-border bg-white p-4">
         <h3 className="text-base font-bold text-brand-text">Credit analysis</h3>
         <p className="mt-1 text-sm text-brand-muted">
-          Upload reports, review the profile analysis, and prepare dispute letters. Staff funding scores live on the Funding tab.
+          Upload reports and review the profile analysis. Staff funding scores are on Overview.
         </p>
 
         <label className="mt-4 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-border bg-neutral-50 px-4 py-8 cursor-pointer hover:bg-neutral-100 transition-colors">
@@ -518,11 +525,12 @@ export default function CreditIntelligencePanel({
         {viewError && <p className="mt-3 text-sm text-brand-red">{viewError}</p>}
         {success && <p className="mt-3 text-sm text-emerald-700">{success}</p>}
       </div>
+      )}
 
       {sessions.length > 0 && (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 items-center justify-between">
-            <span className="text-xs font-semibold text-brand-dim uppercase">Report history</span>
+            <span className="text-xs font-semibold text-brand-dim uppercase">Reports</span>
             <button
               type="button"
               disabled={busy}
@@ -614,7 +622,7 @@ export default function CreditIntelligencePanel({
             })}
           </div>
           <div className="flex flex-wrap gap-2 items-center">
-            {activeId && (
+            {activeId && !section && (
               <div className="flex rounded-lg border border-brand-border overflow-hidden">
                 <button
                   type="button"
@@ -747,15 +755,31 @@ export default function CreditIntelligencePanel({
         </div>
       )}
 
-      <DisputeRoundsPanel applicationId={applicationId} />
+      {section !== 'analysis' && <DisputeRoundsPanel applicationId={applicationId} />}
 
-      {view === 'letters' && activeId ? (
+      {view === 'letters' && activeId && activeSession?.status === 'ready' ? (
         <DisputeLettersWorkflow
           sessionId={activeId}
           step={letterStep}
           onStepChange={setLetterStep}
-          onBackToAnalysis={() => setView('analysis')}
+          onBackToAnalysis={() => {
+            if (onOpenAnalysis) onOpenAnalysis()
+            else setView('analysis')
+          }}
         />
+      ) : section === 'disputes' ? (
+        <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 p-8 text-center">
+          <p className="text-sm font-semibold text-brand-text">
+            {activeId ? 'This report is not ready for disputes yet.' : 'No dispute file is ready for this client.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => onOpenAnalysis?.()}
+            className="mt-3 text-sm font-semibold text-accent hover:underline"
+          >
+            Open analysis
+          </button>
+        </div>
       ) : (
         <>
           {assessmentMissedAccounts && (
@@ -780,7 +804,7 @@ export default function CreditIntelligencePanel({
             <CreditIntelligenceDashboard
               intelligence={intelligence}
               fundingBlockTitle="Report funding readiness (advisory)"
-              fundingBlockSubtitle="Generated from the credit report — does not replace staff assessment on the Funding tab."
+              fundingBlockSubtitle="Generated from the credit report. It does not replace the staff assessment on Overview."
             />
           ) : (
             <div className="rounded-xl border border-dashed border-brand-border bg-neutral-50 p-8 text-center">

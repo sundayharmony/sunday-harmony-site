@@ -55,7 +55,7 @@ Jane Consumer
 
 Enclosures
 ● Copy of government-issued photo identification
-● Proof of current residential address
+● Photo of mail showing your name and current address
 `)
     assert.equal(
       layout.blocks.some((block) => block.kind === 'line' && block.variant === 'heading' && block.text === 'Enclosures'),

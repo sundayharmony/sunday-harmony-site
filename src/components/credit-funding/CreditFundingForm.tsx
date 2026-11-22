@@ -916,7 +916,7 @@ export default function CreditFundingForm({
             )}
             <DocumentUploadStep
               title="Identity Documents"
-              subtitle="Upload a photo ID and proof of address. Files are encrypted and stored securely as soon as you add them."
+              subtitle="Upload a government ID and a photo of mail. Files are encrypted and stored securely as soon as you add them."
               documents={IDENTITY_DOCUMENTS}
               uploads={stagedUploads.uploads}
               docsOnFile={docsOnFile}

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import BrandLogo from '@/components/BrandLogo'
+import HomeMotion from '@/components/home/HomeMotion'
 
 interface Props {
   label?: string
@@ -33,7 +34,7 @@ export default function PublicPageLayout({
   minimalHeader = false,
 }: Props) {
   return (
-    <>
+    <HomeMotion>
       {minimalHeader ? <MinimalHeader /> : <Navbar />}
       <main className="pt-[var(--nav-total-height)] min-h-screen bg-brand-bg-soft">
         <section className="py-16 sm:py-20">
@@ -51,6 +52,6 @@ export default function PublicPageLayout({
         </section>
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }

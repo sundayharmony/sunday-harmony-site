@@ -21,7 +21,7 @@ function doc(partial: Partial<LetterIdentityDoc> & Pick<LetterIdentityDoc, 'id' 
 }
 
 describe('letter identity attachments', () => {
-  it('attaches every photo ID and prefers proof_of_address over mail_proof', () => {
+  it('attaches every photo ID and a photo of mail, not a selfie or separate proof of address', () => {
     const picked = pickLetterIdentityDocuments([
       doc({ id: 'id-front', document_type: 'photo_id', file_name: 'front.jpg', mime_type: 'image/jpeg' }),
       doc({ id: 'id-back', document_type: 'photo_id', file_name: 'back.jpg', mime_type: 'image/jpeg' }),
@@ -33,16 +33,23 @@ describe('letter identity attachments', () => {
       picked.photoIds.map((row) => row.id),
       ['id-front', 'id-back']
     )
-    assert.equal(picked.proofOfAddress?.id, 'address')
+    assert.equal(picked.mailPhoto?.id, 'mail')
     assert.equal(picked.ssnCard, null)
+    assert.deepEqual(
+      selectedLetterIdentityDocuments([
+        doc({ id: 'address', document_type: 'proof_of_address' }),
+        doc({ id: 'selfie', document_type: 'selfie_with_id' }),
+      ]).map((row) => row.id),
+      []
+    )
   })
 
-  it('falls back to mail proof when no dedicated proof of address exists', () => {
+  it('uses the photo of mail for the address enclosure', () => {
     const picked = pickLetterIdentityDocuments([
       doc({ id: 'id-1', document_type: 'photo_id' }),
       doc({ id: 'mail', document_type: 'mail_proof' }),
     ])
-    assert.equal(picked.proofOfAddress?.id, 'mail')
+    assert.equal(picked.mailPhoto?.id, 'mail')
   })
 
   it('skips rejected scans and still returns usable identity files', () => {
@@ -57,7 +64,7 @@ describe('letter identity attachments', () => {
     )
   })
 
-  it('names mailing copies Government Photo ID and Proof of Address', () => {
+  it('names mailing copies Government Photo ID and Photo of Mail', () => {
     const used = new Set<string>()
     assert.equal(
       identityAttachmentFileName(doc({ id: 'id-1', document_type: 'photo_id', file_name: 'dl.png' }), used),
@@ -69,7 +76,7 @@ describe('letter identity attachments', () => {
     )
     assert.equal(
       identityAttachmentFileName(doc({ id: 'mail', document_type: 'mail_proof', file_name: 'bill.pdf' }), used),
-      'Proof of Address.pdf'
+      'Photo of Mail.pdf'
     )
     assert.equal(
       identityAttachmentFileName(doc({ id: 'ssn', document_type: 'ssn_card', file_name: 'ssn.png' }), used),
@@ -170,7 +177,7 @@ describe('letter identity attachments', () => {
         storage_path: `app/mail_proof/letter-current_${originalId}_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee_clear.pdf`,
       }),
     ])
-    assert.equal(picked.proofOfAddress?.id, 'mail-copy')
+    assert.equal(picked.mailPhoto?.id, 'mail-copy')
   })
 
   it('still packages letters when identity documents are missing', () => {

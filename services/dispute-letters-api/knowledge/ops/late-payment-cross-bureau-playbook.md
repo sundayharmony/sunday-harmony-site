@@ -32,7 +32,7 @@ Pull clean 3-bureau view
   → Ask the “wrong” bureau to update to paid on time / never late
   → After that bureau corrects, flip the argument to the other bureaus
   → Prefer CFPB portal (or certified letters)
-  → Attach ID + SSN card + proof of address + circled screenshots
+  → Attach government ID + SSN card + a photo of mail + circled screenshots
   → If “verified,” follow up with reinvestigation / method of verification
 ```
 
@@ -100,7 +100,7 @@ He walks FTC.gov FCRA text, focusing on **furnisher responsibilities**:
    - Social Security card
    - Proof of residency / current address
    - Screenshots of the accounts / circled inconsistencies
-9. **Personal info hygiene first:** remove old addresses; make license, proof of address, and credit-file current address match.
+9. **Personal info hygiene first:** remove old addresses; make the license, the photo of mail, and the credit-file current address match.
 10. Prefer **bureau-specific** complaints when the narrative is aimed at one bureau; don’t lazily blast identical wording to all three unless the text truly applies to all.
 11. Enter last 4 SSN, DOB, name as on the credit report; review; submit.
 12. Expect email that complaint was sent to the company. CFPB may say ~60 days; **bureau responses often come faster (~7 days common in his experience; up to ~30 possible)**.
@@ -131,7 +131,7 @@ If CFPB portal options change, funding is constrained, or submission fails: **se
 | Furnisher accuracy duties | `furnisher` letters under §623 | Letter router |
 | Method of verification / reinvestigation follow-ups | Round 2+ suggests `method_of_verification`, `warning_intent`, `reinvestigation` | Lifecycle + letter types |
 | CFPB escalation **draft** | In-app markdown draft + optional `cfpb_complaint` letter type; status draft→submitted→… | Dispute Rounds panel + lifecycle CFPB API |
-| Identity enclosures on mailed letters | Photo ID + proof of address pulled into DOCX when on file; listed under Enclosures | Letter identity attachments |
+| Identity enclosures on mailed letters | Government ID + a photo of mail pulled into DOCX when on file; listed under Enclosures | Letter identity attachments |
 | DOB + full SSN on letter identity block | Opening block + Consumer Identification | Letter generator |
 | Round tracking / prior disputes / new-report comparison | Cases, rounds, item statuses, deleted vs verified vs updated | Dispute lifecycle |
 | Certified-mail ops fields | mail method, tracking, deadlines, packet checklist (DB) | Lifecycle (UI still thin for some fields) |
@@ -197,9 +197,9 @@ Use this every time you run the Stephen Smith late-payment inconsistency method.
 - [ ] **MANUAL** Find months where bureaus disagree (late vs on-time).
 - [ ] **MANUAL** Circle / highlight those months and save clear screenshots/PDFs.
 - [ ] **MANUAL** Choose **one** late month to fight first (two max).
-- [ ] **MANUAL** Confirm personal info matches: legal name, DOB, current address on license, proof of address, and credit file. Remove or stop using stale addresses for this packet.
+- [ ] **MANUAL** Confirm personal info matches: legal name, DOB, current address on the license, the photo of mail, and the credit file. Remove or stop using stale addresses for this packet.
 - [ ] **MANUAL** Have ready: photo ID, Social Security card (or acceptable SSN proof), proof of current residency.
-- [ ] In product: ensure credit-funding docs (photo ID + proof of address) are uploaded so mailed letters can enclose them.
+- [ ] In product: ensure credit-funding docs (government ID + a photo of mail) are uploaded so mailed letters can enclose them.
 - [ ] In product: link dispute session to the application; upload the working report for analysis.
 
 ### Choosing channel

@@ -7,7 +7,7 @@ const CHECKS = [
   'I know which accounts are open, closed, or in collections',
   'My revolving balances are mostly under about 30% of their limits',
   'Nothing is currently past due—or I have a plan to catch up',
-  'I have a photo ID and proof of address I can upload',
+  'I have a government ID and a photo of mail I can upload',
   'I know what I want credit to unlock (home, auto, business, etc.)',
 ] as const
 

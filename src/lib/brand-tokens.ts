@@ -75,7 +75,7 @@ export const brandBackgrounds = {
   radialGlow: 'radial-gradient(circle, rgba(0,0,0,0.04) 0%, transparent 70%)',
 } as const
 
-/** CSS variables for the public homepage. Other routes do not use this. */
+/** CSS variables for public marketing pages. HomeMotion applies them. Portals do not. */
 export function homeThemeVars(): Record<string, string> {
   return {
     '--home-accent': brandColors.accent,

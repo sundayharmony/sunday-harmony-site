@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import PublicPageLayout from '@/components/layout/PublicPageLayout'
+import WorkPhoto from '@/components/home/WorkPhoto'
 import { CREDIT_INTAKE_PATH, CREDIT_PRIVACY_PATH } from '@/lib/credit-intake-routes'
 import { creditPrivacySections } from '@/lib/credit-privacy-sections'
 
@@ -29,7 +30,8 @@ export default function CreditPrivacyPage() {
           <Link href={CREDIT_INTAKE_PATH} className="text-sm text-accent hover:underline mb-6 inline-block">
             ← Back to intake
           </Link>
-          <p className="text-sm text-brand-dim mb-10">Last updated: August 26, 2026</p>
+          <p className="text-sm text-brand-dim mb-6">Last updated: August 26, 2026</p>
+          <WorkPhoto id="privacy-shelf" />
         </>
       }
     >

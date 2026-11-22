@@ -1,4 +1,4 @@
-"""Dispute letters always list photo ID and proof of address as enclosures."""
+"""Dispute letters always list photo ID and a photo of mail as enclosures."""
 
 from __future__ import annotations
 
@@ -70,14 +70,14 @@ def test_template_lists_photo_id_and_address_enclosures():
     text = _template_fallback(_plan(), ConsumerInfo(name="Jane Consumer", addresses=["123 Main St"]))
     assert "Enclosures" in text
     assert "government-issued photo identification" in text
-    assert "Proof of current residential address" in text
+    assert "Photo of mail showing your name and current address" in text
     assert "Screenshots of the disputed account" not in text
     assert "score" not in text.lower().split("enclosures", 1)[-1]
     layout = letter_layout(text)
     assert any(block.get("variant") == "heading" and block.get("text") == "Enclosures" for block in layout["blocks"])
     bullets = [block.get("text", "") for block in layout["blocks"] if block["kind"] == "bullet"]
     assert any("photo identification" in bullet for bullet in bullets)
-    assert any("residential address" in bullet for bullet in bullets)
+    assert any("photo of mail" in bullet.lower() for bullet in bullets)
     assert all("screenshot" not in bullet.lower() for bullet in bullets)
 
 
@@ -127,7 +127,7 @@ def test_prompt_requires_identity_enclosures():
     prompt = build_letter_prompt(_plan(), ConsumerInfo(name="Jane Consumer"))
     assert "Enclosures" in prompt
     assert "government-issued photo identification" in prompt
-    assert "Proof of current residential address" in prompt
+    assert "Photo of mail showing your name and current address" in prompt
     assert "Screenshots of the disputed account" not in prompt
     assert "Do NOT mention account screenshots" in prompt
     assert "Do NOT use em dashes" in prompt

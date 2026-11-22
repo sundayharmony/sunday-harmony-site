@@ -443,6 +443,7 @@ export function canMoveStage(role: string | null | undefined, from: PipelineStag
 export function navForRole(role?: string | null): AdminNavItem[] {
   if (role === 'credit_manager') {
     return ADMIN_NAV.filter((item) =>
+      item.href === '/admin' ||
       item.href === '/admin/calendar' ||
       item.href === '/admin/credit-funding' ||
       item.href === '/admin/todos' ||
@@ -493,7 +494,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
 }
 
 export function homeForRole(role?: string | null): string {
-  if (role === 'credit_manager') return '/admin/credit-funding'
+  if (role === 'credit_manager') return '/admin'
   if (role === 'client') return '/dashboard'
   if (role === 'partner') return '/partner'
   if (role === 'admin' || isMarketingRole(role)) return '/admin'

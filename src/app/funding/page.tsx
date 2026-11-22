@@ -3,6 +3,8 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import HomeMotion from '@/components/home/HomeMotion'
+import WorkBand from '@/components/home/WorkBand'
 import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 import FundingHeroVisual from '@/components/funding/FundingHeroVisual'
 import { FUNDING_INTAKE_PATH, isPartnerIntakeFirst, normalizeReferralCode, safeReferralLandingPath } from '@/lib/referrals'
@@ -172,7 +174,7 @@ export default async function FundingPage({
   }
 
   return (
-    <>
+    <HomeMotion>
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)]">
         {intakeFirst ? <IntakeSection first /> : null}
@@ -229,6 +231,8 @@ export default async function FundingPage({
             </div>
           </div>
         </section>
+
+        <WorkBand id="funding-paper" />
 
         <section className="py-20 bg-white" id="look-for">
           <div className="max-w-[1100px] mx-auto px-7">
@@ -365,6 +369,6 @@ export default async function FundingPage({
         {intakeFirst ? null : <IntakeSection first={false} />}
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }

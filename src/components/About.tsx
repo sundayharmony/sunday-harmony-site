@@ -1,5 +1,5 @@
 import { aboutValues } from '@/lib/data'
-import BrandLogo from '@/components/BrandLogo'
+import WorkPhoto from '@/components/home/WorkPhoto'
 import SectionHeader from '@/components/ui/SectionHeader'
 
 export default function About() {
@@ -38,11 +38,7 @@ export default function About() {
               </div>
             </div>
 
-            <div className="bg-white border border-brand-border rounded-[20px] overflow-hidden aspect-square flex items-center justify-center">
-              <div className="w-full h-full bg-gradient-to-br from-neutral-50 to-neutral-100 flex flex-col items-center justify-center p-10">
-                <BrandLogo height={120} href={null} />
-              </div>
-            </div>
+            <WorkPhoto id="about-desk" />
           </div>
         </div>
       </section>
