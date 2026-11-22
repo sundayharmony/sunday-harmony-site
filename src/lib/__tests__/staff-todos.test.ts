@@ -64,6 +64,8 @@ describe('staff todos helpers', () => {
     assert.match(lib, /createNotification/)
     assert.match(lib, /staffPortalEmailHtml/)
     assert.match(migration, /CREATE TABLE IF NOT EXISTS staff_todos/)
+    assert.match(migration, /REVOKE ALL ON TABLE public\.staff_todos FROM anon, authenticated, PUBLIC/)
+    assert.match(migration, /GRANT ALL ON TABLE public\.staff_todos TO service_role/)
     assert.match(page, /Assign to/)
     assert.match(sidebar, /apiPath="\/api\/admin\/notifications"/)
     assert.match(bell, /apiPath/)

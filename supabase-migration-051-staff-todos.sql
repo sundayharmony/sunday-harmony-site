@@ -30,3 +30,7 @@ CREATE POLICY staff_todos_deny_anon ON staff_todos
   TO anon, authenticated
   USING (false)
   WITH CHECK (false);
+
+-- Default privileges grant the Data API. Mail todos are written with the service role.
+REVOKE ALL ON TABLE public.staff_todos FROM anon, authenticated, PUBLIC;
+GRANT ALL ON TABLE public.staff_todos TO service_role;
