@@ -30,6 +30,7 @@ async function sendViaSmtp(opts: {
   html: string
   from?: string
   replyTo?: string
+  headers?: Record<string, string>
   attachments?: Array<{
     filename: string
     content: Buffer | string
@@ -44,6 +45,7 @@ async function sendViaSmtp(opts: {
     subject: opts.subject,
     html: opts.html,
     ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+    ...(opts.headers ? { headers: opts.headers } : {}),
     ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
   })
 }
@@ -55,6 +57,7 @@ export async function sendEmail(opts: {
   html: string
   from?: string
   replyTo?: string
+  headers?: Record<string, string>
   attachments?: Array<{
     filename: string
     content: Buffer | string

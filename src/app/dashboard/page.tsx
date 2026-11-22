@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import StatCard from '@/components/ui/StatCard'
 import { getDisplayFirstName } from '@/lib/display-name'
 import { clientFacingPackageSummary } from '@/lib/billing-packages'
+import { parseThreadPayload } from '@/lib/portal-message-mail'
 
 interface ClientData {
   id: string
@@ -59,7 +60,7 @@ export default function DashboardHome() {
           if (clientData) setClient(normalizeClientData(clientData as ClientData))
         }
         if (msgRes.ok) {
-          const msgs = await msgRes.json()
+          const msgs = parseThreadPayload(await msgRes.json()).messages
           setMessages(msgs.slice(-3))
         }
         if (onbRes.ok) {
@@ -243,7 +244,7 @@ export default function DashboardHome() {
                     {new Date(msg.created_at).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="text-sm text-brand-muted">{msg.text}</p>
+                <p className="text-sm text-brand-muted break-words">{msg.text}</p>
               </div>
             ))}
           </div>

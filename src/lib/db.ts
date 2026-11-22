@@ -6,6 +6,7 @@ import {
   verifyPassword,
 } from './password-crypto'
 import { staffMessageSetupError } from './message-text'
+import { publicMessage, storedAttachments, type PublicMessage, type StoredAttachment } from './portal-message-mail'
 import { nextSessionVersion } from './session-version'
 import { pickStaffSenderId } from './staff-sender'
 import { isUuid } from './uuid'
@@ -443,9 +444,11 @@ export interface Message {
   from_name: string
   text: string
   created_at: string
+  attachments?: StoredAttachment[]
+  gmail_message_id?: string | null
 }
 
-export async function getMessages(clientId?: string): Promise<Message[]> {
+export async function getMessages(clientId?: string): Promise<PublicMessage[]> {
   let query = getSupabase().from('messages').select('*').order('created_at', { ascending: true })
   if (clientId) query = query.eq('client_id', clientId)
   const { data, error } = await query
@@ -454,7 +457,19 @@ export async function getMessages(clientId?: string): Promise<Message[]> {
     if (error.code !== '42P01') console.error('getMessages error:', error)
     return []
   }
-  return data || []
+  return (data || []).map((row) => publicMessage(row as Message))
+}
+
+export async function getMessageById(id: string): Promise<Message | null> {
+  const { data, error } = await getSupabase().from('messages').select('*').eq('id', id).maybeSingle()
+  if (error || !data) return null
+  const row = data as Message
+  return { ...row, attachments: storedAttachments(row.attachments) }
+}
+
+function messageColumnMissing(error: { code?: string; message?: string }): boolean {
+  if (error.code === '42703' || error.code === 'PGRST204') return true
+  return /attachments|gmail_message_id/i.test(error.message || '')
 }
 
 export async function createMessage(msgData: {
@@ -462,10 +477,28 @@ export async function createMessage(msgData: {
   from_role: 'admin' | 'client'
   from_name: string
   text: string
-}): Promise<Message | null> {
-  const { data, error } = await getSupabase().from('messages').insert(msgData).select().single()
-  if (error) { console.error('createMessage error:', error); return null }
-  return data
+  attachments?: StoredAttachment[]
+  gmail_message_id?: string
+  created_at?: string
+}): Promise<{ ok: true; message: Message } | { ok: false; missingColumn: boolean }> {
+  const payload: Record<string, unknown> = {
+    client_id: msgData.client_id,
+    from_role: msgData.from_role,
+    from_name: msgData.from_name,
+    text: msgData.text,
+  }
+  if (msgData.attachments?.length) payload.attachments = msgData.attachments
+  if (msgData.gmail_message_id) payload.gmail_message_id = msgData.gmail_message_id
+  if (msgData.created_at) payload.created_at = msgData.created_at
+
+  const { data, error } = await getSupabase().from('messages').insert(payload).select().single()
+  if (error) {
+    if (error.code === '23505') return { ok: false, missingColumn: false }
+    if (!messageColumnMissing(error)) console.error('createMessage error:', error)
+    return { ok: false, missingColumn: messageColumnMissing(error) }
+  }
+  const row = data as Message
+  return { ok: true, message: { ...row, attachments: storedAttachments(row.attachments) } }
 }
 
 // ═══════ STAFF MESSAGES (admin ↔ credit_manager) ═══════

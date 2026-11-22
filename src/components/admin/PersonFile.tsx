@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BillingPanel from '@/components/billing/BillingPanel'
 import CreditRepairBillingPanel from '@/components/billing/CreditRepairBillingPanel'
+import { MessageAttachments } from '@/components/portal/MessageAttachments'
+import { parseThreadPayload, type PublicAttachment, type VaultFileChoice } from '@/lib/portal-message-mail'
 import type { PersonFile } from '@/lib/people-db'
 
 type TaskRow = {
@@ -20,6 +22,7 @@ type MessageRow = {
   from_name: string
   text: string
   created_at: string
+  attachments?: PublicAttachment[]
 }
 
 type ReferralPayload = {
@@ -61,8 +64,11 @@ export default function PersonFileView({ id }: { id: string }) {
   const [loading, setLoading] = useState(true)
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [messages, setMessages] = useState<MessageRow[]>([])
+  const [vaultFiles, setVaultFiles] = useState<VaultFileChoice[]>([])
   const [taskTitle, setTaskTitle] = useState('')
   const [messageText, setMessageText] = useState('')
+  const [messageFileId, setMessageFileId] = useState('')
+  const [messageError, setMessageError] = useState('')
   const [referral, setReferral] = useState<ReferralPayload | null>(null)
   const [busy, setBusy] = useState('')
 
@@ -91,23 +97,34 @@ export default function PersonFileView({ id }: { id: string }) {
 
   const clientId = file?.person.clientId || file?.client?.id || file?.repairClient?.id || ''
 
+  const loadMessages = useCallback(async (sync: boolean) => {
+    if (!clientId) return
+    const messageRes = await fetch(
+      `/api/admin/messages?clientId=${encodeURIComponent(clientId)}${sync ? '&sync=1' : ''}`
+    )
+    if (!messageRes.ok) return
+    const parsed = parseThreadPayload(await messageRes.json().catch(() => null))
+    setMessages(parsed.messages)
+    setVaultFiles(parsed.files)
+  }, [clientId])
+
   useEffect(() => {
     if (!clientId) return
     void (async () => {
-      const [taskRes, messageRes] = await Promise.all([
-        fetch(`/api/admin/tasks?client_id=${encodeURIComponent(clientId)}`),
-        fetch(`/api/admin/messages?clientId=${encodeURIComponent(clientId)}`),
-      ])
+      const taskRes = await fetch(`/api/admin/tasks?client_id=${encodeURIComponent(clientId)}`)
       if (taskRes.ok) {
         const rows = await taskRes.json().catch(() => [])
         setTasks(Array.isArray(rows) ? rows : [])
       }
-      if (messageRes.ok) {
-        const rows = await messageRes.json().catch(() => [])
-        setMessages(Array.isArray(rows) ? rows : [])
-      }
     })()
-  }, [clientId])
+    void loadMessages(true)
+    const interval = setInterval(() => void loadMessages(false), 20000)
+    const sync = setInterval(() => void loadMessages(true), 120000)
+    return () => {
+      clearInterval(interval)
+      clearInterval(sync)
+    }
+  }, [clientId, loadMessages])
 
   useEffect(() => {
     if (!file?.showReferrals || !clientId) return
@@ -199,20 +216,23 @@ export default function PersonFileView({ id }: { id: string }) {
 
   async function sendMessage() {
     const text = messageText.trim()
-    if (!text || !clientId) return
+    if ((!text && !messageFileId) || !clientId) return
     setBusy('message')
+    setMessageError('')
     try {
       const res = await fetch('/api/admin/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, text }),
+        body: JSON.stringify({ clientId, text, fileId: messageFileId || undefined }),
       })
-      if (res.ok) {
-        setMessageText('')
-        const rows = await fetch(`/api/admin/messages?clientId=${encodeURIComponent(clientId)}`)
-        const data = await rows.json().catch(() => [])
-        setMessages(Array.isArray(data) ? data : [])
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setMessageError(typeof data.error === 'string' ? data.error : 'Failed to send message')
+        return
       }
+      setMessageText('')
+      setMessageFileId('')
+      await loadMessages(false)
     } finally {
       setBusy('')
     }
@@ -406,18 +426,38 @@ export default function PersonFileView({ id }: { id: string }) {
 
       {clientId && (
         <Section title="Messages">
-          <div className="space-y-3 mb-3 max-h-80 overflow-y-auto">
+          <div className="space-y-3 mb-3 max-h-80 overflow-y-auto min-w-0">
             {messages.length === 0 && <p className="text-sm text-brand-muted">No messages yet.</p>}
             {messages.map((message) => (
-              <div key={message.id} className="text-sm">
+              <div key={message.id} className="min-w-0 text-sm">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-brand-dim">
                   {message.from_name || message.from_role} · {formatWhen(message.created_at)} ET
                 </div>
-                <p className="text-brand-text whitespace-pre-wrap">{message.text}</p>
+                <p className="text-brand-text whitespace-pre-wrap break-words">{message.text}</p>
+                <MessageAttachments
+                  messageId={message.id}
+                  attachments={message.attachments}
+                  basePath="/api/admin/messages"
+                />
               </div>
             ))}
           </div>
           <div className="flex flex-col gap-2">
+            {vaultFiles.length > 0 ? (
+              <select
+                aria-label="Attach a file"
+                value={messageFileId}
+                onChange={(event) => setMessageFileId(event.target.value)}
+                className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent"
+              >
+                <option value="">No attachment</option>
+                {vaultFiles.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-brand-dim">No files in this client&apos;s vault yet.</p>
+            )}
             <textarea
               value={messageText}
               onChange={(event) => setMessageText(event.target.value)}
@@ -425,11 +465,12 @@ export default function PersonFileView({ id }: { id: string }) {
               placeholder="Write a message"
               className="w-full py-2 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm outline-none focus:border-accent"
             />
+            {messageError && <p className="text-sm text-red-700">{messageError}</p>}
             <button
               type="button"
               onClick={() => void sendMessage()}
-              disabled={busy === 'message'}
-              className="self-start px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-50"
+              disabled={busy === 'message' || (!messageText.trim() && !messageFileId)}
+              className="self-start w-full sm:w-auto px-4 py-2 rounded-lg bg-brand-text text-white text-xs font-bold disabled:opacity-50"
             >
               Send
             </button>

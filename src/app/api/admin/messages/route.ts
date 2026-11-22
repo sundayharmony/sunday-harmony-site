@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireStaffSession } from '@/lib/stripe-admin-auth'
 import { staffMayUseClient } from '@/lib/people-db'
-import { getMessages, createMessage, getClientById, createNotification } from '@/lib/db'
-import { getSupabase } from '@/lib/supabase'
-import { escHtml, getPublicSiteUrl, isEmailConfigured, sendHtmlMailNonBlocking } from '@/lib/smtp-mail'
+import { getMessages, getFilesByClient, getClientById } from '@/lib/db'
+import { escHtml, getPublicSiteUrl, isEmailConfigured } from '@/lib/smtp-mail'
+import {
+  notifyClientOfPortalMessage,
+  queuePortalThreadEmail,
+  savePortalMessage,
+  syncPortalThreadIfAsked,
+} from '@/lib/portal-message-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,62 +18,57 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const clientId = searchParams.get('clientId')?.trim()
-  if (!clientId) {
-    return NextResponse.json([])
-  }
+  if (!clientId) return NextResponse.json({ messages: [], files: [] })
   if (!(await staffMayUseClient(session.user.role, clientId, session.user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const messages = await getMessages(clientId)
-  return NextResponse.json(messages)
+  await syncPortalThreadIfAsked(request, clientId)
+  const [messages, files] = await Promise.all([getMessages(clientId), getFilesByClient(clientId)])
+  return NextResponse.json({
+    messages,
+    files: files.map((file) => ({ id: file.id, name: file.name })),
+  })
 }
 
 export async function POST(request: Request) {
   const session = await requireStaffSession()
   if (session instanceof NextResponse) return session
 
-  const { clientId, text } = await request.json()
-  if (!clientId || !text?.trim()) {
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'clientId and text required' }, { status: 400 })
+  }
+  const { clientId, text, fileId } = body as { clientId?: unknown; text?: unknown; fileId?: unknown }
+  if (typeof clientId !== 'string' || !clientId.trim()) {
     return NextResponse.json({ error: 'clientId and text required' }, { status: 400 })
   }
   if (!(await staffMayUseClient(session.user.role, clientId, session.user.id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Input length validation
-  if (typeof text === 'string' && text.length > 10000) {
-    return NextResponse.json({ error: 'Message is too long (max 10000 characters)' }, { status: 400 })
-  }
-
-  const message = await createMessage({
-    client_id: clientId,
-    from_role: 'admin',
-    from_name: session.user.name || 'Sunday Harmony',
-    text: text.trim(),
+  const saved = await savePortalMessage({
+    clientId,
+    fromRole: 'admin',
+    fromName: session.user.name || 'Sunday Harmony',
+    text,
+    fileId,
   })
+  if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: saved.status })
 
-  // Create in-app notification for client
-  const { data: clientUser } = await (
-    getSupabase().from('users').select('id').eq('client_id', clientId).single()
-  )
-
-  if (clientUser) {
-    await createNotification({
-      user_id: clientUser.id,
-      title: 'New Message',
-      message: text.trim().substring(0, 50),
-      type: 'message',
-      link: '/dashboard/messages',
-    })
-  }
+  await notifyClientOfPortalMessage(clientId, saved.message.text)
 
   if (isEmailConfigured()) {
     try {
       const client = await getClientById(clientId)
       if (client?.email) {
         const siteUrl = getPublicSiteUrl()
-        const html = `
+        queuePortalThreadEmail({
+          to: client.email,
+          subjectBase: 'New message from Sunday Harmony',
+          clientId,
+          attachment: saved.attachment,
+          html: `
             <div style="font-family:'Montserrat','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto">
               <h2 style="color:#c9a96e;border-bottom:2px solid #c9a96e;padding-bottom:10px">
                 New Message
@@ -76,23 +76,19 @@ export async function POST(request: Request) {
               <p>Hi ${escHtml((client.name || 'there').split(' ')[0])},</p>
               <p>You have a new message from the Sunday Harmony team:</p>
               <div style="padding:16px;background:#f8f6f0;border-radius:8px;margin:16px 0">
-                <p style="margin:0;white-space:pre-wrap">${escHtml(text.trim())}</p>
+                <p style="margin:0;white-space:pre-wrap">${escHtml(saved.message.text)}</p>
               </div>
               <div style="text-align:center;margin:24px 0">
                 <a href="${escHtml(siteUrl)}/dashboard/messages" style="background:#c9a96e;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">
                   View in Dashboard
                 </a>
               </div>
+              <p style="font-size:13px;color:#666">Reply from this email address and it will show on your portal thread.</p>
               <p style="font-size:13px;color:#666;margin-top:20px;padding-top:15px;border-top:1px solid #eee">
                 &mdash; Sunday Harmony
               </p>
             </div>
-          `
-        sendHtmlMailNonBlocking({
-          to: client.email,
-          subject: 'New message from Sunday Harmony',
-          html,
-          logLabel: 'admin-message-to-client',
+          `,
         })
       }
     } catch (err) {
@@ -100,5 +96,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json(message)
+  return NextResponse.json(saved.message)
 }

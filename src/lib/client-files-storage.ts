@@ -133,6 +133,14 @@ export function resolveClientFileStoragePathForClient(
   return objectPath
 }
 
+export async function downloadClientFileBytes(objectPath: string): Promise<Buffer | null> {
+  if (!objectPath) return null
+  const { data, error } = await getSupabase().storage.from(CLIENT_FILES_BUCKET).download(objectPath)
+  if (error || !data) return null
+  if (Buffer.isBuffer(data)) return data
+  return Buffer.from(await data.arrayBuffer())
+}
+
 export async function getClientFileSignedUrl(objectPath: string, expiresInSec = SIGNED_URL_TTL_SEC): Promise<string | null> {
   if (!objectPath) return null
   const { data, error } = await getSupabase().storage
