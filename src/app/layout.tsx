@@ -14,6 +14,13 @@ import {
 } from '@/lib/seo'
 import '@/styles/globals.css'
 
+const fraunces = localFont({
+  src: '../fonts/fraunces-latin-opsz-normal.woff2',
+  variable: '--font-fraunces',
+  display: 'swap',
+  weight: '100 900',
+})
+
 const montserrat = localFont({
   src: '../fonts/montserrat-latin-wght-normal.woff2',
   variable: '--font-montserrat',
@@ -77,7 +84,7 @@ export default function RootLayout({
   const jsonLd = [organizationJsonLd(), websiteJsonLd()]
 
   return (
-    <html lang="en" className={montserrat.variable}>
+    <html lang="en" className={`${montserrat.variable} ${fraunces.variable}`}>
       <body className={`${montserrat.className} font-sans antialiased`}>
         <GoogleAdsTag />
         <script

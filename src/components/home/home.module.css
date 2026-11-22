@@ -817,3 +817,115 @@
   from { opacity: 0.45; }
   to { opacity: 1; }
 }
+
+/* ══════════ Public theme from the approved homepage design (2026-11-22) ══════════
+   Scoped to .home, so only public pages wrapped in HomeMotion change. Portals keep their look. */
+.home {
+  font-feature-settings: normal;
+}
+
+.home :is(h1, h2, h3) {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.home :is(h1, h2) :is(em, :global(.italic), :global(.text-accent), :global(.gold-text)) {
+  font-style: normal;
+  color: inherit;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
+.home :is(.display em, .title em) {
+  display: inline;
+}
+
+/* Section and page backgrounds: cream instead of white and grey gradients. */
+.home :global(.bg-white) {
+  background-color: #fffdf8;
+}
+
+.home :global(.bg-brand-bg-soft),
+.home :global(.bg-neutral-50) {
+  background-color: var(--home-bg-soft);
+}
+
+.home :global(.bg-gradient-to-br) {
+  background-image: none;
+  background-color: var(--home-bg);
+}
+
+.home :global([class*='bg-[linear-gradient(rgba(0,0,0']),
+.home :global([class*='bg-[radial-gradient']) {
+  display: none;
+}
+
+/* Dark bands use the design's ink. */
+.home section:global(.bg-brand-text) {
+  background-color: var(--home-text);
+}
+
+/* Lines and muted text pick up the warm palette. */
+.home :global(.border-brand-border) {
+  border-color: var(--home-border);
+}
+
+.home :global(.text-brand-muted) {
+  color: var(--home-muted);
+}
+
+.home :global(.text-brand-text) {
+  color: var(--home-text);
+}
+
+/* Gold text: darker on light grounds for contrast, brand gold on dark bands. */
+.home :global(.text-accent),
+.home :global(.section-label) {
+  color: var(--home-gold-text);
+}
+
+.home section:global(.bg-brand-text) :global(.text-accent),
+.home section:global(.bg-brand-text) :global(.section-label) {
+  color: var(--home-accent);
+}
+
+.home :global(.section-label)::after {
+  background: var(--home-accent);
+}
+
+/* Kicker chips become plain uppercase labels, as on the homepage. */
+.home :global(.rounded-full.bg-accent-soft.border) {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--home-gold-text);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.home :global(.rounded-full.bg-accent-soft.border > .animate-pulse) {
+  display: none;
+}
+
+/* Buttons are pills. */
+.home :is(a, button):global(.rounded-lg),
+.home :is(a, button):global(.rounded-md),
+.home .ghost {
+  border-radius: 999px;
+}
+
+.home :is(a, button):global(.bg-brand-text) {
+  background-color: var(--home-text);
+  color: var(--home-bg);
+}
+
+/* Cards get the design's softer corners. */
+.home :global(.rounded-xl) {
+  border-radius: 20px;
+}
+
+.home :global(.rounded-2xl) {
+  border-radius: 24px;
+}

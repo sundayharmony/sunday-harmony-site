@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { brandColors, brandMotion, brandSpace, brandType, homeThemeVars } from '../brand-tokens'
+import { brandColors, brandMotion, brandSpace, brandType, homeThemeVars, publicColors } from '../brand-tokens'
 
 describe('homepage brand book', () => {
   it('feeds homepage colors, type, motion, and spacing from the tokens', () => {
     const vars = homeThemeVars()
     assert.equal(vars['--home-accent'], brandColors.accent)
-    assert.equal(vars['--home-accent-soft'], brandColors.accentSoft)
-    assert.equal(vars['--home-text'], brandColors.text)
+    assert.equal(vars['--home-accent-soft'], publicColors.accentSoft)
+    assert.equal(vars['--home-text'], publicColors.text)
+    assert.equal(vars['--home-bg'], publicColors.bg)
     assert.equal(vars['--home-display'], brandType.display)
     assert.equal(vars['--home-title'], brandType.title)
     assert.equal(vars['--home-ease'], brandMotion.easeCss)

@@ -1,14 +1,6 @@
 import Link from 'next/link'
-import localFont from 'next/font/local'
 import { packagePriceDisplay, packages, siteConfig, type Package } from '@/lib/data'
 import styles from './design.module.css'
-
-const fraunces = localFont({
-  src: '../../fonts/fraunces-latin-opsz-normal.woff2',
-  variable: '--font-fraunces',
-  display: 'swap',
-  weight: '100 900',
-})
 
 const PLAN_LINES: Record<string, string> = {
   'Business Essentials': 'Logo, colors, type, business card.',
@@ -54,7 +46,7 @@ function Swatches() {
 
 export default function HomeDesign() {
   return (
-    <div className={`${fraunces.variable} ${styles.page}`}>
+    <div className={styles.page}>
       <section className={styles.hero} id="hero">
         <div className={styles.heroCopy}>
           <p className={styles.kicker}>{siteConfig.tagline}</p>

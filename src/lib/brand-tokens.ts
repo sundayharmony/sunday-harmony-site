@@ -75,17 +75,29 @@ export const brandBackgrounds = {
   radialGlow: 'radial-gradient(circle, rgba(0,0,0,0.04) 0%, transparent 70%)',
 } as const
 
+/** Public page palette from the approved homepage design (2026-11-22). Portals keep brandColors. */
+export const publicColors = {
+  text: '#1b1a17',
+  muted: '#4a463e',
+  bg: '#fbf7f0',
+  bgSoft: '#f6efe2',
+  accentSoft: '#f0e6d3',
+  border: '#e6dbc6',
+  goldText: '#8a6416',
+} as const
+
 /** CSS variables for public marketing pages. HomeMotion applies them. Portals do not. */
 export function homeThemeVars(): Record<string, string> {
   return {
     '--home-accent': brandColors.accent,
-    '--home-accent-soft': brandColors.accentSoft,
-    '--home-text': brandColors.text,
-    '--home-muted': brandColors.muted,
+    '--home-accent-soft': publicColors.accentSoft,
+    '--home-text': publicColors.text,
+    '--home-muted': publicColors.muted,
+    '--home-gold-text': publicColors.goldText,
     '--home-dim': brandColors.dim,
-    '--home-bg': brandColors.bg,
-    '--home-bg-soft': brandColors.bgSoft,
-    '--home-border': brandColors.border,
+    '--home-bg': publicColors.bg,
+    '--home-bg-soft': publicColors.bgSoft,
+    '--home-border': publicColors.border,
     '--home-display': brandType.display,
     '--home-title': brandType.title,
     '--home-body': brandType.body,
@@ -94,7 +106,7 @@ export function homeThemeVars(): Record<string, string> {
     '--home-label-tracking': brandType.labelTracking,
     '--home-display-leading': brandType.displayLeading,
     '--home-body-leading': String(brandType.bodyLeading),
-    '--home-display-weight': String(brandType.displayWeight),
+    '--home-display-weight': '600',
     '--home-ease': brandMotion.easeCss,
     '--home-duration': `${brandMotion.durationMs}ms`,
     '--home-pad-x': brandSpace.padX,
@@ -102,9 +114,9 @@ export function homeThemeVars(): Record<string, string> {
     '--home-max': brandSpace.max,
     '--home-hero-max': brandSpace.heroMax,
     '--home-gap': brandSpace.gap,
-    '--home-hero-bg': brandBackgrounds.heroGradient,
-    '--home-grid': brandBackgrounds.gridPattern,
-    '--home-glow': brandBackgrounds.radialGlow,
+    '--home-hero-bg': publicColors.bg,
+    '--home-grid': 'none',
+    '--home-glow': 'none',
   }
 }
 
