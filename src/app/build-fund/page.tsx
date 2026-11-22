@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import HomeMotion from '@/components/home/HomeMotion'
+import WorkPhoto from '@/components/home/WorkPhoto'
 import {
   FUND_CHOOSER_PATH,
   PARTNER_INTAKE_FIRST_PARAM,
@@ -63,7 +65,7 @@ export default async function BuildFundPage({
   }
 
   return (
-    <>
+    <HomeMotion>
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)] min-h-screen bg-gradient-to-br from-white via-neutral-50 to-neutral-100">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:48px_48px] pointer-events-none" />
@@ -80,6 +82,10 @@ export default async function BuildFundPage({
             <p className="text-lg text-brand-muted leading-relaxed max-w-[540px] mx-auto">
               Two paths to financial strength. Pick the one that fits where you are today.
             </p>
+          </div>
+
+          <div className="max-w-[720px] mx-auto mb-12">
+            <WorkPhoto id="fund-kitchen" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
@@ -133,6 +139,6 @@ export default async function BuildFundPage({
         </section>
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }

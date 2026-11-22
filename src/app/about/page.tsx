@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import About from '@/components/About'
+import HomeMotion from '@/components/home/HomeMotion'
 import PartnerLogos from '@/components/PartnerLogos'
 import CtaBanner from '@/components/CtaBanner'
 import { listPublicCaseStudies } from '@/lib/case-studies'
@@ -26,7 +27,7 @@ export default async function AboutPage() {
   const caseStudies = await listPublicCaseStudies()
   const logos = caseStudies.length > 0 ? caseStudies : await listPublicPartnerLogos()
   return (
-    <>
+    <HomeMotion>
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)]">
         <About />
@@ -34,6 +35,6 @@ export default async function AboutPage() {
         <CtaBanner />
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }

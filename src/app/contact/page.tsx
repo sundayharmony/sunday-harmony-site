@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import HomeMotion from '@/components/home/HomeMotion'
+import WorkBand from '@/components/home/WorkBand'
 import ContactHeroVisual from '@/components/contact/ContactHeroVisual'
 import { heroAuditHighlights, siteConfig } from '@/lib/data'
 
@@ -72,7 +74,7 @@ const contactChannels = [
 
 export default function ContactPage() {
   return (
-    <>
+    <HomeMotion>
       <script
         dangerouslySetInnerHTML={{
           __html: "if(location.hash==='#book')location.replace('/book')",
@@ -136,6 +138,8 @@ export default function ContactPage() {
             </div>
           </div>
         </section>
+
+        <WorkBand id="contact-note" />
 
         <section className="py-20 bg-white" id="audit">
           <div className="max-w-[1100px] mx-auto px-7">
@@ -276,6 +280,6 @@ export default function ContactPage() {
         </section>
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }

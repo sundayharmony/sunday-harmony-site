@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import HomeMotion from '@/components/home/HomeMotion'
+import WorkBand from '@/components/home/WorkBand'
 import Packages from '@/components/Packages'
 import HeroHarmonyVisual from '@/components/HeroHarmonyVisual'
 import { processSteps, services } from '@/lib/data'
@@ -49,7 +51,7 @@ const faqs = [
 
 export default function ServicesPage() {
   return (
-    <>
+    <HomeMotion>
       <Navbar />
       <main id="main" className="pt-[var(--nav-total-height)]">
         <section className="relative overflow-hidden bg-gradient-to-br from-white via-neutral-50 to-neutral-100">
@@ -105,6 +107,8 @@ export default function ServicesPage() {
             </div>
           </div>
         </section>
+
+        <WorkBand id="services-guides" />
 
         <section className="py-20 bg-white" id="pillars">
           <div className="max-w-[1100px] mx-auto px-7">
@@ -205,7 +209,7 @@ export default function ServicesPage() {
 
       </main>
       <Footer />
-    </>
+    </HomeMotion>
   )
 }
 
