@@ -9,7 +9,7 @@ Change colors here, then match the two files that cannot import this list.
 | Accent ink | `#7f6427` | Gold text on light backgrounds (`text-accent-ink`). Plain `#b8943f` fails contrast as text there; keep it for fills, borders, and text on dark |
 | Text | `#0a0a0a` | Headings and body |
 | Muted | `#525252` | Secondary copy |
-| Dim | `#737373` | Hints (darkened from `#a3a3a3` to pass WCAG AA contrast) |
+| Dim | `#6a665e` | Hints (warm grey, darkened from `#a3a3a3` to pass WCAG AA on white and cream) |
 | Border | `#e5e5e5` | Hairline borders |
 | Background | `#ffffff` | Pages |
 | Background soft | `#fafafa` | Alternating sections |

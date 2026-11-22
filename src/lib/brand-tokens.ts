@@ -9,7 +9,7 @@ export const brandColors = {
   accentInk: '#7f6427',
   text: '#0a0a0a',
   muted: '#525252',
-  dim: '#737373',
+  dim: '#6a665e',
   bg: '#ffffff',
   bgSoft: '#fafafa',
   border: '#e5e5e5',
