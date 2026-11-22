@@ -241,6 +241,8 @@ export default function CreditFundingForm({
     }
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Bumped on each failed step check so focus moves only then, not while typing.
+  const [failedCheck, setFailedCheck] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [submitted, setSubmitted] = useState(false)
@@ -514,8 +516,24 @@ export default function CreditFundingForm({
       }
     }
     setErrors(e)
+    if (Object.keys(e).length > 0) {
+      setFailedCheck((n) => n + 1)
+    }
     return Object.keys(e).length === 0
   }
+
+  useEffect(() => {
+    if (!failedCheck) return
+    for (const key of Object.keys(errors)) {
+      const field = document.querySelector<HTMLElement>(`[name="${key}"]`)
+      if (field) {
+        field.focus()
+        return
+      }
+    }
+    document.querySelector('[data-step-errors]')?.scrollIntoView({ block: 'center' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per failed check
+  }, [failedCheck])
 
   const next = () => {
     if (!validateStep(currentStepId)) return
@@ -746,6 +764,11 @@ export default function CreditFundingForm({
             onChange={(e) => update('shHpField', e.target.value)}
           />
         </div>
+        <p role="alert" data-step-errors className={failedCheck && Object.keys(errors).length ? 'text-sm text-brand-red mb-4' : 'sr-only'}>
+          {failedCheck && Object.keys(errors).length
+            ? `Please fix ${Object.keys(errors).length === 1 ? '1 field' : `${Object.keys(errors).length} fields`} marked below.`
+            : ''}
+        </p>
         {/* Step 1 */}
         {currentStepId === 'personal' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

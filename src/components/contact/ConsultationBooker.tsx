@@ -228,11 +228,12 @@ export default function ConsultationBooker({
                       key={cell.date}
                       type="button"
                       disabled={!open}
+                      aria-label={`${new Date(`${cell.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${open ? '' : ', unavailable'}`}
                       onClick={() => chooseDay(cell.date as string)}
                       className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-sm ${
                         open
                           ? 'bg-accent-soft font-semibold text-brand-text hover:bg-brand-text hover:text-white'
-                          : 'text-neutral-300'
+                          : 'text-neutral-300 line-through'
                       }`}
                     >
                       {cell.day}
@@ -295,6 +296,7 @@ export default function ConsultationBooker({
                   <input
                     required
                     value={name}
+                    autoComplete="name"
                     onChange={(event) => setName(event.target.value)}
                     className="mt-1.5 w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm"
                   />
@@ -305,6 +307,7 @@ export default function ConsultationBooker({
                     required
                     type="email"
                     value={email}
+                    autoComplete="email"
                     onChange={(event) => setEmail(event.target.value)}
                     className="mt-1.5 w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm"
                   />
@@ -314,6 +317,7 @@ export default function ConsultationBooker({
                   <input
                     type="tel"
                     value={phone}
+                    autoComplete="tel"
                     onChange={(event) => setPhone(event.target.value)}
                     className="mt-1.5 w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm"
                   />
@@ -337,7 +341,7 @@ export default function ConsultationBooker({
                   />
                 </label>
               </div>
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
+              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
               <button
                 type="submit"
                 disabled={!startsAt || sending}
