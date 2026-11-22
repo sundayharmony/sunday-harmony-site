@@ -1,8 +1,9 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { calendarMonthCells, formatCalendarMonth, monthOfDateKey, shiftCalendarMonth } from '@/lib/consultation-slots'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import TurnstileWidget, { TURNSTILE_WAIT_MESSAGE, turnstileTokenForSubmit, type TurnstileHandle } from '@/components/TurnstileWidget'
 
 type Slot = { startsAt: string; endsAt: string; label: string }
 type Day = { date: string; label: string; slots: Slot[] }
@@ -66,6 +67,7 @@ export default function ConsultationBooker({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [booked, setBooked] = useState('')
+  const turnstile = useRef<TurnstileHandle>(null)
 
   useEffect(() => {
     if (initial) return
@@ -116,10 +118,12 @@ export default function ConsultationBooker({
     setError('')
     setSending(true)
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) throw new Error(TURNSTILE_WAIT_MESSAGE)
       const res = await fetch('/api/consultations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, business, note, startsAt, shHpField: hp }),
+        body: JSON.stringify({ name, email, phone, business, note, startsAt, shHpField: hp, turnstileToken }),
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Could not book that time')
@@ -128,6 +132,7 @@ export default function ConsultationBooker({
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not book that time')
     } finally {
+      turnstile.current?.reset()
       setSending(false)
     }
   }
@@ -337,7 +342,8 @@ export default function ConsultationBooker({
                   />
                 </label>
               </div>
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
+              <TurnstileWidget ref={turnstile} action="consultation" />
+              {error ? <p className="text-sm text-red-700" role="alert">{error}</p> : null}
               <button
                 type="submit"
                 disabled={!startsAt || sending}

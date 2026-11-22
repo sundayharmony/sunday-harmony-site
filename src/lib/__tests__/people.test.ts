@@ -326,7 +326,7 @@ describe('people admin wiring', () => {
     assert.match(middleware, /\/admin\/credit-funding/)
     assert.match(login, /homeForRole/)
     assert.match(booking, /findLeadByEmail/)
-    assert.match(booking, /marketing_lead_status !== 'converted'/)
+    assert.match(booking, /existingLeadUpdateForBooking\(lead\.notes, note\)/)
     assert.match(redirects, /source: '\/admin\/crm'/)
     assert.doesNotMatch(redirects, /source: '\/admin\/credit-funding'/)
     assert.doesNotMatch(redirects, /source: '\/admin\/consultations'/)

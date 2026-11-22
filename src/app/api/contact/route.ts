@@ -5,6 +5,7 @@ import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
 import { getClientIp } from '@/lib/rate-limit'
 import { getAdminNotifyEmail, escHtml, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
 import { hasHoneypotValue } from '@/lib/honeypot'
+import { readTurnstileToken, turnstileFailureResponse, verifyTurnstile } from '@/lib/turnstile'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,9 @@ export async function POST(req: NextRequest) {
     const ip = getClientIp(req)
     const rl = await rateLimitDurable(`contact:${ip}`, 3, 15 * 60 * 1000)
     if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
+    const human = await verifyTurnstile({ token: readTurnstileToken(body), action: 'contact', remoteIp: ip })
+    if (!human.ok) return turnstileFailureResponse(human)
 
     // Log the submission (always works, even without email config)
     const submission = {

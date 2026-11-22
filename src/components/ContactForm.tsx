@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useRef, useState, FormEvent } from 'react'
 import { siteConfig, serviceOptions } from '@/lib/data'
 import SectionHeader from '@/components/ui/SectionHeader'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import TurnstileWidget, { TURNSTILE_WAIT_MESSAGE, turnstileTokenForSubmit, type TurnstileHandle } from '@/components/TurnstileWidget'
 
 interface FormData {
   firstName: string
@@ -37,6 +38,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const turnstile = useRef<TurnstileHandle>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -44,10 +46,13 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
     setSending(true)
 
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) throw new Error(TURNSTILE_WAIT_MESSAGE)
+
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, source: contactLeadSource() }),
+        body: JSON.stringify({ ...form, source: contactLeadSource(), turnstileToken }),
       })
 
       if (!res.ok) {
@@ -60,6 +65,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send. Please email us directly.')
     } finally {
+      turnstile.current?.reset()
       setSending(false)
     }
   }
@@ -195,8 +201,10 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
                   />
                 </div>
 
+                <TurnstileWidget ref={turnstile} action="contact" className="mb-4" />
+
                 {error && (
-                  <div className="text-brand-red text-sm mb-4">{error}</div>
+                  <div className="text-brand-red text-sm mb-4" role="alert">{error}</div>
                 )}
 
                 <button

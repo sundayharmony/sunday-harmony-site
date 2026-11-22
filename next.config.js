@@ -1,6 +1,8 @@
 const path = require('path')
 
 const SUPABASE_HOST = 'https://*.supabase.co'
+// Cloudflare Turnstile widget script and challenge iframe on public lead forms.
+const TURNSTILE_HOST = 'https://challenges.cloudflare.com'
 
 function buildContentSecurityPolicy() {
   const scriptSources = [
@@ -10,6 +12,7 @@ function buildContentSecurityPolicy() {
     'https://va.vercel-scripts.com',
     'https://js.stripe.com',
     'https://vercel.live',
+    TURNSTILE_HOST,
   ]
 
   return [
@@ -19,7 +22,7 @@ function buildContentSecurityPolicy() {
     "font-src 'self' https://fonts.gstatic.com",
     `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com`,
     `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live`,
-    `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com`,
+    `frame-src ${SUPABASE_HOST} ${TURNSTILE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",
