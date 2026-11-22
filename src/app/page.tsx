@@ -1,6 +1,5 @@
 import Navbar from '@/components/Navbar'
-import Hero from '@/components/Hero'
-import HomeLower from '@/components/home/HomeLower'
+import HomeDesign from '@/components/home/HomeDesign'
 import HomeMotion from '@/components/home/HomeMotion'
 import Footer from '@/components/Footer'
 
@@ -10,8 +9,7 @@ export default function Home() {
       <Navbar />
       <HomeMotion>
         <main id="main">
-          <Hero />
-          <HomeLower />
+          <HomeDesign />
         </main>
       </HomeMotion>
       <Footer />
