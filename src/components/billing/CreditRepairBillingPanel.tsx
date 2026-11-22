@@ -364,12 +364,13 @@ export default function CreditRepairBillingPanel({
         <>
           <div>
             <label className="text-[10px] font-bold uppercase text-brand-dim block mb-1">Repair fee (USD)</label>
+            <p className="text-[11px] text-brand-dim mb-1">Usual range is $250–$500. Bill after the analysis review. Do not publish this price.</p>
             <input
               type="text"
               inputMode="decimal"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              placeholder="499.00"
+              placeholder="250.00–500.00"
               className="w-full py-2 px-3 rounded-lg border border-brand-border bg-white text-sm"
             />
           </div>

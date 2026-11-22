@@ -186,27 +186,6 @@ export const aboutValues = [
   { icon: '⚡', title: 'Digital + Physical', description: "We do what other agencies won't — bridging online and offline marketing." },
 ]
 
-export const team = [
-  {
-    initials: 'MC',
-    name: 'Mac Cesar',
-    role: 'CEO & Marketing Specialist',
-    bio: 'Passionate about helping businesses unlock their marketing potential. Mac brings strategic vision and hands-on execution to every client relationship.',
-  },
-  {
-    initials: 'JH',
-    name: 'Jordan Hale',
-    role: 'Sales Specialist',
-    bio: 'Jordan bridges the gap between businesses and the marketing solutions they need. He ensures every client gets the right package for their goals and budget.',
-  },
-  {
-    initials: 'AQ',
-    name: 'Avery Quinn',
-    role: 'Client Success Coordinator',
-    bio: 'Avery keeps every client relationship on track — from onboarding through ongoing support — so your team always has a clear point of contact and next step.',
-  },
-]
-
 export const serviceOptions = [
   'Social Media Management',
   'Local SEO & Google Business',

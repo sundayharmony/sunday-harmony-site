@@ -14,6 +14,7 @@ export const PACKAGE_TIERS: PackageTier[] = [
   'free',
   'social_essentials',
   'spark',
+  'business_launch',
   'growth',
   'scale',
 ]
@@ -27,6 +28,7 @@ export const TIER_LABELS: Record<PackageTier, string> = {
   free: 'Free (Testing)',
   social_essentials: 'Social Essentials',
   spark: 'Business Essentials',
+  business_launch: 'Business Launch',
   growth: 'Marketing Partner',
   scale: 'Custom Solutions',
 }
@@ -37,15 +39,18 @@ export const TIER_LIST_PRICES: Record<PackageTier, number> = {
   social_essentials: 250,
   /** Business Essentials: one-time, from $599 */
   spark: 599,
+  /** Business Launch: one-time, from $1,799 */
+  business_launch: 1799,
   /** Marketing Partner: monthly, from $799 */
   growth: 799,
-  /** Custom Solutions: quoted per project */
-  scale: 3500,
+  /** Custom Solutions: staff types the quote. 0 means no placeholder price. */
+  scale: 0,
 }
 
 const TIER_ENV_KEYS: Record<Exclude<PackageTier, 'free'>, string> = {
   social_essentials: 'STRIPE_PRICE_SOCIAL_ESSENTIALS',
   spark: 'STRIPE_PRICE_SPARK',
+  business_launch: 'STRIPE_PRICE_BUSINESS_LAUNCH',
   growth: 'STRIPE_PRICE_GROWTH',
   scale: 'STRIPE_PRICE_SCALE',
 }
@@ -69,6 +74,7 @@ export function getStripePriceIdForTier(tier: string): string | undefined {
   const map: Record<string, string | undefined> = {
     social_essentials: process.env.STRIPE_PRICE_SOCIAL_ESSENTIALS,
     spark: process.env.STRIPE_PRICE_SPARK,
+    business_launch: process.env.STRIPE_PRICE_BUSINESS_LAUNCH,
     growth: process.env.STRIPE_PRICE_GROWTH,
     scale: process.env.STRIPE_PRICE_SCALE,
   }

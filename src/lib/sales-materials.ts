@@ -117,7 +117,7 @@ Thanks,
     ],
     body: `Hi [First name],
 
-I'm with Sunday Harmony Consulting, a marketing agency here in South Jersey. I searched "[service] near me" from [town] and noticed [Business Name] [e.g. doesn't show up in the map results / has no website listed / last posted on Instagram in March]. Customers are already searching. It's worth making sure they find you.
+I'm with Sunday Harmony Consulting. I searched "[service] near me" from [town] and noticed [Business Name] [e.g. doesn't show up in the map results / has no website listed / last posted on Instagram in March]. Customers are already searching. It's worth making sure they find you.
 
 I'll put together a free audit for you: your Google Business Profile, website or lack of one, social pages, and a short list of what to fix first. It's in plain English, usually ready in about a business day, and you're free to do it all yourself.
 
@@ -245,7 +245,7 @@ Customers notice, even if they can't say why.
 Brand & Story is where we start: who you are, what you stand for, and how you should look and sound, so every touchpoint feels like the same business.
 
 Not sure how consistent you look right now? We'll show you in a free audit. Link in bio.`,
-    hashtags: '#BrandStrategy #SmallBusinessBranding #LogoDesign #BrandIdentity #MarketingAgency #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #EggHarborTownship',
+    hashtags: '#BrandStrategy #SmallBusinessBranding #LogoDesign #BrandIdentity #MarketingAgency #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'outreach-presence',
@@ -257,12 +257,12 @@ Not sure how consistent you look right now? We'll show you in a free audit. Link
     designDirection: 'Slide 1: black background, gold radial glow top right, white serif headline, gold numbered list. Slide 2: four simple line icons (map pin, browser, phone, storefront) in gold on black, one short line each. Slide 3: "Free audit: see where you show up." CTA with sundayharmony.com and "Link in bio."',
     caption: `You don't need to be everywhere. You need to be where your customers already look.
 
-For most South Jersey businesses, that's Google, your website, a social page or two, and out in the community.
+For most small businesses, that's Google, your website, a social page or two, and out in the community.
 
 Outreach & Presence means showing up in those places consistently and on purpose, without drowning in tactics. Digital and physical, one brand.
 
 Want to know where you're missing customers? Start with a free audit. Link in bio.`,
-    hashtags: '#LocalMarketing #GoogleBusinessProfile #SocialMediaMarketing #DigitalMarketing #SmallBusinessTips #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #AtlanticCityNJ',
+    hashtags: '#LocalMarketing #GoogleBusinessProfile #SocialMediaMarketing #DigitalMarketing #SmallBusinessTips #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'strategy-rhythm',
@@ -279,7 +279,7 @@ What to say. Where to show up. How to keep it going while you run the business.
 That's Strategy & Rhythm: we turn your brand into a plan you can actually follow, then meet with you monthly to see what's working and adjust. Plain English. No jargon.
 
 Ready to stop doing it all yourself? Free audit, link in bio.`,
-    hashtags: '#MarketingStrategy #SmallBusinessOwner #BusinessGrowth #MarketingPlan #Entrepreneur #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #GallowayNJ',
+    hashtags: '#MarketingStrategy #SmallBusinessOwner #BusinessGrowth #MarketingPlan #Entrepreneur #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'free-audit-5things',
@@ -299,7 +299,7 @@ Our free audit covers:
 5. Prioritized next steps, in plain English
 
 Free. No obligation. You'll hear back in about 1 business day. Request yours at sundayharmony.com (link in bio).`,
-    hashtags: '#FreeAudit #MarketingAudit #GoogleBusinessProfile #WebsiteTips #SmallBusinessMarketing #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #HammontonNJ',
+    hashtags: '#FreeAudit #MarketingAudit #GoogleBusinessProfile #WebsiteTips #SmallBusinessMarketing #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'free-audit-whats',
@@ -315,8 +315,8 @@ Send us a quick note with your name, your business, and what feels stuck. We'll 
 
 It takes about a business day. It's free. And you can do the fixes yourself, with us, or not at all. No pressure.
 
-Serving Atlantic County, South Jersey, and remote clients. Link in bio.`,
-    hashtags: '#FreeMarketingAudit #LocalBusiness #SmallBusinessSupport #GrowYourBusiness #MarketingHelp #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #ACNJ #CapeMayCounty',
+Sunday Harmony works with clients anywhere. Link in bio.`,
+    hashtags: '#FreeMarketingAudit #LocalBusiness #SmallBusinessSupport #GrowYourBusiness #MarketingHelp #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'gbp-fixes',
@@ -336,7 +336,7 @@ Five fixes you can do this week:
 5. Post an update or offer once a week
 
 Save this for later. Want us to check yours? Free audit, link in bio.`,
-    hashtags: '#GoogleBusinessProfile #GoogleMaps #LocalSEO #SmallBusinessTips #NearMe #MarketingTips #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #VinelandNJ',
+    hashtags: '#GoogleBusinessProfile #GoogleMaps #LocalSEO #SmallBusinessTips #NearMe #MarketingTips #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'website-test',
@@ -356,7 +356,7 @@ The basics that matter most:
 5. Phone, address, and hours on every page
 
 Not sure how yours stacks up? We'll check it in your free audit. Link in bio.`,
-    hashtags: '#WebsiteDesign #SmallBusinessWebsite #WebDesignTips #MobileFriendly #WebsiteTips #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #MaysLandingNJ',
+    hashtags: '#WebsiteDesign #SmallBusinessWebsite #WebDesignTips #MobileFriendly #WebsiteTips #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'process',
@@ -374,7 +374,7 @@ Not sure how yours stacks up? We'll check it in your free audit. Link in bio.`,
 4. Grow Together: monthly strategy calls, plain-English reports, and steady improvements.
 
 No long-term contracts. We show our work. Start with step one, link in bio.`,
-    hashtags: '#HowWeWork #MarketingProcess #MarketingAgency #SmallBusinessGrowth #ClientExperience #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #SomersPointNJ',
+    hashtags: '#HowWeWork #MarketingProcess #MarketingAgency #SmallBusinessGrowth #ClientExperience #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'packages',
@@ -395,7 +395,7 @@ Marketing Partner, from $799/month: monthly strategy, social posts and graphics,
 Custom Solutions: e-commerce, print, apparel, vehicle wraps, ads, and more.
 
 Not sure which fits? Your free audit will tell you. Link in bio.`,
-    hashtags: '#MarketingPackages #BrandingPackage #WebsiteDesign #SmallBusinessMarketing #StartupBranding #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #NorthfieldNJ',
+    hashtags: '#MarketingPackages #BrandingPackage #WebsiteDesign #SmallBusinessMarketing #StartupBranding #SundayHarmony #SmallBusinessMarketing',
   },
   {
     id: 'why-sh',
@@ -411,10 +411,10 @@ Because running a business is enough work on its own. You shouldn't also have to
 
 We speak plain English. We show our work. We start with a free audit and aim for a quick win in your first 30 days. And we treat every client like our only client.
 
-150+ businesses served over 4+ years, right here in South Jersey and beyond.
+Sunday Harmony is a digital brand. We work with clients anywhere.
 
 Ready to stop doing it all yourself? Say hello, link in bio.`,
-    hashtags: '#WhySundayHarmony #MeetTheFounder #SmallBusinessOwner #SmallBusinessSupport #LocalAgency #SouthJersey #AtlanticCounty #SouthJerseyBusiness #SJBusiness #ShopLocalNJ #NJSmallBusiness #AtlanticCityNJ',
+    hashtags: '#WhySundayHarmony #MeetTheFounder #SmallBusinessOwner #SmallBusinessSupport #LocalAgency #SundayHarmony #SmallBusinessMarketing',
   },
 ]
 

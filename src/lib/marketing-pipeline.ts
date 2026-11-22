@@ -50,6 +50,7 @@ export const CATEGORY_LABELS: Record<ProspectCategory, string> = {
 
 export const LEAD_SOURCES = [
   'website',
+  'ads',
   'outbound',
   'in_person',
   'linkedin',
@@ -62,6 +63,7 @@ export type LeadSource = (typeof LEAD_SOURCES)[number]
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
   website: 'Website',
+  ads: 'Ads',
   outbound: 'Outbound',
   in_person: 'In person',
   linkedin: 'LinkedIn',

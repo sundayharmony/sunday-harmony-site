@@ -8,6 +8,10 @@ import { hasHoneypotValue } from '@/lib/honeypot'
 
 export const dynamic = 'force-dynamic'
 
+function leadSourceFromBody(value: unknown): 'website' | 'ads' | 'referral' {
+  return value === 'ads' || value === 'referral' ? value : 'website'
+}
+
 // POST /api/contact
 // Receives form data and sends email notification
 export async function POST(req: NextRequest) {
@@ -107,7 +111,8 @@ export async function POST(req: NextRequest) {
 
     // Save lead to database
     try {
-      const lead = await createLead({
+      const source = leadSourceFromBody(body.source)
+      const leadInput = {
         first_name: firstName,
         last_name: lastName || '',
         email,
@@ -120,7 +125,16 @@ export async function POST(req: NextRequest) {
         lead_type: 'marketing_lead',
         marketing_lead_status: 'qualified',
         pipeline_stage: 'ready_to_contact',
-      })
+      }
+      let lead = await createLead({ ...leadInput, source })
+      // shortcut: ads needs migration 057; save as website if that check is not applied yet
+      if (!lead && source === 'ads') lead = await createLead({ ...leadInput, source: 'website' })
+      if (!lead) {
+        return NextResponse.json(
+          { error: 'We could not save your request. Please email sales@sundayharmony.com.' },
+          { status: 503 }
+        )
+      }
       if (lead) {
         logActivity({
           action: 'lead_created',
@@ -134,6 +148,10 @@ export async function POST(req: NextRequest) {
       }
     } catch (dbErr) {
       console.error('Failed to save lead to DB (email was still sent):', dbErr)
+      return NextResponse.json(
+        { error: 'We could not save your request. Please email sales@sundayharmony.com.' },
+        { status: 503 }
+      )
     }
 
     return NextResponse.json({ success: true, message: 'Thank you! We\'ll be in touch within 24 hours.' })

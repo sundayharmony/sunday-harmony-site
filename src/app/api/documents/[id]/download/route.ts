@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getServiceDocument, type ServiceDocument } from '@/lib/service-documents'
-import { isAdminRole, isStaffRole } from '@/lib/stripe-admin-auth'
+import { getServiceDocument, mayDownloadSignedDocument, type ServiceDocument } from '@/lib/service-documents'
 import { packages } from '@/lib/data'
 import PDFDocument from 'pdfkit'
 
@@ -99,7 +98,7 @@ function generatePDF(document: ServiceDocument): Promise<Buffer> {
       doc.moveDown(1)
          .font('Helvetica-Bold')
          .fontSize(12)
-         .text('SCOPE NOTES', { underline: true })
+         .text(document.package_tier === 'Credit Repair' ? 'AGREEMENT' : 'SCOPE NOTES', { underline: true })
       
       doc.moveDown(0.5)
          .font('Helvetica')
@@ -213,12 +212,14 @@ export async function GET(
     return NextResponse.json({ error: 'Document not yet signed' }, { status: 400 })
   }
   
-  // Check access - allow owner or admin/staff
-  const email = session.user.email.toLowerCase()
-  const isOwner = document.client_email.toLowerCase() === email
-  const isStaff = isAdminRole(session.user.role) || isStaffRole(session.user.role)
-  
-  if (!isOwner && !isStaff) {
+  if (
+    !mayDownloadSignedDocument({
+      role: session.user.role,
+      userId: session.user.id,
+      email: session.user.email,
+      document,
+    })
+  ) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
   

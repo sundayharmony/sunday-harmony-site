@@ -149,7 +149,7 @@ export interface Lead {
   service?: string
   budget?: string
   message?: string
-  source: 'inbound' | 'outbound'
+  source: 'inbound' | 'outbound' | 'website' | 'ads' | 'in_person' | 'linkedin' | 'referral' | 'partner' | 'other'
   website?: string
   google_place_id?: string
   location_text?: string
@@ -245,7 +245,7 @@ export async function createLead(leadData: {
   service?: string
   budget?: string
   message?: string
-  source?: 'inbound' | 'outbound'
+  source?: 'inbound' | 'outbound' | 'website' | 'ads' | 'in_person' | 'linkedin' | 'referral' | 'partner' | 'other'
   website?: string
   google_place_id?: string
   location_text?: string
@@ -297,7 +297,7 @@ export interface Client {
   email: string
   phone?: string
   industry?: string
-  package_tier: 'free' | 'social_essentials' | 'spark' | 'growth' | 'scale'
+  package_tier: 'free' | 'social_essentials' | 'spark' | 'business_launch' | 'growth' | 'scale'
   monthly_price: number
   start_date: string
   status: 'active' | 'paused' | 'churned'

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
 import { logApiRouteError } from '@/lib/api-route-log'
+import { authOptions } from '@/lib/auth'
 import { getUserByEmail } from '@/lib/db'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
@@ -7,12 +9,16 @@ import {
   parseIntakePayload,
   validateIntakePayload,
   assertHttpsSubmission,
+  withDraftBasics,
 } from '@/lib/credit-funding-validation'
+import { decryptApplicationSensitiveFields } from '@/lib/credit-funding-sensitive-fields'
 import {
   createCreditFundingApplication,
   createUploadedDocument,
   completeInvitedCreditFundingApplication,
+  finalizeStaffDraftApplication,
   getCreditFundingApplicationById,
+  getCreditFundingApplicationByUserId,
   getDocumentsByApplicationUuid,
   deleteCreditFundingApplication,
   updateCreditFundingApplicationStatus,
@@ -86,6 +92,7 @@ export async function POST(req: NextRequest) {
 
   let createdApplicationId: string | null = null
   let wasInvitedFlow = false
+  let wasDraftFlow = false
   let verifiedUploadSessionId: string | null = null
 
   try {
@@ -106,6 +113,26 @@ export async function POST(req: NextRequest) {
 
     let payload = parseIntakePayload(rawPayload)
     const keepFlags = parseKeepSecretFlags(rawPayload)
+
+    const session = await getServerSession(authOptions)
+    let ownedDraft: Awaited<ReturnType<typeof getCreditFundingApplicationById>> | null = null
+    if (session?.user?.role === 'client' && session.user.id) {
+      const found = await getCreditFundingApplicationByUserId(session.user.id)
+      if (found?.status === 'draft') {
+        ownedDraft = found
+        const view = decryptApplicationSensitiveFields(found)
+        payload = withDraftBasics(payload, {
+          fullName: view.full_name,
+          email: view.email,
+          phone: view.phone,
+          address: view.address,
+          city: view.city,
+          state: view.state,
+          zipCode: view.zip_code,
+          dateOfBirth: view.date_of_birth,
+        })
+      }
+    }
 
     const uploadSessionId = String(formData.get('uploadSessionId') || '').trim()
     const uploadSessionToken = String(formData.get('uploadSessionToken') || '').trim()
@@ -205,6 +232,12 @@ export async function POST(req: NextRequest) {
         userId: existingUser?.id,
         clientId: invitedApp.client_id || existingUser?.client_id || undefined,
       })
+    } else if (ownedDraft) {
+      wasDraftFlow = true
+      application = await finalizeStaffDraftApplication(ownedDraft.id, payload, {
+        userId: session?.user?.id,
+        clientId: ownedDraft.client_id || session?.user?.clientId || undefined,
+      })
     } else {
       // Anonymous public intake must not auto-bind to an existing portal user.
       // Claim-on-login links the application after they authenticate.
@@ -225,7 +258,7 @@ export async function POST(req: NextRequest) {
           sessionId: uploadSessionId,
         })
         if (!finalized.ok) {
-          await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow)
+          await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow, wasDraftFlow)
           return NextResponse.json({ error: `${staged.documentType}: ${finalized.error}` }, { status: 400 })
         }
         await createUploadedDocument({
@@ -255,7 +288,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (!upload.ok) {
-          await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow)
+          await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow, wasDraftFlow)
           return NextResponse.json({ error: `${docType}: ${upload.error}` }, { status: 400 })
         }
 
@@ -304,7 +337,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(successBody)
   } catch (error) {
     if (createdApplicationId) {
-      await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow)
+      await rollbackIntakeApplication(createdApplicationId, wasInvitedFlow, wasDraftFlow)
     }
     logApiRouteError(req, 'credit-funding/intake', error)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
@@ -319,9 +352,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function rollbackIntakeApplication(applicationId: string, wasInvited: boolean): Promise<void> {
-  if (wasInvited) {
-    await updateCreditFundingApplicationStatus(applicationId, 'invitation_pending', {
+async function rollbackIntakeApplication(
+  applicationId: string,
+  wasInvited: boolean,
+  wasDraft = false
+): Promise<void> {
+  if (wasInvited || wasDraft) {
+    await updateCreditFundingApplicationStatus(applicationId, wasDraft ? 'draft' : 'invitation_pending', {
       notes: 'Intake rolled back due to document processing failure',
     })
     return

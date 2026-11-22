@@ -33,7 +33,9 @@ interface Client {
   notes: string; deliverables: string[]; quick_wins: { text: string; done: boolean }[]
 }
 
-const packageOptions = BILLING_PACKAGE_KEYS
+const packageOptions = BILLING_PACKAGE_KEYS.filter(
+  (key) => key === 'credit_repair' || key === 'spark' || key === 'business_launch' || key === 'growth' || key === 'scale'
+)
 const tierPrices = TIER_LIST_PRICES
 
 export default function ClientsPage() {

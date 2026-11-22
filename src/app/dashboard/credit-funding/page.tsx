@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useRef } from 'react'
+import { Suspense, useState, useEffect, useRef } from 'react'
+import CreditFundingForm from '@/components/credit-funding/CreditFundingForm'
 import FileUploadField from '@/components/credit-funding/FileUploadField'
 import ClientDisputePanel from '@/components/credit-funding/ClientDisputePanel'
 import CreditFundingStatusTracker from '@/components/credit-funding/CreditFundingStatusTracker'
@@ -202,6 +203,18 @@ export default function ClientCreditFundingPage() {
         <h1 className="text-2xl font-bold text-brand-text">Credit &amp; Funding</h1>
         <p className="text-sm text-brand-muted mt-1">Track your application status and communicate with our team</p>
       </div>
+
+      {application.status === 'draft' && (
+        <div className="mb-8">
+          <h2 className="text-lg font-bold text-brand-text mb-1">Finish your file</h2>
+          <p className="text-sm text-brand-muted mb-4">
+            Add your Social Security number, identity documents, and the monitoring service and Experian logins you use. A specialist can ask for CFPB or Credit Karma later.
+          </p>
+          <Suspense fallback={<p className="text-sm text-brand-dim">Loading the rest of your file…</p>}>
+            <CreditFundingForm variant="credit" phase="file" />
+          </Suspense>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white border border-brand-border rounded-xl p-5">

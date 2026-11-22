@@ -525,8 +525,9 @@ function clientNotes(prospect: MarketingProspect): string {
 
 function marketingPackageFor(prospect: MarketingProspect): { package_tier: Exclude<PackageTier, 'free'>; monthly_price: number } {
   const haystack = `${prospect.servicesPurchased} ${prospect.recommendedService}`.toLowerCase()
-  if (haystack.includes('scale')) return { package_tier: 'scale', monthly_price: TIER_LIST_PRICES.scale }
-  if (haystack.includes('growth')) return { package_tier: 'growth', monthly_price: TIER_LIST_PRICES.growth }
+  if (haystack.includes('scale') || haystack.includes('custom')) return { package_tier: 'scale', monthly_price: TIER_LIST_PRICES.scale }
+  if (haystack.includes('growth') || haystack.includes('partner')) return { package_tier: 'growth', monthly_price: TIER_LIST_PRICES.growth }
+  if (haystack.includes('launch')) return { package_tier: 'business_launch', monthly_price: TIER_LIST_PRICES.business_launch }
   if (haystack.includes('social')) return { package_tier: 'social_essentials', monthly_price: TIER_LIST_PRICES.social_essentials }
   return { package_tier: 'spark', monthly_price: TIER_LIST_PRICES.spark }
 }

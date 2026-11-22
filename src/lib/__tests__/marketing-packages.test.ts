@@ -74,6 +74,7 @@ describe('marketing packages', () => {
   it('keeps Social Essentials as a billing label for existing clients', () => {
     assert.equal(TIER_LABELS.social_essentials, 'Social Essentials')
     assert.equal(formatTierListPrice('spark'), '$599')
+    assert.equal(formatTierListPrice('business_launch'), '$1,799')
     assert.equal(formatTierListPrice('scale'), 'Custom')
     assert.match(source('src/app/dashboard/package/page.tsx'), /social_essentials/)
   })

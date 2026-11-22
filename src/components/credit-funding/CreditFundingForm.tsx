@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import DocumentUploadStep from '@/components/credit-funding/DocumentUploadStep'
 import { WorkflowStepStrip } from '@/components/credit-funding/WorkflowStepStrip'
 import SsnInputField from '@/components/credit-funding/SsnInputField'
@@ -33,6 +34,7 @@ import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
   | 'personal'
+  | 'account'
   | 'contact'
   | 'request'
   | 'identity'
@@ -42,8 +44,11 @@ type StepId =
   | 'business-docs'
   | 'consent'
 
+type IntakePhase = 'start' | 'file' | 'full'
+
 const STEP_LABELS: Record<StepId, string> = {
   personal: 'Personal Information',
+  account: 'Create your password',
   contact: 'Contact',
   request: 'Funding Request',
   identity: 'Identity Documents',
@@ -56,12 +61,15 @@ const STEP_LABELS: Record<StepId, string> = {
 
 function getStepFlow(
   form: Pick<FormState, 'ownsBusiness' | 'fundingUse' | 'creditProfile'>,
-  variant: 'credit' | 'funding'
+  variant: 'credit' | 'funding',
+  intakePhase: IntakePhase
 ): StepId[] {
   if (variant === 'funding') {
     return ['contact', 'request', 'business-info', 'business-docs', 'consent']
   }
-  const flow: StepId[] = ['personal', 'identity', 'monitoring', 'goals']
+  if (intakePhase === 'start') return ['personal', 'account']
+  const flow: StepId[] = intakePhase === 'full' ? ['personal'] : []
+  flow.push('identity', 'monitoring', 'goals')
   if (requiresBusinessSection(form.ownsBusiness, form.fundingUse, form.creditProfile)) {
     flow.push('business-info', 'business-docs')
   }
@@ -115,6 +123,8 @@ interface FormState {
   typedSignature: string
   signatureDate: string
   shHpField: string
+  accountPassword: string
+  accountPasswordConfirm: string
 }
 
 function validateBusinessFields(bp: BusinessProfile, errors: Record<string, string>) {
@@ -180,9 +190,18 @@ const initialState: FormState = {
   typedSignature: '',
   signatureDate: new Date().toISOString().slice(0, 10),
   shHpField: '',
+  accountPassword: '',
+  accountPasswordConfirm: '',
 }
 
-export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'credit' | 'funding' }) {
+export default function CreditFundingForm({
+  variant = 'credit',
+  phase = 'start',
+}: {
+  variant?: 'credit' | 'funding'
+  phase?: 'start' | 'file'
+}) {
+  const router = useRouter()
   const [step, setStep] = useState(0)
   const searchParams = useSearchParams()
   const inviteTokenFromUrl = searchParams.get('invite')?.trim() || ''
@@ -239,6 +258,8 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
     form.providerUsername || form.providerPassword || form.experianEmail || form.experianPassword
   )
 
+  const intakePhase: IntakePhase =
+    variant === 'funding' || inviteTokenFromUrl || inviteToken ? 'full' : phase
   const stepFlow = useMemo(
     () =>
       getStepFlow(
@@ -247,9 +268,10 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
           fundingUse: form.fundingUse,
           creditProfile: form.creditProfile,
         },
-        variant
+        variant,
+        intakePhase
       ),
-    [form.ownsBusiness, form.fundingUse, form.creditProfile, variant]
+    [form.ownsBusiness, form.fundingUse, form.creditProfile, variant, intakePhase]
   )
   const currentStepId = stepFlow[Math.min(step, stepFlow.length - 1)] ?? 'personal'
   const stepStripItems = useMemo(
@@ -408,7 +430,9 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
     if (stepId === 'personal') {
       if (!form.fullName.trim()) e.fullName = 'Required'
       if (!form.dateOfBirth && !secretsOnFile.dateOfBirthSet) e.dateOfBirth = 'Required'
-      if (!secretsOnFile.ssnSet && !isValidSsn(form.ssn)) e.ssn = 'Enter a valid 9-digit Social Security Number'
+      if (intakePhase === 'full' && !secretsOnFile.ssnSet && !isValidSsn(form.ssn)) {
+        e.ssn = 'Enter a valid 9-digit Social Security Number'
+      }
       if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Valid email required'
       if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 10) e.phone = 'Valid phone required'
       if (!form.address.trim()) e.address = 'Required'
@@ -416,7 +440,17 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
       if (!form.state.trim() || form.state.length !== 2) e.state = '2-letter state code'
       if (!form.zipCode.trim() || !/^\d{5}(-\d{4})?$/.test(form.zipCode)) e.zipCode = 'Valid ZIP required'
     }
+    if (stepId === 'account') {
+      if (form.accountPassword.length < 8) e.accountPassword = 'At least 8 characters'
+      else if (!/[A-Z]/.test(form.accountPassword) || !/[a-z]/.test(form.accountPassword) || !/[0-9]/.test(form.accountPassword)) {
+        e.accountPassword = 'Use an uppercase letter, a lowercase letter, and a number'
+      }
+      if (form.accountPassword !== form.accountPasswordConfirm) e.accountPasswordConfirm = 'Passwords do not match'
+    }
     if (stepId === 'identity') {
+      if (intakePhase === 'file' && !secretsOnFile.ssnSet && !isValidSsn(form.ssn)) {
+        e.ssn = 'Enter a valid 9-digit Social Security Number'
+      }
       const requiredMissing = REQUIRED_IDENTITY_TYPES.filter(
         (t) => !docsOnFile.includes(t) && !stagedUploads.isRequiredUploaded([t])
       )
@@ -491,7 +525,55 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
 
   const back = () => setStep((s) => Math.max(s - 1, 0))
 
+  const startAccount = async () => {
+    if (!validateStep('personal') || !validateStep('account')) return
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const res = await fetch('/api/credit-funding/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: form.fullName,
+          dateOfBirth: form.dateOfBirth,
+          email: form.email,
+          phone: form.phone,
+          address: form.address,
+          city: form.city,
+          state: form.state,
+          zipCode: form.zipCode,
+          password: form.accountPassword,
+          shHpField: form.shHpField,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSubmitError(typeof data.error === 'string' ? data.error : 'Could not create your account.')
+        setSubmitting(false)
+        return
+      }
+      const signedIn = await signIn('credentials', {
+        email: form.email.trim(),
+        password: form.accountPassword,
+        redirect: false,
+      })
+      if (signedIn?.error) {
+        setSubmitError('Account created. Sign in to finish your file.')
+        setSubmitting(false)
+        return
+      }
+      router.push('/dashboard/credit-funding')
+    } catch {
+      setSubmitError('Could not create your account.')
+      setSubmitting(false)
+    }
+  }
+
   const handleSubmit = async () => {
+    if (intakePhase === 'start') {
+      await startAccount()
+      return
+    }
     if (!validateStep('consent')) return
     setSubmitting(true)
     setSubmitError('')
@@ -593,6 +675,10 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
       setUploadProgress(100)
       setApplicationId(intakeData.applicationId || '')
       reportGoogleAdsLeadConversion()
+      if (intakePhase === 'file') {
+        window.location.assign('/dashboard/credit-funding')
+        return
+      }
       setSubmitted(true)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Submission failed')
@@ -675,6 +761,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
               <input id={fid('dateOfBirth')} name="dateOfBirth" type="date" autoComplete="bday" className={inputClass} value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} />
               {errors.dateOfBirth && <p className="text-xs text-brand-red mt-1">{errors.dateOfBirth}</p>}
             </div>
+            {intakePhase === 'full' && (
             <div>
               <label className={labelClass} htmlFor={fid('ssn')}>
                 Social Security Number *{onFileHint(secretsOnFile.ssnSet)}
@@ -688,6 +775,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
                 error={errors.ssn}
               />
             </div>
+            )}
             <div>
               <label className={labelClass} htmlFor={fid('email')}>Email Address *</label>
               <input
@@ -722,7 +810,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
             </div>
             <div>
               <label className={labelClass} htmlFor={fid('state')}>State *</label>
-              <input id={fid('state')} name="state" autoComplete="address-level1" className={inputClass} maxLength={2} placeholder="NJ" value={form.state} onChange={(e) => update('state', e.target.value.toUpperCase())} />
+              <input id={fid('state')} name="state" autoComplete="address-level1" className={inputClass} maxLength={2} placeholder="ST" value={form.state} onChange={(e) => update('state', e.target.value.toUpperCase())} />
               {errors.state && <p className="text-xs text-brand-red mt-1">{errors.state}</p>}
             </div>
             <div>
@@ -789,8 +877,43 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
           </div>
         )}
 
+        {currentStepId === 'account' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <p className="text-sm text-brand-muted mb-2">
+                This password opens your client portal. You will add your Social Security number, identity documents, and monitoring logins there.
+              </p>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={fid('accountPassword')}>Password *</label>
+              <input id={fid('accountPassword')} name="new-password" type="password" autoComplete="new-password" className={inputClass} value={form.accountPassword} onChange={(e) => update('accountPassword', e.target.value)} />
+              {errors.accountPassword && <p className="text-xs text-brand-red mt-1">{errors.accountPassword}</p>}
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={fid('accountPasswordConfirm')}>Confirm password *</label>
+              <input id={fid('accountPasswordConfirm')} name="confirm-password" type="password" autoComplete="new-password" className={inputClass} value={form.accountPasswordConfirm} onChange={(e) => update('accountPasswordConfirm', e.target.value)} />
+              {errors.accountPasswordConfirm && <p className="text-xs text-brand-red mt-1">{errors.accountPasswordConfirm}</p>}
+            </div>
+          </div>
+        )}
+
         {currentStepId === 'identity' && (
           <div>
+            {intakePhase === 'file' && (
+              <div className="mb-5 max-w-md">
+                <label className={labelClass} htmlFor={fid('ssn')}>
+                  Social Security Number *{onFileHint(secretsOnFile.ssnSet)}
+                </label>
+                <SsnInputField
+                  id={fid('ssn')}
+                  name="ssn"
+                  className={inputClass}
+                  value={form.ssn}
+                  onChange={(digits) => update('ssn', digits)}
+                  error={errors.ssn}
+                />
+              </div>
+            )}
             <DocumentUploadStep
               title="Identity Documents"
               subtitle="Upload a photo ID and proof of address. Files are encrypted and stored securely as soon as you add them."
@@ -1169,7 +1292,7 @@ export default function CreditFundingForm({ variant = 'credit' }: { variant?: 'c
               disabled={submitting}
               className="px-6 py-2.5 rounded-md bg-brand-text text-white font-semibold text-sm hover:bg-neutral-800 disabled:opacity-60 transition-all"
             >
-              {submitting ? 'Submitting…' : 'Submit Application'}
+              {submitting ? 'Submitting…' : intakePhase === 'start' ? 'Create account' : 'Submit Application'}
             </button>
           )}
         </div>

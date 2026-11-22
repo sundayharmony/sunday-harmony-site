@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { packages } from '@/lib/data'
+import { CREDIT_REPAIR_AGREEMENT } from '@/lib/credit-repair-agreement'
 
 interface FormData {
   client_name: string
@@ -181,7 +182,7 @@ export default function NewAgreementPage() {
                 value={formData.business_address}
                 onChange={(e) => setFormData(prev => ({ ...prev, business_address: e.target.value }))}
                 className="w-full px-3 py-2 border border-brand-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30"
-                placeholder="123 Main St, Egg Harbor Township, NJ"
+                placeholder="123 Main St, City, ST"
               />
             </div>
           </div>
@@ -191,6 +192,24 @@ export default function NewAgreementPage() {
         <section className="rounded-xl border border-brand-border bg-white p-6">
           <h2 className="font-bold text-brand-text mb-4">Package Selection</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <button
+              type="button"
+              onClick={() => setFormData((prev) => ({
+                ...prev,
+                package_tier: 'Credit Repair',
+                package_price: '',
+                price_type: 'one-time',
+                custom_scope: CREDIT_REPAIR_AGREEMENT,
+              }))}
+              className={`p-3 rounded-lg border text-left transition-all ${
+                formData.package_tier === 'Credit Repair'
+                  ? 'border-accent bg-accent-soft'
+                  : 'border-brand-border hover:border-accent/50'
+              }`}
+            >
+              <div className="text-sm font-semibold text-brand-text">Credit Repair</div>
+              <div className="text-xs text-brand-muted">Fee after analysis</div>
+            </button>
             {packages.map((pkg) => (
               <button
                 key={pkg.tier}
@@ -255,7 +274,7 @@ export default function NewAgreementPage() {
             </div>
           </div>
 
-          {formData.package_tier === 'Custom Solutions' && (
+          {(formData.package_tier === 'Custom Solutions' || formData.package_tier === 'Credit Repair') && (
             <div className="mt-4">
               <label className="block text-sm font-medium text-brand-text mb-1">
                 Custom Scope Description

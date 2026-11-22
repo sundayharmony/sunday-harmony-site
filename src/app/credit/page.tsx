@@ -82,10 +82,10 @@ const approaches = [
 ]
 
 const steps = [
-  { title: 'Secure intake', body: 'Identity, goals, and monitoring access so we can see the same data you do.' },
+  { title: 'Create your account', body: 'Name, contact details, and a password. That is the public step.' },
+  { title: 'Finish the file', body: 'In your portal, add identity documents and the monitoring and Experian logins you already use.' },
   { title: 'Analysis', body: 'Sunday Harmony maps scores, negatives, and inquiries across bureaus.' },
-  { title: 'Action plan', body: 'Disputes, paydown priorities, and habits—plain language, no hype.' },
-  { title: 'Track progress', body: 'Client portal updates, rounds, and next steps as the file changes.' },
+  { title: 'Letters and progress', body: 'Dispute rounds and next steps show in the portal as the file changes.' },
 ]
 
 const faqs = [
@@ -135,7 +135,7 @@ function IntakeSection({ first }: { first: boolean }) {
           Start your <span className="gold-text">credit intake</span>
         </h2>
         <p className="text-[15px] text-brand-muted leading-relaxed mb-10 max-w-[600px]">
-          Personal information, identity documents, and credit monitoring access. Submissions are encrypted and reviewed confidentially.
+          Start with your name, contact details, and a password. Identity documents and monitoring logins are finished in your client portal, where they stay encrypted.
         </p>
         <Suspense fallback={<p className="text-sm text-brand-muted">Loading application form…</p>}>
           <CreditFundingForm variant="credit" />

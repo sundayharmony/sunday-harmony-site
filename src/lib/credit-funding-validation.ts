@@ -12,6 +12,7 @@ import {
   type CreditProfile,
   type ConsentData,
 } from '@/lib/credit-funding-types'
+import { validatePassword } from '@/lib/auth-password'
 import { isValidSsn, normalizeSsnDigits } from '@/lib/ssn-utils'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -279,6 +280,46 @@ export function validateIntakePayload(payload: IntakeFormPayload): string | null
   if (!payload.signatureDate) return 'Signature date is required'
 
   return null
+}
+
+/** Public credit start: basic identity and a portal password. Bureau logins come later. */
+export function validateCreditAccountStart(payload: IntakeFormPayload, password: string): string | null {
+  if (!payload.fullName) return 'Full legal name is required'
+  if (!payload.dateOfBirth) return 'Date of birth is required'
+  if (!payload.email || !EMAIL_RE.test(payload.email)) return 'Valid email address is required'
+  if (!payload.phone || payload.phone.replace(/\D/g, '').length < 10) return 'Valid phone number is required'
+  if (!payload.address) return 'Home address is required'
+  if (!payload.city) return 'City is required'
+  if (!payload.state || !US_STATE_RE.test(payload.state)) return 'Valid 2-letter state code is required'
+  if (!payload.zipCode || !ZIP_RE.test(payload.zipCode)) return 'Valid ZIP code is required'
+  return validatePassword(password)
+}
+
+/** Fill empty identity fields from the account created on the public form. */
+export function withDraftBasics(
+  payload: IntakeFormPayload,
+  basics: {
+    fullName?: string
+    email?: string
+    phone?: string
+    address?: string
+    city?: string
+    state?: string
+    zipCode?: string
+    dateOfBirth?: string
+  }
+): IntakeFormPayload {
+  return {
+    ...payload,
+    fullName: payload.fullName || basics.fullName || '',
+    email: payload.email || (basics.email || '').toLowerCase(),
+    phone: payload.phone || basics.phone || '',
+    address: payload.address || basics.address || '',
+    city: payload.city || basics.city || '',
+    state: payload.state || (basics.state || '').toUpperCase(),
+    zipCode: payload.zipCode || basics.zipCode || '',
+    dateOfBirth: payload.dateOfBirth || basics.dateOfBirth || '',
+  }
 }
 
 /** Staff draft saves only require identity for lookup; everything else is optional until finalize. */

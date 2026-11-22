@@ -216,7 +216,7 @@ describe('partner logos', () => {
     assert.match(strip, /if \(logos\.length === 0\) return null/)
     assert.match(source('src/lib/partner-db.ts'), /eq\('status', 'active'\)/)
     assert.match(strip, /case-study-grid/)
-    assert.match(strip, /logo\.blurb/)
+    assert.doesNotMatch(strip, /logo\.blurb/)
   })
 })
 

@@ -1,10 +1,10 @@
 # Sunday Harmony — Website
 
-Marketing website for Sunday Harmony, NJ's all-in-one marketing agency for small businesses.
+Marketing website and client operations for Sunday Harmony, a digital brand consultancy. Credit repair and a funding-file handoff sit behind the same site.
 
 ## Tech Stack
 
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
 - **Backend:** Next.js API Routes + Nodemailer

@@ -1375,6 +1375,12 @@ export async function onLettersGenerated(sessionId: string): Promise<LetterPacka
   // Do not mark the ZIP building here. prepareLetterPackageZip claims that status
   // itself; a pre-claim looks like a live build, so the saver returns early and
   // every Download ZIP rebuilds the letters.
+  try {
+    const { queueAdminLetterMailTask } = await import('@/lib/dispute-letters/mail-task')
+    await queueAdminLetterMailTask(sessionId)
+  } catch (err) {
+    console.error('letter mail task failed:', err)
+  }
   return pkg
 }
 

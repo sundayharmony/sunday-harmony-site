@@ -161,7 +161,7 @@ function latest<T extends { created_at: string }>(rows: T[]): T | undefined {
   return [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
 }
 
-const MARKETING_PACKAGE_TIERS = new Set(['free', 'social_essentials', 'spark', 'growth', 'scale'])
+const MARKETING_PACKAGE_TIERS = new Set(['free', 'social_essentials', 'spark', 'business_launch', 'growth', 'scale'])
 const CREDIT_REPAIR_LEAD_TYPES = new Set(['credit_repair_lead', 'credit_repair_funding'])
 
 /** A client account on a marketing plan, not a credit-repair account. */

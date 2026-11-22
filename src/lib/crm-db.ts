@@ -543,6 +543,7 @@ export async function upsertLeadFromCreditIntake(params: {
   fundingUse: string
   applicationUuid: string
   clientId?: string
+  source?: 'website' | 'referral'
 }): Promise<Lead | null> {
   const leadType = deriveLeadTypeFromIntake(params.creditGoals, params.fundingUse)
   const cfStatus: CreditFundingClientStatus = 'intake_completed'
@@ -591,7 +592,7 @@ export async function upsertLeadFromCreditIntake(params: {
       email: params.email,
       phone: params.phone,
       business: params.businessName || `${firstName} ${lastName}`,
-      source: 'inbound',
+      source: params.source || 'website',
       lead_type: leadType,
       credit_funding_client_status: cfStatus,
       marketing_lead_status: null,

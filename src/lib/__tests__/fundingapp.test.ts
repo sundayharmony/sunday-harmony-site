@@ -149,15 +149,14 @@ describe('funding application intake', () => {
     )
   })
 
-  it('keeps the new questions off the existing credit intake', () => {
+  it('keeps a single public funding intake', () => {
     const creditForm = readFileSync('src/components/credit-funding/CreditFundingForm.tsx', 'utf8')
-    const fundingForm = readFileSync('src/components/funding/FundingAppForm.tsx', 'utf8')
     const route = readFileSync('src/app/api/fundingapp/route.ts', 'utf8')
+    const config = readFileSync('next.config.js', 'utf8')
     assert.equal(creditForm.includes('When was your LLC Created'), false)
-    assert.equal(creditForm.includes('Experian Four Digit Pin'), false)
-    assert.equal(fundingForm.includes('When was your LLC Created'), true)
-    assert.equal(fundingForm.includes('My Fico'), true)
-    assert.match(route, /draftSource: submission\.draftSource/)
-    assert.equal(route.includes('console.log'), false)
+    assert.match(route, /status: 410/)
+    assert.match(config, /source: '\/fundingapp'/)
+    assert.match(config, /destination: '\/funding'/)
+    assert.throws(() => readFileSync('src/components/funding/FundingAppForm.tsx', 'utf8'))
   })
 })

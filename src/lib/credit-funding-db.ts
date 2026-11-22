@@ -247,6 +247,47 @@ export async function createStaffDraftApplication(params: {
   return app
 }
 
+/** Account-first credit intake. Monitoring logins are added later from the portal. */
+export async function createClientStartDraft(
+  payload: IntakeFormPayload
+): Promise<CreditFundingApplication | null> {
+  const blocking = await getBlockingIncompleteApplicationByEmail(payload.email)
+  if (blocking) return null
+
+  const applicationId = generateApplicationId()
+  const encrypted = buildPartialEncryptedApplicationRow(payload)
+  const row: Record<string, unknown> = {
+    application_id: applicationId,
+    ...encrypted,
+    funding_goals: buildFundingGoalsSummary(payload),
+    status: 'draft' as ApplicationStatus,
+    service_type: 'credit_repair',
+    lead_type: 'credit_repair_lead',
+    credit_funding_client_status: 'intake_started',
+    draft_source: 'client_start',
+  }
+
+  const { data, error } = await getSupabase()
+    .from('credit_funding_applications')
+    .insert(row)
+    .select()
+    .single()
+
+  if (error || !data) {
+    console.error('createClientStartDraft error:', error)
+    return null
+  }
+
+  const app = data as CreditFundingApplication
+  await createStatusHistory({
+    application_uuid: app.id,
+    status: 'draft',
+    staff_email: null,
+    notes: 'Client started an account. File still needs monitoring access.',
+  })
+  return app
+}
+
 export async function updateStaffDraftApplication(
   id: string,
   payload: IntakeFormPayload

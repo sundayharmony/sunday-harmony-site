@@ -41,10 +41,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
-      url: absoluteUrl('/fundingapp'),
+      url: absoluteUrl('/build-fund'),
       lastModified: now,
       changeFrequency: 'monthly',
-      priority: 0.6,
+      priority: 0.7,
     },
     {
       url: absoluteUrl('/credit'),

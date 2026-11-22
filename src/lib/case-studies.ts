@@ -55,9 +55,8 @@ export function toAdminCaseStudy(row: CaseStudyRow): CaseStudyAdmin {
 
 function toPublicCard(row: CaseStudyRow): PartnerLogo | null {
   const src = partnerLogoPublicUrl(row.logo_path)
-  const blurb = (row.blurb || '').trim()
-  if (!src && !blurb) return null
-  return { companyName: row.company_name, src, blurb }
+  if (!src) return null
+  return { companyName: row.company_name, src }
 }
 
 export async function listCaseStudiesForAdmin(): Promise<

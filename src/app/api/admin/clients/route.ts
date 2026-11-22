@@ -216,7 +216,7 @@ export async function PATCH(req: NextRequest) {
 
   if (typeof updates.package_tier === 'string') {
     const tier = updates.package_tier as PackageTier
-    const allowedTiers = ['free', 'social_essentials', 'spark', 'growth', 'scale'] as const
+    const allowedTiers = ['free', 'social_essentials', 'spark', 'business_launch', 'growth', 'scale'] as const
     if (!allowedTiers.includes(tier as (typeof allowedTiers)[number])) {
       return NextResponse.json({ error: 'Invalid package tier' }, { status: 400 })
     }

@@ -14,7 +14,7 @@ export default function PartnerLogos({ logos }: { logos: PartnerLogo[] }) {
               Businesses we <span className="gold-text">work alongside</span>
             </>
           }
-          description="Company names, logos, and short notes from the Case Study tab."
+          description="Logos from companies we work with."
         />
         <ul className="case-study-grid mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {logos.map((logo) => (
@@ -36,9 +36,6 @@ export default function PartnerLogos({ logos }: { logos: PartnerLogo[] }) {
                 </div>
               )}
               <span className="text-sm font-semibold text-brand-text leading-snug">{logo.companyName}</span>
-              {logo.blurb ? (
-                <p className="text-sm text-brand-muted leading-relaxed whitespace-pre-wrap">{logo.blurb}</p>
-              ) : null}
             </li>
           ))}
         </ul>

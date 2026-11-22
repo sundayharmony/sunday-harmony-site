@@ -13,6 +13,19 @@ export { formatDocumentStatusBadge, type DocumentStatus }
 
 export type DocumentType = 'agreement' | 'proposal'
 
+/** Admin sees every signed file. Other staff see files they created. The client sees their own. */
+export function mayDownloadSignedDocument(input: {
+  role?: string | null
+  userId?: string | null
+  email?: string | null
+  document: { client_email: string; created_by: string }
+}): boolean {
+  if (input.role === 'admin') return true
+  const email = (input.email || '').toLowerCase()
+  if (email && input.document.client_email.toLowerCase() === email) return true
+  return Boolean(input.userId && input.document.created_by === input.userId)
+}
+
 export interface ServiceDocument {
   id: string
   document_type: DocumentType

@@ -52,6 +52,7 @@ export async function runCreditFundingSubmissionSideEffects(params: {
     creditGoals: payload.creditGoals,
     fundingUse: payload.fundingUse,
     applicationUuid: application.id,
+    source: payload.referredBy?.trim() ? 'referral' : 'website',
     clientId: existingUser?.client_id || application.client_id || undefined,
   })
 

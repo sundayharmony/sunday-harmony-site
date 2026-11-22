@@ -85,6 +85,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/fundingapp',
+        destination: '/funding',
+        permanent: true,
+      },
+      {
         source: '/case-studies',
         destination: '/',
         permanent: true,

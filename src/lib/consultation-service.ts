@@ -236,7 +236,7 @@ export async function bookConsultation(input: {
       business: input.business.trim(),
       message: input.note.trim(),
       service: 'Consultation',
-      source: 'inbound',
+      source: 'website',
       lead_type: 'marketing_lead',
       marketing_lead_status: 'contacted',
       pipeline_stage: 'responded',

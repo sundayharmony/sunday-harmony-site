@@ -56,10 +56,12 @@ export function clientFacingPackageSummary(client: {
       isCreditRepair: true,
     }
   }
+  const monthly = key === 'growth' || key === 'social_essentials'
+  const quoted = key === 'scale' && !client.monthly_price
   return {
     packageLabel: billingPackageLabel(key),
-    investmentLabel: 'Monthly Investment',
-    investmentValue: `$${(client.monthly_price || 0).toLocaleString()}`,
+    investmentLabel: monthly ? 'Monthly Investment' : quoted ? 'Quoted price' : 'Project fee',
+    investmentValue: quoted ? 'Custom' : `$${(client.monthly_price || 0).toLocaleString()}`,
     isCreditRepair: false,
   }
 }

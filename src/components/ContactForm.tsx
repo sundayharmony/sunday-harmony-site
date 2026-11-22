@@ -16,6 +16,15 @@ interface FormData {
   shHpField: string
 }
 
+function contactLeadSource(): 'website' | 'ads' | 'referral' {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('gclid') || params.get('utm_medium') === 'cpc') return 'ads'
+  if (params.get('ref') || document.cookie.split(';').some((part) => part.trim().startsWith('sh_ref='))) {
+    return 'referral'
+  }
+  return 'website'
+}
+
 type ContactFormProps = {
   /** When true, render only the form card (for the dedicated /contact page). */
   embed?: boolean
@@ -38,7 +47,7 @@ export default function ContactForm({ embed = false }: ContactFormProps) {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, source: contactLeadSource() }),
       })
 
       if (!res.ok) {

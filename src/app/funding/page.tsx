@@ -92,9 +92,9 @@ const options = [
 
 const steps = [
   { title: 'Share the business', body: 'Contact details, the amount, and a short business profile.' },
-  { title: 'We review the file', body: 'Sunday Harmony reads the details and flags what is missing.' },
-  { title: 'Close the gaps', body: 'Sort the documents and fixes that strengthen the request.' },
-  { title: 'Choose the next step', body: 'Talk through options that fit. Nothing is promised up front.' },
+  { title: 'We prepare the file', body: 'Sunday Harmony checks the details and what is missing. There is no fee for this step.' },
+  { title: 'Hand off', body: 'A funding partner reviews the file and handles the funding request.' },
+  { title: 'Nothing is promised', body: 'Approval, amount, and terms come from that partner, not from this form.' },
 ]
 
 const faqs = [
@@ -104,7 +104,7 @@ const faqs = [
   },
   {
     q: 'Is this a loan application?',
-    a: 'No. It is an intake so Sunday Harmony can review the business. Funding decisions are made by lenders, and nothing here is a promise of approval.',
+    a: 'No. Sunday Harmony prepares the file and passes it to a funding partner. That partner makes the funding decision. Nothing here is a promise of approval, and this step is not billed.',
   },
   {
     q: 'Do I need documents right now?',
