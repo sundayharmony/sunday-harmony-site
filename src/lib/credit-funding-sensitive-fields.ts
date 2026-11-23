@@ -494,50 +494,6 @@ export function buildEncryptedInvitationRow(params: {
   }
 }
 
-export function decryptApplicationSensitiveFields(app: CreditFundingApplication) {
-  return {
-    ...app,
-    phone: decryptFieldOrLegacy(app.phone),
-    address: decryptFieldOrLegacy(app.address),
-    city: decryptFieldOrLegacy(app.city),
-    state: decryptFieldOrLegacy(app.state),
-    zip_code: decryptFieldOrLegacy(app.zip_code),
-    date_of_birth: decryptFieldOrLegacy(app.date_of_birth_encrypted || ''),
-    ssn: decryptFieldOrLegacy(app.ssn_encrypted || ''),
-    provider_username: decryptFieldOrLegacy(app.provider_username_encrypted || ''),
-    provider_password: decryptFieldOrLegacy(app.provider_password_encrypted || ''),
-    experian_email: decryptFieldOrLegacy(app.experian_email_encrypted || ''),
-    experian_password: decryptFieldOrLegacy(app.experian_password_encrypted || ''),
-    experian_security_answer: decryptFieldOrLegacy(app.experian_security_answer_encrypted || ''),
-    experian_pin: decryptFieldOrLegacy(app.experian_pin_encrypted || ''),
-    cfpb_email: decryptFieldOrLegacy(app.cfpb_email_encrypted || ''),
-    cfpb_password: decryptFieldOrLegacy(app.cfpb_password_encrypted || ''),
-    internal_notes: decryptFreeTextForView(app.internal_notes),
-    client_notes: decryptFreeTextForView(app.client_notes),
-    next_steps: decryptFreeTextForView(app.next_steps),
-    invite_personal_message: decryptFreeTextForView(app.invite_personal_message),
-    primary_credit_goals_text: app.primary_credit_goals_text
-      ? decryptFieldOrLegacy(app.primary_credit_goals_text)
-      : app.primary_credit_goals_text,
-    goals_notes: app.goals_notes ? decryptFieldOrLegacy(app.goals_notes) : app.goals_notes,
-    typed_signature: decryptFieldOrLegacy(app.typed_signature),
-    credit_profile: decryptCreditProfileForAdmin(app.credit_profile || {}),
-    business_profile: app.business_profile
-      ? deserializeBusinessProfileForAdmin(app.business_profile as Record<string, unknown>)
-      : app.business_profile,
-    date_of_birth_encrypted: undefined,
-    ssn_encrypted: undefined,
-    provider_username_encrypted: undefined,
-    provider_password_encrypted: undefined,
-    experian_email_encrypted: undefined,
-    experian_password_encrypted: undefined,
-    experian_security_answer_encrypted: undefined,
-    experian_pin_encrypted: undefined,
-    cfpb_email_encrypted: undefined,
-    cfpb_password_encrypted: undefined,
-  }
-}
-
 export function decryptApplicationOperationalFields(app: CreditFundingApplication) {
   return {
     ...app,
@@ -568,6 +524,24 @@ export function decryptApplicationOperationalFields(app: CreditFundingApplicatio
     experian_pin_encrypted: undefined,
     cfpb_email_encrypted: undefined,
     cfpb_password_encrypted: undefined,
+  }
+}
+
+/** Operational fields plus every stored secret, decrypted (staff reveal / editor only). */
+export function decryptApplicationSensitiveFields(app: CreditFundingApplication) {
+  return {
+    ...decryptApplicationOperationalFields(app),
+    date_of_birth: decryptFieldOrLegacy(app.date_of_birth_encrypted || ''),
+    ssn: decryptFieldOrLegacy(app.ssn_encrypted || ''),
+    provider_username: decryptFieldOrLegacy(app.provider_username_encrypted || ''),
+    provider_password: decryptFieldOrLegacy(app.provider_password_encrypted || ''),
+    experian_email: decryptFieldOrLegacy(app.experian_email_encrypted || ''),
+    experian_password: decryptFieldOrLegacy(app.experian_password_encrypted || ''),
+    experian_security_answer: decryptFieldOrLegacy(app.experian_security_answer_encrypted || ''),
+    experian_pin: decryptFieldOrLegacy(app.experian_pin_encrypted || ''),
+    cfpb_email: decryptFieldOrLegacy(app.cfpb_email_encrypted || ''),
+    cfpb_password: decryptFieldOrLegacy(app.cfpb_password_encrypted || ''),
+    typed_signature: decryptFieldOrLegacy(app.typed_signature),
   }
 }
 
