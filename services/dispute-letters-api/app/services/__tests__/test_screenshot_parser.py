@@ -18,13 +18,16 @@ DEMO COLLECTIONS LLC
 Report Ost 12,2026 fe Pastave
 Balance: $400.00
 Curont Paymert Statue Collection
+FAKE CARD CO
+Reported: Sep 3, 2026
+Balance: $0.00 Credit limit: $500.00
 """
 
 
 def test_screenshot_cards_become_accounts():
     tradelines, _consumer, _date = parse_bureau_accounts(OCR_TEXT, file_name="Client Transunion.pdf")
     by_name = {t.creditor: t for t in tradelines}
-    assert set(by_name) == {"SAMPLE BANK", "DEMO COLLECTIONS LLC"}
+    assert set(by_name) == {"SAMPLE BANK", "DEMO COLLECTIONS LLC", "FAKE CARD CO"}
     bank = by_name["SAMPLE BANK"]
     assert bank.balance == "$1,200.00"
     assert bank.credit_limit == "$3,000.00"

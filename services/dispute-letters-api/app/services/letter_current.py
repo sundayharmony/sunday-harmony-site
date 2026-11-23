@@ -41,6 +41,8 @@ def bureau_short_name(value: str) -> str:
     if match:
         chunk = " " + match.group(0).strip()
     folded = text.casefold()
+    if "consumer financial protection" in folded:
+        return ""  # CFPB letters name a creditor, which may contain a bureau's name
     for needle, label in _BUREAU_LABELS:
         if needle in folded:
             return f"{label}{chunk}"

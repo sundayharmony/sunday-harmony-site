@@ -16,7 +16,7 @@ from app.models import BureauCode, ExtractedDocument, Tradeline
 _DATE = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? \d{1,2}, \d{4}"
 _SECTION_END = re.compile(
     r"^(?:Collections|Public records|Personal information|Accounts|Credit accounts|"
-    r"Creditor Contacts|Soft inquiries|Account history)\b",
+    r"Creditor Contacts|Soft inquiries|Account history)\s*$",
     re.I,
 )
 _BUREAU_WORDS = {"transunion": "TUC", "experian": "EXP", "equifax": "EQF"}
@@ -29,7 +29,8 @@ def add_inquiries(report, doc: ExtractedDocument, bureau: BureauCode | None) -> 
     try:
         rows = _smartcredit_table(doc.text or "")
         if not rows and bureau:
-            rows = _experian_grid(_layout(doc), bureau) or _named_list(doc.text or "", bureau)
+            grid = _experian_grid(_layout(doc), bureau) if "Inquired on" in (doc.text or "") else []
+            rows = grid or _named_list(doc.text or "", bureau)
     except Exception:
         rows = []
     report.tradelines.extend(rows)

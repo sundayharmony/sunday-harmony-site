@@ -43,9 +43,9 @@ def extract_pdf(path: Path) -> ExtractedDocument:
     avg_chars = (len(text) / page_count) if page_count else 0
 
     if page_count and (avg_chars < 80 or _text_is_junk(text)):
-        ocr_text, ocr_used = _ocr_pdf(path)
+        ocr_text, _ran = _ocr_pdf(path)
         if len(ocr_text) > len(text) or avg_chars < 80:
-            text = ocr_text
+            text, ocr_used = ocr_text, True
 
     return ExtractedDocument(
         file_type="pdf",

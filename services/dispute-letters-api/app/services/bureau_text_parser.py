@@ -241,7 +241,7 @@ def parse_bureau_accounts(
         from app.services.screenshot_parser import parse_screenshot_accounts
 
         shots = parse_screenshot_accounts(cleaned, bureau)
-        if len(shots) > len(tradelines):
+        if len(shots) >= 3 and len(shots) > len(tradelines):
             tradelines = shots
     consumer = _consumer_from_text(cleaned) if tradelines else ConsumerInfo()
     report_date = _report_date(cleaned) if tradelines else ""

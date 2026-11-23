@@ -296,3 +296,13 @@ def test_single_bureau_file_uses_headline_score_for_its_bureau():
     report = fill_missing_scores(ParsedReport(), text=text, file_name="Client Transunioin 11-23.pdf")
     scores = report.credit_health.scores
     assert (scores.tuc, scores.exp, scores.eqf) == (726, None, None)
+
+
+def test_file_named_for_several_bureaus_keeps_all_scores():
+    from app.models import ParsedReport
+    from app.services.bureau_scores import fill_missing_scores
+
+    text = "Experian Score 710\nTransUnion Score 700\nEquifax Score 720\n"
+    multi = fill_missing_scores(ParsedReport(), text=text, file_name="Smith Experian TransUnion Equifax.pdf")
+    plain = fill_missing_scores(ParsedReport(), text=text, file_name="")
+    assert multi.credit_health.scores == plain.credit_health.scores

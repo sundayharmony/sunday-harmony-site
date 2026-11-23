@@ -406,7 +406,9 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
     name_sign = (consumer.name or "[Consumer Name]").strip()
     is_bureau = plan.letter_type.startswith("bureau_") or plan.letter_type in BUREAU_FOLLOW_UP_TYPES
     # "(letter 1 of 2)" / "(CREDITOR)" tags keep letters apart in the app; never print them.
-    recipient_print = re.sub(r"\s*\([^)]*\)\s*$", "", plan.recipient_name or "").strip()
+    recipient_print = re.sub(r"\s*\(letter \d+ of \d+\)\s*$", "", plan.recipient_name or "").strip()
+    if plan.letter_type == "cfpb_complaint":
+        recipient_print = "Consumer Financial Protection Bureau"
     recipient = recipient_print or "the credit reporting agency"
 
     prior_block = ""

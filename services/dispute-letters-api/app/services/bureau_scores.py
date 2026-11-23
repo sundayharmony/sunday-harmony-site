@@ -451,6 +451,8 @@ def fill_missing_scores(
     # A file named for one bureau (e.g. "Client Equifax 11-21.pdf") holds that bureau's
     # score only. Its headline score wins; other bureau names in the text are not scores.
     single = infer_bureau_key_from_filename(file_name)
+    if single and sum(1 for _attr, pat in _FILENAME_BUREAU_PATTERNS if pat.search(file_name or "")) != 1:
+        single = None  # a name listing several bureaus is not a single-bureau file
     preset = {k for k in ("tuc", "exp", "eqf") if getattr(current, k) is not None}
     if single and getattr(current, single) is None:
         headline = _headline_score(f"{html}\n{text}")

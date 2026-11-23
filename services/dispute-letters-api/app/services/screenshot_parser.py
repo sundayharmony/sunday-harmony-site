@@ -54,7 +54,7 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
         for k in ("balance", "credit_limit", "past_due", "monthly_payment"):
             if fields[k]:
                 fields[k] = "$" + fields[k]
-        key = f"{creditor.lower()}|{fields['balance']}"
+        key = f"{creditor.lower()}|{fields['balance']}|{fields['last_reported']}|{fields['credit_limit']}"
         if key in seen:
             continue
         seen.add(key)
