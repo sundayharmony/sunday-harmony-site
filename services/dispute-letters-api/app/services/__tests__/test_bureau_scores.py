@@ -286,3 +286,23 @@ def test_scores_from_text_ignores_vantage_disclaimer_phone_and_unit():
     assert scores.tuc is None
     assert scores.exp is None
     assert scores.eqf is None
+
+
+def test_single_bureau_file_uses_headline_score_for_its_bureau():
+    from app.models import ParsedReport
+    from app.services.bureau_scores import fill_missing_scores
+
+    text = "At a glance\nFICO® Score 8\n\n726\n\nExperian\nCredit scores 300 - 850\nEquifax 300\n"
+    report = fill_missing_scores(ParsedReport(), text=text, file_name="Client Transunioin 11-23.pdf")
+    scores = report.credit_health.scores
+    assert (scores.tuc, scores.exp, scores.eqf) == (726, None, None)
+
+
+def test_file_named_for_several_bureaus_keeps_all_scores():
+    from app.models import ParsedReport
+    from app.services.bureau_scores import fill_missing_scores
+
+    text = "Experian Score 710\nTransUnion Score 700\nEquifax Score 720\n"
+    multi = fill_missing_scores(ParsedReport(), text=text, file_name="Smith Experian TransUnion Equifax.pdf")
+    plain = fill_missing_scores(ParsedReport(), text=text, file_name="")
+    assert multi.credit_health.scores == plain.credit_health.scores

@@ -23,10 +23,9 @@ export function usesStaleCleanProfileLanguage(text: string): boolean {
 export function defaultInquiryDisputeReason(creditor: string): string {
   const name = creditor.trim() || 'this company'
   return (
-    `I did not authorize this hard inquiry from ${name} and dispute it as an inquiry ` +
-    'made without a permissible purpose under FCRA §604 (15 U.S.C. §1681b). ' +
-    'If the inquiry cannot be verified as initiated by me, delete it from my file under ' +
-    'FCRA §611 (15 U.S.C. §1681i).'
+    `I dispute this hard inquiry from ${name}. Please verify that ${name} had a ` +
+    'permissible purpose under FCRA §604 (15 U.S.C. §1681b) and that the inquiry was initiated ' +
+    'by me. If it cannot be verified, delete it from my file under FCRA §611 (15 U.S.C. §1681i).'
   )
 }
 

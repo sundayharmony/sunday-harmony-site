@@ -73,6 +73,10 @@ async def analyze_report_async(
 ) -> ParsedReport:
     """Parse the report locally. No report text leaves this service."""
     local = _apply_fallback(doc, "local parse", file_name=file_name)
+    from app.services.bureau_text_parser import detect_primary_bureau
+    from app.services.inquiries import add_inquiries
+
+    add_inquiries(local, doc, detect_primary_bureau(doc.text or "", file_name))
     count = real_account_count(local)
     if count > 0:
         local.analysis_summary = f"Parsed {count} account(s) locally from the uploaded report."
@@ -100,7 +104,9 @@ def _finalize_report(
 
     source_html = html or (doc.html if doc else "") or ""
     source_text = text or (doc.text if doc else "") or source_html
-    fill_missing_scores(report, html=source_html, text=source_text, file_name=file_name)
+    fill_missing_scores(
+        report, html=source_html, text=source_text, file_name=file_name, ocr=bool(doc and doc.ocr_used)
+    )
     report.credit_health = build_health_summary(report, agent_health)
     report = apply_high_priority_selection(report)
     report.credit_intelligence = build_credit_intelligence(report)

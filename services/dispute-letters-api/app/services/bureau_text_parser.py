@@ -237,6 +237,12 @@ def parse_bureau_accounts(
         tradelines = _parse_experian_blocks(cleaned, bureau)
     if not tradelines:
         tradelines = _parse_labeled_accounts(cleaned, bureau)
+    if len(tradelines) <= 2:
+        from app.services.screenshot_parser import parse_screenshot_accounts
+
+        shots = parse_screenshot_accounts(cleaned, bureau)
+        if len(shots) >= 3 and len(shots) > len(tradelines):
+            tradelines = shots
     consumer = _consumer_from_text(cleaned) if tradelines else ConsumerInfo()
     report_date = _report_date(cleaned) if tradelines else ""
     return tradelines, consumer, report_date
@@ -862,7 +868,7 @@ def detect_primary_bureau(text: str, file_name: str = "") -> BureauCode | None:
     name = file_name or ""
     if re.search(r"experian", name, re.I):
         return "EXP"
-    if re.search(r"trans[\s_-]*union", name, re.I):
+    if re.search(r"trans[\s_-]*uni", name, re.I):
         return "TUC"
     if re.search(r"equifax", name, re.I):
         return "EQF"

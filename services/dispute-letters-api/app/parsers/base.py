@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models import ExtractedDocument, ParsedReport
-from app.parsers import identityiq, smartcredit
+from app.parsers import identityiq, identityiq_text, smartcredit
 from app.services import report_extractor
 
 
@@ -19,6 +19,11 @@ def parse_document_fallback(doc: ExtractedDocument, file_name: str = "") -> Pars
             _enrich_tradelines_from_fallback(report)
             return report
     text_blob = doc.text or ""
+    if identityiq_text.can_parse_text(text_blob):
+        report = identityiq_text.parse(doc)
+        if report.tradelines:
+            _enrich_tradelines_from_fallback(report)
+            return report
     if smartcredit.can_parse_text(text_blob, file_name) or smartcredit.can_parse(file_name):
         report = smartcredit.parse_text(
             text_blob,

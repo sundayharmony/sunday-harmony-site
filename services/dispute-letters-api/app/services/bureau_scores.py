@@ -401,7 +401,7 @@ _FILENAME_BUREAU_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("exp", re.compile(r"experian|(?:^|[\s_\-./])exp(?:[\s_\-./]|$)", re.I)),
     (
         "tuc",
-        re.compile(r"trans[\s_\-]*union|(?:^|[\s_\-./])tu(?:[\s_\-./]|$)|(?:^|[\s_\-./])tuc(?:[\s_\-./]|$)", re.I),
+        re.compile(r"trans[\s_\-]*uni|(?:^|[\s_\-./])tu(?:[\s_\-./]|$)|(?:^|[\s_\-./])tuc(?:[\s_\-./]|$)", re.I),
     ),
     ("eqf", re.compile(r"equifax|(?:^|[\s_\-./])eqf(?:[\s_\-./]|$)", re.I)),
 )
@@ -441,12 +441,26 @@ def fill_missing_scores(
     html: str = "",
     text: str = "",
     file_name: str = "",
+    ocr: bool = False,
 ) -> ParsedReport:
     if report.credit_health is None:
         from app.models import CreditHealthSummary
 
         report.credit_health = CreditHealthSummary()
     current = report.credit_health.scores
+    # A file named for one bureau (e.g. "Client Equifax 11-21.pdf") holds that bureau's
+    # score only. Its headline score wins; other bureau names in the text are not scores.
+    single = infer_bureau_key_from_filename(file_name)
+    if single and sum(1 for _attr, pat in _FILENAME_BUREAU_PATTERNS if pat.search(file_name or "")) != 1:
+        single = None  # a name listing several bureaus is not a single-bureau file
+    preset = {k for k in ("tuc", "exp", "eqf") if getattr(current, k) is not None}
+    if single and getattr(current, single) is None:
+        headline = _headline_score(f"{html}\n{text}")
+        if headline is not None:
+            setattr(current, single, headline)
+    if ocr:
+        # OCR of score gauges picks up scale labels ("820") and tick marks; staff enter the score.
+        return report
     if html:
         from app.parsers import identityiq
 
@@ -458,4 +472,22 @@ def fill_missing_scores(
     combined = f"{html}\n{text}".strip()
     if file_name and combined:
         apply_scores_if_missing(current, scores_from_single_bureau_document(combined, file_name))
+    if single:
+        for key in ("tuc", "exp", "eqf"):
+            if key != single and key not in preset:
+                setattr(current, key, None)
     return report
+
+
+_HEADLINE = re.compile(
+    r"(?:FICO\W{0,2}\s*Score\s*\d{1,2}|VantageScore\W{0,2}\s*\d\.\d)[^\n]*\n(?:\s*\n)*\s*(\d{3})\s*(?:\n|$)"
+)
+
+
+def _headline_score(text: str) -> int | None:
+    """The big number printed right under "FICO® Score 8" / "VantageScore® 3.0"."""
+    for match in _HEADLINE.finditer(text or ""):
+        value = int(match.group(1))
+        if 300 < value <= 850:
+            return value
+    return None

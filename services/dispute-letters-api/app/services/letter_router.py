@@ -360,7 +360,9 @@ def _build_follow_up_plans(
                 LetterPlan(
                     id=str(uuid.uuid4()),
                     letter_type="cfpb_complaint",
-                    recipient_name="Consumer Financial Protection Bureau",
+                    # One complaint per account. The creditor in parentheses keeps each
+                    # letter distinct in the letter list; it is not printed on the letter.
+                    recipient_name=f"Consumer Financial Protection Bureau ({tl.creditor})",
                     recipient_lines=[
                         "Consumer Financial Protection Bureau",
                         "P.O. Box 2900",
