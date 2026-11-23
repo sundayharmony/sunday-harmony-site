@@ -15,7 +15,7 @@ import { formatApplicationListItemForAdmin } from '@/lib/credit-funding-admin'
 import {
   formatDraftForStaffEditor,
   mergeIntakePayloadWithExistingSecrets,
-  type InviteSecretSetFlags,
+  parseKeepFlags,
 } from '@/lib/credit-funding-sensitive-fields'
 import { runCreditFundingSubmissionSideEffects } from '@/lib/credit-funding-finalize'
 import {
@@ -39,23 +39,6 @@ type Params = { params: Promise<{ id: string }> }
 const NO_STORE = {
   'Cache-Control': 'private, no-store',
   'Referrer-Policy': 'no-referrer',
-}
-
-function parseKeepFlags(body: Record<string, unknown>): Partial<InviteSecretSetFlags> {
-  const flag = (key: string) => body[key] === true || body[key] === 'true'
-  return {
-    ssnSet: flag('ssnSet'),
-    dateOfBirthSet: flag('dateOfBirthSet'),
-    providerUsernameSet: flag('providerUsernameSet'),
-    providerPasswordSet: flag('providerPasswordSet'),
-    experianEmailSet: flag('experianEmailSet'),
-    experianPasswordSet: flag('experianPasswordSet'),
-    experianSecurityAnswerSet: flag('experianSecurityAnswerSet'),
-    experianPinSet: flag('experianPinSet'),
-    cfpbEmailSet: flag('cfpbEmailSet'),
-    cfpbPasswordSet: flag('cfpbPasswordSet'),
-    typedSignatureSet: flag('typedSignatureSet'),
-  }
 }
 
 function draftJson(body: unknown, status = 200) {

@@ -298,6 +298,24 @@ export type InviteSecretSetFlags = {
   typedSignatureSet: boolean
 }
 
+/** Read the staff editor's "keep existing secret" flags from a request body. */
+export function parseKeepFlags(body: Record<string, unknown>): Partial<InviteSecretSetFlags> {
+  const flag = (key: string) => body[key] === true || body[key] === 'true'
+  return {
+    ssnSet: flag('ssnSet'),
+    dateOfBirthSet: flag('dateOfBirthSet'),
+    providerUsernameSet: flag('providerUsernameSet'),
+    providerPasswordSet: flag('providerPasswordSet'),
+    experianEmailSet: flag('experianEmailSet'),
+    experianPasswordSet: flag('experianPasswordSet'),
+    experianSecurityAnswerSet: flag('experianSecurityAnswerSet'),
+    experianPinSet: flag('experianPinSet'),
+    cfpbEmailSet: flag('cfpbEmailSet'),
+    cfpbPasswordSet: flag('cfpbPasswordSet'),
+    typedSignatureSet: flag('typedSignatureSet'),
+  }
+}
+
 function secretOnFile(ciphertext: string | undefined | null): boolean {
   const decrypted = decryptFieldOrLegacy(ciphertext || '')
   return Boolean(decrypted && decrypted !== 'Pending')
