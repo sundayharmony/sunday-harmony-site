@@ -20,6 +20,11 @@ EXTENSION_MAP = {
     ".png": "png",
     ".jpg": "jpeg",
     ".jpeg": "jpeg",
+    ".webp": "png",
+    ".bmp": "png",
+    ".gif": "png",
+    ".tif": "png",
+    ".tiff": "png",
 }
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.ingest.pdf import ocr_picture
 from app.models import ExtractedDocument
 
 
@@ -14,15 +15,18 @@ def _quality_from_chars(count: int) -> str:
 
 
 def extract_image(path: Path, file_type: str) -> ExtractedDocument:
+    """OCR a screenshot locally (tesseract). Never sent to an AI service."""
+    text = ""
     try:
-        import pytesseract
-        from PIL import Image
+        from PIL import Image, ImageOps
 
-        text = pytesseract.image_to_string(Image.open(path)).strip()
-        ocr_used = True
+        with Image.open(path) as opened:
+            # Phone photos carry rotation in EXIF; multi-frame files read frame 1.
+            img = ImageOps.exif_transpose(opened)
+            img.load()
+        text = ocr_picture(img)
     except Exception:
         text = ""
-        ocr_used = True
 
     return ExtractedDocument(
         file_type=file_type,
@@ -30,6 +34,6 @@ def extract_image(path: Path, file_type: str) -> ExtractedDocument:
         text=text,
         html=None,
         page_count=1,
-        ocr_used=ocr_used,
+        ocr_used=True,
         extraction_quality=_quality_from_chars(len(text)),
     )

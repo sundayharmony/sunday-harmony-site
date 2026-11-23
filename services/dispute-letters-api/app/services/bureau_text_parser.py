@@ -241,7 +241,8 @@ def parse_bureau_accounts(
         from app.services.screenshot_parser import parse_screenshot_accounts
 
         shots = parse_screenshot_accounts(cleaned, bureau)
-        if len(shots) >= 3 and len(shots) > len(tradelines):
+        # Three or more cards to replace a weak read; any card when nothing else was found.
+        if len(shots) > len(tradelines) and (len(shots) >= 3 or not tradelines):
             tradelines = shots
     consumer = _consumer_from_text(cleaned) if tradelines else ConsumerInfo()
     report_date = _report_date(cleaned) if tradelines else ""
@@ -958,23 +959,129 @@ def _parse_labeled_accounts(text: str, bureau: BureauCode | None) -> list[Tradel
         tradeline = _tradeline_from_fields(fields, bureau)
         if tradeline is not None:
             tradelines.append(tradeline)
-    return tradelines
+    return _merge_duplicate_tradelines(tradelines)
+
+
+# Labels OCR prints without a colon ("Balance $1,234"). Short one-word labels
+# ("type", "opened") need a colon or their own line, so prose does not match.
+_PREFIX_LABELS = sorted(
+    (label for label in _COLON_LABELS if " " in label or len(label) >= 6),
+    key=len,
+    reverse=True,
+)
+_REPEAT_STARTS_NEW = {"account_number", "balance", "past_due", "credit_limit", "monthly_payment"}
+_MONEY_KEYS = {"balance", "past_due", "credit_limit", "high_credit", "monthly_payment"}
+_DATE_KEYS = {"date_opened", "dofd", "date_closed", "last_reported"}
+_BLANK_VALUE = re.compile(r"^(?:[-\u2013\u2014]+|n/?a|none|not reported|data unavailable)$", re.I)
+# Card chrome on bureau websites and monitoring apps that is not a furnisher.
+_HEADING_NOISE = re.compile(
+    r"(?i)^(?:potentially\s+negative|negative|positive|derogatory|adverse|overview|"
+    r"account\s+details?|account\s+info(?:rmation)?|account\s+history|payment\s+history|"
+    r"details|view\s+(?:details|more|all)|show\s+(?:more|less|details)|see\s+(?:details|more)|"
+    r"dispute(?:\s+this)?|summary|back|next|paid|current|late|charge\s*off|charged\s+off|"
+    r"(?:open|closed|negative|other)\s+accounts?|revolving(?:\s+accounts?)?|installment(?:\s+accounts?)?|"
+    r"mortgages?|credit\s+cards?|auto\s+loans?|student\s+loans?|loans?|collections?|"
+    r"in\s+good\s+standing|never\s+late|ok|yes|no)$"
+)
+
+
+def _prefix_label(line: str) -> tuple[str, str] | None:
+    """("balance", "$1,234") for "Balance $1,234"; None when the line is not a label row."""
+    lowered = line.lower()
+    for label in _PREFIX_LABELS:
+        if not lowered.startswith(label):
+            continue
+        rest = line[len(label):]
+        if not rest or rest[0] not in " \t:-":
+            continue
+        value = rest.strip(" \t:-")
+        if not value:
+            return None
+        key = _COLON_LABELS[label]
+        if _BLANK_VALUE.match(value):
+            return key, ""
+        if key in _MONEY_KEYS and not _money(value):
+            return None
+        if key in _DATE_KEYS and not _date(value):
+            return None
+        if len(value) > 80:
+            return None
+        return key, value
+    return None
+
+
+_PREFIX_LABEL_RE = re.compile(
+    r"(?i)(?<![A-Za-z])(?:" + "|".join(re.escape(label) for label in _PREFIX_LABELS) + r")(?=[\s:\-])"
+)
+
+
+def _label_pairs(line: str) -> list[tuple[str, str]]:
+    """Rows with two fields side by side: "Balance $1,234 Credit Limit $2,000"."""
+    first = _prefix_label(line)
+    if not first:
+        return []
+    starts = [m.start() for m in _PREFIX_LABEL_RE.finditer(line)]
+    # Keep only label starts that do not sit inside a longer label ("credit limit" vs "limit").
+    if not starts or starts[0] != 0 or len(starts) == 1:
+        return [first]
+    pairs: list[tuple[str, str]] = []
+    bounds = starts + [len(line)]
+    for begin, end in zip(bounds, bounds[1:]):
+        pair = _prefix_label(line[begin:end].strip())
+        if not pair:
+            return [first]
+        pairs.append(pair)
+    return pairs
+
+
+def _heading_creditor(line: str) -> str:
+    """A furnisher name printed as a card heading ("SAMPLE BANK USA")."""
+    name = line.strip(" '\u2018\u2019\"-\u2014|.:,()\u2022>")
+    if not 3 <= len(name) <= 60 or _HEADING_NOISE.match(name):
+        return ""
+    if re.fullmatch(r"(?i)[x*#\d\s\-]+", name) or re.search(r"\d{4,}|\$", name):
+        return ""
+    letters = re.sub(r"[^A-Za-z]", "", name)
+    if len(letters) < 3 or sum(c.isupper() for c in letters) / len(letters) < 0.8:
+        return ""
+    if _canon_label(name) or _prefix_label(name):
+        return ""
+    return name if _valid_creditor(name) else ""
 
 
 def _labeled_records(text: str) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
     current: dict[str, str] = {}
     pending = ""
+    heading = ""
     lines = [line.strip() for line in text.splitlines()]
 
-    def assign(label: str, value: str) -> None:
+    def flush() -> None:
         nonlocal current
-        if label == "creditor" and current.get("creditor") and _detail_count(current) > 0:
+        if current:
             records.append(dict(current))
-            current = {}
+        current = {}
+
+    def assign(label: str, value: str) -> None:
+        nonlocal heading
+        if heading:
+            # A capitalised heading right before label rows starts a new account card.
+            if _detail_count(current) > 0 or current.get("creditor"):
+                flush()
+            if label != "creditor":
+                current["creditor"] = heading
+            heading = ""
+        if label == "creditor" and current.get("creditor") and _detail_count(current) > 0:
+            flush()
+        if label in _REPEAT_STARTS_NEW and value and _blankish(current.get(label, "")):
+            if _same_value(label, current[label], value):
+                return  # the same row read twice where OCR tiles overlap
+            # A field seen twice: either the next card (heading unreadable) or a line
+            # repeated where two screenshots overlap. Neither belongs to this card.
+            flush()
         if label == "balance":
             current["balance"] = _money(value) or _blankish(value)
-        elif label in {"date_opened", "dofd", "date_closed", "last_reported"}:
+        elif label in _DATE_KEYS:
             current[label] = _date(value) or _blankish(value)
         elif label == "account_number":
             current["account_number"] = value
@@ -984,25 +1091,109 @@ def _labeled_records(text: str) -> list[dict[str, str]]:
             current[label] = _blankish(value)
 
     for line in lines:
+        # Blank lines do not end a pending label: OCR of web pages often puts a
+        # blank line between "Payment Status" and its value.
         if not line:
-            pending = ""
             continue
-        if pending:
-            assign(pending, line)
+        pairs = _label_pairs(line)
+        if len(pairs) > 1:
             pending = ""
+            for pair in pairs:
+                assign(*pair)
             continue
         colon = re.match(r"^([^:]{2,40}):\s*(.+)$", line)
         if colon:
             label = _canon_label(colon.group(1))
             if label:
+                pending = ""
                 assign(label, colon.group(2).strip())
                 continue
         exact = _canon_label(line)
         if exact:
             pending = exact
-    if current:
-        records.append(dict(current))
+            continue
+        pairs = _label_pairs(line)
+        if pairs:
+            pending = ""
+            for pair in pairs:
+                assign(*pair)
+            continue
+        if pending:
+            label, pending = pending, ""
+            # "Past Due" followed by "XXXX1234" is a split layout, not a value.
+            if (label in _MONEY_KEYS and not _money(line) and not _BLANK_VALUE.match(line)) or (
+                label in _DATE_KEYS and not _date(line) and not _BLANK_VALUE.match(line)
+            ):
+                continue
+            assign(label, line)
+            continue
+        name = _heading_creditor(line)
+        if name:
+            heading = name
+    flush()
     return records
+
+
+def _same_value(label: str, old: str, new: str) -> bool:
+    if label == "account_number":
+        return re.sub(r"\W", "", old).lower() == re.sub(r"\W", "", new).lower()
+    return (_money(old) or old) == (_money(new) or new)
+
+
+def count_label_lines(text: str) -> int:
+    """Lines that hold an account field label, with or without its value."""
+    count = 0
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        colon = re.match(r"^([^:]{2,40}):", line)
+        if (colon and _canon_label(colon.group(1))) or _canon_label(line) or _prefix_label(line):
+            count += 1
+    return count
+
+
+def layout_score(text: str) -> int:
+    """How cleanly OCR text splits into account cards. Fields under a furnisher count
+    most; lone labels (value read somewhere else) count against. Used to choose
+    between two OCR readings of the same screenshot."""
+    score = 0
+    for record in _labeled_records(text):
+        fields = sum(1 for key, value in record.items() if key != "creditor" and _blankish(value))
+        # A tile can start mid-card, so fields with no furnisher still count, just less.
+        score += 2 * fields if _valid_creditor(record.get("creditor", "")) else fields
+    bare = sum(1 for line in (text or "").splitlines() if line.strip() and _canon_label(line))
+    return score - 2 * bare
+
+
+def _merge_duplicate_tradelines(tradelines: list[Tradeline]) -> list[Tradeline]:
+    """Overlapping screenshots and OCR tiles repeat an account; keep one, fill its gaps."""
+    kept: list[Tradeline] = []
+    for tradeline in tradelines:
+        number = tradeline.account_tu or tradeline.account_exp or tradeline.account_eqf
+        match = None
+        for other in kept:
+            other_number = other.account_tu or other.account_exp or other.account_eqf
+            if other.creditor.lower() != tradeline.creditor.lower():
+                continue
+            if number and other_number:
+                same = number == other_number
+            else:
+                same = (other.balance or "") == (tradeline.balance or "") and (
+                    other.date_opened or ""
+                ) == (tradeline.date_opened or "")
+            if same:
+                match = other
+                break
+        if match is None:
+            kept.append(tradeline)
+            continue
+        for field, value in tradeline.model_dump().items():
+            if field == "id":
+                continue
+            if value and not getattr(match, field):
+                setattr(match, field, value)
+    return kept
 
 
 def _tradeline_from_fields(fields: dict[str, str], bureau: BureauCode | None) -> Tradeline | None:

@@ -39,6 +39,7 @@ import type {
 } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { emptyReportMessage } from '@/lib/dispute-letters/empty-report'
+import { canUploadAsIs, combineReportFiles } from '@/lib/dispute-letters/combine-report-files'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function shortFileName(name: string): string {
@@ -249,16 +250,22 @@ export default function CreditIntelligencePanel({
         })()
       : null
 
-  async function onFile(file: File) {
+  async function onFiles(picked: File[]) {
     setError('')
     setSuccess('')
-    if (file.size > DISPUTE_LETTER_MAX_MB * 1024 * 1024) {
-      setError(`File too large (max ${DISPUTE_LETTER_MAX_MB} MB)`)
-      return
-    }
+    if (!picked.length) return
     setBusy(true)
     setStatus('Preparing upload…')
     try {
+      let file = picked[0]
+      if (!canUploadAsIs(picked)) {
+        // Screenshots and cropped page PDFs of one report become one PDF, read locally by OCR.
+        setStatus(`Combining ${picked.length} file${picked.length === 1 ? '' : 's'} into one report…`)
+        file = await combineReportFiles(picked)
+      }
+      if (file.size > DISPUTE_LETTER_MAX_MB * 1024 * 1024) {
+        throw new Error(`File too large (max ${DISPUTE_LETTER_MAX_MB} MB)`)
+      }
       const urlRes = await fetch('/api/admin/dispute-letters/upload-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -498,14 +505,18 @@ export default function CreditIntelligencePanel({
             {busy ? 'Working…' : 'Upload credit report'}
           </span>
           <span className="text-xs text-brand-dim">PDF, HTML, DOCX, images · max {DISPUTE_LETTER_MAX_MB} MB</span>
+          <span className="text-xs text-brand-dim text-center">
+            Screenshots or page-by-page PDFs? Select them all at once (one bureau per upload) and they are read as one report.
+          </span>
           <input
             type="file"
             className="hidden"
             disabled={busy}
-            accept=".pdf,.html,.htm,.docx,.doc,.png,.jpg,.jpeg,.txt"
+            multiple
+            accept=".pdf,.html,.htm,.docx,.doc,.png,.jpg,.jpeg,.webp,.heic,.heif,.gif,.bmp,.txt,image/*"
             onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void onFile(f)
+              const picked = Array.from(e.target.files || [])
+              if (picked.length) void onFiles(picked)
               e.target.value = ''
             }}
           />
