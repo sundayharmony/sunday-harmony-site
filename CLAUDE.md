@@ -13,7 +13,7 @@ Read by every Claude Code session in this repo. Mirrors the Sunday Harmony Proje
 
 ## Outreach rules (mirrors Project doc `claude/outreach-rules.md`)
 - Cold outreach sends from **sales@**; everything else (site, transactional, marketing) from **contact@**.
-- Every marketing email footer has the postal address above and an unsubscribe link. Sign as "Sunday Harmony", never a personal name.
+- Every marketing email footer has the mailing address **PO Box 1011, Jersey City, NJ 07304** (`OUTREACH_MAILING_ADDRESS`) and an unsubscribe link. Sign as "Sunday Harmony", never a personal name.
 - No prices in emails; prices come up on the call. Booking link: /book.
 - Send Tue–Thu only. Send every qualified prospect ready that day, within a warm-up cap: start ~75/day, +25% per send day while bounces <3% and spam complaints ~0; pause and alert MC otherwise. Overflow rolls to the next send day.
 - Fully automatic: no manual approval. Code pre-send checks (no blank merge fields, footer + unsubscribe present, audit link loads, not suppressed); after every batch the system reviews results and adjusts.
