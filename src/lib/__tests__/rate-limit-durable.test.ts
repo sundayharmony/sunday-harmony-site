@@ -52,7 +52,7 @@ describe('rateLimitDurable', () => {
 
   it('keeps sensitive routes off the bare in-memory limiter', () => {
     const sensitiveRoutes = [
-      'src/app/api/dashboard/settings/route.ts',
+      'src/lib/account-settings-handlers.ts',
       'src/app/api/setup/route.ts',
       'src/app/api/credit-funding/invite/route.ts',
       'src/app/api/csp-report/route.ts',
