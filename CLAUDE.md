@@ -9,7 +9,7 @@ Read by every Claude Code session in this repo. Mirrors the Sunday Harmony Proje
 - **Goal: $10K revenue every week.** Focus now is consulting packages; credit analysis is secondary and needs cleanup.
 - **Public face is consulting.** Credit repair and business funding are separate doors behind the same site (see BRAND.md).
 - **Offers (list prices in code):** Business Essentials from $899 · Business Launch from $2,499 · Marketing Partner $1,200/mo · Custom quote. Front-end offer: free audit.
-- Contact: sales@sundayharmony.com · (609) 400-4459 · 86 Forrest Street, Jersey City, NJ 07304.
+- Contact: sales@sundayharmony.com · (609) 400-4459 · PO Box 1011, Jersey City, NJ 07304 (email footer).
 
 ## Outreach rules (mirrors Project doc `claude/outreach-rules.md`)
 - Cold outreach sends from **sales@**; everything else (site, transactional, marketing) from **contact@**.
