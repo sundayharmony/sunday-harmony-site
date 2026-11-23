@@ -16,7 +16,8 @@ export type AuditLead = {
   } | null
 }
 
-export type AuditFinding = { title: string; detail: string; fix: string }
+/** hook: the finding as one plain sentence for the email, e.g. "your Google listing has no website". */
+export type AuditFinding = { title: string; detail: string; fix: string; hook: string }
 
 export type Audit = {
   business: string
@@ -30,31 +31,38 @@ export type Audit = {
 
 const FINDINGS: Record<string, Omit<AuditFinding, 'title'> & { title?: string }> = {
   'No website': {
+    hook: 'your Google listing has no website',
     detail: 'People who find you on Google have nowhere to read about your services or book.',
     fix: 'A simple site you own with your services, photos, reviews and a clear way to call or book.',
   },
   'Website is down': {
+    hook: 'the website on your Google listing does not load',
     title: 'Your website does not load',
     detail: 'The site linked from your Google listing does not open, so people who click it hit a dead end.',
     fix: 'Bring the site back, or replace it with a fast one you own and control.',
   },
   'Google listing links to the wrong website': {
+    hook: 'your Google listing links to the wrong website',
     detail: 'The website on your Google listing is not the one you use, so clicks go to the wrong place.',
     fix: 'Point your Google listing at the right site.',
   },
   'Website not built for phones': {
+    hook: 'your website is hard to use on a phone',
     detail: 'Your site is not set up for phone screens, so text and buttons are hard to use on a phone.',
     fix: 'A layout that works on phones, with tap-to-call up top.',
   },
   'No booking or quote form': {
+    hook: 'there is no way to book or ask for a quote on your website',
     detail: 'There is no way to book or ask for a quote on the site, so visitors after hours have to remember to call back.',
     fix: 'Add online booking or a short quote form that reaches you right away.',
   },
   'Website not secure (no https)': {
+    hook: 'browsers mark your website as "Not secure"',
     detail: 'Browsers mark your site as "Not secure", which makes some visitors leave.',
     fix: 'Turn on https so the site shows as secure.',
   },
   'Few photos on Google profile': {
+    hook: 'your Google profile has only a few photos',
     detail: 'Your Google profile has only a few photos, and photos are one of the first things people look at.',
     fix: 'Add recent photos of your work, your team and your location.',
   },
@@ -81,7 +89,7 @@ export function buildAudit(lead: AuditLead): Audit {
   const reviewCount = data.place?.reviewCount ?? null
   const findings = (data.gaps || [])
     .filter((gap) => FINDINGS[gap])
-    .map((gap) => ({ title: FINDINGS[gap].title || gap, detail: FINDINGS[gap].detail, fix: FINDINGS[gap].fix }))
+    .map((gap) => ({ title: FINDINGS[gap].title || gap, detail: FINDINGS[gap].detail, fix: FINDINGS[gap].fix, hook: FINDINGS[gap].hook }))
   const strengths: string[] = []
   if (provenDemand(rating, reviewCount)) {
     strengths.push(`${rating!.toFixed(1)} stars from ${reviewCount} Google reviews. Customers already like your work.`)

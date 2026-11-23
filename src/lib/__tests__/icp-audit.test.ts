@@ -56,3 +56,15 @@ describe('icp audit', () => {
     assert.equal(pdf.subarray(0, 4).toString(), '%PDF')
   })
 })
+
+describe('audit email copy', () => {
+  it('skips junk first names and stays short with one plain finding', () => {
+    const one = { ...lead, icp_data: { ...lead.icp_data, gaps: ['No website'] } }
+    const email = renderAuditEmail({ audit: buildAudit(one), auditUrl, unsubscribeUrl, firstName: 'Not' })
+    assert.match(email.text, /^Hi,\n/)
+    assert.match(email.text, /your Google listing has no website/)
+    assert.match(email.text, /the fix and what we would do first/)
+    const body = email.text.split('Sunday Harmony\n')[0]
+    assert.ok(body.replace(auditUrl, '').split(/\s+/).length <= 80, 'under 80 words')
+  })
+})

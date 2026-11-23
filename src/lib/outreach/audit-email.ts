@@ -28,13 +28,20 @@ export function renderAuditEmail(input: {
   const top = audit.findings[0]
   const subject = `A quick look at ${audit.business}`
   const preheader = top ? `${top.title}.` : 'A short look at how you show up online.'
-  const greeting = input.firstName ? `Hi ${input.firstName},` : 'Hi,'
+  const name = (input.firstName || '').trim()
+  const realName = /^[A-Z][a-z'-]{1,20}$/.test(name) && !/^(not|none|owner|unknown|manager|info|n\/a|na|team|staff)$/i.test(name)
+  const greeting = realName ? `Hi ${name},` : 'Hi,'
   const proof =
     audit.rating != null && audit.reviewCount != null && audit.strengths.length
       ? `${audit.business} has ${audit.rating.toFixed(1)} stars from ${audit.reviewCount} Google reviews, so customers clearly like your work.`
       : `I took a look at how ${audit.business} shows up online.`
-  const finding = top ? `One thing stood out: ${top.title.replace(/\.$/, '')}. ${top.detail}` : ''
-  const auditLine = 'I put that and a few other fixes in a short free audit:'
+  const finding = top ? `One thing stood out: ${top.hook}. ${top.detail}` : ''
+  const others = audit.findings.length - 1
+  const auditLine = top
+    ? others > 0
+      ? `I put the fix, plus ${others === 1 ? 'one other thing' : `${others} other things`} worth fixing, in a short free audit:`
+      : 'I put the fix and what we would do first in a short free audit:'
+    : 'I put what we checked in a short free audit:'
   const ask = 'Worth a 10-minute walk-through? Just reply "yes".'
 
   const e = escapeHtml
