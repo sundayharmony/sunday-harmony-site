@@ -363,6 +363,25 @@ export async function updateSubmittedApplicationIntake(
   return data as CreditFundingApplication
 }
 
+/** Encrypted row for moving a draft or invitation into the submitted state. */
+function buildSubmittedApplicationRow(
+  payload: IntakeFormPayload,
+  link?: { userId?: string; clientId?: string }
+) {
+  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
+  return {
+    ...buildEncryptedApplicationRow(payload, link),
+    funding_goals: buildFundingGoalsSummary(payload),
+    status: 'submitted' as ApplicationStatus,
+    service_type: classification.serviceType,
+    lead_type: classification.leadType,
+    credit_funding_client_status: 'intake_completed',
+    invite_expires_at: null,
+    invite_personal_message: null,
+    updated_at: new Date().toISOString(),
+  }
+}
+
 export async function finalizeStaffDraftApplication(
   id: string,
   payload: IntakeFormPayload,
@@ -372,24 +391,10 @@ export async function finalizeStaffDraftApplication(
   const existing = await getCreditFundingApplicationById(id)
   if (!existing || existing.status !== 'draft') return null
 
-  const fundingGoals = buildFundingGoalsSummary(payload)
-  const encrypted = buildEncryptedApplicationRow(payload, {
+  const row = buildSubmittedApplicationRow(payload, {
     userId: link?.userId,
     clientId: link?.clientId || existing.client_id || undefined,
   })
-  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
-
-  const row = {
-    ...encrypted,
-    funding_goals: fundingGoals,
-    status: 'submitted' as ApplicationStatus,
-    service_type: classification.serviceType,
-    lead_type: classification.leadType,
-    credit_funding_client_status: 'intake_completed',
-    invite_expires_at: null,
-    invite_personal_message: null,
-    updated_at: new Date().toISOString(),
-  }
 
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')
@@ -576,21 +581,7 @@ export async function completeInvitedCreditFundingApplication(
   payload: IntakeFormPayload,
   link?: { userId?: string; clientId?: string }
 ): Promise<CreditFundingApplication | null> {
-  const fundingGoals = buildFundingGoalsSummary(payload)
-  const encrypted = buildEncryptedApplicationRow(payload, link)
-  const classification = deriveIntakeClassification(payload.creditGoals, payload.fundingUse)
-
-  const row = {
-    ...encrypted,
-    funding_goals: fundingGoals,
-    status: 'submitted' as ApplicationStatus,
-    service_type: classification.serviceType,
-    lead_type: classification.leadType,
-    credit_funding_client_status: 'intake_completed',
-    invite_expires_at: null,
-    invite_personal_message: null,
-    updated_at: new Date().toISOString(),
-  }
+  const row = buildSubmittedApplicationRow(payload, link)
 
   const { data, error } = await getSupabase()
     .from('credit_funding_applications')
