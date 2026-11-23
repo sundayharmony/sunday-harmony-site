@@ -106,7 +106,7 @@ export default function Packages() {
                 aria-hidden={!open}
                 className={`col-start-1 row-start-1 flex flex-col rounded-2xl bg-white shadow-[0_18px_40px_-24px_rgba(27,26,23,0.35)] transition-[opacity,transform,visibility] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
                   pkg.popular ? 'border-2 border-brand-text' : 'border border-accent/60'
-                } ${open ? 'visible opacity-100 translate-y-0' : 'invisible pointer-events-none opacity-0 translate-y-2'}`}
+                } ${open ? 'visible opacity-100 translate-y-0' : 'invisible pointer-events-none opacity-0 translate-y-2 max-md:absolute max-md:inset-x-0 max-md:top-0'}`}
               >
                 {pkg.popular && (
                   <div className="py-1.5 text-center text-[10px] font-bold tracking-[0.14em] uppercase bg-brand-text text-white rounded-t-2xl">
@@ -167,7 +167,7 @@ export default function Packages() {
               <div
                 aria-hidden={open}
                 className={`col-start-1 row-start-1 z-10 flex flex-col rounded-2xl border border-brand-border bg-white p-6 shadow-sm sm:p-7 transition-[opacity,transform,visibility] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
-                  open ? 'invisible pointer-events-none opacity-0 -translate-y-2' : 'visible opacity-100 translate-y-0'
+                  open ? 'invisible pointer-events-none opacity-0 -translate-y-2 max-md:absolute max-md:inset-x-0 max-md:top-0' : 'visible opacity-100 translate-y-0'
                 }`}
                 onClick={() => setOpenTier(pkg.tier)}
               >
