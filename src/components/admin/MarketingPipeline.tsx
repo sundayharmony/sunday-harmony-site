@@ -12,10 +12,12 @@ import {
   PROSPECT_CATEGORIES,
   SOURCE_LABELS,
   STAGE_LABELS,
+  canMoveStage,
   comparePipelineProspects,
   filterPipelineProspects,
   pipelineProspectMatchesQuery,
   prospectVisibleInBoardStage,
+  roleCanEditStage,
   scoreBand,
   type LeadSource,
   type PipelineStage,
@@ -100,11 +102,30 @@ function openHandler(onOpen: OpenHandler, id: string) {
   }
 }
 
-function ProspectLink({ row, href, onOpen }: { row: ProspectCard; href: string; onOpen?: (id: string) => void }) {
+type CardMove = {
+  /** Stages this card may be moved to by the viewer. Empty means the card is fixed. */
+  targets: PipelineStage[]
+  dragging: boolean
+  onDragStart: (id: string, from: PipelineStage) => void
+  onDragEnd: () => void
+  onMove: (id: string, to: PipelineStage) => void
+}
+
+function ProspectLink({ row, href, onOpen, move }: { row: ProspectCard; href: string; onOpen?: (id: string) => void; move?: CardMove }) {
   const score = row.score != null && Number.isFinite(row.score) ? row.score : null
   const action = meetingAction(row)
+  const movable = Boolean(move && move.targets.length > 0)
   return (
-    <div className="overflow-hidden rounded-xl bg-white border border-brand-border">
+    <div
+      draggable={movable}
+      onDragStart={movable ? (event) => {
+        event.dataTransfer.effectAllowed = 'move'
+        event.dataTransfer.setData('text/plain', row.id)
+        move!.onDragStart(row.id, row.stage)
+      } : undefined}
+      onDragEnd={movable ? () => move!.onDragEnd() : undefined}
+      className={`overflow-hidden rounded-xl bg-white border border-brand-border transition ${movable ? 'cursor-grab active:cursor-grabbing' : ''} ${move?.dragging ? 'opacity-40' : ''}`}
+    >
       <div className="flex">
         <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
         <div className="min-w-0 flex-1 px-3 py-2.5">
@@ -125,6 +146,24 @@ function ProspectLink({ row, href, onOpen }: { row: ProspectCard; href: string; 
             >
               {action.label}
             </a>
+          )}
+          {movable && (
+            // Touch screens cannot drag between columns; they get a Move menu instead.
+            <label className="mt-2 block [@media(hover:hover)]:hidden">
+              <span className="sr-only">Move {row.business} to</span>
+              <select
+                className="w-full rounded-lg border border-brand-border bg-brand-bg px-2 py-2 text-xs font-semibold text-brand-text"
+                value=""
+                onChange={(event) => {
+                  if (event.target.value) move!.onMove(row.id, event.target.value as PipelineStage)
+                }}
+              >
+                <option value="">Move to…</option>
+                {move!.targets.map((stage) => (
+                  <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>
+                ))}
+              </select>
+            </label>
           )}
         </div>
       </div>
@@ -218,6 +257,8 @@ export default function MarketingPipeline({
   const [role, setRole] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
+  const [drag, setDrag] = useState<{ id: string; from: PipelineStage } | null>(null)
+  const [dropStage, setDropStage] = useState<PipelineStage | null>(null)
   const [notice, setNotice] = useState('')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -259,6 +300,35 @@ export default function MarketingPipeline({
   useEffect(() => {
     void load()
   }, [refreshKey])
+
+  /** Stages a card can be dropped on: allowed for this role, and not where it already is. */
+  function moveTargets(row: ProspectCard): PipelineStage[] {
+    if (role === 'client_relations' || !roleCanEditStage(role, row.stage)) return []
+    return stageOptions.filter((stage) => stage !== row.stage && canMoveStage(role, row.stage, stage))
+  }
+
+  async function moveProspect(id: string, to: PipelineStage) {
+    const row = prospects.find((item) => item.id === id)
+    if (!row || row.stage === to || !canMoveStage(role, row.stage, to)) return
+    if (to === 'won' && !window.confirm(`Mark ${row.business} as an Active client? This opens their client record.`)) return
+    const before = prospects
+    setProspects((current) => current.map((item) => (item.id === id ? { ...item, stage: to } : item)))
+    setError('')
+    setNotice('')
+    try {
+      const res = await fetch(`/api/admin/pipeline/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: to }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not move the prospect')
+      setNotice(data.warning || `${row.business} moved to ${STAGE_LABELS[to]}.`)
+    } catch (err) {
+      setProspects(before)
+      setError(err instanceof Error ? err.message : 'Could not move the prospect')
+    }
+  }
 
   useEffect(() => {
     if (stageProp !== undefined) setStageFilter(stageProp)
@@ -512,6 +582,12 @@ export default function MarketingPipeline({
         </section>
       ) : (
         <div className="space-y-5">
+          {role && role !== 'client_relations' && (
+            <p className="text-xs text-brand-muted">
+              <span className="[@media(hover:none)]:hidden">Drag a card to another column to change its stage. Columns your role cannot use fade out while you drag.</span>
+              <span className="hidden [@media(hover:none)]:inline">Use Move to… on a card to change its stage.</span>
+            </p>
+          )}
           {laneRows.map(({ lane, stages }, index) => {
             const count = stages.reduce((sum, group) => sum + group.rows.length, 0)
             return (
@@ -533,7 +609,30 @@ export default function MarketingPipeline({
                   {stages.map((group) => (
                     <div
                       key={group.stage}
-                      className="flex min-h-[12rem] max-h-[min(70vh,36rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-brand-border/70 bg-white/70 md:w-[240px] md:shrink-0"
+                      onDragOver={(event) => {
+                        if (!drag || drag.from === group.stage || !canMoveStage(role, drag.from, group.stage)) return
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                        if (dropStage !== group.stage) setDropStage(group.stage)
+                      }}
+                      onDragLeave={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropStage(null)
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        const id = event.dataTransfer.getData('text/plain') || drag?.id
+                        setDropStage(null)
+                        setDrag(null)
+                        if (id) void moveProspect(id, group.stage)
+                      }}
+                      aria-dropeffect={drag && canMoveStage(role, drag.from, group.stage) && drag.from !== group.stage ? 'move' : undefined}
+                      className={`flex min-h-[12rem] max-h-[min(70vh,36rem)] min-w-0 flex-col overflow-hidden rounded-xl border transition md:w-[240px] md:shrink-0 ${
+                        dropStage === group.stage
+                          ? 'border-accent bg-accent-soft/60 shadow-[0_18px_40px_-24px_rgba(27,26,23,0.35)]'
+                          : drag && (drag.from === group.stage || !canMoveStage(role, drag.from, group.stage))
+                            ? 'border-brand-border/70 bg-white/40 opacity-60'
+                            : 'border-brand-border/70 bg-white/70'
+                      }`}
                     >
                       <div className="shrink-0 border-b border-brand-border px-3 py-2">
                         <h3 className="font-serif text-base font-bold text-brand-text">{STAGE_LABELS[group.stage]}</h3>
@@ -544,7 +643,22 @@ export default function MarketingPipeline({
                           <p className="px-1 py-2 text-sm text-brand-muted">None yet.</p>
                         ) : (
                           group.rows.map((row) => (
-                            <ProspectLink key={row.id} row={row} href={cardHref(row)} onOpen={onOpenProspect} />
+                            <ProspectLink
+                              key={row.id}
+                              row={row}
+                              href={cardHref(row)}
+                              onOpen={onOpenProspect}
+                              move={{
+                                targets: moveTargets(row),
+                                dragging: drag?.id === row.id,
+                                onDragStart: (id, from) => setDrag({ id, from }),
+                                onDragEnd: () => {
+                                  setDrag(null)
+                                  setDropStage(null)
+                                },
+                                onMove: (id, to) => void moveProspect(id, to),
+                              }}
+                            />
                           ))
                         )}
                       </div>

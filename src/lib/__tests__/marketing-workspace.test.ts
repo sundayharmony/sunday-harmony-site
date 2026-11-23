@@ -219,6 +219,16 @@ describe('client accounts', () => {
 })
 
 describe('timeline', () => {
+  it('shows a logged email with its subject instead of the derived one', () => {
+    const prospect = lead({ id: 'e', stage: 'emailed', gmailThreadId: 'g', lastContactedAt: '2026-11-21T12:00:00.000Z' })
+    const entries = prospectTimeline(prospect, [
+      activity({ leadId: 'e', action: 'email_sent', details: 'Marketing opportunity for Biz e', createdAt: '2026-11-21T12:00:00.000Z' }),
+    ])
+    const emails = entries.filter((entry) => entry.kind === 'email')
+    assert.equal(emails.length, 1)
+    assert.equal(emails[0].detail, 'Marketing opportunity for Biz e')
+  })
+
   it('merges logged calls and notes with milestones on the lead, newest first', () => {
     const prospect = lead({
       id: 't',

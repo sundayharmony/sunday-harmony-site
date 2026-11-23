@@ -325,11 +325,11 @@ export const closerSopModules: CloserSopModule[] = [
       'Pipeline is the prospect board and file. Score, stage, notes, and handoffs live here.',
       'Sales Kit holds Materials (PDFs), Agreements & Proposals, and Outreach Emails. Use the Closer Training Manual from Materials when you need the full SOP.',
       'Messages is your inbox. Settings is account and security. Todos are personal follow-ups.',
-      'Daily rhythm: clear Today → work high scores and Contacted / Proposal stages → log every contact → follow up honestly, never invent audit results.',
+      'Daily rhythm: clear Today on the Growth desk → work high scores and Contacted / Proposal stages → log every contact → follow up honestly, never invent audit results.',
       'As a closer you mainly work leads handed to sales. Procurement owns early research; you own replies through close.',
     ],
     links: [
-      { href: '/admin', label: 'Open Today' },
+      { href: '/admin/marketing', label: 'Open the Growth desk' },
       { href: '/admin/pipeline', label: 'Open Pipeline' },
       { href: '/admin/sales-kit', label: 'Open Sales Kit' },
       { href: '/admin/messages', label: 'Open Messages' },

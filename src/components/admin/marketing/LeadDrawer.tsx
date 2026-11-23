@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
+import EmailComposer from '@/components/admin/marketing/EmailComposer'
 import ProspectActivity from '@/components/admin/marketing/ProspectActivity'
 import { formatWhen } from '@/components/admin/marketing/ProspectActivity'
 import { prospectNoteSections } from '@/lib/prospect-notes'
@@ -34,6 +35,8 @@ type DrawerProspect = {
   recommendedService: string
   notes: string
   clientId: string | null
+  category: string
+  gmailThreadId: string | null
 }
 
 export type DrawerStep = { id: string; business: string }
@@ -71,6 +74,9 @@ export default function LeadDrawer({
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [workspaceConnected, setWorkspaceConnected] = useState(false)
+  const [composing, setComposing] = useState(false)
+  const [timelineKey, setTimelineKey] = useState(0)
   const closeRef = useRef<HTMLButtonElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
 
@@ -82,12 +88,16 @@ export default function LeadDrawer({
     setProspect(null)
     setError('')
     setNotice('')
+    setComposing(false)
     void fetch(`/api/admin/pipeline/${id}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
         if (cancelled) return
         if (!res.ok) setError(typeof data.error === 'string' ? data.error : 'Could not open this lead.')
-        else setProspect(data.prospect)
+        else {
+          setProspect(data.prospect)
+          setWorkspaceConnected(Boolean(data.workspaceConnected))
+        }
       })
       .catch(() => {
         if (!cancelled) setError('Could not open this lead.')
@@ -99,7 +109,7 @@ export default function LeadDrawer({
 
   const open = Boolean(id)
   useEffect(() => {
-    if (!open) return
+    if (!open || !mounted) return
     returnFocus.current = document.activeElement as HTMLElement | null
     closeRef.current?.focus()
     const onKey = (event: KeyboardEvent) => {
@@ -113,7 +123,7 @@ export default function LeadDrawer({
       document.body.style.overflow = overflow
       returnFocus.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open, mounted, onClose])
 
   if (!id || !mounted) return null
 
@@ -190,9 +200,18 @@ export default function LeadDrawer({
               {prospect.phone && (
                 <a href={`tel:${prospect.phone}`} className={`${pill} bg-brand-text text-white`}>Call {prospect.phone}</a>
               )}
-              {prospect.email && (
+              {prospect.email && (canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => setComposing((value) => !value)}
+                  aria-expanded={composing}
+                  className={`${pill} border bg-white text-brand-text hover:border-accent ${composing ? 'border-brand-text' : 'border-brand-border'}`}
+                >
+                  {composing ? 'Close email' : 'Email'}
+                </button>
+              ) : (
                 <a href={`mailto:${prospect.email}`} className={`${pill} border border-brand-border bg-white text-brand-text hover:border-accent`}>Email</a>
-              )}
+              ))}
               {prospect.website && (
                 <a href={websiteHref(prospect.website)} target="_blank" rel="noreferrer" className={`${pill} border border-brand-border bg-white text-brand-text hover:border-accent`}>Website</a>
               )}
@@ -204,6 +223,21 @@ export default function LeadDrawer({
           {error && <p className="text-sm text-brand-red">{error}</p>}
           {prospect && (
             <>
+              {composing && prospect.email && (
+                <EmailComposer
+                  prospect={prospect}
+                  workspaceConnected={workspaceConnected}
+                  onCancel={() => setComposing(false)}
+                  onSent={(saved) => {
+                    setProspect((current) => (current ? { ...current, ...(saved as Partial<DrawerProspect>) } : current))
+                    setComposing(false)
+                    setNotice('Email sent from the sales mailbox.')
+                    setTimelineKey((key) => key + 1)
+                    onChanged()
+                  }}
+                />
+              )}
+
               {canEdit && (
                 <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="text-sm">
@@ -252,6 +286,7 @@ export default function LeadDrawer({
 
               <ProspectActivity
                 prospectId={prospect.id}
+                refreshKey={timelineKey}
                 canEdit={canEdit}
                 phone={prospect.phone}
                 onLogged={(result) => {

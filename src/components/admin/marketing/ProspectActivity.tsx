@@ -77,7 +77,9 @@ export default function ProspectActivity({
   phone,
   onLogged,
   autoFocus = false,
+  refreshKey = 0,
 }: {
+  refreshKey?: number
   prospectId: string
   canEdit: boolean
   phone?: string
@@ -114,7 +116,7 @@ export default function ProspectActivity({
     return () => {
       cancelled = true
     }
-  }, [prospectId])
+  }, [prospectId, refreshKey])
 
   const suggested = useMemo(() => (outcome ? followUpForOutcome(outcome, new Date()) : undefined), [outcome])
   useEffect(() => {

@@ -845,6 +845,13 @@ export async function sendProspectEmail(
     })
     .eq('id', id)
   if (error) throw new Error('Email sent, but the CRM could not store the thread')
+  await logActivity({
+    action: 'email_sent',
+    entity_type: 'lead',
+    entity_id: id,
+    actor_email: actor.email || 'staff',
+    details: input.subject.trim(),
+  })
   const saved = await getMarketingProspect(id)
   if (!saved) throw new Error('Prospect not found')
   return saved
