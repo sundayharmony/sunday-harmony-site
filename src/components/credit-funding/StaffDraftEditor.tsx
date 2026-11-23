@@ -15,45 +15,14 @@ import {
 } from '@/lib/credit-funding-types'
 import { IDENTITY_DOCUMENTS, BUSINESS_DOCUMENTS } from '@/lib/credit-funding-document-steps'
 import AnnualCreditReportGuide from '@/components/credit-funding/AnnualCreditReportGuide'
+import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 
 const inputClass =
   'w-full py-2.5 px-3 bg-neutral-50 border border-brand-border rounded-lg text-sm text-brand-text outline-none focus:border-accent'
 const labelClass = 'block text-xs font-semibold text-brand-muted mb-1'
 
-type DraftFormState = {
-  fullName: string
-  dateOfBirth: string
-  ssn: string
-  email: string
-  phone: string
-  address: string
-  city: string
-  state: string
-  zipCode: string
-  creditProfile: CreditProfile
-  selectedCreditProvider: string
-  providerUsername: string
-  providerPassword: string
-  experianEmail: string
-  experianPassword: string
-  experianSecurityAnswer: string
-  experianPin: string
-  cfpbEmail: string
-  cfpbPassword: string
-  primaryCreditGoalsText: string
-  creditGoals: string[]
-  fundingAmount: string
-  fundingUse: string
-  ownsBusiness: boolean
-  businessName: string
-  fundingTimeframe: string
-  goalsNotes: string
-  referredBy: string
-  businessProfile: BusinessProfile
-  consent: ConsentData
-  typedSignature: string
-  signatureDate: string
-}
+/** Same shape as the intake payload the API validates. */
+type DraftFormState = Omit<IntakeFormPayload, 'intakeKind'>
 
 const emptyForm = (): DraftFormState => ({
   fullName: '',
