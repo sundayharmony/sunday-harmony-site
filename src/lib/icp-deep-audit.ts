@@ -1,6 +1,7 @@
 // Collects the public data the full audit needs. Each Google call uses its own SKU's free
 // monthly allowance: Place Details for the lead, Nearby Search for 3 competitors.
 import type { DeepAuditData, Social } from '@/lib/icp-audit-areas'
+import { isFranchise } from '@/lib/icp-score'
 
 export type DeepAuditLead = {
   google_place_id: string | null
@@ -80,10 +81,10 @@ async function placeDetails(id: string, key: string) {
 async function nearbyCompetitors(selfId: string, type: string, location: { latitude: number; longitude: number }, key: string) {
   const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount' },
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount,places.primaryType' },
     body: JSON.stringify({
       includedTypes: [type],
-      maxResultCount: 6,
+      maxResultCount: 20,
       rankPreference: 'POPULARITY',
       locationRestriction: { circle: { center: location, radius: 8000 } },
     }),
@@ -92,7 +93,8 @@ async function nearbyCompetitors(selfId: string, type: string, location: { latit
   if (!r.ok) return []
   const data = (await r.json()) as { places?: Array<Record<string, any>> }
   return (data.places || [])
-    .filter((p) => p.id !== selfId)
+    // Same main category only (a dealership's service bay is not an independent shop), no chains.
+    .filter((p) => p.id !== selfId && p.primaryType === type && !isFranchise(p.displayName?.text || ''))
     .map((p) => ({ name: p.displayName?.text || 'Nearby business', rating: p.rating ?? null, reviews: p.userRatingCount ?? null }))
     .sort((a, b) => (b.reviews ?? 0) - (a.reviews ?? 0))
     .slice(0, 3)
