@@ -9,7 +9,17 @@ Read by every Claude Code session in this repo. Mirrors the Sunday Harmony Proje
 - **Goal: $10K revenue every week.** Focus now is consulting packages; credit analysis is secondary and needs cleanup.
 - **Public face is consulting.** Credit repair and business funding are separate doors behind the same site (see BRAND.md).
 - **Offers (list prices in code):** Business Essentials from $899 · Business Launch from $2,499 · Marketing Partner $1,200/mo · Custom quote. Front-end offer: free audit.
-- Contact: sales@sundayharmony.com.
+- Contact: sales@sundayharmony.com · (609) 400-4459 · 86 Forrest Street, Jersey City, NJ 07304.
+
+## Outreach rules (mirrors Project doc `claude/outreach-rules.md`)
+- Cold outreach sends from **sales@**; everything else (site, transactional, marketing) from **contact@**.
+- Every marketing email footer has the postal address above and an unsubscribe link. Sign as "Sunday Harmony", never a personal name.
+- No prices in emails; prices come up on the call. Booking link: /book.
+- Send Tue–Thu only. Send every qualified prospect ready that day, within a warm-up cap: start ~75/day, +25% per send day while bounces <3% and spam complaints ~0; pause and alert MC otherwise. Overflow rolls to the next send day.
+- Fully automatic: no manual approval. Code pre-send checks (no blank merge fields, footer + unsubscribe present, audit link loads, not suppressed); after every batch the system reviews results and adjusts.
+- Urgency only if true (e.g. ~8 projects/week capacity). Only real proof; no invented testimonials or results.
+- Leads already emailed get the audit as a new email if they score 50+.
+- Ask MC questions before starting anything new; after that, act without further approval.
 
 ## Copy rules
 - Plain English, direct, short. No jargon, no long-term contracts.
@@ -47,5 +57,6 @@ Score out of 100: industry 25 · reviews 20 · visible gap 20 · pays for softwa
 - **Mobile matches desktop** in the same change, including the mobile menu.
 - **Ship:** after lint, typecheck and unit tests pass, merge to `main` and push (no force-push). Production deploys from `main`. Dispute-letter changes also need the Render `dispute-letters-api` redeployed.
 - Never commit secrets (`.env*`, keys, credential files) or diagnostic dumps.
-- Lead importer lives outside this repo and used old prices ($599/$1,799/$799); check imported leads use current prices.
+- The old lead importer was a paid Grok bot outside this repo (retired); it used old prices ($599/$1,799/$799). New lead finding is built inside this repo.
+- Google APIs (Places, PageSpeed) read `GOOGLE_API_KEY` from env; never hard-code or commit it. Stay within free usage.
 - `BUG_AUDIT_REPORT.md` is superseded; re-check before trusting it.
