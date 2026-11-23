@@ -52,6 +52,9 @@ export type WorkspaceProspect = {
   deliverables: string
   opportunity: string
   notes: string
+  icpScore?: number | null
+  icpBand?: string | null
+  icpGaps?: string[]
 }
 
 export type WorkspaceActivity = {
@@ -259,7 +262,7 @@ const GROUPS: Record<QueueKind, { title: string; detail: string; roles: string[]
   },
   call: {
     title: "Today's call list",
-    detail: 'Fresh leads with a phone number, best score and value first.',
+    detail: 'Best-fit leads by ICP score, highest first. No email on file? Ask for one to send their free audit.',
     roles: ['admin', 'sales_closer'],
     limit: DAILY_CALL_TARGET,
   },
@@ -407,7 +410,20 @@ export function buildWorkQueue(
       push('email_no_reply', prospect, item('email_no_reply', prospect, `Emailed ${plural(touchedDays, 'day')} ago, no reply`), -((prospect.score ?? 0) * 100000 + (prospect.estimatedValue ?? 0)))
     }
 
-    if (prospect.stage === 'uncontacted' && prospect.phone && (touchedDays == null || touchedDays >= 7)) {
+    if (prospect.icpBand) {
+      // ICP-scored leads: call the 70+ band, and the 50–69 band when there's no email to send the audit to.
+      const wantsCall = prospect.icpBand === 'call' || (prospect.icpBand === 'email' && !prospect.email)
+      if (
+        wantsCall &&
+        prospect.phone &&
+        (prospect.stage === 'uncontacted' || (prospect.stage === 'emailed' && !prospect.repliedAt)) &&
+        (touchedDays == null || touchedDays >= 7)
+      ) {
+        const gaps = (prospect.icpGaps || []).slice(0, 2).join(' · ')
+        const ask = prospect.email ? '' : ' · Ask for email to send the audit'
+        push('call', prospect, item('call', prospect, `ICP ${prospect.icpScore ?? '?'}${gaps ? ` · ${gaps}` : ''}${ask}`), 0)
+      }
+    } else if (prospect.stage === 'uncontacted' && prospect.phone && (touchedDays == null || touchedDays >= 7)) {
       push('call', prospect, item('call', prospect, leadSummary(prospect) || 'Fresh lead'), 0)
     }
 
@@ -445,7 +461,7 @@ export function buildWorkQueue(
     const config = GROUPS[kind]
     if (!config.roles.includes(role)) continue
     let rows = (candidates.get(kind) || []).filter(({ prospect }) => !used.has(prospect.id))
-    if (kind === 'call') rows = rows.sort((a, b) => byValue(a.prospect, b.prospect))
+    if (kind === 'call') rows = rows.sort((a, b) => (b.prospect.icpScore ?? -1) - (a.prospect.icpScore ?? -1) || byValue(a.prospect, b.prospect))
     else if (kind === 'ready_for_sales') rows = rows.sort((a, b) => byValue(a.prospect, b.prospect))
     else rows = rows.sort((a, b) => a.sort - b.sort || a.prospect.business.localeCompare(b.prospect.business))
     const limit = kind === 'call' ? Math.max(5, DAILY_CALL_TARGET - callsToday) : config.limit

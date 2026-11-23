@@ -124,6 +124,10 @@ export type MarketingProspect = {
   closeMethod: string | null
   consultationBookedAt: string | null
   repliedAt: string | null
+  /** ICP score 0–100 (see icp-score.ts); null until scored. */
+  icpScore: number | null
+  icpBand: string | null
+  icpGaps: string[]
 }
 
 type LeadRow = Record<string, unknown>
@@ -203,6 +207,11 @@ export function mapProspect(row: LeadRow, creditApplicationId: string | null = n
     closeMethod: text(row.close_method) || null,
     consultationBookedAt: text(row.consultation_booked_at) || null,
     repliedAt: text(row.replied_at) || null,
+    icpScore: typeof row.icp_score === 'number' ? row.icp_score : null,
+    icpBand: text(row.icp_band) || null,
+    icpGaps: Array.isArray((row.icp_data as { gaps?: unknown } | null)?.gaps)
+      ? ((row.icp_data as { gaps: unknown[] }).gaps.filter((g) => typeof g === 'string') as string[])
+      : [],
   }
 }
 

@@ -253,3 +253,23 @@ describe('timeline', () => {
     assert.equal(entries[1].actor, 'sam')
   })
 })
+
+describe('ICP call list', () => {
+  it('calls the 70+ band and email-band leads with no email, best ICP score first', () => {
+    const groups = buildWorkQueue(
+      [
+        lead({ id: 'call-band', icpBand: 'call', icpScore: 80, icpGaps: ['No website'] }),
+        lead({ id: 'email-no-email', icpBand: 'email', icpScore: 60 }),
+        lead({ id: 'email-has-email', icpBand: 'email', icpScore: 65, email: 'a@b.com' }),
+        lead({ id: 'skip', icpBand: 'no_contact', icpScore: 40 }),
+        lead({ id: 'emailed-call', icpBand: 'call', icpScore: 90, stage: 'emailed', gmailThreadId: 't' }),
+      ],
+      [],
+      'sales_closer',
+      NOW
+    )
+    const call = groups.find((g) => g.key === 'call')
+    assert.deepEqual(call?.items.map((i) => i.id), ['emailed-call', 'call-band', 'email-no-email'])
+    assert.match(call!.items[1].reason, /ICP 80 · No website · Ask for email/)
+  })
+})
