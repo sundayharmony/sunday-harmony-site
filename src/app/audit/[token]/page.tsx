@@ -93,6 +93,12 @@ export default async function AuditPage({ params }: Params) {
             <Link href="/book" className={`${pill} mt-7 bg-brand-gold text-[#1b1a17] hover:-translate-y-0.5`}>
               Pick a time
             </Link>
+            <p className="mt-4 text-sm text-[#e6dbc6]">
+              Rather talk now? Call{' '}
+              <a href="tel:+16094004459" className="font-semibold text-brand-gold underline-offset-4 hover:underline">
+                (609) 400-4459
+              </a>
+            </p>
           </div>
         </section>
 
