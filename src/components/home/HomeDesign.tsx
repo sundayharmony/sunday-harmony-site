@@ -1,18 +1,49 @@
 import Link from 'next/link'
-import { packagePriceDisplay, packages, siteConfig, type Package } from '@/lib/data'
+import { packages, siteConfig, type Package } from '@/lib/data'
 import RailScroller from './RailScroller'
 import styles from './design.module.css'
 
-const PLAN_LINES: Record<string, string> = {
-  'Business Essentials': 'Logo, colors, type, business card.',
-  'Business Launch': 'Full identity and a 5-page site.',
-  'Marketing Partner': 'Posts, graphics, and site upkeep.',
-  'Custom Solutions': 'Print, apparel, ads, and systems.',
+/** Homepage cards sell the outcome: who each package fits and what it does for them. Prices live on /services. */
+const PLAN_PITCH: Record<string, { bestFor: string; benefits: string[] }> = {
+  'Business Essentials': {
+    bestFor: 'New or refreshing businesses that need to look established.',
+    benefits: [
+      'Look professional everywhere you show up',
+      'One consistent logo, color set, and type',
+      'Files ready for print, web, and social',
+    ],
+  },
+  'Business Launch': {
+    bestFor: 'Businesses ready to be found and contacted online.',
+    benefits: [
+      'A full brand and a 5-page site that works on phones',
+      'Show up on Google search and Maps',
+      'Contact forms that send inquiries to you',
+    ],
+  },
+  'Marketing Partner': {
+    bestFor: 'Owners who want steady marketing without hiring.',
+    benefits: [
+      'New posts and graphics every month',
+      'Your site and Google profile kept current',
+      'A monthly plan, call, and report',
+    ],
+  },
+  'Custom Solutions': {
+    bestFor: 'Bigger projects, or anything not on the menu.',
+    benefits: [
+      'Online stores, web apps, and business systems',
+      'Print, apparel, signage, and vehicle wraps',
+      'Paid ads and launch campaigns',
+    ],
+  },
 }
 
-function planPrice(pkg: Package): string {
-  const price = packagePriceDisplay(pkg)
-  return pkg.priceSuffix === 'monthly' ? `${price}/mo` : price
+function planPitch(pkg: Package) {
+  return PLAN_PITCH[pkg.tier] || {
+    bestFor: pkg.ideal,
+    benefits: pkg.features.filter((feat) => feat.included).slice(0, 3).map((feat) => feat.text),
+  }
 }
 
 function Browser({ dark = false }: { dark?: boolean }) {
@@ -176,22 +207,15 @@ export default function HomeDesign() {
             <li key={pkg.tier}>
               <Link href={pkg.priceSuffix === 'quote' ? '/book' : '/services#packages'} className={styles.plan}>
                 <span className={styles.planName}>{pkg.tier}</span>
-                <strong className={styles.planPrice}>{planPrice(pkg)}</strong>
-                <span className={styles.planLine}>{PLAN_LINES[pkg.tier] || pkg.tagline}</span>
-                <span className={styles.planMore}>
-                  <span className={styles.planMoreInner}>
-                    <span className={styles.planList}>
-                      {pkg.features
-                        .filter((feat) => feat.included)
-                        .slice(0, 4)
-                        .map((feat) => (
-                          <span key={feat.text}>✓ {feat.text}</span>
-                        ))}
-                    </span>
-                    <span className={styles.planCta}>
-                      {pkg.priceSuffix === 'quote' ? 'Book a call →' : "See what's included →"}
-                    </span>
-                  </span>
+                <span className={styles.planFor}>Best for</span>
+                <strong className={styles.planBest}>{planPitch(pkg).bestFor}</strong>
+                <span className={styles.planList}>
+                  {planPitch(pkg).benefits.map((benefit) => (
+                    <span key={benefit}>✓ {benefit}</span>
+                  ))}
+                </span>
+                <span className={styles.planCta}>
+                  {pkg.priceSuffix === 'quote' ? 'Book a call →' : "See what's included →"}
                 </span>
               </Link>
             </li>
