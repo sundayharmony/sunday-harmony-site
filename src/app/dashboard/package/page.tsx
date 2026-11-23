@@ -87,6 +87,33 @@ const packages: {
   publicPlan('Custom Solutions'),
 ]
 
+/** Deliverables list and member-since date, shown beside both the credit repair and package plans. */
+function DeliverablesColumn({ client }: { client: ClientData | null }) {
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Your Deliverables</div>
+      {Array.isArray(client?.deliverables) && client.deliverables.length > 0 ? (
+        <div className="space-y-1.5">
+          {client.deliverables.map((d, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-accent text-xs">◈</span>
+              <span className="text-sm text-brand-text">{d}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-brand-dim">Custom deliverables will appear here.</p>
+      )}
+      <div className="mt-4">
+        <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
+        <div className="text-sm text-brand-text">
+          {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PackagePage() {
   const [client, setClient] = useState<ClientData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -159,27 +186,7 @@ export default function PackagePage() {
                 ))}
               </div>
             </div>
-            <div>
-              <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Your Deliverables</div>
-              {Array.isArray(client?.deliverables) && client.deliverables.length > 0 ? (
-                <div className="space-y-1.5">
-                  {client.deliverables.map((d, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-accent text-xs">◈</span>
-                      <span className="text-sm text-brand-text">{d}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-brand-dim">Custom deliverables will appear here.</p>
-              )}
-              <div className="mt-4">
-                <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
-                <div className="text-sm text-brand-text">
-                  {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                </div>
-              </div>
-            </div>
+            <DeliverablesColumn client={client} />
           </div>
         </div>
       )}
@@ -226,28 +233,7 @@ export default function PackagePage() {
                 ))}
               </div>
             </div>
-            <div>
-              <div className="text-[10px] font-bold uppercase text-brand-dim mb-2">Your Deliverables</div>
-              {Array.isArray(client?.deliverables) && client.deliverables.length > 0 ? (
-                <div className="space-y-1.5">
-                  {client.deliverables.map((d, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-accent text-xs">◈</span>
-                      <span className="text-sm text-brand-text">{d}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-brand-dim">Custom deliverables will appear here.</p>
-              )}
-
-              <div className="mt-4">
-                <div className="text-[10px] font-bold uppercase text-brand-dim mb-1">Member Since</div>
-                <div className="text-sm text-brand-text">
-                  {client?.start_date ? new Date(client.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                </div>
-              </div>
-            </div>
+            <DeliverablesColumn client={client} />
           </div>
         </div>
       )}
