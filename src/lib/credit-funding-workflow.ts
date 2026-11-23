@@ -71,7 +71,7 @@ function buildPortalMessageText(params: {
   return parts.join('\n\n')
 }
 
-async function notifyApplicantUser(
+export async function notifyApplicantUser(
   application: CreditFundingApplication,
   title: string,
   message: string,

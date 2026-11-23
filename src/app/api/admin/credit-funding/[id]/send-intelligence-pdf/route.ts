@@ -1,60 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createNotification, getUserByEmail } from '@/lib/db'
 import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
-import { sendCreditFundingStatusUpdateEmail } from '@/lib/credit-funding-applicant-onboarding'
-import {
-  createCreditFundingMessage,
-  createUploadedDocument,
-  getCreditFundingApplicationById,
-  syncStaffSharedDocumentsFromStorage,
-} from '@/lib/credit-funding-db'
-import {
-  deleteCreditFundingStoragePaths,
-  uploadCreditFundingDocument,
-} from '@/lib/credit-funding-storage'
+import { shareStaffPdfWithApplicant } from '@/lib/credit-funding-share-pdf'
+import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
 import {
   creditIntelligencePdfFilename,
   renderCreditIntelligencePdf,
 } from '@/lib/credit-intelligence-pdf-server'
 import { resolveCreditIntelligenceForSession } from '@/lib/credit-intelligence-resolve'
 import { getDisputeSessionById } from '@/lib/dispute-letters/db'
-import { sanitizeDocumentDisplayTitle } from '@/lib/credit-funding-types'
 import type { FundingContextPayload } from '@/lib/dispute-letters/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 type Params = { params: Promise<{ id: string }> }
-
-async function notifyApplicant(
-  applicationId: string,
-  email: string,
-  userId: string | null | undefined,
-  title: string,
-  message: string
-) {
-  if (userId) {
-    await createNotification({
-      user_id: userId,
-      title,
-      message,
-      type: 'file',
-      link: '/dashboard/credit-funding',
-    })
-    return
-  }
-  const user = await getUserByEmail(email)
-  if (user) {
-    await createNotification({
-      user_id: user.id,
-      title,
-      message,
-      type: 'file',
-      link: '/dashboard/credit-funding',
-    })
-  }
-}
 
 /** Generate Credit Intelligence PDF, share to portal, optionally email the client. */
 export async function POST(request: NextRequest, { params }: Params) {
@@ -107,93 +67,35 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     const pdfBuffer = await renderCreditIntelligencePdf(resolved.report)
     const filename = creditIntelligencePdfFilename(resolved.report)
-    const displayTitle = sanitizeDocumentDisplayTitle(
-      filename.replace(/\.pdf$/i, ''),
-      filename
-    )
-
-    const uploaded = await uploadCreditFundingDocument({
-      applicationUuid: application.id,
-      documentType: 'staff_shared',
-      buffer: pdfBuffer,
-      contentType: 'application/pdf',
-      originalFileName: filename,
+    const shared = await shareStaffPdfWithApplicant({
+      application,
+      pdfBuffer,
+      filename,
+      staffName,
+      staffEmail,
+      notifyEmail,
+      messageLines: ['Your credit profile analysis PDF is ready.'],
+      email: {
+        statusLabel: 'Credit Analysis Shared',
+        statusNotes:
+          'Your specialist shared a Credit Profile Analysis PDF. You can also download it from your client portal.',
+        errorLog: 'Failed to send credit analysis PDF email:',
+      },
+      notification: {
+        title: 'Credit Analysis Ready',
+        message: 'Your credit profile analysis PDF is available in your portal.',
+      },
     })
-    if (!uploaded.ok) {
-      return NextResponse.json({ error: uploaded.error }, { status: 400 })
-    }
-
-    const message = await createCreditFundingMessage({
-      application_uuid: application.id,
-      from_role: 'admin',
-      from_name: staffName,
-      from_email: staffEmail,
-      text: [
-        'Your credit profile analysis PDF is ready.',
-        `Attached: ${displayTitle}`,
-      ].join('\n\n'),
-    })
-
-    const saved = await createUploadedDocument({
-      application_uuid: application.id,
-      document_type: 'staff_shared',
-      file_name: displayTitle,
-      file_type: uploaded.data.file_type,
-      file_size: uploaded.data.file_size,
-      storage_path: uploaded.data.storagePath,
-      mime_type: uploaded.data.mime_type,
-      scan_status: uploaded.data.scan_status,
-      shared_by: 'admin',
-      message_id: message?.id,
-    })
-
-    if (!saved) {
-      const recovered = await syncStaffSharedDocumentsFromStorage(application.id)
-      if (!recovered) {
-        await deleteCreditFundingStoragePaths([uploaded.data.storagePath]).catch(() => {})
-        return NextResponse.json(
-          { error: 'PDF uploaded but could not be saved for portal display.' },
-          { status: 500 }
-        )
-      }
-    }
-
-    if (notifyEmail) {
-      try {
-        await sendCreditFundingStatusUpdateEmail({
-          to: application.email,
-          applicationId: application.application_id,
-          statusLabel: 'Credit Analysis Shared',
-          statusNotes:
-            'Your specialist shared a Credit Profile Analysis PDF. You can also download it from your client portal.',
-          attachmentNames: [displayTitle],
-          attachments: [
-            {
-              fileName: filename,
-              mimeType: 'application/pdf',
-              buffer: pdfBuffer,
-            },
-          ],
-        })
-      } catch (err) {
-        console.error('Failed to send credit analysis PDF email:', err)
-      }
-
-      await notifyApplicant(
-        application.id,
-        application.email,
-        application.user_id,
-        'Credit Analysis Ready',
-        'Your credit profile analysis PDF is available in your portal.'
-      )
+    if (!shared.ok) {
+      return NextResponse.json({ error: shared.error }, { status: shared.status })
     }
 
     return NextResponse.json({
       ok: true,
-      fileName: displayTitle,
-      storagePath: uploaded.data.storagePath,
+      fileName: shared.displayTitle,
+      storagePath: shared.storagePath,
       emailed: notifyEmail,
-      messageId: message?.id || null,
+      messageId: shared.messageId,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to send credit analysis PDF'
