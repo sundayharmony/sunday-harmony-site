@@ -18,7 +18,7 @@ interface FormData {
   shHpField: string
 }
 
-function contactLeadSource(): 'website' | 'ads' | 'referral' {
+export function contactLeadSource(): 'website' | 'ads' | 'referral' {
   const params = new URLSearchParams(window.location.search)
   if (currentVisitIsPaid()) return 'ads'
   if (params.get('ref') || document.cookie.split(';').some((part) => part.trim().startsWith('sh_ref='))) {
