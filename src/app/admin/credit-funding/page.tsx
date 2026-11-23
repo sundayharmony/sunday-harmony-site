@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
+import CreditDesk from '@/components/admin/credit/CreditDesk'
 import Link from 'next/link'
 import { CreditAttentionHome } from '@/components/admin/CreditAttentionList'
 import StatusBadge from '@/components/ui/StatusBadge'
@@ -1095,7 +1096,8 @@ function CreditFundingAdminContent() {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-serif text-2xl font-semibold tracking-tight text-brand-text">
+          <Link href="/admin/credit-funding" className="text-xs font-semibold text-accent-ink hover:underline">← Credit desk</Link>
+          <h1 className="mt-2 font-serif text-2xl font-semibold tracking-tight text-brand-text">
             Credit &amp; Funding
           </h1>
           <p className="mt-1 max-w-xl text-sm text-brand-muted">
@@ -1874,10 +1876,17 @@ function CreditFundingAdminContent() {
   )
 }
 
+/** The Credit desk by default; the full application file when a link names a client (?id=) or asks for the list (?files=1). */
+function CreditFundingRoute() {
+  const params = useSearchParams()
+  if (params.get('id') || params.get('files')) return <CreditFundingAdminContent />
+  return <CreditDesk />
+}
+
 export default function CreditFundingAdminPage() {
   return (
     <Suspense fallback={<p className="text-sm text-brand-dim">Loading…</p>}>
-      <CreditFundingAdminContent />
+      <CreditFundingRoute />
     </Suspense>
   )
 }
