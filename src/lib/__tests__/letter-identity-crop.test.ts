@@ -75,9 +75,11 @@ describe('letter identity crop wiring', () => {
       'utf8'
     )
     const page = readFileSync('src/app/admin/credit-funding/page.tsx', 'utf8')
+    const access = readFileSync('src/lib/credit-funding-document-access.ts', 'utf8')
     assert.match(content, /downloadCreditFundingDocument/)
-    assert.match(content, /requireCreditFundingStaffSession/)
-    assert.match(content, /creditApplicationAccessDenied/)
+    assert.match(content, /requireStaffDocumentAccess/)
+    assert.match(access, /requireCreditFundingStaffSession/)
+    assert.match(access, /creditApplicationAccessDenied/)
     assert.doesNotMatch(content, /createSignedUrl|fetch\(.*req\.url/)
     assert.match(modal, /letterIdentityDocumentContentUrl/)
     assert.match(modal, /createObjectURL/)

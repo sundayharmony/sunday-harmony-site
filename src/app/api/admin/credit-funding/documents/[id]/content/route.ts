@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logApiRouteError } from '@/lib/api-route-log'
-import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
+import { requireStaffDocumentAccess } from '@/lib/credit-funding-document-access'
 import {
   getCreditFundingApplicationById,
   getUploadedDocumentById,
 } from '@/lib/credit-funding-db'
 import { downloadCreditFundingDocument } from '@/lib/credit-funding-storage'
-import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -30,26 +29,9 @@ function contentTypeFor(doc: { mime_type?: string | null; file_name?: string | n
  */
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    const session = await requireCreditFundingStaffSession()
-    if (session instanceof NextResponse) return session
-
-    const applicationId = new URL(req.url).searchParams.get('applicationId')
-    if (!applicationId) {
-      return NextResponse.json({ error: 'applicationId is required' }, { status: 400 })
-    }
-
-    const application = await getCreditFundingApplicationById(applicationId)
-    const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
-    if (denied) return denied
-    if (!application) {
-      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
-    }
-
-    const { id } = await context.params
-    const doc = await getUploadedDocumentById(id)
-    if (!doc || doc.application_uuid !== applicationId) {
-      return NextResponse.json({ error: 'Document not found' }, { status: 404 })
-    }
+    const access = await requireStaffDocumentAccess(req, context.params)
+    if (!access.ok) return access.response
+    const { id, doc } = access
 
     const downloaded = await downloadCreditFundingDocument(doc.storage_path)
     if (!downloaded.ok) {
