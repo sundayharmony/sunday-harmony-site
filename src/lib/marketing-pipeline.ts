@@ -390,7 +390,7 @@ export function boardLanes(role?: string | null): BoardLane[] {
       {
         id: 'active',
         title: 'Active',
-        detail: 'Accepted the proposal and paid. Bill the client from Today, then hand the file to client relations.',
+        detail: 'Accepted the proposal and paid. Bill the client from their file, then hand it to client relations.',
         stages: ['won'],
       },
     ]
@@ -452,7 +452,6 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   }
   if (role === 'lead_procurement') {
     return ADMIN_NAV.filter((item) =>
-      item.href === '/admin' ||
       item.href === '/admin/calendar' ||
       item.href === '/admin/marketing' ||
       item.href === '/admin/todos' ||
@@ -464,8 +463,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   }
   if (role === 'sales_closer') {
     return ADMIN_NAV.filter((item) =>
-      item.href === '/admin'
-      || item.href === '/admin/calendar'
+      item.href === '/admin/calendar'
       || item.href === '/admin/marketing'
       || item.href === '/admin/todos'
       || item.href === '/admin/sales-kit'
@@ -476,7 +474,6 @@ export function navForRole(role?: string | null): AdminNavItem[] {
   }
   if (role === 'client_relations') {
     return ADMIN_NAV.filter((item) =>
-      item.href === '/admin' ||
       item.href === '/admin/calendar' ||
       item.href === '/admin/marketing' ||
       item.href === '/admin/todos' ||
@@ -485,7 +482,7 @@ export function navForRole(role?: string | null): AdminNavItem[] {
       item.href === '/admin/settings'
     )
   }
-  if (role === 'admin') return ADMIN_NAV
+  if (role === 'admin') return ADMIN_NAV.filter((item) => item.href !== '/admin')
   return []
 }
 
@@ -493,7 +490,8 @@ export function homeForRole(role?: string | null): string {
   if (role === 'credit_manager') return '/admin'
   if (role === 'client') return '/dashboard'
   if (role === 'partner') return '/partner'
-  if (role === 'admin' || isMarketingRole(role)) return '/admin'
+  // The Growth desk replaced Today for admin and marketing staff.
+  if (role === 'admin' || isMarketingRole(role)) return '/admin/marketing'
   return '/'
 }
 

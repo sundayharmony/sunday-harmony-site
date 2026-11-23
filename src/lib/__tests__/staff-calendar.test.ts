@@ -166,10 +166,12 @@ describe('staff calendar merge', () => {
 })
 
 describe('staff calendar access', () => {
-  it('puts Calendar after Today for every Todos role', () => {
+  it('puts Calendar first for admin (Today is retired) and after Today for credit managers', () => {
     const admin = navForRole('admin').map((item) => item.href)
-    assert.equal(admin[0], '/admin')
-    assert.equal(admin[1], '/admin/calendar')
+    assert.equal(admin[0], '/admin/calendar')
+    assert.equal(admin.includes('/admin'), false)
+    const credit = navForRole('credit_manager').map((item) => item.href)
+    assert.deepEqual(credit.slice(0, 2), ['/admin', '/admin/calendar'])
     for (const role of ['admin', 'sales_closer', 'lead_procurement', 'client_relations', 'credit_manager']) {
       assert.equal(navForRole(role).some((item) => item.href === '/admin/calendar' && item.label === 'Calendar'), true)
       assert.equal(navForRole(role).some((item) => item.href === '/admin/todos'), true)

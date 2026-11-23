@@ -34,6 +34,7 @@ type WorkspacePayload = {
   kpis: MarketingKpiView
   meetings: JoinableMeeting[]
   workspaceConnected: boolean
+  staleFollowUps: number
   error?: string
 }
 
@@ -229,7 +230,7 @@ export default function MarketingDesk() {
       {!data && !error && <p className="text-sm text-brand-muted">Loading the desk…</p>}
 
       {data && view === 'today' && (
-        <TodayView data={data} onOpen={openFromQueue} onOpenSingle={openSingle} onView={(next) => setQuery({ view: next })} />
+        <TodayView data={data} onOpen={openFromQueue} onOpenSingle={openSingle} onView={(next) => setQuery({ view: next })} onRefresh={changed} />
       )}
       {data && view === 'pipeline' && (
         <MarketingPipeline embedded stage={stage} onOpenProspect={openSingle} refreshKey={refreshKey} />
@@ -348,11 +349,13 @@ function TodayView({
   onOpen,
   onOpenSingle,
   onView,
+  onRefresh,
 }: {
   data: WorkspacePayload
   onOpen: (id: string) => void
   onOpenSingle: (id: string) => void
   onView: (view: ViewId) => void
+  onRefresh: () => void
 }) {
   const showMeetings = data.role === 'admin' || data.role === 'sales_closer'
   const dueAccounts = data.accounts.filter((account) => account.health !== 'on_track' || account.nextTask).slice(0, 5)
@@ -410,6 +413,7 @@ function TodayView({
             </ul>
           )}
         </section>
+        {data.staleFollowUps > 0 && <StaleFollowUps count={data.staleFollowUps} onCleared={onRefresh} />}
         <section className={`${card} p-4 sm:p-5`}>
           <p className={kicker}>How the queue works</p>
           <p className="mt-2 text-sm leading-6 text-brand-muted">
@@ -419,6 +423,46 @@ function TodayView({
         </section>
       </aside>
     </div>
+  )
+}
+
+/** Old follow-up dates (mostly from the bulk import) are hidden from the queue; this clears them for good. */
+function StaleFollowUps({ count, onCleared }: { count: number; onCleared: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  async function clear() {
+    if (!window.confirm(`Clear ${count} follow-up dates that passed more than 3 days ago? The leads stay in the pipeline; only the old reminder dates are removed.`)) return
+    setBusy(true)
+    setNote('')
+    try {
+      const res = await fetch('/api/admin/marketing/stale-follow-ups', { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'Could not clear old follow-ups')
+      setNote(`Cleared ${body.cleared} old ${body.cleared === 1 ? 'date' : 'dates'}.`)
+      onCleared()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'Could not clear old follow-ups')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className={`${card} p-4 sm:p-5`}>
+      <p className={kicker}>Cleanup</p>
+      <h2 className="mt-1 font-serif text-xl text-brand-text">{count} old follow-ups</h2>
+      <p className="mt-2 text-sm leading-6 text-brand-muted">
+        These dates passed more than 3 days ago, mostly from the bulk import. They are hidden from the queue but still show on the pipeline. Clear them so only real follow-ups remain.
+      </p>
+      <button
+        type="button"
+        onClick={() => void clear()}
+        disabled={busy}
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-brand-text px-5 text-sm font-semibold text-white disabled:opacity-50"
+      >
+        {busy ? 'Clearing…' : `Clear ${count} old dates`}
+      </button>
+      {note && <p className="mt-2 text-sm text-brand-muted" role="status">{note}</p>}
+    </section>
   )
 }
 

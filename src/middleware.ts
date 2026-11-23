@@ -136,6 +136,11 @@ export async function middleware(req: NextRequest) {
       )
     }
 
+    // Today was retired for admin and marketing staff; their home is the Growth desk.
+    if (path === '/admin' && (role === 'admin' || isMarketingRole(role))) {
+      return NextResponse.redirect(new URL('/admin/marketing', req.url))
+    }
+
     if (role === 'credit_manager') {
       if (!creditManagerAllowed(path)) {
         return NextResponse.redirect(new URL('/admin', req.url))

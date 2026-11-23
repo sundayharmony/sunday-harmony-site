@@ -267,11 +267,10 @@ describe('marketing role handoffs and navigation', () => {
   it('splits the admin nav and homes by role', () => {
     assert.deepEqual(
       navForRole('admin').map((item) => item.label),
-      ['Today', 'Calendar', 'Marketing', 'Credit & Funding', 'Referrals', 'Case Study', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Messages', 'Settings']
+      ['Calendar', 'Marketing', 'Credit & Funding', 'Referrals', 'Case Study', 'Todos', 'Sales Kit', 'Training', 'Content Kit', 'Messages', 'Settings']
     )
     // Sales roles see Sales Kit
     assert.deepEqual(navForRole('lead_procurement').map((item) => item.href), [
-      '/admin',
       '/admin/calendar',
       '/admin/marketing',
       '/admin/todos',
@@ -281,7 +280,6 @@ describe('marketing role handoffs and navigation', () => {
       '/admin/settings',
     ])
     assert.deepEqual(navForRole('sales_closer').map((item) => item.href), [
-      '/admin',
       '/admin/calendar',
       '/admin/marketing',
       '/admin/todos',
@@ -292,7 +290,6 @@ describe('marketing role handoffs and navigation', () => {
     ])
     // Client relations sees Content Kit
     assert.deepEqual(navForRole('client_relations').map((item) => item.href), [
-      '/admin',
       '/admin/calendar',
       '/admin/marketing',
       '/admin/todos',
@@ -323,6 +320,10 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/messages'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/messages'), true)
     assert.equal(homeForRole('credit_manager'), '/admin')
+    // The Growth desk replaced Today as home for admin and marketing staff.
+    for (const role of ['admin', 'lead_procurement', 'sales_closer', 'client_relations']) {
+      assert.equal(homeForRole(role), '/admin/marketing')
+    }
     assert.equal(marketingRoleAllowedPath('sales_closer', '/admin/marketing'), true)
     assert.equal(marketingRoleAllowedPath('lead_procurement', '/admin/marketing'), true)
     assert.equal(marketingRoleAllowedPath('client_relations', '/admin/marketing'), true)

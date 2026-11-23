@@ -20,6 +20,9 @@ import {
 /** Calls a closer aims to log each day. The call list fills up to this. */
 export const DAILY_CALL_TARGET = 25
 
+/** Follow-ups missed by more than this many days are stale: hidden from the queue and clearable in bulk. */
+export const STALE_FOLLOW_UP_DAYS = 3
+
 const DAY = 24 * 60 * 60 * 1000
 const ZONE = 'America/New_York'
 
@@ -361,7 +364,7 @@ export function buildWorkQueue(
     candidates.set(kind, list)
   }
   const dayEnd = endOfDay(now)
-  const recentMissed = now.getTime() - 3 * DAY
+  const recentMissed = now.getTime() - STALE_FOLLOW_UP_DAYS * DAY
 
   for (const prospect of prospects) {
     const touched = lastTouch(prospect, touches)
@@ -452,6 +455,16 @@ export function buildWorkQueue(
     groups.push({ key: kind, title: config.title, detail: config.detail, items: shown.map((row) => row.entry), total: rows.length })
   }
   return groups
+}
+
+/** Open leads whose follow-up date passed more than STALE_FOLLOW_UP_DAYS ago. */
+export function staleFollowUpCount(prospects: WorkspaceProspect[], now: Date): number {
+  const cutoff = now.getTime() - STALE_FOLLOW_UP_DAYS * DAY
+  return prospects.filter((prospect) => {
+    if (!isOpenStage(prospect.stage)) return false
+    const at = time(prospect.followUpAt)
+    return !Number.isNaN(at) && at < cutoff
+  }).length
 }
 
 // ---------- Pulse ----------
@@ -748,6 +761,8 @@ export function prospectTimeline(prospect: WorkspaceProspect, activities: Worksp
       const stage = /\(([a-z_]+)\)\s*$/.exec(row.details || '')?.[1]
       const label = stage && (PIPELINE_STAGES as readonly string[]).includes(stage) ? STAGE_LABELS[stage as PipelineStage] : ''
       entries.push({ at: row.createdAt, kind: 'update', title: 'File updated', detail: label ? `Stage: ${label}` : '', actor: actorName(row.actor) })
+    } else if (row.action === 'email_sent') {
+      entries.push({ at: row.createdAt, kind: 'email', title: 'Email sent', detail: row.details, actor: actorName(row.actor) })
     } else if (row.action === 'lead_created') {
       entries.push({ at: row.createdAt, kind: 'milestone', title: 'Added to the CRM', detail: '', actor: actorName(row.actor) })
     }
@@ -760,7 +775,8 @@ export function prospectTimeline(prospect: WorkspaceProspect, activities: Worksp
   }
   if (!own.some((row) => row.action === 'lead_created')) milestone(prospect.createdAt, 'milestone', 'Added to the CRM')
   const contacted = time(prospect.lastContactedAt)
-  if (prospect.gmailThreadId && !Number.isNaN(contacted) && !callTimes.some((at) => Math.abs(at - contacted) < 120000)) {
+  const loggedEmail = own.some((row) => row.action === 'email_sent')
+  if (prospect.gmailThreadId && !loggedEmail && !Number.isNaN(contacted) && !callTimes.some((at) => Math.abs(at - contacted) < 120000)) {
     milestone(prospect.lastContactedAt, 'email', 'Email sent')
   }
   milestone(prospect.repliedAt, 'reply', 'Replied by email')

@@ -13,6 +13,7 @@ import {
 import { marketingKpiCounts, stripeHasConfirmedPayment } from '@/lib/marketing-pipeline'
 import {
   CALL_OUTCOMES,
+  STALE_FOLLOW_UP_DAYS,
   buildWorkQueue,
   callAction,
   callOutcome,
@@ -21,6 +22,7 @@ import {
   isCallOutcome,
   prospectTimeline,
   stageAfterCall,
+  staleFollowUpCount,
   workspaceInsights,
   workspacePulse,
   type CallOutcome,
@@ -131,8 +133,35 @@ export async function loadMarketingWorkspace(role?: string | null) {
     insights,
     kpis,
     meetings,
+    staleFollowUps: viewer === 'admin' ? staleFollowUpCount(prospects, now) : 0,
     workspaceConnected: isGoogleWorkspaceConfigured(),
   }
+}
+
+/**
+ * Clear follow-up dates on open marketing leads that passed more than
+ * STALE_FOLLOW_UP_DAYS ago (mostly dates set in bulk at import). Past calendar
+ * events are left alone; a new follow-up reuses the stored event id.
+ */
+export async function clearStaleFollowUps(actor: MarketingActor): Promise<{ cleared: number }> {
+  if (actor.role !== 'admin') throw new Error('Only an admin can clear old follow-ups')
+  const cutoff = new Date(Date.now() - STALE_FOLLOW_UP_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await getSupabase()
+    .from('leads')
+    .update({ follow_up_at: null, updated_at: new Date().toISOString() })
+    .lt('follow_up_at', cutoff)
+    .or('lead_type.is.null,lead_type.in.(marketing_lead,existing_client,completed_client)')
+    .not('pipeline_stage', 'in', '(won,lost_nurture)')
+    .select('id')
+  if (error) throw new Error('Could not clear old follow-ups')
+  const cleared = (data || []).length
+  await logActivity({
+    action: 'follow_ups_cleared',
+    entity_type: 'lead',
+    actor_email: actor.email || 'staff',
+    details: `Cleared ${cleared} follow-up dates older than ${STALE_FOLLOW_UP_DAYS} days`,
+  })
+  return { cleared }
 }
 
 export async function loadProspectTimeline(prospect: MarketingProspect) {
