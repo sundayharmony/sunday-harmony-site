@@ -32,6 +32,7 @@ import {
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
 import TurnstileWidget, { TURNSTILE_WAIT_MESSAGE, turnstileTokenForSubmit, type TurnstileHandle } from '@/components/TurnstileWidget'
 import { isValidSsn } from '@/lib/ssn-utils'
+import type { IntakeFormPayload } from '@/lib/credit-funding-validation'
 
 type StepId =
   | 'personal'
@@ -87,42 +88,11 @@ const labelClass = 'block text-xs font-semibold text-brand-muted mb-1.5 tracking
 
 const fid = (name: string) => `cf-${name}`
 
-interface FormState {
-  fullName: string
-  dateOfBirth: string
-  ssn: string
-  email: string
-  phone: string
-  address: string
-  city: string
-  state: string
-  zipCode: string
-  creditProfile: CreditProfile
-  selectedCreditProvider: string
-  providerUsername: string
-  providerPassword: string
+/** Intake payload fields plus form-only UI and account fields. */
+interface FormState extends Omit<IntakeFormPayload, 'intakeKind'> {
   showPassword: boolean
-  experianEmail: string
-  experianPassword: string
   showExperianPassword: boolean
-  experianSecurityAnswer: string
-  experianPin: string
-  cfpbEmail: string
-  cfpbPassword: string
   showCfpbPassword: boolean
-  primaryCreditGoalsText: string
-  creditGoals: string[]
-  fundingAmount: string
-  fundingUse: string
-  ownsBusiness: boolean
-  businessName: string
-  fundingTimeframe: string
-  goalsNotes: string
-  referredBy: string
-  businessProfile: BusinessProfile
-  consent: ConsentData
-  typedSignature: string
-  signatureDate: string
   shHpField: string
   accountPassword: string
   accountPasswordConfirm: string
