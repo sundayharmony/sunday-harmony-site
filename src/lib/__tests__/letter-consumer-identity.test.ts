@@ -116,11 +116,10 @@ describe('letter consumer identity', () => {
     assert.deepEqual(resolved.consumer_addresses, ['100 Main St, Miami, FL 33101'])
   })
 
-  it('generate routes load intake identity and resolve name/address/ssn/dob', () => {
+  it('generate route loads intake identity and resolve name/address/ssn/dob', () => {
     const root = path.join(process.cwd(), 'src/app/api/admin/dispute-letters/[id]/generate')
     const postRoute = readFileSync(path.join(root, 'route.ts'), 'utf8')
-    const streamRoute = readFileSync(path.join(root, 'stream/route.ts'), 'utf8')
-    for (const source of [postRoute, streamRoute]) {
+    for (const source of [postRoute]) {
       assert.match(source, /loadLetterConsumerIdentity/)
       assert.match(source, /resolveLetterConsumerFields/)
       assert.match(source, /consumer_ssn:\s*consumer\.consumer_ssn/)

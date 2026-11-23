@@ -94,41 +94,6 @@ export async function disputeLettersJson<T>(path: string, init?: RequestInit): P
   return res.json() as Promise<T>
 }
 
-/** Proxy an SSE stream from the Python API to the client response. */
-export async function proxyDisputeLettersStream(
-  path: string,
-  body?: unknown
-): Promise<Response> {
-  const res = await disputeLettersFetch(path, {
-    method: 'POST',
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    headers: {
-      Accept: 'text/event-stream',
-    },
-  })
-
-  if (!res.ok || !res.body) {
-    const text = await res.text().catch(() => '')
-    return new Response(
-      JSON.stringify({ error: friendlyDisputeLettersUpstreamError(text, res.status || 502) }),
-      {
-        status: res.status || 502,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
-  }
-
-  return new Response(res.body, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  })
-}
-
 export async function fetchDisputeLettersConfig(): Promise<{
   supabase_configured?: boolean
   supabase_ok?: boolean

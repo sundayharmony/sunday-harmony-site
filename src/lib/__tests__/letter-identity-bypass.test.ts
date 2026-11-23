@@ -29,13 +29,11 @@ describe('letter identity bypass', () => {
   it('wires generate routes and confirm UI to the bypass', () => {
     const { readFileSync } = require('node:fs') as typeof import('node:fs')
     const generate = readFileSync('src/app/api/admin/dispute-letters/[id]/generate/route.ts', 'utf8')
-    const stream = readFileSync('src/app/api/admin/dispute-letters/[id]/generate/stream/route.ts', 'utf8')
     const confirm = readFileSync('src/components/dispute-letters/DisputeConfirmStep.tsx', 'utf8')
     const client = readFileSync('src/lib/dispute-letters/client-api.ts', 'utf8')
     const bypass = readFileSync('src/lib/dispute-letters/letter-identity-bypass.ts', 'utf8')
     assert.match(generate, /letterIdentityBypassAllowed/)
     assert.match(generate, /canBypass/)
-    assert.match(stream, /letterIdentityBypassAllowed/)
     assert.match(confirm, /bypassMissingIdentity/)
     assert.match(confirm, /Bypass required documents/)
     assert.match(client, /bypass_missing_identity/)
