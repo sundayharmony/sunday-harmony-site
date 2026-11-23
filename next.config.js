@@ -21,6 +21,8 @@ function buildContentSecurityPolicy() {
   const scriptSources = [
     "'self'",
     "'unsafe-inline'",
+    // Browser OCR for screenshot credit reports runs Tesseract as WebAssembly.
+    "'wasm-unsafe-eval'",
     ...(process.env.NODE_ENV === 'development' ? ["'unsafe-eval'"] : []),
     'https://va.vercel-scripts.com',
     'https://js.stripe.com',

@@ -216,6 +216,17 @@ def parse_bureau_text(
     )
 
 
+_NOT_A_CREDITOR = re.compile(
+    r"(?i)^(?:\d|information$|creditor information|account information|contact information|"
+    r"payment history|overview|personal info|poor|fair|good|excellent)|"
+    r"\b(?:ave|rd|st|blvd|street|road|suite|ste|po box|p\.o\.)\b\.?\s*\d*$"
+)
+
+
+def _named_count(tradelines) -> int:
+    return sum(1 for t in tradelines if t.creditor and not _NOT_A_CREDITOR.search(t.creditor.strip()))
+
+
 def parse_bureau_accounts(
     text: str, *, file_name: str = ""
 ) -> tuple[list[Tradeline], ConsumerInfo, str]:
@@ -237,13 +248,13 @@ def parse_bureau_accounts(
         tradelines = _parse_experian_blocks(cleaned, bureau)
     if not tradelines:
         tradelines = _parse_labeled_accounts(cleaned, bureau)
-    if len(tradelines) <= 2:
-        from app.services.screenshot_parser import parse_screenshot_accounts
+    from app.services.screenshot_parser import parse_screenshot_accounts
 
-        shots = parse_screenshot_accounts(cleaned, bureau)
-        # Three or more cards to replace a weak read; any card when nothing else was found.
-        if len(shots) > len(tradelines) and (len(shots) >= 3 or not tradelines):
-            tradelines = shots
+    shots = parse_screenshot_accounts(cleaned, bureau)
+    # Bureau-website screenshots: the card reader keeps furnisher names; label parsing of the
+    # same OCR text picks up headings and addresses. Keep whichever has more real names.
+    if _named_count(shots) > _named_count(tradelines) and (len(shots) >= 3 or not tradelines):
+        tradelines = shots
     consumer = _consumer_from_text(cleaned) if tradelines else ConsumerInfo()
     report_date = _report_date(cleaned) if tradelines else ""
     return tradelines, consumer, report_date

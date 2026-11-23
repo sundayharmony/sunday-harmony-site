@@ -39,14 +39,15 @@ export async function analyzeReport(
   sessionId: string,
   storagePath: string,
   fileName: string,
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
+  ocrText = ''
 ): Promise<{ session_id: string; report: ParsedReport }> {
   onProgress?.('Starting Credit Intelligence analysis…')
 
   const startRes = await fetch(`/api/admin/dispute-letters/${sessionId}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ storagePath, fileName }),
+    body: JSON.stringify({ storagePath, fileName, ocrText }),
   })
 
   if (!startRes.ok) {

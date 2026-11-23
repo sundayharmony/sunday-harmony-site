@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.db import (
     get_letter,
@@ -28,6 +28,7 @@ from app.db import (
 )
 from app.ingest.router import detect_file_type, ingest_file
 from app.models import (
+    ExtractedDocument,
     ConsumerUpdateRequest,
     DisputePlanFromReportRequest,
     DisputePlanRequest,
@@ -123,6 +124,9 @@ class AnalyzeStreamRequest(BaseModel):
     session_id: str
     storage_path: str
     file_name: str = ""
+    # Text the admin's browser already read from a screenshot/scan (OCR runs there, not
+    # on this small instance). Capped so a bad client cannot post megabytes.
+    ocr_text: str = Field(default="", max_length=2_000_000)
 
 
 class GenerateStreamRequest(BaseModel):
@@ -188,7 +192,15 @@ async def _heartbeat(session_id: str) -> None:
             pass
 
 
-async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -> dict:
+def _browser_ocr_document(text: str, ext: str) -> ExtractedDocument:
+    letters = sum(1 for c in text if c.isalpha())
+    quality = "high" if letters > 3000 else "medium" if letters > 600 else "low"
+    return ExtractedDocument(
+        file_type=ext.lstrip(".") or "pdf", raw_path="", text=text, ocr_used=True, extraction_quality=quality
+    )
+
+
+async def _run_analyze_job(session_id: str, storage_path: str, file_name: str, ocr_text: str = "") -> dict:
     """Ingest + analyze a report; always writes a terminal session status to Supabase."""
     temp_path: Path | None = None
     try:
@@ -200,6 +212,12 @@ async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -
 
         ext = _suffix_from_path(storage_path, file_name)
         detect_file_type(Path(f"x{ext}"))
+
+        if ocr_text.strip():
+            doc = _browser_ocr_document(ocr_text, ext)
+            report = await analyze_report_async(doc, allow_fallback=True, file_name=file_name)
+            update_session_report(session_id, report, file_type=doc.file_type)
+            return {"status": "complete", "session_id": session_id, "report": report.model_dump()}
 
         temp_path = await asyncio.to_thread(write_temp_report, storage_path, ext)
         # Scanned/screenshot reports need OCR, which takes minutes on a small Render
@@ -230,14 +248,14 @@ async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -
                 pass
 
 
-def _spawn_analyze_job(session_id: str, storage_path: str, file_name: str) -> None:
+def _spawn_analyze_job(session_id: str, storage_path: str, file_name: str, ocr_text: str = "") -> None:
     existing = _analyze_jobs.get(session_id)
     if existing and not existing.done():
         return
 
     async def _runner() -> None:
         try:
-            await _run_analyze_job(session_id, storage_path, file_name)
+            await _run_analyze_job(session_id, storage_path, file_name, ocr_text)
         except Exception:
             # Status already persisted inside _run_analyze_job.
             pass
@@ -270,7 +288,7 @@ async def analyze_start(
         raise HTTPException(400, str(e)) from e
 
     set_session_status(body.session_id, "analyzing")
-    _spawn_analyze_job(body.session_id, body.storage_path, body.file_name)
+    _spawn_analyze_job(body.session_id, body.storage_path, body.file_name, body.ocr_text)
     return {
         "status": "analyzing",
         "session_id": body.session_id,

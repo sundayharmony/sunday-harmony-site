@@ -33,6 +33,8 @@ export async function POST(request: NextRequest, { params }: Params) {
   try {
     const body = await request.json()
     const storagePath = typeof body.storagePath === 'string' ? body.storagePath.trim() : ''
+    // Text the browser read from a screenshot/scan; the API parses it instead of running OCR.
+    const ocrText = typeof body.ocrText === 'string' ? body.ocrText.slice(0, 2_000_000) : ''
 
     if (!storagePath || storagePath !== access.session.storage_path) {
       return NextResponse.json({ error: 'Invalid report storage path' }, { status: 400 })
@@ -84,6 +86,7 @@ export async function POST(request: NextRequest, { params }: Params) {
             session_id: id,
             storage_path: storagePath,
             file_name: access.session.file_name,
+            ocr_text: ocrText,
           }),
         })
         return NextResponse.json(data, { status: 202 })

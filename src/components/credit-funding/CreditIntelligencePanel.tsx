@@ -40,6 +40,7 @@ import type {
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { emptyReportMessage } from '@/lib/dispute-letters/empty-report'
 import { canUploadAsIs, combineReportFiles, groupReportFiles } from '@/lib/dispute-letters/combine-report-files'
+import { readReportPicturesInBrowser } from '@/lib/dispute-letters/browser-ocr'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function shortFileName(name: string): string {
@@ -276,13 +277,21 @@ export default function CreditIntelligencePanel({
     }
     const { sessionId, signedUrl, path, token } = await urlRes.json()
 
+    // Screenshots and scans are read here, on this computer; the server only parses the text.
+    let ocrText = ''
+    try {
+      ocrText = await readReportPicturesInBrowser(file, (m) => say(`${m} Keep this tab open.`))
+    } catch {
+      ocrText = '' // fall back to reading on the server
+    }
+
     say('Uploading credit report…')
     await uploadDisputeLetterToSignedUrl(signedUrl, token, file, (pct) => {
       say(`Uploading credit report… ${pct}%`)
     })
 
     say('Running Credit Intelligence analysis…')
-    const result = await analyzeReport(sessionId, path, file.name, say)
+    const result = await analyzeReport(sessionId, path, file.name, say, ocrText)
 
     say('Merging funding application context…')
     try {

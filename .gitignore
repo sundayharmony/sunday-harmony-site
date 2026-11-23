@@ -46,3 +46,6 @@ __pycache__/
 /playwright/.cache/
 
 .vercel
+
+# Browser OCR files, copied from node_modules on install
+/public/ocr/
