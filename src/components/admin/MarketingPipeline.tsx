@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import MeetingJoinList from '@/components/admin/MeetingJoinList'
 import type { JoinableMeeting } from '@/lib/joinable-meetings'
@@ -88,7 +88,19 @@ function ScoreMark({ score }: { score: number | null }) {
   )
 }
 
-function ProspectLink({ row, href }: { row: ProspectCard; href: string }) {
+type OpenHandler = ((id: string) => void) | undefined
+
+/** Plain click opens the lead drawer; modified clicks keep the link so a new tab still works. */
+function openHandler(onOpen: OpenHandler, id: string) {
+  if (!onOpen) return undefined
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+    event.preventDefault()
+    onOpen(id)
+  }
+}
+
+function ProspectLink({ row, href, onOpen }: { row: ProspectCard; href: string; onOpen?: (id: string) => void }) {
   const score = row.score != null && Number.isFinite(row.score) ? row.score : null
   const action = meetingAction(row)
   return (
@@ -96,7 +108,7 @@ function ProspectLink({ row, href }: { row: ProspectCard; href: string }) {
       <div className="flex">
         <span className="w-[3px] shrink-0 bg-accent" aria-hidden />
         <div className="min-w-0 flex-1 px-3 py-2.5">
-          <Link href={href} className="flex items-start justify-between gap-3">
+          <Link href={href} onClick={openHandler(onOpen, row.id)} className="flex items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
               <span className="mt-0.5 block truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
@@ -120,12 +132,12 @@ function ProspectLink({ row, href }: { row: ProspectCard; href: string }) {
   )
 }
 
-function ProspectListRow({ row, href }: { row: ProspectCard; href: string }) {
+function ProspectListRow({ row, href, onOpen }: { row: ProspectCard; href: string; onOpen?: (id: string) => void }) {
   const action = meetingAction(row)
   return (
     <div className="border-b border-brand-border last:border-0 hover:bg-neutral-50/80">
       <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4">
-        <Link href={href} className="min-w-0 flex-1 grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_minmax(0,0.9fr)] sm:items-center sm:gap-3">
+        <Link href={href} onClick={openHandler(onOpen, row.id)} className="min-w-0 flex-1 grid grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_minmax(0,0.9fr)] sm:items-center sm:gap-3">
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
             <span className="mt-0.5 block truncate text-xs text-brand-muted sm:hidden">{row.contactName || 'No contact'}</span>
@@ -189,7 +201,18 @@ function ViewToggle({ view, onChange }: { view: PipelineView; onChange: (next: P
   )
 }
 
-export default function MarketingPipeline() {
+export default function MarketingPipeline({
+  embedded = false,
+  stage: stageProp,
+  onOpenProspect,
+  refreshKey = 0,
+}: {
+  /** Inside the marketing workspace: smaller heading, cards open the lead drawer. */
+  embedded?: boolean
+  stage?: PipelineStage | ''
+  onOpenProspect?: (id: string) => void
+  refreshKey?: number
+} = {}) {
   const [prospects, setProspects] = useState<ProspectCard[]>([])
   const [lanes, setLanes] = useState<BoardLane[]>([])
   const [role, setRole] = useState('')
@@ -199,7 +222,7 @@ export default function MarketingPipeline() {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
-  const [stageFilter, setStageFilter] = useState<PipelineStage | ''>('')
+  const [stageFilter, setStageFilter] = useState<PipelineStage | ''>(stageProp || '')
   const [view, setView] = useState<PipelineView>('list')
   const [form, setForm] = useState({
     business: '',
@@ -235,7 +258,11 @@ export default function MarketingPipeline() {
 
   useEffect(() => {
     void load()
-  }, [])
+  }, [refreshKey])
+
+  useEffect(() => {
+    if (stageProp !== undefined) setStageFilter(stageProp)
+  }, [stageProp])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -342,13 +369,15 @@ export default function MarketingPipeline() {
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-extrabold text-brand-text">Pipeline</h1>
+          {embedded
+            ? <h2 className="font-serif text-2xl text-brand-text">Pipeline</h2>
+            : <h1 className="font-serif text-3xl font-extrabold text-brand-text">Pipeline</h1>}
           <p className="mt-1 max-w-xl text-sm text-brand-muted">{loaded ? subtitle : 'Loading the pipeline.'}</p>
         </div>
         {canAdd && <AddButton open={open} onClick={() => setOpen((value) => !value)} />}
       </div>
 
-      {(role === 'sales_closer' || role === 'admin') && (
+      {!embedded && (role === 'sales_closer' || role === 'admin') && (
         <section className="mb-5 rounded-2xl bg-gradient-to-br from-blue-50/70 to-white border border-blue-100 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-brand-text">Meetings</h2>
           <p className="mt-1 mb-3 text-xs text-brand-muted">Open the Google Meet from here. The same Join button is on the Meeting scheduled card.</p>
@@ -477,7 +506,7 @@ export default function MarketingPipeline() {
             </p>
           ) : (
             filteredProspects.map((row) => (
-              <ProspectListRow key={row.id} row={row} href={cardHref(row)} />
+              <ProspectListRow key={row.id} row={row} href={cardHref(row)} onOpen={onOpenProspect} />
             ))
           )}
         </section>
@@ -515,7 +544,7 @@ export default function MarketingPipeline() {
                           <p className="px-1 py-2 text-sm text-brand-muted">None yet.</p>
                         ) : (
                           group.rows.map((row) => (
-                            <ProspectLink key={row.id} row={row} href={cardHref(row)} />
+                            <ProspectLink key={row.id} row={row} href={cardHref(row)} onOpen={onOpenProspect} />
                           ))
                         )}
                       </div>

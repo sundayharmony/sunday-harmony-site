@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import CloserBilling from '@/components/admin/CloserBilling'
 import MeetingJoinList from '@/components/admin/MeetingJoinList'
+import ProspectActivity from '@/components/admin/marketing/ProspectActivity'
 import type { JoinableMeeting } from '@/lib/joinable-meetings'
 import { packages } from '@/lib/data'
 import { prospectNoteSections } from '@/lib/prospect-notes'
@@ -437,7 +438,7 @@ export default function ProspectFile({ id }: { id: string }) {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link href="/admin/marketing?section=pipeline" className="text-xs font-semibold text-accent hover:underline">← Marketing</Link>
+          <Link href="/admin/marketing?view=pipeline" className="text-xs font-semibold text-accent hover:underline">← Marketing</Link>
           <h1 className="font-serif text-3xl font-extrabold text-brand-text mt-2">{prospect.business}</h1>
           <p className="text-sm text-brand-muted">{prospect.contactName || 'Decision-maker not set'} · {scoreBandLabel(total)} ({total}/10)</p>
         </div>
@@ -662,6 +663,20 @@ export default function ProspectFile({ id }: { id: string }) {
           )}
         </dl>
         )}
+      </section>
+
+      <section className="bg-white border border-brand-border rounded-xl p-4 sm:p-5">
+        <h2 className="text-sm font-bold text-brand-text mb-3">Calls and notes</h2>
+        <ProspectActivity
+          prospectId={prospect.id}
+          canEdit={role === 'admin' || role === 'sales_closer' || role === 'lead_procurement'}
+          phone={prospect.phone}
+          onLogged={(result) => {
+            if (result.prospect) {
+              patch({ stage: result.prospect.stage as PipelineStage, followUpAt: result.prospect.followUpAt })
+            }
+          }}
+        />
       </section>
 
       {isSales && (

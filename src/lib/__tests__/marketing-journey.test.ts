@@ -270,7 +270,7 @@ describe('Lumen & Co. Floral continuity', () => {
 
     const relationsToday = await loadMarketingToday('client_relations')
     assert.equal(relationsToday.handoffs[0]?.business, 'Lumen & Co. Floral')
-    assert.equal(relationsToday.handoffs[0]?.href, '/admin/marketing?section=clients')
+    assert.equal(relationsToday.handoffs[0]?.href, '/admin/marketing?view=clients')
 
     const procurementToday = await loadMarketingToday('lead_procurement')
     assert.equal(procurementToday.handoffs.some((row) => row.business === 'Lumen & Co. Floral'), false)

@@ -477,12 +477,13 @@ describe('marketing role handoffs and navigation', () => {
     assert.equal(booked.consultationsBooked, 1)
     assert.equal(booked.revenue, '$250')
     const desk = readFileSync('src/components/admin/MarketingDesk.tsx', 'utf8')
-    assert.match(desk, /Leads/)
-    assert.match(desk, /Outreach/)
-    assert.match(desk, /Pipeline/)
-    assert.match(desk, /Clients/)
-    assert.match(desk, /Deadlines/)
-    assert.match(desk, /KPIs/)
+    for (const view of ['Today', 'Pipeline', 'Clients', 'Insights', 'Outreach']) {
+      assert.match(desk, new RegExp(`label: '${view}'`))
+    }
+    // Old ?section= links still land on the right view.
+    assert.match(desk, /kpis: 'insights'/)
+    assert.match(desk, /deadlines: 'clients'/)
+    assert.match(desk, /LeadDrawer/)
     assert.doesNotMatch(desk, /credit-funding/)
   })
 })

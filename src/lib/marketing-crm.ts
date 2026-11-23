@@ -1163,25 +1163,9 @@ export function scriptsForProspect(prospect: MarketingProspect, actor: Marketing
 }
 
 function attentionHref(prospect: MarketingProspect, role?: string | null): string {
-  if (role === 'client_relations') return '/admin/marketing?section=clients'
-  if (prospect.stage === 'won' && prospect.handedToRelationsAt) return '/admin/marketing?section=clients'
+  if (role === 'client_relations') return '/admin/marketing?view=clients'
+  if (prospect.stage === 'won' && prospect.handedToRelationsAt) return '/admin/marketing?view=clients'
   return `/admin/pipeline/${prospect.id}`
-}
-
-function deskProspect(prospect: MarketingProspect) {
-  return {
-    id: prospect.id,
-    business: prospect.business,
-    contactName: prospect.contactName,
-    email: prospect.email,
-    stage: prospect.stage,
-    stageLabel: STAGE_LABELS[prospect.stage],
-    deadline: prospect.deadline,
-    deliverables: prospect.deliverables,
-    clientId: prospect.clientId,
-    consultationBookedAt: prospect.consultationBookedAt,
-    repliedAt: prospect.repliedAt,
-  }
 }
 
 /** Checks every sent Gmail thread that has no recorded reply yet. */
@@ -1207,48 +1191,6 @@ export async function sweepProspectReplies(limit = 200): Promise<{ checked: numb
     }
   }
   return { checked: ids.length, replied, failed }
-}
-
-export async function loadMarketingDesk(role?: string | null) {
-  const prospects = await listMarketingProspects(role)
-  const clients = (await getClients()).filter((client) => isMarketingClient(client))
-  const recordedRevenue = clients
-    .filter((client) => stripeHasConfirmedPayment(client))
-    .reduce((sum, client) => sum + (Number(client.monthly_price) || 0), 0)
-  const kpis = marketingKpiCounts(
-    prospects.map((prospect) => ({
-      stage: prospect.stage,
-      gmailThreadId: prospect.gmailThreadId,
-      repliedAt: prospect.repliedAt,
-      consultationBookedAt: prospect.consultationBookedAt,
-    })),
-    recordedRevenue
-  )
-  const clientIds = prospects.map((prospect) => prospect.clientId).filter((id): id is string => Boolean(id))
-  const tasks = await getTasksByClientIds(clientIds, {
-    columns: 'id, client_id, title, status, due_date',
-    limit: 500,
-  })
-  return {
-    role: role || 'admin',
-    kpis,
-    replies: prospects
-      .filter((prospect) => prospect.repliedAt && prospect.stage !== 'won')
-      .sort((a, b) => String(b.repliedAt).localeCompare(String(a.repliedAt)))
-      .map(deskProspect),
-    leads: prospects.filter((prospect) => prospect.stage !== 'won').map(deskProspect),
-    clients: prospects.filter((prospect) => prospect.stage === 'won').map(deskProspect),
-    deadlines: prospects
-      .filter((prospect) => prospect.stage === 'won' && (prospect.deadline || prospect.deliverables || prospect.clientId))
-      .map(deskProspect),
-    tasks: tasks.map((task) => ({
-      id: task.id,
-      clientId: task.client_id,
-      title: task.title,
-      status: task.status,
-      dueDate: task.due_date,
-    })),
-  }
 }
 
 export async function loadMarketingToday(role?: string | null) {
