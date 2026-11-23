@@ -58,5 +58,5 @@ Score out of 100: industry 25 · reviews 20 · visible gap 20 · pays for softwa
 - **Ship:** after lint, typecheck and unit tests pass, merge to `main` and push (no force-push). Production deploys from `main`. Dispute-letter changes also need the Render `dispute-letters-api` redeployed.
 - Never commit secrets (`.env*`, keys, credential files) or diagnostic dumps.
 - The old lead importer was a paid Grok bot outside this repo (retired); it used old prices ($599/$1,799/$799). New lead finding is built inside this repo.
-- Google APIs (Places, PageSpeed) read `GOOGLE_API_KEY` from env; never hard-code or commit it. Stay within free usage.
+- Google APIs (Places, PageSpeed) read `GOOGLE_PLACES_API_KEY` (Places) or `GOOGLE_API_KEY` from env; never hard-code or commit it. Stay within free usage.
 - `BUG_AUDIT_REPORT.md` is superseded; re-check before trusting it.

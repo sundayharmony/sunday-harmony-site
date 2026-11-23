@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/internal/icp-rescore",
-      "schedule": "40 12 * * *"
+      "schedule": "10 14 * * *"
     },
     {
       "path": "/api/internal/prospect-replies",

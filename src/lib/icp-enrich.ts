@@ -1,5 +1,5 @@
 // Looks a lead up on Google Places, checks its website, finds an email, then scores it.
-// Public business data only. Uses GOOGLE_API_KEY (Places API (New)).
+// Public business data only. Uses GOOGLE_PLACES_API_KEY, else GOOGLE_API_KEY (Places API (New)).
 import { promises as dns } from 'node:dns'
 import { htmlSignals, pickEmail, scoreLead, type IcpResult } from '@/lib/icp-score'
 

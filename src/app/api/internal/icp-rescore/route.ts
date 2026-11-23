@@ -24,8 +24,11 @@ const MAX_HOPS = 150
  */
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const key = process.env.GOOGLE_API_KEY?.trim()
-  if (!key) return NextResponse.json({ error: 'GOOGLE_API_KEY not set' }, { status: 500 })
+  const key = (process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_API_KEY)?.trim()
+  if (!key) {
+    console.error('[icp-rescore] GOOGLE_PLACES_API_KEY / GOOGLE_API_KEY not set')
+    return NextResponse.json({ error: 'GOOGLE_PLACES_API_KEY not set' }, { status: 500 })
+  }
 
   const limit = Math.min(40, Math.max(1, Number(request.nextUrl.searchParams.get('limit')) || 30))
   const db = getSupabase()
@@ -73,6 +76,8 @@ export async function GET(request: NextRequest) {
     .is('icp_scored_at', null)
   const scored = outcomes.filter((o) => !o.startsWith('error:')).length
   const hop = Number(request.nextUrl.searchParams.get('hop')) || 0
+  const firstError = outcomes.find((o) => o.startsWith('error:'))
+  console.log(`[icp-rescore] hop=${hop} processed=${outcomes.length} scored=${scored} remaining=${count ?? '?'}${firstError ? ` firstError=${firstError}` : ''}`)
   const chain = request.nextUrl.searchParams.get('chain') !== '0' && scored > 0 && (count ?? 0) > 0 && hop < MAX_HOPS
   if (chain) {
     const next = new URL(request.nextUrl.pathname, request.nextUrl.origin)
