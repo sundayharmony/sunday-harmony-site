@@ -12,6 +12,13 @@ interface Task {
   category: string;
 }
 
+const TASK_GROUPS: { status: Task['status']; label: string }[] = [
+  { status: 'in_progress', label: 'In Progress' },
+  { status: 'in_review', label: 'In Review' },
+  { status: 'not_started', label: 'Not Started' },
+  { status: 'completed', label: 'Completed' },
+];
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,159 +174,49 @@ export default function TasksPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {/* In Progress */}
-          {groupedTasks.in_progress.length > 0 && (
-            <div>
-              <h2 className="text-xl font-serif text-brand-text mb-4">In Progress</h2>
-              <div className="grid gap-4">
-                {groupedTasks.in_progress.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`border border-brand-border rounded-2xl p-6 ${getStatusColor(task.status)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-brand-text font-serif text-lg flex-1">{task.title}</h3>
-                      <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(task.status)}`}>
-                        {getStatusLabel(task.status)}
-                      </span>
-                    </div>
-                    {task.description && (
-                      <p className="text-brand-muted text-sm mb-4 line-clamp-2">{task.description}</p>
-                    )}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
-                        </span>
-                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
-                          {task.category}
-                        </span>
+          {TASK_GROUPS.map(({ status, label }) => {
+            const done = status === 'completed'
+            return (
+              groupedTasks[status].length > 0 && (
+                <div key={status}>
+                  <h2 className="text-xl font-serif text-brand-text mb-4">{label}</h2>
+                  <div className="grid gap-4">
+                    {groupedTasks[status].map((task) => (
+                      <div
+                        key={task.id}
+                        className={`border border-brand-border rounded-2xl p-6 ${getStatusColor(task.status)}`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className={`text-brand-text font-serif text-lg flex-1${done ? ' line-through opacity-60' : ''}`}>
+                            {task.title}
+                          </h3>
+                          <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(task.status)}`}>
+                            {getStatusLabel(task.status)}
+                          </span>
+                        </div>
+                        {task.description && (
+                          <p className={`text-brand-muted text-sm mb-4 line-clamp-2${done ? ' opacity-60' : ''}`}>{task.description}</p>
+                        )}
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
+                            </span>
+                            <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
+                              {task.category}
+                            </span>
+                          </div>
+                          {task.due_date && (
+                            <p className="text-brand-muted text-sm">Due: {formatDate(task.due_date)}</p>
+                          )}
+                        </div>
                       </div>
-                      {task.due_date && (
-                        <p className="text-brand-muted text-sm">Due: {formatDate(task.due_date)}</p>
-                      )}
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* In Review */}
-          {groupedTasks.in_review.length > 0 && (
-            <div>
-              <h2 className="text-xl font-serif text-brand-text mb-4">In Review</h2>
-              <div className="grid gap-4">
-                {groupedTasks.in_review.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`border border-brand-border rounded-2xl p-6 ${getStatusColor(task.status)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-brand-text font-serif text-lg flex-1">{task.title}</h3>
-                      <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(task.status)}`}>
-                        {getStatusLabel(task.status)}
-                      </span>
-                    </div>
-                    {task.description && (
-                      <p className="text-brand-muted text-sm mb-4 line-clamp-2">{task.description}</p>
-                    )}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
-                        </span>
-                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
-                          {task.category}
-                        </span>
-                      </div>
-                      {task.due_date && (
-                        <p className="text-brand-muted text-sm">Due: {formatDate(task.due_date)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Not Started */}
-          {groupedTasks.not_started.length > 0 && (
-            <div>
-              <h2 className="text-xl font-serif text-brand-text mb-4">Not Started</h2>
-              <div className="grid gap-4">
-                {groupedTasks.not_started.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`border border-brand-border rounded-2xl p-6 ${getStatusColor(task.status)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-brand-text font-serif text-lg flex-1">{task.title}</h3>
-                      <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(task.status)}`}>
-                        {getStatusLabel(task.status)}
-                      </span>
-                    </div>
-                    {task.description && (
-                      <p className="text-brand-muted text-sm mb-4 line-clamp-2">{task.description}</p>
-                    )}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
-                        </span>
-                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
-                          {task.category}
-                        </span>
-                      </div>
-                      {task.due_date && (
-                        <p className="text-brand-muted text-sm">Due: {formatDate(task.due_date)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Completed */}
-          {groupedTasks.completed.length > 0 && (
-            <div>
-              <h2 className="text-xl font-serif text-brand-text mb-4">Completed</h2>
-              <div className="grid gap-4">
-                {groupedTasks.completed.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`border border-brand-border rounded-2xl p-6 ${getStatusColor(task.status)}`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-brand-text font-serif text-lg flex-1 line-through opacity-60">
-                        {task.title}
-                      </h3>
-                      <span className={`ml-4 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeColor(task.status)}`}>
-                        {getStatusLabel(task.status)}
-                      </span>
-                    </div>
-                    {task.description && (
-                      <p className="text-brand-muted text-sm mb-4 line-clamp-2 opacity-60">{task.description}</p>
-                    )}
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                          {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority
-                        </span>
-                        <span className="px-3 py-1 bg-accent-soft text-accent border border-accent/20 rounded-full text-xs font-medium">
-                          {task.category}
-                        </span>
-                      </div>
-                      {task.due_date && (
-                        <p className="text-brand-muted text-sm">Due: {formatDate(task.due_date)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              )
+            )
+          })}
         </div>
       )}
     </div>
