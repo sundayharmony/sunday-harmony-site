@@ -115,7 +115,7 @@ export default function Packages() {
                 )}
                 <div className="flex flex-1 flex-col p-5 sm:p-6">
                   <div className="text-2xl mb-2">{pkg.icon}</div>
-                  <div className="text-base font-bold text-brand-text mb-1">{pkg.tier}</div>
+                  <div className="font-serif text-[24px] font-semibold tracking-tight leading-tight text-brand-text mb-1">{pkg.tier}</div>
                   <div className={`text-xs font-semibold mb-3 ${taglineColor[pkg.color] || 'text-brand-muted'}`}>
                     {pkg.tagline}
                   </div>
@@ -176,8 +176,8 @@ export default function Packages() {
                     {pkg.icon}
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-brand-text leading-tight">{option.tier}</h3>
-                    <p className="whitespace-nowrap text-xs font-semibold text-accent-ink">{facePrice(pkg)}</p>
+                    <h3 className="font-serif text-[24px] font-semibold tracking-tight leading-[1.1] text-brand-text">{option.tier}</h3>
+                    <p className="mt-1 whitespace-nowrap text-xs font-semibold text-accent-ink">{facePrice(pkg)}</p>
                   </div>
                 </div>
                 <p className="text-sm text-brand-muted leading-relaxed mb-4">{option.body}</p>
