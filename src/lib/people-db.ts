@@ -47,6 +47,7 @@ import {
   type PersonSummary,
   type TodayQueue,
 } from './people'
+import type { BillingPanelClient } from '@/components/billing/BillingPanel'
 
 export type { PersonScope }
 
@@ -75,24 +76,8 @@ export type PersonClientView = {
   status: string
   isPotential: boolean
   deliverables: string[]
-  billing: {
-    id: string
-    name: string
-    email?: string
-    is_potential?: boolean
-    package_tier: string
-    monthly_price?: number
-    billing_status?: string
-    billing_model?: string | null
-    lead_type?: string | null
-    repair_fee_cents?: number | null
-    repair_fee_paid_at?: string | null
-    stripe_repair_invoice_id?: string | null
-    stripe_customer_id?: string
-    stripe_subscription_id?: string
-    next_billing_date?: string | null
-    last_payment_at?: string | null
-  }
+  /** Same shape the billing panel renders. */
+  billing: BillingPanelClient
 }
 
 export type PersonFile = {
