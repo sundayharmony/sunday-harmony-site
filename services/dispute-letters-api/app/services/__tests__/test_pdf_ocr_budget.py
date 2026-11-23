@@ -27,7 +27,7 @@ def _immediate(fn, _timeout):
 
 def test_ocr_defaults_are_bounded():
     assert DEFAULT_OCR_MAX_PAGES <= 40
-    assert DEFAULT_OCR_MAX_SECONDS <= 180
+    assert DEFAULT_OCR_MAX_SECONDS <= 480
 
 
 def test_ocr_stops_at_page_cap():

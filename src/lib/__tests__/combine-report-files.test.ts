@@ -43,3 +43,21 @@ describe('combine report files', () => {
     assert.equal(isPngOrJpeg({ name: 'a.JPG', type: '' }), 'jpeg')
   })
 })
+
+describe('groupReportFiles', () => {
+  it('splits reports named for different bureaus and keeps unnamed screenshots together', async () => {
+    const { groupReportFiles, bureauInFileName } = await import('../dispute-letters/combine-report-files')
+    const names = (g: { name: string }[][]) => g.map((x) => x.map((f) => f.name))
+    assert.deepEqual(
+      names(groupReportFiles([{ name: 'Jo Experian 11-22.pdf' }, { name: 'Jo Equifax 11-22.pdf' }, { name: 'Jo Transunioin 11-22.pdf' }])),
+      [['Jo Experian 11-22.pdf'], ['Jo Equifax 11-22.pdf'], ['Jo Transunioin 11-22.pdf']]
+    )
+    assert.deepEqual(names(groupReportFiles([{ name: 'shot1.png' }, { name: 'shot2.png' }])), [['shot1.png', 'shot2.png']])
+    assert.deepEqual(
+      names(groupReportFiles([{ name: 'TU page 1.pdf' }, { name: 'TU page 2.pdf' }, { name: 'Experian.pdf' }])),
+      [['TU page 1.pdf', 'TU page 2.pdf'], ['Experian.pdf']]
+    )
+    assert.equal(bureauInFileName('Smith Experian Equifax TransUnion.pdf'), '')
+    assert.equal(bureauInFileName('Credit Hero Score 9-7-2026.pdf'), '')
+  })
+})

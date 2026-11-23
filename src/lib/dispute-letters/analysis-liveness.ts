@@ -1,5 +1,8 @@
-/** A live local parse finishes well inside this. Older than this means the worker died. */
-export const STALE_ANALYSIS_MS = 3 * 60 * 1000
+/**
+ * The API touches the session every minute while it reads (OCR of screenshots can take
+ * several minutes on Render). No update for this long means the worker died.
+ */
+export const STALE_ANALYSIS_MS = 5 * 60 * 1000
 
 export const STALE_ANALYSIS_MESSAGE =
   'Analysis stopped before it finished. Upload the report again.'

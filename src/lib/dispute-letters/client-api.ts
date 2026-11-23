@@ -53,14 +53,15 @@ export async function analyzeReport(
     throw new Error(await parseError(startRes))
   }
 
-  const deadline = Date.now() + 8 * 60 * 1000
+  // Screenshot reports are read one at a time on the API, up to ~7 minutes each.
+  const deadline = Date.now() + 20 * 60 * 1000
   let attempt = 0
   let transientPolls = 0
   const progressMessages = [
     'Reading the new credit report…',
     'Extracting accounts and scores…',
     'Assessing this upload…',
-    'Still assessing this upload. Scanned PDFs can take a few minutes…',
+    'Still reading. Screenshots and scans can take up to 7 minutes. Keep this tab open…',
   ]
 
   while (Date.now() < deadline) {

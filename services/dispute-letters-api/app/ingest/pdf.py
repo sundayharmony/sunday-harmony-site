@@ -13,8 +13,10 @@ from app.models import ExtractedDocument
 # so each page is scaled to a fixed width and read in tiles; a tile is the unit
 # the per-call timeout applies to.
 DEFAULT_OCR_MAX_PAGES = 40
-DEFAULT_OCR_MAX_SECONDS = 150.0
-DEFAULT_OCR_PAGE_TIMEOUT_SEC = 20.0
+# Free Render gets a small share of one CPU: a screenshot report that reads in ~40s
+# on a full core needs several minutes there.
+DEFAULT_OCR_MAX_SECONDS = 420.0
+DEFAULT_OCR_PAGE_TIMEOUT_SEC = 120.0
 OCR_TARGET_WIDTH_PX = 1700
 OCR_MAX_DPI = 200
 OCR_TILE_HEIGHT_PX = 2200

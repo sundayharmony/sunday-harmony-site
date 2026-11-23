@@ -73,6 +73,31 @@ async function toPngBytes(file: File): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer())
 }
 
+const BUREAU_IN_NAME: [string, RegExp][] = [
+  ['TransUnion', /trans\s*_?-?\s*uni|(?:^|[\s_.-])tu(?:[\s_.-]|$)/i],
+  ['Experian', /experian|(?:^|[\s_.-])exp?(?:[\s_.-]|$)/i],
+  ['Equifax', /equifax|(?:^|[\s_.-])eq[fx]?(?:[\s_.-]|$)/i],
+]
+
+/** Bureau named in a file name ("Client Transunion 11-22.pdf"), or '' when none or several. */
+export function bureauInFileName(name: string): string {
+  const hits = BUREAU_IN_NAME.filter(([, re]) => re.test(name)).map(([label]) => label)
+  return hits.length === 1 ? hits[0] : ''
+}
+
+/**
+ * Split a multi-file pick into separate reports: files named for different bureaus are
+ * separate reports; files without a bureau name stay together (screenshots of one report).
+ */
+export function groupReportFiles<T extends { name: string }>(files: T[]): T[][] {
+  const groups = new Map<string, T[]>()
+  for (const file of files) {
+    const key = bureauInFileName(file.name)
+    groups.set(key, [...(groups.get(key) || []), file])
+  }
+  return [...groups.values()]
+}
+
 /** True when the file can be uploaded as-is (one PDF, PNG, JPEG, HTML, DOCX or text file). */
 export function canUploadAsIs(files: File[]): boolean {
   if (files.length !== 1) return false

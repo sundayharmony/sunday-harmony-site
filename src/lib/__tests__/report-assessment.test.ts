@@ -10,7 +10,7 @@ describe('credit report assessment', () => {
     assert.match(client, /Assessing this upload/)
     assert.match(panel, /Scores below stay on the last completed report/)
     assert.match(panel, /emptyReportMessage/)
-    assert.match(panel, /await load\(sessionId\)/)
+    assert.match(panel, /await load\(lastId\)/)
   })
 
 })

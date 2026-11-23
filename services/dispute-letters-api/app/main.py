@@ -175,6 +175,19 @@ def _suffix_from_path(storage_path: str, file_name: str) -> str:
     return ".pdf"
 
 
+_INGEST_SLOT = asyncio.Semaphore(1)
+_HEARTBEAT_SECONDS = 60
+
+
+async def _heartbeat(session_id: str) -> None:
+    while True:
+        await asyncio.sleep(_HEARTBEAT_SECONDS)
+        try:
+            await asyncio.to_thread(set_session_status, session_id, "analyzing")
+        except Exception:
+            pass
+
+
 async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -> dict:
     """Ingest + analyze a report; always writes a terminal session status to Supabase."""
     temp_path: Path | None = None
@@ -189,7 +202,15 @@ async def _run_analyze_job(session_id: str, storage_path: str, file_name: str) -
         detect_file_type(Path(f"x{ext}"))
 
         temp_path = await asyncio.to_thread(write_temp_report, storage_path, ext)
-        doc = await asyncio.to_thread(ingest_file, temp_path)
+        # Scanned/screenshot reports need OCR, which takes minutes on a small Render
+        # instance. Read one report at a time so uploads don't split the CPU, and
+        # touch the session while waiting/reading so the site doesn't call it stalled.
+        heartbeat = asyncio.create_task(_heartbeat(session_id))
+        try:
+            async with _INGEST_SLOT:
+                doc = await asyncio.to_thread(ingest_file, temp_path)
+        finally:
+            heartbeat.cancel()
         report = await analyze_report_async(doc, allow_fallback=True, file_name=file_name)
         update_session_report(session_id, report, file_type=doc.file_type)
         return {

@@ -39,7 +39,7 @@ import type {
 } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
 import { emptyReportMessage } from '@/lib/dispute-letters/empty-report'
-import { canUploadAsIs, combineReportFiles } from '@/lib/dispute-letters/combine-report-files'
+import { canUploadAsIs, combineReportFiles, groupReportFiles } from '@/lib/dispute-letters/combine-report-files'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function shortFileName(name: string): string {
@@ -250,67 +250,76 @@ export default function CreditIntelligencePanel({
         })()
       : null
 
+  async function readOneReport(picked: File[], say: (message: string) => void): Promise<string> {
+    let file = picked[0]
+    if (!canUploadAsIs(picked)) {
+      // Screenshots and cropped page PDFs of one report become one PDF, read locally by OCR.
+      say(`Combining ${picked.length} file${picked.length === 1 ? '' : 's'} into one report…`)
+      file = await combineReportFiles(picked)
+    }
+    if (file.size > DISPUTE_LETTER_MAX_MB * 1024 * 1024) {
+      throw new Error(`File too large (max ${DISPUTE_LETTER_MAX_MB} MB)`)
+    }
+    const urlRes = await fetch('/api/admin/dispute-letters/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        applicationUuid: applicationId,
+      }),
+    })
+    if (!urlRes.ok) {
+      const d = await urlRes.json().catch(() => ({}))
+      throw new Error(d.error || 'Upload URL failed')
+    }
+    const { sessionId, signedUrl, path, token } = await urlRes.json()
+
+    say('Uploading credit report…')
+    await uploadDisputeLetterToSignedUrl(signedUrl, token, file, (pct) => {
+      say(`Uploading credit report… ${pct}%`)
+    })
+
+    say('Running Credit Intelligence analysis…')
+    const result = await analyzeReport(sessionId, path, file.name, say)
+
+    say('Merging funding application context…')
+    try {
+      const rebuilt = await rebuildDisputeIntelligence(sessionId, fundingContext)
+      setIntelligence(rebuilt.credit_intelligence)
+    } catch {
+      setIntelligence(result.report.credit_intelligence || null)
+    }
+    return sessionId
+  }
+
   async function onFiles(picked: File[]) {
     setError('')
     setSuccess('')
     if (!picked.length) return
     setBusy(true)
     setStatus('Preparing upload…')
-    try {
-      let file = picked[0]
-      if (!canUploadAsIs(picked)) {
-        // Screenshots and cropped page PDFs of one report become one PDF, read locally by OCR.
-        setStatus(`Combining ${picked.length} file${picked.length === 1 ? '' : 's'} into one report…`)
-        file = await combineReportFiles(picked)
-      }
-      if (file.size > DISPUTE_LETTER_MAX_MB * 1024 * 1024) {
-        throw new Error(`File too large (max ${DISPUTE_LETTER_MAX_MB} MB)`)
-      }
-      const urlRes = await fetch('/api/admin/dispute-letters/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type || 'application/octet-stream',
-          fileSize: file.size,
-          applicationUuid: applicationId,
-        }),
-      })
-      if (!urlRes.ok) {
-        const d = await urlRes.json().catch(() => ({}))
-        throw new Error(d.error || 'Upload URL failed')
-      }
-      const { sessionId, signedUrl, path, token } = await urlRes.json()
-
-      setStatus('Uploading credit report…')
-      await uploadDisputeLetterToSignedUrl(signedUrl, token, file, (pct) => {
-        setStatus(`Uploading credit report… ${pct}%`)
-      })
-
-      setStatus('Running Credit Intelligence analysis…')
-      const result = await analyzeReport(sessionId, path, file.name, (message) => {
-        setStatus(message)
-      })
-
-      setStatus('Merging funding application context…')
+    // Reports named for different bureaus are read one after another, as separate reports.
+    const groups = groupReportFiles(picked)
+    const failures: string[] = []
+    let lastId = ''
+    for (const [index, group] of groups.entries()) {
+      const label = groups.length > 1 ? `Report ${index + 1} of ${groups.length} (${group[0].name}): ` : ''
       try {
-        const rebuilt = await rebuildDisputeIntelligence(sessionId, fundingContext)
-        setIntelligence(rebuilt.credit_intelligence)
-      } catch {
-        setIntelligence(result.report.credit_intelligence || null)
+        lastId = await readOneReport(group, (message) => setStatus(label + message))
+        setActiveId(lastId)
+        await load(lastId)
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Upload/analysis failed'
+        failures.push(groups.length > 1 ? `${group[0].name}: ${message}` : message)
       }
-
-      setActiveId(sessionId)
-      await load(sessionId)
-      setStatus('')
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Upload/analysis failed'
-      setStatus('')
-      await load().catch(() => undefined)
-      setError(message)
-    } finally {
-      setBusy(false)
     }
+    setStatus('')
+    if (!lastId) await load().catch(() => undefined)
+    if (failures.length) setError(failures.join(' · '))
+    else if (groups.length > 1) setSuccess(`${groups.length} reports read.`)
+    setBusy(false)
   }
 
   async function refreshWithFundingContext() {
@@ -506,7 +515,8 @@ export default function CreditIntelligencePanel({
           </span>
           <span className="text-xs text-brand-dim">PDF, HTML, DOCX, images · max {DISPUTE_LETTER_MAX_MB} MB</span>
           <span className="text-xs text-brand-dim text-center">
-            Screenshots or page-by-page PDFs? Select them all at once (one bureau per upload) and they are read as one report.
+            Select several reports at once (e.g. Experian, Equifax and TransUnion): files named for different
+            bureaus are read one after another. Screenshots of one report with no bureau in the name are read together.
           </span>
           <input
             type="file"
