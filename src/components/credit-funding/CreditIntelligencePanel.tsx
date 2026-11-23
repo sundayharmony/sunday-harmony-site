@@ -38,6 +38,7 @@ import type {
   FundingContextPayload,
 } from '@/lib/dispute-letters/types'
 import { BUREAU_LABELS } from '@/lib/dispute-letters/types'
+import { emptyReportMessage } from '@/lib/dispute-letters/empty-report'
 import { type DisputeLetterStep } from '@/lib/dispute-letters/workflow'
 
 function shortFileName(name: string): string {
@@ -226,11 +227,8 @@ export default function CreditIntelligencePanel({
   )
 
   const activeSession = sessions.find((s) => s.id === activeId) || null
-  const assessmentSummary = activeSession?.report_json?.analysis_summary || ''
-  const assessmentMissedAccounts =
-    activeSession?.status === 'ready' &&
-    (activeSession.report_json?.tradelines?.length || 0) === 0 &&
-    /agent analysis failed|fallback parser|agent unavailable/i.test(assessmentSummary)
+  const emptyReportWarning =
+    activeSession?.status === 'ready' ? emptyReportMessage(activeSession.report_json) : null
 
   const readyChronological = useMemo(() => {
     return sessions
@@ -782,10 +780,13 @@ export default function CreditIntelligencePanel({
         </div>
       ) : (
         <>
-          {assessmentMissedAccounts && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              This report was only partly read. The bureau score was saved, but the accounts were not
-              assessed, so dispute letters cannot be built from it. Upload the file again.
+          {emptyReportWarning && (
+            <div
+              role="alert"
+              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            >
+              <p className="font-semibold">This report was not read</p>
+              <p className="mt-1">{emptyReportWarning}</p>
             </div>
           )}
 

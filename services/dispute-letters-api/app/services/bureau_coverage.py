@@ -19,7 +19,7 @@ _FILENAME_PATTERNS: list[tuple[BureauCode, re.Pattern[str]]] = [
     ("EXP", re.compile(r"experian|(?:^|[\s_\-./])exp(?:[\s_\-./]|$)", re.I)),
     (
         "TUC",
-        re.compile(r"trans[\s_\-]*union|(?:^|[\s_\-./])tu(?:[\s_\-./]|$)|(?:^|[\s_\-./])tuc(?:[\s_\-./]|$)", re.I),
+        re.compile(r"trans[\s_\-]*uni|(?:^|[\s_\-./])tu(?:[\s_\-./]|$)|(?:^|[\s_\-./])tuc(?:[\s_\-./]|$)", re.I),
     ),
     (
         "EQF",

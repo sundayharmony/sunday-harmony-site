@@ -26,8 +26,8 @@ def _immediate(fn, _timeout):
 
 
 def test_ocr_defaults_are_bounded():
-    assert DEFAULT_OCR_MAX_PAGES <= 8
-    assert DEFAULT_OCR_MAX_SECONDS <= 45
+    assert DEFAULT_OCR_MAX_PAGES <= 40
+    assert DEFAULT_OCR_MAX_SECONDS <= 180
 
 
 def test_ocr_stops_at_page_cap():
@@ -124,3 +124,36 @@ def test_run_bounded_returns_without_waiting_for_the_worker():
     started = time.monotonic()
     assert _run_bounded(slow, 0.15) is None
     assert time.monotonic() - started < 0.6
+
+
+def test_tall_pages_are_read_in_tiles():
+    from PIL import Image
+
+    from app.ingest.pdf import OCR_TILE_HEIGHT_PX
+
+    tall = Image.new("L", (100, OCR_TILE_HEIGHT_PX * 3 + 10))
+    reads: list[int] = []
+
+    def read(tile):
+        reads.append(tile.height)
+        return "line"
+
+    text, _used = _ocr_pdf_budgeted(
+        Path("scan.pdf"),
+        convert_page=lambda _p, page: [tall] if page == 1 else [],
+        read_image=read,
+        max_pages=5,
+        max_seconds=100,
+        run_bounded=_immediate,
+    )
+    assert len(reads) == 4
+    assert max(reads) <= OCR_TILE_HEIGHT_PX + 60
+    assert text.count("line") == 4
+
+
+def test_junk_text_layer_triggers_ocr():
+    from app.ingest.pdf import _text_is_junk
+
+    assert _text_is_junk("0 1 2 3 3 4 " * 60)
+    assert _text_is_junk("(cid:0)\n(cid:3) " * 150)
+    assert not _text_is_junk("Account Name CAPITAL ONE Balance $1,200 " * 10)

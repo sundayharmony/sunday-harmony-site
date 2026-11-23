@@ -218,8 +218,8 @@ export default function DisputeHealthStep({
 
         {tradelines.length === 0 ? (
           <EmptyState
-            title="No accounts found"
-            message="Try uploading a different report format or check the file quality."
+            title="No accounts were read from this report"
+            message="Letters can't be built from it. Upload the PDF downloaded straight from the bureau or monitoring site (not a screenshot or a typed summary)."
           />
         ) : (
           <div className={TRADELINE_CARD_GRID}>

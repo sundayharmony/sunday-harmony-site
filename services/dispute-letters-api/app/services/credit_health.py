@@ -163,10 +163,9 @@ def score_priority(tl: Tradeline) -> RepairPriority:
 def default_inquiry_dispute_reason(tl: Tradeline) -> str:
     creditor = (tl.creditor or "this company").strip() or "this company"
     return (
-        f"I did not authorize this hard inquiry from {creditor} and dispute it as an inquiry "
-        "made without a permissible purpose under FCRA §604 (15 U.S.C. §1681b). "
-        "If the inquiry cannot be verified as initiated by me, delete it from my file under "
-        "FCRA §611 (15 U.S.C. §1681i)."
+        f"I dispute this hard inquiry from {creditor}. Please verify that {creditor} had a "
+        "permissible purpose under FCRA §604 (15 U.S.C. §1681b) and that the inquiry was initiated "
+        "by me. If it cannot be verified, delete it from my file under FCRA §611 (15 U.S.C. §1681i)."
     )
 
 

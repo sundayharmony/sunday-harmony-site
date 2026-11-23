@@ -37,14 +37,6 @@ def _format_dob_for_letter(consumer: ConsumerInfo) -> str:
     return (consumer.dob or "").strip() or "Not Provided"
 
 
-def _identity_header_lines(consumer: ConsumerInfo) -> str:
-    """DOB + SSN directly under the consumer address at the top of the letter."""
-    return (
-        f"Date of Birth: {_format_dob_for_letter(consumer)}\n"
-        f"Social Security Number: {_format_ssn_for_letter(consumer)}"
-    )
-
-
 _DISPUTE_OPENER_RE = re.compile(
     r"\bi\s+dispute(?:\s+this\s+tradeline)?\s+as\s+inaccurate\s+and\s+unverifiable\b",
     re.I,
@@ -412,8 +404,10 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
     current_addr, prior_addrs = _current_and_prior_addresses(consumer)
     name_caps = _consumer_name_display(consumer)
     name_sign = (consumer.name or "[Consumer Name]").strip()
-    is_bureau = plan.letter_type.startswith("bureau_")
-    recipient = plan.recipient_name or "the credit reporting agency"
+    is_bureau = plan.letter_type.startswith("bureau_") or plan.letter_type in BUREAU_FOLLOW_UP_TYPES
+    # "(letter 1 of 2)" / "(CREDITOR)" tags keep letters apart in the app; never print them.
+    recipient_print = re.sub(r"\s*\([^)]*\)\s*$", "", plan.recipient_name or "").strip()
+    recipient = recipient_print or "the credit reporting agency"
 
     prior_block = ""
     if prior_addrs:
@@ -518,9 +512,18 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
             f"Please mail written confirmation of your investigation results to the address listed above."
         )
 
-    identity_header = _identity_header_lines(consumer)
+    subject = "Formal Dispute of Inaccurate and Unverifiable Credit Report Information"
+    follow_up = _follow_up_text(plan.letter_type, recipient, plan.statute)
+    if follow_up:
+        subject, opening, statutory, outcome = follow_up
+
     dob = _format_dob_for_letter(consumer)
     ssn = _format_ssn_for_letter(consumer)
+    if plan.letter_type == "cfpb_complaint":
+        # The CFPB does not need the full SSN to open a complaint.
+        digits = re.sub(r"\D", "", consumer.ssn or "")
+        ssn = f"XXX-XX-{digits[-4:]}" if len(digits) >= 4 else ssn
+    identity_header = f"Date of Birth: {dob}\nSocial Security Number: {ssn}"
 
     return f"""{today}
 
@@ -528,10 +531,10 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
 {current_addr}
 {identity_header}
 
-{plan.recipient_name}
+{recipient_print}
 {addr}
 
-Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
+Re: {subject}, {plan.statute}
 
 Dear Sir or Madam:
 
@@ -565,6 +568,86 @@ Enclosures
 ● Copy of government-issued photo identification
 ● Photo of mail showing your name and current address
 """
+
+
+BUREAU_FOLLOW_UP_TYPES = frozenset({"method_of_verification", "warning_intent", "reinvestigation"})
+
+
+def _follow_up_text(letter_type: str, recipient: str, statute: str) -> tuple[str, str, str, str] | None:
+    """Subject, opening, statutory section and requested outcome for Round 2+ letters."""
+    results = (
+        f"Please mail your written results and an updated copy of my consumer report to the "
+        f"address listed above."
+    )
+    if letter_type == "method_of_verification":
+        return (
+            "Request for Method of Verification",
+            f"I previously disputed the items listed below with {recipient}, and you reported them "
+            f"as verified. I am requesting a description of the procedure used to determine the "
+            f"accuracy and completeness of each item, as provided by FCRA §611(a)(6)(B)(iii) and "
+            f"§611(a)(7) (15 U.S.C. §1681i).",
+            f"Under FCRA §611(a)(7), {recipient} must provide this description within 15 days of "
+            f"this request, including the business name, address, and telephone number of each "
+            f"furnisher contacted in connection with the reinvestigation.",
+            f"Please send the method of verification for each item listed above. If {recipient} "
+            f"cannot show how an item was verified as accurate and complete, I request that it be "
+            f"deleted from my file.\n\n{results}",
+        )
+    if letter_type == "warning_intent":
+        return (
+            "Second Notice: No Response to My Dispute",
+            f"I previously disputed the items listed below with {recipient}. I have not received the "
+            f"results of a reinvestigation within the time required by FCRA §611(a)(1) "
+            f"(15 U.S.C. §1681i). This is my second request.",
+            f"Under FCRA §611(a)(5)(A), information that cannot be verified within the statutory "
+            f"period must be promptly deleted or modified. FCRA §616 and §617 (15 U.S.C. §1681n and "
+            f"§1681o) provide remedies when a consumer reporting agency does not comply.",
+            f"Please complete the reinvestigation and delete each item listed above that has not "
+            f"been verified. If this dispute is not resolved, I intend to file a complaint with the "
+            f"Consumer Financial Protection Bureau and consider the other remedies available to me "
+            f"under the FCRA.\n\n{results}",
+        )
+    if letter_type == "reinvestigation":
+        return (
+            "Request for Further Reinvestigation",
+            f"After my previous dispute, {recipient} updated the items listed below, but the "
+            f"information still reported is inaccurate or incomplete. I am requesting a new "
+            f"reasonable reinvestigation under FCRA §611 (15 U.S.C. §1681i).",
+            f"Under FCRA §611, {recipient} must reinvestigate the disputed information, forward it "
+            f"to the furnisher, review all information I provide, and delete or correct anything "
+            f"that is inaccurate, incomplete, or cannot be verified.",
+            f"Please correct or delete the remaining inaccurate information for each item listed "
+            f"above.\n\n{results}",
+        )
+    if letter_type == "debt_validation":
+        return (
+            "Request for Validation of Debt",
+            "I am writing about the account listed below, which you are reporting or attempting to "
+            "collect. I dispute this debt and request validation under the Fair Debt Collection "
+            f"Practices Act, {statute}.",
+            "Please provide: the amount of the debt and how it was calculated; the name and address "
+            "of the original creditor; documents showing that you own or are authorized to collect "
+            "this debt; and a copy of any signed agreement or other record that shows I owe it. "
+            "Under FDCPA §809(b), collection should stop until validation is mailed to me.",
+            "If you cannot validate this debt, I request that you stop collection and ask each "
+            "consumer reporting agency to delete the account. If you report the account while it is "
+            "disputed, it must be reported as disputed by the consumer (FCRA §623(a)(3)).\n\n"
+            "Please mail your response to the address listed above.",
+        )
+    if letter_type == "cfpb_complaint":
+        return (
+            "Complaint About Credit Reporting Dispute",
+            "I am submitting a complaint about the credit reporting item listed below. I disputed "
+            "this item with the consumer reporting agency or furnisher and it has not been "
+            "corrected or deleted.",
+            "I believe the information is inaccurate or unverifiable and that the required "
+            "reinvestigation under FCRA §611 (15 U.S.C. §1681i) and investigation under FCRA §623 "
+            "(15 U.S.C. §1681s-2) were not done properly. Copies of my prior dispute letters are "
+            "available on request.",
+            "Please review this complaint and forward it to the companies involved so the item is "
+            "corrected or deleted.\n\nPlease send any response to the address listed above.",
+        )
+    return None
 
 
 def save_letter_file(session_id: str, plan: LetterPlan, markdown: str) -> Path:

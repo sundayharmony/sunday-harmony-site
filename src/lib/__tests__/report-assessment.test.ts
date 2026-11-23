@@ -9,7 +9,7 @@ describe('credit report assessment', () => {
     assert.doesNotMatch(client, /Almost done/)
     assert.match(client, /Assessing this upload/)
     assert.match(panel, /Scores below stay on the last completed report/)
-    assert.match(panel, /accounts were not/)
+    assert.match(panel, /emptyReportMessage/)
     assert.match(panel, /await load\(sessionId\)/)
   })
 
