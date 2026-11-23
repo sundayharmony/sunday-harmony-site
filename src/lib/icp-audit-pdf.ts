@@ -37,24 +37,60 @@ export async function buildAuditPdf(audit: Audit, links: { auditUrl: string; boo
     for (const s of audit.strengths) doc.font('Helvetica').fontSize(11).fillColor(C.ink).text(safe(s), { width })
   }
 
-  label(audit.findings.length ? `What we found (${audit.findings.length})` : 'What we found')
-  if (!audit.findings.length) doc.font('Helvetica').fontSize(11).fillColor(C.ink).text('No major gaps on your website or Google profile.', { width })
-  audit.findings.forEach((f, i) => {
-    if (doc.y > doc.page.height - 160) doc.addPage()
-    const top = doc.y
-    doc.font('Times-Bold').fontSize(14).fillColor(C.ink).text(`${i + 1}. ${safe(f.title)}`, 72, top + 12, { width: width - 32 })
-    doc.moveDown(0.3).font('Helvetica').fontSize(10.5).fillColor(C.muted).text(safe(f.detail), { width: width - 32 })
-    doc.moveDown(0.3).font('Helvetica-Bold').fontSize(10.5).fillColor(C.ink).text('Fix: ', { continued: true }).font('Helvetica').text(safe(f.fix), { width: width - 32 })
-    const bottom = doc.y + 12
-    doc.roundedRect(56, top, width, bottom - top, 14).lineWidth(1).strokeColor(C.line).stroke()
-    doc.x = 56
-    doc.y = bottom + 10
-  })
+  if (audit.areas) {
+    label('Your online score')
+    doc.font('Times-Bold').fontSize(30).fillColor(C.ink).text(`${audit.overall ?? '-'}/100`, 56, doc.y)
+    doc.font('Helvetica').fontSize(10).fillColor(C.muted).text('Average of your Google profile, website, branding, social media, marketing and systems.', { width })
+    const mark = { pass: '[ok]', fail: '[x]', unknown: '[?]' } as const
+    for (const area of audit.areas) {
+      if (doc.y > doc.page.height - 200) doc.addPage()
+      label(`${area.title}  ·  ${area.score ?? '-'}/100`)
+      for (const c of area.checks) {
+        if (doc.y > doc.page.height - 90) doc.addPage()
+        doc.font('Helvetica-Bold').fontSize(10.5).fillColor(c.status === 'fail' ? '#8a3b22' : c.status === 'pass' ? '#2f5d2a' : C.muted)
+          .text(`${mark[c.status]} `, 56, doc.y, { continued: true }).fillColor(C.ink).text(safe(c.label), { width })
+        if (c.note) doc.font('Helvetica').fontSize(9.5).fillColor(C.muted).text(safe(c.note), 76, doc.y, { width: width - 20 })
+        doc.x = 56
+      }
+      if (area.key === 'marketing' && audit.competitors.length) {
+        doc.moveDown(0.3).font('Helvetica-Bold').fontSize(9).fillColor(C.goldText).text('NEARBY COMPETITORS ON GOOGLE', 56, doc.y)
+        for (const comp of audit.competitors) doc.font('Helvetica').fontSize(9.5).fillColor(C.ink).text(safe(`${comp.name}: ${comp.rating ?? '-'} stars, ${comp.reviews ?? 0} reviews`), { width })
+      }
+      if (area.score != null && area.score < 70) {
+        doc.moveDown(0.3).font('Helvetica-Bold').fontSize(10).fillColor(C.ink).text(`Fixed in ${area.fixedBy}: `, 56, doc.y, { continued: true }).font('Helvetica').text(safe(area.why), { width })
+      }
+    }
+  } else {
+    label(audit.findings.length ? `What we found (${audit.findings.length})` : 'What we found')
+    if (!audit.findings.length) doc.font('Helvetica').fontSize(11).fillColor(C.ink).text('No major gaps on your website or Google profile.', { width })
+    audit.findings.forEach((f, i) => {
+      if (doc.y > doc.page.height - 160) doc.addPage()
+      const top = doc.y
+      doc.font('Times-Bold').fontSize(14).fillColor(C.ink).text(`${i + 1}. ${safe(f.title)}`, 72, top + 12, { width: width - 32 })
+      doc.moveDown(0.3).font('Helvetica').fontSize(10.5).fillColor(C.muted).text(safe(f.detail), { width: width - 32 })
+      doc.moveDown(0.3).font('Helvetica-Bold').fontSize(10.5).fillColor(C.ink).text('Fix: ', { continued: true }).font('Helvetica').text(safe(f.fix), { width: width - 32 })
+      const bottom = doc.y + 12
+      doc.roundedRect(56, top, width, bottom - top, 14).lineWidth(1).strokeColor(C.line).stroke()
+      doc.x = 56
+      doc.y = bottom + 10
+    })
+  }
 
   if (doc.y > doc.page.height - 180) doc.addPage()
-  label('Suggested next step')
-  doc.font('Times-Bold').fontSize(16).fillColor(C.ink).text(audit.nextStep.name, 56, doc.y, { width })
-  doc.moveDown(0.2).font('Helvetica').fontSize(11).fillColor(C.ink).text(safe(audit.nextStep.detail), { width })
+  if (audit.plan.length) {
+    label('Your plan')
+    audit.plan.forEach((step, i) => {
+      if (doc.y > doc.page.height - 120) doc.addPage()
+      doc.font('Times-Bold').fontSize(15).fillColor(C.ink).text(`${i + 1}. ${step.name}`, 56, doc.y, { width })
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C.goldText).text(`FIXES: ${step.areas.join('  ·  ').toUpperCase()}`, { width, characterSpacing: 0.8 })
+      for (const w of step.why) doc.font('Helvetica').fontSize(10.5).fillColor(C.ink).text(safe(w), { width })
+      doc.moveDown(0.5)
+    })
+  } else {
+    label('Suggested next step')
+    doc.font('Times-Bold').fontSize(16).fillColor(C.ink).text(audit.nextStep.name, 56, doc.y, { width })
+    doc.moveDown(0.2).font('Helvetica').fontSize(11).fillColor(C.ink).text(safe(audit.nextStep.detail), { width })
+  }
   doc.moveDown(0.6).fontSize(11).text('Want help with any of this? Book a free 30-minute call and we will walk through it with you. No contract.', { width })
   doc.moveDown(0.4).font('Helvetica-Bold').fillColor(C.goldText).text(links.bookUrl, { link: links.bookUrl, underline: true })
 

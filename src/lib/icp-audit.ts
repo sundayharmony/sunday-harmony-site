@@ -1,6 +1,7 @@
 // Free online audit built from a lead's ICP score data. Pure code, public business data only.
 import { createHmac } from 'node:crypto'
 import { provenDemand, type IcpOffer } from '@/lib/icp-score'
+import { buildAreas, overallScore, planFor, type AuditArea, type DeepAuditData, type PackageName } from '@/lib/icp-audit-areas'
 import { getPublicSiteUrl } from '@/lib/public-site-url'
 import { timingSafeStringEqual } from '@/lib/timing-safe'
 
@@ -13,6 +14,7 @@ export type AuditLead = {
     gaps?: string[]
     offer?: IcpOffer
     place?: { rating?: number | null; reviewCount?: number | null; address?: string | null; photoCount?: number | null } | null
+    audit?: DeepAuditData | null
   } | null
 }
 
@@ -27,6 +29,11 @@ export type Audit = {
   strengths: string[]
   findings: AuditFinding[]
   nextStep: { name: string; detail: string }
+  /** Full 6-area audit, present once icp_data.audit has been collected. */
+  areas: AuditArea[] | null
+  overall: number | null
+  plan: Array<{ name: PackageName; areas: string[]; why: string[] }>
+  competitors: DeepAuditData['competitors']
 }
 
 const FINDINGS: Record<string, Omit<AuditFinding, 'title'> & { title?: string }> = {
@@ -95,6 +102,8 @@ export function buildAudit(lead: AuditLead): Audit {
     strengths.push(`${rating!.toFixed(1)} stars from ${reviewCount} Google reviews. Customers already like your work.`)
   }
   if (!(data.gaps || []).length) strengths.push('No major gaps found on your website or Google profile.')
+  const deep = data.audit || null
+  const areas = deep ? buildAreas(deep) : null
   return {
     business: lead.business,
     location: lead.location_text || null,
@@ -103,6 +112,10 @@ export function buildAudit(lead: AuditLead): Audit {
     strengths,
     findings,
     nextStep: NEXT_STEP[data.offer || 'business_essentials'],
+    areas,
+    overall: areas ? overallScore(areas) : null,
+    plan: areas ? planFor(areas) : [],
+    competitors: deep?.competitors || [],
   }
 }
 
