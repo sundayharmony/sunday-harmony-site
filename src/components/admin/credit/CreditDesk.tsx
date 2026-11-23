@@ -373,7 +373,7 @@ function ClientsBoard({ clients, phase, onOpen }: { clients: DeskClient[]; phase
         {phases.map((value) => {
           const rows = visible.filter((client) => clientPhase(client) === value)
           return (
-            <section key={value} className="flex min-w-0 flex-col rounded-[22px] border border-brand-border bg-brand-bg-soft/60 md:w-[280px] md:shrink-0" aria-labelledby={`phase-${value}`}>
+            <section key={value} className={`flex min-w-0 flex-col rounded-[22px] border border-brand-border bg-brand-bg-soft/60 ${phase ? 'w-full' : 'md:w-[280px] md:shrink-0'}`} aria-labelledby={`phase-${value}`}>
               <div className="border-b border-brand-border px-4 py-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <h2 id={`phase-${value}`} className="font-serif text-lg text-brand-text">{PHASE_LABELS[value]}</h2>
@@ -381,7 +381,8 @@ function ClientsBoard({ clients, phase, onOpen }: { clients: DeskClient[]; phase
                 </div>
                 <p className="text-xs text-brand-muted">{PHASE_DETAIL[value]}</p>
               </div>
-              <ul className="max-h-[min(70vh,40rem)] space-y-2 overflow-y-auto p-2">
+              {/* One stage picked: spread its clients across the full width instead of one skinny column. */}
+              <ul className={phase ? 'grid grid-cols-1 gap-2 p-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4' : 'max-h-[min(70vh,40rem)] space-y-2 overflow-y-auto p-2'}>
                 {rows.length === 0 ? <li className="px-2 py-3 text-sm text-brand-muted">None.</li> : rows.map((client) => <ClientCard key={client.id} client={client} onOpen={onOpen} />)}
               </ul>
             </section>
