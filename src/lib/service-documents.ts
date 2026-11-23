@@ -100,25 +100,26 @@ export interface InvestmentItem {
   amount: number
 }
 
-export interface CreateDocumentInput {
-  document_type: DocumentType
-  client_name: string
-  client_email: string
-  business_name: string
-  business_address?: string
-  package_tier: string
-  package_price: number
-  price_type: 'one-time' | 'monthly' | 'custom'
-  custom_scope?: string
-  effective_date?: string
-  proposal_valid_until?: string
-  audit_date?: string
-  audit_findings?: AuditFinding[]
-  client_goals?: ClientGoal[]
-  timeline_phases?: TimelinePhase[]
-  investment_items?: InvestmentItem[]
-  created_by: string
-}
+export type CreateDocumentInput = Pick<
+  ServiceDocument,
+  | 'document_type'
+  | 'client_name'
+  | 'client_email'
+  | 'business_name'
+  | 'business_address'
+  | 'package_tier'
+  | 'package_price'
+  | 'price_type'
+  | 'custom_scope'
+  | 'effective_date'
+  | 'proposal_valid_until'
+  | 'audit_date'
+  | 'audit_findings'
+  | 'client_goals'
+  | 'timeline_phases'
+  | 'investment_items'
+  | 'created_by'
+>
 
 function generateDocumentNumber(type: DocumentType): string {
   const prefix = type === 'agreement' ? 'SA' : 'PR'
