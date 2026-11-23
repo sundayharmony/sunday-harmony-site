@@ -18,7 +18,7 @@ const styles: Record<Variant, string> = {
   nav: 'shrink-0 px-4 lg:px-5 xl:px-6 py-2 lg:py-2.5 rounded-md bg-brand-text text-white font-semibold text-[11px] lg:text-[12px] xl:text-[13px] hover:bg-neutral-800 transition-all whitespace-nowrap',
   inline:
     'flex w-full items-center justify-center gap-2 rounded-xl border border-brand-border bg-accent-soft px-4 py-3.5 text-sm font-semibold text-brand-text transition-all hover:bg-neutral-100 hover:-translate-y-0.5',
-  mobile: 'text-lg font-semibold text-accent py-4',
+  mobile: 'text-lg font-semibold text-accent-ink py-4',
 }
 
 const labels: Record<Variant, string> = {
@@ -40,7 +40,7 @@ export default function AuditCtaButton({
   const resolvedLabel = label ?? labels[variant]
   const activeNavClass =
     active && variant === 'nav' ? ' bg-accent hover:bg-accent/90 ring-2 ring-accent/40 ring-offset-2' : ''
-  const activeMobileClass = active && variant === 'mobile' ? ' text-accent font-bold' : ''
+  const activeMobileClass = active && variant === 'mobile' ? ' text-accent-ink font-bold' : ''
   const classes = `${styles[variant]}${activeNavClass}${activeMobileClass} ${className}`
 
   if (variant === 'nav' || variant === 'mobile') {
@@ -55,7 +55,7 @@ export default function AuditCtaButton({
     return (
       <a href={resolvedHref} onClick={onClick} className={classes}>
         {resolvedLabel}
-        {variant === 'inline' && !resolvedLabel.includes('→') && <span aria-hidden className="text-accent">→</span>}
+        {variant === 'inline' && !resolvedLabel.includes('→') && <span aria-hidden className="text-accent-ink">→</span>}
       </a>
     )
   }

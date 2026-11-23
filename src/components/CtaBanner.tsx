@@ -8,7 +8,7 @@ export default function CtaBanner() {
           <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-[radial-gradient(circle,rgba(0,0,0,0.04)_0%,transparent_60%)] pointer-events-none" />
           <h2 className="font-serif text-[clamp(28px,4vw,42px)] font-extrabold text-brand-text mb-4 relative">
             Ready to stop doing it all{' '}
-            <em className="font-serif not-italic text-accent">yourself?</em>
+            <em className="font-serif not-italic text-accent-ink">yourself?</em>
           </h2>
           <p className="text-[17px] text-brand-muted mb-9 max-w-[500px] mx-auto relative">
             Get a free audit of the brand, the strategy, and the systems the business runs on. We&apos;ll show you what&apos;s working and what to put in place first.

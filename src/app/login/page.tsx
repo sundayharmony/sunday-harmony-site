@@ -157,7 +157,7 @@ function LoginForm() {
           placeholder="••••••••"
           required
           labelExtra={
-            <Link href="/forgot-password" className="text-[10px] text-accent hover:underline">
+            <Link href="/forgot-password" className="text-[10px] text-accent-ink hover:underline">
               Forgot password?
             </Link>
           }
@@ -171,7 +171,7 @@ function LoginForm() {
         </button>
         <p className="mt-4 text-center text-sm text-brand-muted">
           Refer people for credit or funding?{' '}
-          <Link href="/partners/signup" className="font-semibold text-accent hover:underline">
+          <Link href="/partners/signup" className="font-semibold text-accent-ink hover:underline">
             Sign up as a partner
           </Link>
         </p>

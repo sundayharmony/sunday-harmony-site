@@ -44,7 +44,7 @@ export default async function BookConsultationPage() {
             <ConsultationBooker initial={initial} loadError={loadError} />
             <p className="mt-6 text-sm text-brand-muted">
               Prefer to write?{' '}
-              <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent">
+              <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent-ink">
                 Send a message
               </a>
             </p>

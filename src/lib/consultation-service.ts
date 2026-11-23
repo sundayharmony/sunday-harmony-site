@@ -5,6 +5,7 @@ import { createMeeting, updateMeeting } from '@/lib/crm-db'
 import { consultationCancelUrl, consultationEmailHtml } from '@/lib/consultation-email'
 import {
   getBookingByCancelToken,
+  countOpenBookingsForEmail,
   getBookingById,
   getConsultationSettings,
   insertConsultationBooking,
@@ -26,7 +27,7 @@ import {
   type ConsultationSlot,
 } from '@/lib/consultation-slots'
 import { createMeetEvent, deleteCalendarEvent, isGoogleCalendarConfigured } from '@/lib/google-calendar'
-import { marketingStatusForStage, stageAfterConsultation, stageFromLegacy } from '@/lib/marketing-pipeline'
+import { consultationBookingNote, existingLeadUpdateForBooking } from '@/lib/consultation-lead'
 import { getAdminNotifyEmail, isEmailConfigured, sanitizeEmailSubjectPart, sendEmail } from '@/lib/smtp-mail'
 
 export type PublicSlotDay = {
@@ -177,6 +178,13 @@ export async function bookConsultation(input: {
   if (!open) {
     return { ok: false, status: 503, error: 'Booking is not set up yet.' }
   }
+  if ((await countOpenBookingsForEmail(input.email, now)) > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: 'This email already has an upcoming consultation. Use the cancel link in your confirmation email to pick a new time.',
+    }
+  }
   const slot = isOpenSlot(input.startsAt, open.slots)
   if (!slot) {
     return { ok: false, status: 409, error: 'That time is no longer open. Pick another slot.' }
@@ -242,23 +250,16 @@ export async function bookConsultation(input: {
       pipeline_stage: 'responded',
     })
   } else {
-    const updates: Parameters<typeof updateLead>[1] = {}
-    const currentStage = existingLead?.pipeline_stage || stageFromLegacy({
-      marketingStatus: existingLead?.marketing_lead_status,
-      legacyStatus: existingLead?.status,
-      source: existingLead?.source,
+    // Unauthenticated form: keep the lead as staff left it and record the booking as a note.
+    const note = consultationBookingNote({
+      whenLabel,
+      name: input.name,
+      phone: input.phone,
+      business: input.business,
+      note: input.note,
+      now,
     })
-    const nextStage = stageAfterConsultation(currentStage)
-    if (nextStage && existingLead?.marketing_lead_status !== 'converted') {
-      updates.pipeline_stage = nextStage
-      updates.marketing_lead_status = marketingStatusForStage(nextStage)
-    }
-    if (!(existingLead?.phone || '').trim() && input.phone.trim()) updates.phone = input.phone.trim()
-    if (!(existingLead?.business || '').trim() && input.business.trim()) updates.business = input.business.trim()
-    if (!(existingLead?.message || '').trim() && input.note.trim()) updates.message = input.note.trim()
-    if (Object.keys(updates).length > 0) {
-      lead = (await updateLead(existingLead!.id, updates)) ?? existingLead
-    }
+    lead = (await updateLead(lead.id, existingLeadUpdateForBooking(lead.notes, note))) ?? lead
   }
 
   let meetingId: string | null = null

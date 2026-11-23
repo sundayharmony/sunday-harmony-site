@@ -30,6 +30,7 @@ import {
   BUSINESS_DOCUMENTS,
 } from '@/lib/credit-funding-document-steps'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import TurnstileWidget, { TURNSTILE_WAIT_MESSAGE, turnstileTokenForSubmit, type TurnstileHandle } from '@/components/TurnstileWidget'
 import { isValidSsn } from '@/lib/ssn-utils'
 
 type StepId =
@@ -241,11 +242,14 @@ export default function CreditFundingForm({
     }
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Bumped on each failed step check so focus moves only then, not while typing.
+  const [failedCheck, setFailedCheck] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [applicationId, setApplicationId] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const turnstile = useRef<TurnstileHandle>(null)
   const stagedUploads = useStagedDocumentUploads()
   const intakeIdempotencyKey = useRef(
     typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `intake-${Date.now()}`
@@ -514,8 +518,24 @@ export default function CreditFundingForm({
       }
     }
     setErrors(e)
+    if (Object.keys(e).length > 0) {
+      setFailedCheck((n) => n + 1)
+    }
     return Object.keys(e).length === 0
   }
+
+  useEffect(() => {
+    if (!failedCheck) return
+    for (const key of Object.keys(errors)) {
+      const field = document.querySelector<HTMLElement>(`[name="${key}"]`)
+      if (field) {
+        field.focus()
+        return
+      }
+    }
+    document.querySelector('[data-step-errors]')?.scrollIntoView({ block: 'center' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per failed check
+  }, [failedCheck])
 
   const next = () => {
     if (!validateStep(currentStepId)) return
@@ -530,6 +550,12 @@ export default function CreditFundingForm({
     setSubmitting(true)
     setSubmitError('')
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) {
+        setSubmitError(TURNSTILE_WAIT_MESSAGE)
+        setSubmitting(false)
+        return
+      }
       const res = await fetch('/api/credit-funding/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -544,8 +570,10 @@ export default function CreditFundingForm({
           zipCode: form.zipCode,
           password: form.accountPassword,
           shHpField: form.shHpField,
+          turnstileToken,
         }),
       })
+      turnstile.current?.reset()
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setSubmitError(typeof data.error === 'string' ? data.error : 'Could not create your account.')
@@ -564,6 +592,7 @@ export default function CreditFundingForm({
       }
       router.push('/dashboard/credit-funding')
     } catch {
+      turnstile.current?.reset()
       setSubmitError('Could not create your account.')
       setSubmitting(false)
     }
@@ -599,6 +628,8 @@ export default function CreditFundingForm({
     }
 
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) throw new Error(TURNSTILE_WAIT_MESSAGE)
       setUploadProgress(40)
 
       const fd = new FormData()
@@ -639,6 +670,7 @@ export default function CreditFundingForm({
       fd.append('typedSignature', form.typedSignature)
       fd.append('signatureDate', form.signatureDate)
       fd.append('sh_hp_field', form.shHpField)
+      fd.append('turnstileToken', turnstileToken)
       for (const [key, value] of Object.entries(secretsOnFile)) {
         fd.append(key, String(value))
       }
@@ -683,6 +715,7 @@ export default function CreditFundingForm({
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Submission failed')
     } finally {
+      turnstile.current?.reset()
       setSubmitting(false)
     }
   }
@@ -702,7 +735,7 @@ export default function CreditFundingForm({
         )}
         <p className="text-sm text-brand-muted mt-6">
           Track your application status anytime from your{' '}
-          <Link href="/dashboard/credit-funding" className="text-accent font-semibold hover:underline">
+          <Link href="/dashboard/credit-funding" className="text-accent-ink font-semibold hover:underline">
             client portal
           </Link>{' '}
           (log in with the email you used to apply).
@@ -746,6 +779,11 @@ export default function CreditFundingForm({
             onChange={(e) => update('shHpField', e.target.value)}
           />
         </div>
+        <p role="alert" data-step-errors className={failedCheck && Object.keys(errors).length ? 'text-sm text-brand-red mb-4' : 'sr-only'}>
+          {failedCheck && Object.keys(errors).length
+            ? `Please fix ${Object.keys(errors).length === 1 ? '1 field' : `${Object.keys(errors).length} fields`} marked below.`
+            : ''}
+        </p>
         {/* Step 1 */}
         {currentStepId === 'personal' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1099,7 +1137,7 @@ export default function CreditFundingForm({
                 <button
                   type="button"
                   onClick={() => setFundingDetailsOpen(true)}
-                  className="text-sm font-semibold text-accent hover:underline"
+                  className="text-sm font-semibold text-accent-ink hover:underline"
                 >
                   Add funding details
                 </button>
@@ -1226,7 +1264,7 @@ export default function CreditFundingForm({
                 />
                 <span className="text-sm text-brand-muted">
                   I have read and agree to the{' '}
-                  <Link href="/credit/privacy" target="_blank" className="text-accent hover:underline">
+                  <Link href="/credit/privacy" target="_blank" className="text-accent-ink hover:underline">
                     Privacy Policy
                   </Link>{' '}
                   and authorize Sunday Harmony to process my information for credit repair and funding evaluation purposes.
@@ -1261,6 +1299,14 @@ export default function CreditFundingForm({
               </div>
             )}
           </div>
+        )}
+
+        {step === stepFlow.length - 1 && (
+          <TurnstileWidget
+            ref={turnstile}
+            action={intakePhase === 'start' ? 'credit_start' : 'credit_intake'}
+            className="mt-6"
+          />
         )}
 
         {submitError && (

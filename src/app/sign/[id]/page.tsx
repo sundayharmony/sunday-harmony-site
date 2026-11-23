@@ -220,7 +220,7 @@ export default function SignDocumentPage({ params }: { params: Promise<{ id: str
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="text-accent font-serif text-2xl font-bold mb-2">SUNDAY HARMONY</div>
+          <div className="text-accent-ink font-serif text-2xl font-bold mb-2">SUNDAY HARMONY</div>
           <h1 className="text-3xl font-bold text-brand-text">{docTypeLabel}</h1>
           <p className="text-brand-muted mt-2">Document #{document.document_number}</p>
         </div>
@@ -272,7 +272,7 @@ export default function SignDocumentPage({ params }: { params: Promise<{ id: str
                 <ul className="space-y-1.5">
                   {pkg.features.filter(f => f.included).map((feature, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-brand-muted">
-                      <span className="text-accent mt-0.5">✓</span>
+                      <span className="text-accent-ink mt-0.5">✓</span>
                       {feature.text}
                     </li>
                   ))}

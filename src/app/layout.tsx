@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import GoogleAdsTag from '@/components/GoogleAdsTag'
+import AttributionCapture from '@/components/AttributionCapture'
 import { siteConfig } from '@/lib/data'
 import {
   DEFAULT_DESCRIPTION,
@@ -87,6 +88,7 @@ export default function RootLayout({
     <html lang="en" className={`${montserrat.variable} ${fraunces.variable}`}>
       <body className={`${montserrat.className} font-sans antialiased`}>
         <GoogleAdsTag />
+        <AttributionCapture />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

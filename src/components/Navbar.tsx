@@ -10,7 +10,7 @@ import { isSiteNavLinkActive, siteNavLinks } from '@/lib/navigation'
 const linkBase =
   'inline-flex items-center text-[11px] lg:text-[12px] xl:text-[13px] tracking-wide transition-colors whitespace-nowrap shrink-0 rounded-full px-2.5 py-1'
 const inactiveLinkClass = `${linkBase} font-medium text-brand-muted hover:text-brand-text`
-const activeLinkClass = `${linkBase} font-semibold text-accent bg-accent-soft ring-1 ring-accent`
+const activeLinkClass = `${linkBase} font-semibold text-accent-ink bg-accent-soft ring-1 ring-accent`
 
 function MenuIcon({ open }: { open: boolean }) {
   return (
@@ -67,10 +67,16 @@ export default function Navbar() {
     }
 
     document.addEventListener('keydown', onKeyDown)
+    // Keep Tab and screen readers inside the open menu instead of the page behind it.
+    const behind = Array.from(document.querySelectorAll<HTMLElement>('main, footer'))
+    behind.forEach((el) => el.setAttribute('inert', ''))
     const firstFocusable = menuRef.current?.querySelector<HTMLElement>('a, button')
     firstFocusable?.focus()
 
-    return () => document.removeEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      behind.forEach((el) => el.removeAttribute('inert'))
+    }
   }, [mobileOpen])
 
   const closeMobile = () => setMobileOpen(false)
@@ -79,6 +85,9 @@ export default function Navbar() {
 
   return (
     <>
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[1001] focus:rounded-md focus:bg-brand-text focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">
+        Skip to content
+      </a>
       <nav
         className={`fixed top-0 left-0 right-0 z-[1000] border-b border-brand-border backdrop-blur-xl transition-all duration-300 pt-[env(safe-area-inset-top,0px)] ${
           scrolled ? 'bg-[rgba(255,255,255,0.97)] shadow-sm' : 'bg-[rgba(255,255,255,0.9)]'
@@ -157,7 +166,7 @@ export default function Navbar() {
                 aria-current={active ? 'page' : undefined}
                 className={`text-lg py-3.5 border-b border-brand-border rounded-xl px-4 ${
                   active
-                    ? 'font-semibold text-accent bg-accent-soft ring-1 ring-accent'
+                    ? 'font-semibold text-accent-ink bg-accent-soft ring-1 ring-accent'
                     : 'font-medium text-brand-muted'
                 }`}
               >

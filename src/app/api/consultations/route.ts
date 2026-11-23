@@ -3,6 +3,8 @@ import { bookConsultation } from '@/lib/consultation-service'
 import { hasHoneypotValue } from '@/lib/honeypot'
 import { getClientIp } from '@/lib/rate-limit'
 import { rateLimitDurable, rateLimitResponse } from '@/lib/rate-limit-durable'
+import { consultationEmailRateLimit } from '@/lib/public-form-guards'
+import { readTurnstileToken, turnstileFailureResponse, verifyTurnstile } from '@/lib/turnstile'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +38,12 @@ export async function POST(req: NextRequest) {
   const ip = getClientIp(req)
   const rl = await rateLimitDurable(`consultation:${ip}`, 5, 15 * 60 * 1000)
   if (!rl.allowed) return rateLimitResponse(rl.resetIn)
+
+  const human = await verifyTurnstile({ token: readTurnstileToken(body), action: 'consultation', remoteIp: ip })
+  if (!human.ok) return turnstileFailureResponse(human)
+
+  const perEmail = await consultationEmailRateLimit(email)
+  if (!perEmail.allowed) return rateLimitResponse(perEmail.resetIn)
 
   const result = await bookConsultation({ name, email, phone, business, note, startsAt })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })

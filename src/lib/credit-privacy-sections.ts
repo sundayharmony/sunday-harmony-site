@@ -38,6 +38,7 @@ export const creditPrivacySections = [
       'Email delivery services for application confirmations and status updates.',
       'Cloud storage providers for secure document hosting.',
       'Payment processors when applicable for service fees.',
+      'Advertising and analytics services (Google Ads and Vercel Analytics). When you arrive from an ad or campaign link, we keep a first-party cookie for up to 30 days that records which ad or campaign it was, so we can tell which ads work.',
       'We do not sell your personal information to third parties.',
     ],
   },

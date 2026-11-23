@@ -1,6 +1,21 @@
 const path = require('path')
 
 const SUPABASE_HOST = 'https://*.supabase.co'
+// Cloudflare Turnstile widget script and challenge iframe on public lead forms.
+const TURNSTILE_HOST = 'https://challenges.cloudflare.com'
+
+// Google Ads tag (gtag.js) and its conversion pings, per Google's CSP guide
+// (developers.google.com/tag-platform/security/guides/csp, Google Ads section).
+const GOOGLE_ADS_SCRIPT_HOSTS =
+  'https://www.googletagmanager.com https://www.googleadservices.com https://www.google.com https://googleads.g.doubleclick.net'
+const GOOGLE_ADS_PING_HOSTS =
+  'https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com https://www.google.com'
+// GA4 stream G-L9Q1N1JVH3 rides the same Google tag; its hits go to google-analytics.com
+// (same guide, Google Analytics section).
+const GOOGLE_ANALYTICS_HOSTS =
+  'https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://region1.analytics.google.com'
+const GOOGLE_ADS_CONNECT_HOSTS = `${GOOGLE_ADS_PING_HOSTS} https://ad.doubleclick.net ${GOOGLE_ANALYTICS_HOSTS}`
+const GOOGLE_ADS_FRAME_HOSTS = 'https://www.googletagmanager.com https://td.doubleclick.net'
 
 function buildContentSecurityPolicy() {
   const scriptSources = [
@@ -10,6 +25,8 @@ function buildContentSecurityPolicy() {
     'https://va.vercel-scripts.com',
     'https://js.stripe.com',
     'https://vercel.live',
+    GOOGLE_ADS_SCRIPT_HOSTS,
+    TURNSTILE_HOST,
   ]
 
   return [
@@ -17,9 +34,9 @@ function buildContentSecurityPolicy() {
     `script-src ${scriptSources.join(' ')}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com`,
-    `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live`,
-    `frame-src ${SUPABASE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com`,
+    `img-src 'self' data: blob: ${SUPABASE_HOST} https://*.stripe.com ${GOOGLE_ADS_PING_HOSTS} ${GOOGLE_ANALYTICS_HOSTS}`,
+    `connect-src 'self' ${SUPABASE_HOST} https://va.vercel-scripts.com https://vitals.vercel-insights.com https://api.stripe.com https://*.stripe.com https://vercel.live ${GOOGLE_ADS_CONNECT_HOSTS}`,
+    `frame-src ${SUPABASE_HOST} ${TURNSTILE_HOST} https://js.stripe.com https://hooks.stripe.com https://*.stripe.com ${GOOGLE_ADS_FRAME_HOSTS}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",

@@ -1,8 +1,9 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { calendarMonthCells, formatCalendarMonth, monthOfDateKey, shiftCalendarMonth } from '@/lib/consultation-slots'
 import { reportGoogleAdsLeadConversion } from '@/lib/google-ads'
+import TurnstileWidget, { TURNSTILE_WAIT_MESSAGE, turnstileTokenForSubmit, type TurnstileHandle } from '@/components/TurnstileWidget'
 
 type Slot = { startsAt: string; endsAt: string; label: string }
 type Day = { date: string; label: string; slots: Slot[] }
@@ -66,6 +67,7 @@ export default function ConsultationBooker({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [booked, setBooked] = useState('')
+  const turnstile = useRef<TurnstileHandle>(null)
 
   useEffect(() => {
     if (initial) return
@@ -116,10 +118,12 @@ export default function ConsultationBooker({
     setError('')
     setSending(true)
     try {
+      const turnstileToken = await turnstileTokenForSubmit(turnstile.current)
+      if (turnstileToken === null) throw new Error(TURNSTILE_WAIT_MESSAGE)
       const res = await fetch('/api/consultations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, business, note, startsAt, shHpField: hp }),
+        body: JSON.stringify({ name, email, phone, business, note, startsAt, shHpField: hp, turnstileToken }),
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(payload.error || 'Could not book that time')
@@ -128,6 +132,7 @@ export default function ConsultationBooker({
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not book that time')
     } finally {
+      turnstile.current?.reset()
       setSending(false)
     }
   }
@@ -135,7 +140,7 @@ export default function ConsultationBooker({
   if (booked) {
     return (
       <div className="rounded-3xl border border-brand-border bg-white p-8 sm:p-10 text-center">
-        <div className="text-4xl mb-3 text-accent">✓</div>
+        <div className="text-4xl mb-3 text-accent-ink">✓</div>
         <h2 className="font-serif text-3xl font-extrabold text-brand-text mb-3">You are on the calendar.</h2>
         <p className="text-brand-muted leading-relaxed max-w-[460px] mx-auto">
           {booked}. The Google Meet link is in your email. Check the inbox you entered, including promotions or spam, if it is not in front.
@@ -157,7 +162,7 @@ export default function ConsultationBooker({
       {data && !data.calendarConnected ? (
         <p className="text-sm text-brand-muted leading-relaxed">
           Online booking is not open yet.{' '}
-          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent">
+          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent-ink">
             Send a message
           </a>{' '}
           and we will find a time with you.
@@ -167,7 +172,7 @@ export default function ConsultationBooker({
       {data?.calendarConnected && data.days.length === 0 ? (
         <p className="text-sm text-brand-muted leading-relaxed">
           No open times right now.{' '}
-          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent">
+          <a href="/contact#message" className="font-semibold text-brand-text hover:text-accent-ink">
             Send a message
           </a>{' '}
           and we will write back.
@@ -228,11 +233,12 @@ export default function ConsultationBooker({
                       key={cell.date}
                       type="button"
                       disabled={!open}
+                      aria-label={`${new Date(`${cell.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${open ? '' : ', unavailable'}`}
                       onClick={() => chooseDay(cell.date as string)}
                       className={`mx-auto flex h-10 w-10 items-center justify-center rounded-full text-sm ${
                         open
                           ? 'bg-accent-soft font-semibold text-brand-text hover:bg-brand-text hover:text-white'
-                          : 'text-neutral-300'
+                          : 'text-neutral-300 line-through'
                       }`}
                     >
                       {cell.day}
@@ -247,7 +253,7 @@ export default function ConsultationBooker({
             <div>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <p className="text-sm font-semibold text-brand-text">{selectedDay.label}</p>
-                <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent hover:underline">
+                <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent-ink hover:underline">
                   Change date
                 </button>
               </div>
@@ -281,10 +287,10 @@ export default function ConsultationBooker({
                   <span className="text-brand-muted font-medium"> · {selectedSlot.label}</span>
                 </p>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => setStep('time')} className="text-xs font-semibold text-accent hover:underline">
+                  <button type="button" onClick={() => setStep('time')} className="text-xs font-semibold text-accent-ink hover:underline">
                     Change time
                   </button>
-                  <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent hover:underline">
+                  <button type="button" onClick={backToDays} className="text-xs font-semibold text-accent-ink hover:underline">
                     Change date
                   </button>
                 </div>
@@ -295,6 +301,7 @@ export default function ConsultationBooker({
                   <input
                     required
                     value={name}
+                    autoComplete="name"
                     onChange={(event) => setName(event.target.value)}
                     className="mt-1.5 w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm"
                   />
@@ -305,6 +312,7 @@ export default function ConsultationBooker({
                     required
                     type="email"
                     value={email}
+                    autoComplete="email"
                     onChange={(event) => setEmail(event.target.value)}
                     className="mt-1.5 w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm"
                   />
@@ -314,6 +322,7 @@ export default function ConsultationBooker({
                   <input
                     type="tel"
                     value={phone}
+                    autoComplete="tel"
                     onChange={(event) => setPhone(event.target.value)}
                     className="mt-1.5 w-full py-3 px-4 bg-neutral-50 border border-brand-border rounded-[10px] text-brand-text text-sm"
                   />
@@ -337,7 +346,8 @@ export default function ConsultationBooker({
                   />
                 </label>
               </div>
-              {error ? <p className="text-sm text-red-700">{error}</p> : null}
+              <TurnstileWidget ref={turnstile} action="consultation" />
+              {error ? <p className="text-sm text-red-700" role="alert">{error}</p> : null}
               <button
                 type="submit"
                 disabled={!startsAt || sending}

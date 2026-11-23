@@ -71,7 +71,7 @@ export default async function BuildFundPage({
         
         <section className="relative z-10 max-w-[1100px] mx-auto px-7 py-20 sm:py-28">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent tracking-wide mb-7">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-soft border border-brand-border text-xs font-semibold text-accent-ink tracking-wide mb-7">
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
               Choose your path
             </div>
@@ -100,7 +100,7 @@ export default async function BuildFundPage({
                     </div>
                     <div>
                       <h2 className="font-serif text-3xl font-extrabold text-brand-text">{path.title}</h2>
-                      <p className="text-sm font-medium text-accent">{path.subtitle}</p>
+                      <p className="text-sm font-medium text-accent-ink">{path.subtitle}</p>
                     </div>
                   </div>
 

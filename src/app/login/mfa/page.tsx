@@ -203,7 +203,7 @@ function MfaVerifyForm() {
         <button
           type="button"
           onClick={() => leaveMfa('/login')}
-          className="text-xs text-brand-dim hover:text-accent transition-colors"
+          className="text-xs text-brand-dim hover:text-accent-ink transition-colors"
         >
           ← Back to sign in
         </button>
@@ -212,7 +212,7 @@ function MfaVerifyForm() {
           <button
             type="button"
             onClick={() => leaveMfa('/forgot-password')}
-            className="text-accent hover:underline"
+            className="text-accent-ink hover:underline"
           >
             Reset password
           </button>
@@ -229,7 +229,7 @@ function MfaVerifyForm() {
                   : '/reset-password'
               )
             }
-            className="text-accent hover:underline"
+            className="text-accent-ink hover:underline"
           >
             Enter it here
           </button>
