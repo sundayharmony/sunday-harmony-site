@@ -1,6 +1,6 @@
 # CLAUDE.md — Sunday Harmony
 
-Read by every Claude Code session in this repo. Dev setup, tests and deploy notes live in AGENTS.md:
+Read by every Claude Code session in this repo. Mirrors the Sunday Harmony Project docs (context, ICP, design rules, model rules); when those docs change, update this file in the same session so the two match. Dev setup, tests and deploy notes live in AGENTS.md:
 
 @AGENTS.md
 
