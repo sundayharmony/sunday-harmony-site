@@ -191,6 +191,8 @@ class ParsedReport(BaseModel):
     file_type: str = ""
     ocr_used: bool = False
     extraction_quality: ExtractionQuality = "medium"
+    # Where the read disagrees with totals the report prints about itself.
+    read_warnings: list[str] = Field(default_factory=list)
 
 
 class ExtractedDocument(BaseModel):

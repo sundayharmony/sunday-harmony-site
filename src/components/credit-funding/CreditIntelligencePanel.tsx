@@ -810,6 +810,17 @@ export default function CreditIntelligencePanel({
         </div>
       ) : (
         <>
+          {!emptyReportWarning && (activeSession?.report_json?.read_warnings?.length ?? 0) > 0 && (
+            <div
+              role="alert"
+              className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+            >
+              <p className="font-semibold">Check this read before sending letters</p>
+              <ul className="mt-1 list-disc pl-5">
+                {activeSession?.report_json?.read_warnings?.map((w) => <li key={w}>{w}</li>)}
+              </ul>
+            </div>
+          )}
           {emptyReportWarning && (
             <div
               role="alert"

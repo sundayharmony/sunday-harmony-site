@@ -120,6 +120,12 @@ def _finalize_report(
     report = apply_high_priority_selection(report)
     report.credit_intelligence = build_credit_intelligence(report)
     report = apply_bureau_coverage(report, file_name=file_name)
+    from app.services.read_check import check_read
+
+    try:
+        report.read_warnings = check_read(report, source_text)
+    except Exception:
+        report.read_warnings = []
     return report
 
 

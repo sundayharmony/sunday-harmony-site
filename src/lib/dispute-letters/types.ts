@@ -188,6 +188,8 @@ export interface ParsedReport {
   file_type: string
   ocr_used: boolean
   extraction_quality: string
+  /** Where the read disagrees with totals the report prints about itself. */
+  read_warnings?: string[]
 }
 
 export interface ReportHealth {
