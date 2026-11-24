@@ -35,44 +35,114 @@ export function renderAuditEmail(input: {
     audit.rating != null && audit.reviewCount != null && audit.strengths.length
       ? `${audit.business} has ${audit.rating.toFixed(1)} stars from ${audit.reviewCount} Google reviews, so customers clearly like your work.`
       : `I took a look at how ${audit.business} shows up online.`
-  const finding = top ? `One thing stood out: ${top.hook}. ${top.detail}` : ''
+  const deepNote = !top
+    ? ['website', 'google', 'systems', 'marketing', 'social', 'branding']
+        .map((key) => audit.areas?.find((a) => a.key === key)?.checks.find((c) => c.status === 'fail')?.note)
+        .find(Boolean)
+    : null
+  const finding = top ? `One thing stood out: ${top.hook}. ${top.detail}` : deepNote ? `One thing stood out: ${deepNote}` : ''
   const others = audit.findings.length - 1
-  const auditLine = top
+  const auditLine = top || deepNote
     ? others > 0
       ? `I put the fix, plus ${others === 1 ? 'one other thing' : `${others} other things`} worth fixing, in a short free audit:`
       : 'I put the fix and what we would do first in a short free audit:'
     : 'I put what we checked in a short free audit:'
   const ask = 'Worth a 10-minute walk-through? Just reply "yes".'
 
+  return shell({
+    subject,
+    preheader,
+    address,
+    unsubscribeUrl: input.unsubscribeUrl,
+    paragraphs: [greeting, proof, finding, { text: auditLine, url: input.auditUrl }, ask],
+  })
+}
+
+/** Shared plain email shell: paragraphs, signature, unsubscribe and postal address. */
+function shell(input: {
+  subject: string
+  preheader: string
+  address: string
+  unsubscribeUrl: string
+  paragraphs: Array<string | { text: string; url: string }>
+}): AuditEmail {
   const e = escapeHtml
-  const p = (html: string) => `<p style="margin:0 0 14px 0;">${html}</p>`
+  const parts = input.paragraphs.filter((part) => (typeof part === 'string' ? part.trim() : part.text))
+  const htmlPart = (part: string | { text: string; url: string }) =>
+    typeof part === 'string'
+      ? e(part)
+      : `${e(part.text)} <a href="${e(part.url)}" style="color:#7f6427;">${e(part.url)}</a>`
   const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${e(subject)}</title></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${e(input.subject)}</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#1b1a17;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${e(preheader)}</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${e(input.preheader)}</div>
 <div style="max-width:560px;padding:20px 16px;font-size:15px;line-height:1.6;">
-${p(e(greeting))}
-${p(e(proof))}
-${finding ? p(e(finding)) : ''}
-${p(`${e(auditLine)} <a href="${e(input.auditUrl)}" style="color:#7f6427;">${e(input.auditUrl)}</a>`)}
-${p(e(ask))}
+${parts.map((part) => `<p style="margin:0 0 14px 0;">${htmlPart(part)}</p>`).join('\n')}
 <p style="margin:18px 0 0 0;"><span style="font-family:Georgia,serif;font-weight:600;color:#1b1a17;">Sunday Harmony</span><br><span style="font-size:13px;color:#7f6427;">Brand, strategy, and systems · sundayharmony.com</span></p>
-<p style="margin:24px 0 0 0;font-size:11px;color:#8a857d;">Not interested? <a href="${e(input.unsubscribeUrl)}" style="color:#8a857d;">Unsubscribe</a> and we will not email you again.<br>Sunday Harmony Consulting · ${e(address)}</p>
+<p style="margin:24px 0 0 0;font-size:11px;color:#8a857d;">Not interested? <a href="${e(input.unsubscribeUrl)}" style="color:#8a857d;">Unsubscribe</a> and we will not email you again.<br>Sunday Harmony Consulting · ${e(input.address)}</p>
 </div></body></html>`
-
   const text = [
-    greeting,
-    proof,
-    finding,
-    `${auditLine} ${input.auditUrl}`,
-    ask,
+    ...parts.map((part) => (typeof part === 'string' ? part : `${part.text} ${part.url}`)),
     'Sunday Harmony\nBrand, strategy, and systems · sundayharmony.com',
-    `Not interested? Unsubscribe: ${input.unsubscribeUrl}\nSunday Harmony Consulting · ${address}`,
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+    `Not interested? Unsubscribe: ${input.unsubscribeUrl}\nSunday Harmony Consulting · ${input.address}`,
+  ].join('\n\n')
+  return { subject: input.subject, preheader: input.preheader, html, text }
+}
 
-  return { subject, preheader, html, text }
+/**
+ * Follow-ups 2 (day 3) and 3 (day 7), sent as replies in the same thread.
+ * Short bumps: one reminder of the finding, the link, the same interest ask; step 3 is a polite last note.
+ */
+export function renderAuditFollowUp(input: {
+  step: 2 | 3
+  audit: Audit
+  auditUrl: string
+  unsubscribeUrl: string
+  firstSubject: string
+  mailingAddress?: string
+}): AuditEmail {
+  const address = (input.mailingAddress || OUTREACH_MAILING_ADDRESS).trim()
+  const subject = /^re:/i.test(input.firstSubject) ? input.firstSubject : `Re: ${input.firstSubject}`
+  const hook = topHook(input.audit)
+  if (input.step === 2) {
+    return shell({
+      subject,
+      preheader: 'Quick follow-up on your free audit.',
+      address,
+      unsubscribeUrl: input.unsubscribeUrl,
+      paragraphs: [
+        'Hi,',
+        hook
+          ? `Quick follow-up on the free audit for ${input.audit.business}. The first fix I would make: ${hook}.`
+          : `Quick follow-up on the free audit for ${input.audit.business}.`,
+        { text: 'It is all here:', url: input.auditUrl },
+        'Want me to walk you through it? Just reply "yes".',
+      ],
+    })
+  }
+  return shell({
+    subject,
+    preheader: 'Last note from me.',
+    address,
+    unsubscribeUrl: input.unsubscribeUrl,
+    paragraphs: [
+      'Hi,',
+      `Last note from me. If now is not the right time, no problem. The audit for ${input.audit.business} stays up here:`,
+      { text: 'Your audit:', url: input.auditUrl },
+      'If you want help with it, reply "yes" or call (609) 400-4459.',
+    ],
+  })
+}
+
+/** The single most important problem, as a short sentence fragment. */
+function topHook(audit: Audit): string {
+  if (audit.findings[0]) return audit.findings[0].hook
+  const order = ['website', 'google', 'systems', 'marketing', 'social', 'branding']
+  for (const key of order) {
+    const check = audit.areas?.find((a) => a.key === key)?.checks.find((c) => c.status === 'fail')
+    if (check) return check.label.toLowerCase()
+  }
+  return ''
 }
 
 /** Pre-send checks that need no network. Empty list means OK to send. */

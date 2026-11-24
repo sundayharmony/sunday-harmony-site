@@ -227,7 +227,16 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === 'send' || action === 'send-batch') {
-    const limit = manualSendLimitFromBody(body, action)
+    // Retired 2026-11-23 (MC): the old intro email (long copy, PDF attachment, personal signer) is replaced
+    // by the free-audit sequence in src/lib/outreach/audit-sender.ts (/api/internal/audit-send, Tue–Thu).
+    return NextResponse.json(
+      { error: 'The old intro email is retired. Prospects now get the free-audit email automatically Tue–Thu.' },
+      { status: 410 }
+    )
+  }
+
+  if ((action as string) === 'send-legacy') {
+    const limit = manualSendLimitFromBody(body, 'send-batch')
     const result = await dispatchOutreachBatch({
       store,
       workerId: `admin-send:${actorId}`,

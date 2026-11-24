@@ -20,6 +20,10 @@
     {
       "path": "/api/internal/prospect-replies",
       "schedule": "37 12 * * *"
+    },
+    {
+      "path": "/api/internal/audit-send",
+      "schedule": "17 14 * * 2-4"
     }
   ]
 }
