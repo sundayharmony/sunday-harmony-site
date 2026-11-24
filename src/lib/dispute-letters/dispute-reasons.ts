@@ -30,11 +30,11 @@ export function defaultInquiryDisputeReason(creditor: string): string {
 }
 
 export function defaultRemovalDisputeReason(t: Tradeline): string {
-  const status = (t.status || 'this account').trim()
+  const status = (t.status || '').trim()
   const category = (t.item_category || '').toLowerCase()
   if (t.is_collection || category === 'collection') {
     return (
-      `This collection tradeline is reported as ${status}. I dispute the accuracy and ` +
+      `This collection tradeline is reported as ${status || 'a collection'}. I dispute the accuracy and ` +
       'completeness of this collection reporting and request that it be deleted if the ' +
       'furnisher cannot verify every reported field as accurate and complete under ' +
       'FCRA §611 (15 U.S.C. §1681i) and §623 (15 U.S.C. §1681s-2).'
@@ -51,7 +51,7 @@ export function defaultRemovalDisputeReason(t: Tradeline): string {
     }
     const focus = lateBits.length ? `, including ${lateBits.join(' and ')}` : ''
     return (
-      `This account is reported as ${status}. I dispute the accuracy and completeness of ` +
+      `This account is reported as ${status || 'closed'}. I dispute the accuracy and completeness of ` +
       `the remaining negative information on this closed account${focus}. Under FCRA §611 ` +
       '(15 U.S.C. §1681i) and §623 (15 U.S.C. §1681s-2), please verify every reported field ' +
       'with the furnisher. If the status, balance, past-due amount, payment history, or any ' +

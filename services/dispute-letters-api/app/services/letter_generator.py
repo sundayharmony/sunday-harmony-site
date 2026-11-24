@@ -17,7 +17,17 @@ def _current_and_prior_addresses(consumer: ConsumerInfo) -> tuple[str, list[str]
     addresses = [a.strip() for a in consumer.addresses if a and a.strip()]
     if not addresses:
         return "[Your Address]", []
-    return addresses[0], addresses[1:]
+    return _mailing_lines(addresses[0]), addresses[1:]
+
+
+def _mailing_lines(address: str) -> str:
+    """Street (with apartment) on one line, "City, ST 12345" on the next, like an envelope."""
+    if "\n" in address:
+        return address
+    match = re.search(r",\s*([^,]+,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\s*$", address)
+    if not match:
+        return address
+    return f"{address[: match.start()].strip()}\n{match.group(1).strip()}"
 
 
 def _format_ssn_for_letter(consumer: ConsumerInfo) -> str:
@@ -295,11 +305,8 @@ FORMAT: match a polished mailed business letter (like a finished Experian disput
 
 1) First line: today's date as Month DD, YYYY (e.g. July 24, 2026). Do NOT write "Page X/Y". Pagination is added when printing.
 2) Blank line, then consumer full name in ALL CAPS on its own line.
-3) Consumer current address on the following lines (street, unit if any, city/state/ZIP). No labels here.
-4) Immediately after the address (still in the opening identity block, before the recipient), include BOTH labeled lines:
-   Date of Birth: ...
-   Social Security Number: ...
-   Use the DOB and SSN values provided above. Prefer the full Social Security Number (XXX-XX-XXXX). Only if a full SSN is unavailable and last-4 alone was provided, format as XXX-XX-1234. Never invent a DOB or SSN.
+3) Consumer current address on the next two lines: street and unit on one line, then "City, ST ZIP". No labels here.
+4) Do NOT put Date of Birth or Social Security Number in this opening block; they go only under Consumer Identification.
 5) Blank line, then recipient name, then recipient address lines.
 6) Blank line, then exactly one RE line starting with "Re: " (not "RE:"). Example:
    Re: Formal Dispute of Inaccurate and Unverifiable Credit Report Information, {plan.statute}
@@ -348,7 +355,7 @@ Rules:
 - Do NOT use markdown headers (#), numbered lists, or italic *emphasis*. Only **bold** on creditor name lines.
 - Use "● " for bullets under Additional Addresses and Statutory Requirements.
 - Do NOT invent facts not provided (balances, statuses, addresses, account numbers, DOB, SSN).
-- Date of Birth and Social Security Number MUST appear in the opening identity block under the consumer address AND again under Consumer Identification.
+- Date of Birth and Social Security Number appear only under Consumer Identification, never in the opening address block.
 - Do NOT guarantee deletion or score improvement.
 - Do NOT use em dashes (—), en dashes (–), or a spaced hyphen as punctuation. Use a comma or a period. Keep hyphens only inside words such as charge-off.
 - Output ONLY the letter body (no code fences, no commentary).
@@ -525,13 +532,11 @@ def _template_fallback(plan: LetterPlan, consumer: ConsumerInfo) -> str:
         # The CFPB does not need the full SSN to open a complaint.
         digits = re.sub(r"\D", "", consumer.ssn or "")
         ssn = f"XXX-XX-{digits[-4:]}" if len(digits) >= 4 else ssn
-    identity_header = f"Date of Birth: {dob}\nSocial Security Number: {ssn}"
 
     return f"""{today}
 
 {name_caps}
 {current_addr}
-{identity_header}
 
 {recipient_print}
 {addr}

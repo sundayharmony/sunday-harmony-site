@@ -131,3 +131,13 @@ def test_card_split_by_creditor_information_is_one_account():
     )
     cards = parse_screenshot_accounts(text, "EQF")
     assert [c.creditor for c in cards].count("SAMPLE RENT") == 1
+
+
+def test_reads_masked_account_numbers():
+    from app.services.screenshot_parser import _account_number
+
+    assert _account_number("Account Number 412061 XXXXXXXXXK") == "412061XXXXXXXXXX"
+    assert _account_number("You have 0% left. Account Number CLOG7UXXXX") == "CLOG7UXXXX"
+    assert _account_number("'Account Number 517800%) x") == "517800XX"
+    assert _account_number("Account Number BADD0XIOHKIOHKIIOKK") == ""
+    assert _account_number("Account Number Amount Past Due") == ""

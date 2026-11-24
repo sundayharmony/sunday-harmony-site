@@ -94,10 +94,10 @@ def test_template_puts_dob_and_ssn_at_letter_beginning():
     )
     header_end = text.index("Experian")
     opening = text[:header_end]
-    assert "Date of Birth: January 15, 1988" in opening
-    assert "Social Security Number: 123-45-6789" in opening
-    assert opening.index("JANE CONSUMER") < opening.index("Date of Birth:")
-    assert opening.index("Date of Birth:") < opening.index("Social Security Number:")
+    # Header is name and mailing address only; DOB and SSN live under Consumer Identification.
+    assert "Date of Birth" not in opening
+    assert "Social Security Number" not in opening
+    assert "JANE CONSUMER\n123 Main St\nSpringfield, IL 62701" in opening
     assert "Date of Birth: January 15, 1988" in text.split("Consumer Identification", 1)[1]
     assert "Social Security Number: 123-45-6789" in text.split("Consumer Identification", 1)[1]
     layout = letter_layout(text)
@@ -133,7 +133,7 @@ def test_prompt_requires_identity_enclosures():
     assert "Do NOT use em dashes" in prompt
     assert "Date of Birth" in prompt
     assert "Social Security Number" in prompt
-    assert "opening identity block" in prompt
+    assert "Do NOT put Date of Birth or Social Security Number in this opening block" in prompt
 
 
 def test_template_and_cleanup_drop_sentence_em_dashes():
@@ -170,3 +170,11 @@ def test_template_and_cleanup_drop_sentence_em_dashes():
     assert "—" not in texts
     assert "negatives, these" in texts
     assert "§611(a)(6)–(7)" in texts
+
+
+def test_one_line_address_prints_as_two_mailing_lines():
+    text = _template_fallback(
+        _plan(),
+        ConsumerInfo(name="Jane Consumer", addresses=["1 Elm Rd, Apt 2B, Springfield, IL 62701"], dob="", ssn=""),
+    )
+    assert "JANE CONSUMER\n1 Elm Rd, Apt 2B\nSpringfield, IL 62701\n" in text

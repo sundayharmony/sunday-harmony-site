@@ -108,6 +108,7 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
             "status": _status(block),
             "date_opened": _date_after(_first(r"(?i)(?:open\s+date|date\s+opened)\s+(.+)", block)),
             "high_credit": _first(rf"(?i)high(?:est)?\s+ba\w*nce\s*:?\s*{_AMOUNT}", block),
+            "account_number": _account_number(block),
         }
         for k in ("balance", "credit_limit", "past_due", "monthly_payment", "high_credit"):
             if fields[k]:
@@ -138,6 +139,9 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
             for attr in ("date_opened", "high_credit", "past_due", "credit_limit", "monthly_payment"):
                 if not getattr(prev, attr) and fields[attr]:
                     setattr(prev, attr, fields[attr])
+            acct_attr = {"TUC": "account_tu", "EXP": "account_exp", "EQF": "account_eqf"}.get(bureau or "")
+            if acct_attr and not getattr(prev, acct_attr) and fields["account_number"]:
+                setattr(prev, acct_attr, fields["account_number"])
             continue
         tradelines.append(
             Tradeline(
@@ -154,12 +158,35 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
                 last_reported=fields["last_reported"],
                 monthly_payment=fields["monthly_payment"],
                 bureaus=[bureau] if bureau else [],
+                account_tu=fields["account_number"] if bureau == "TUC" else "",
+                account_exp=fields["account_number"] if bureau == "EXP" else "",
+                account_eqf=fields["account_number"] if bureau == "EQF" else "",
                 is_collection=collection_card or sections[start] == "Collection"
                 or bool(re.search(r"(?i)collection|lvnv|portfolio recovery|midland", block[:400] + creditor)),
                 analysis_notes="Read from a screenshot. Check the details against the report before sending letters.",
             )
         )
     return tradelines
+
+
+def _account_number(block: str) -> str:
+    """ "Account Number 412061 XXXXXXXXXK": a visible prefix, then mask characters.
+
+    OCR splits the digits with spaces and reads the mask X's as x, %, K, I or O, so keep the
+    visible prefix and rebuild the masked tail as X's of the same length.
+    """
+    raw = _first(r"(?im)account\s+(?:number|#|no\.?)\s*:?\s*\W{0,2}([0-9A-Za-z*%][0-9A-Za-z*% )-]{3,30})\s*$", block)
+    value = re.sub(r"[\s)-]+", "", raw).upper().replace("%", "X").replace("*", "X")
+    if not (4 <= len(value) <= 25) or not value.isalnum():
+        return ""
+    mask = value.find("XX")
+    if mask < 0:
+        # Unmasked: only a plain number (digits, maybe one trailing mask letter) is trusted.
+        return value if re.fullmatch(r"\d{4,17}X?", value) else ""
+    prefix = value[:mask]
+    if len(prefix) > 10:
+        return ""
+    return prefix + "X" * (len(value) - mask)
 
 
 def _creditor_line(raw: str) -> tuple[str, str]:
