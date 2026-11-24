@@ -33,6 +33,7 @@ export default function DisputeConfirmStep({
   onStepChange?: (step: DisputeLetterStep) => void
 }) {
   const [plans, setPlans] = useState<LetterPlan[]>([])
+  const [deferred, setDeferred] = useState<{ id: string; creditor: string }[]>([])
   const [selectedCount, setSelectedCount] = useState(0)
   const [priorMarks, setPriorMarks] = useState<Record<string, PriorDisputeMark>>({})
   const [overrides, setOverrides] = useState<Record<string, string>>({})
@@ -77,6 +78,7 @@ export default function DisputeConfirmStep({
         )
         const plan = await buildDisputePlan(sessionId, planSelectionsFromTradelines(data.report.tradelines), {})
         setPlans(plan.plans)
+        setDeferred(plan.deferred_items || [])
       })
       .catch(() => setError('Failed to load plan'))
   }, [sessionId])
@@ -161,6 +163,14 @@ export default function DisputeConfirmStep({
           focuses consistent inaccuracies after mismatches clear. Absent reporting
           alone is not an error — edit reasons on Review if needed.
         </p>
+        {deferred.length > 0 && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {deferred.length} selected item{deferred.length === 1 ? ' is' : 's are'} not in a letter this
+            round: {deferred.map((d) => d.creditor || 'Unnamed account').join(', ')}. Round 2+ sends one
+            item per bureau, so the rest wait for the next round. A repeat of an account already listed,
+            or an item with no bureau checked, is also left out.
+          </p>
+        )}
         {priorInPlanCount > 0 && (
           <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
             {priorInPlanCount} selected item{priorInPlanCount === 1 ? '' : 's'} were already

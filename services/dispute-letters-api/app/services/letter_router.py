@@ -206,7 +206,8 @@ def _build_round1_plans(
         if not tl.dispute_furnisher:
             continue
         last4 = _account_last4(tl)
-        key = f"a4:{last4}" if last4 else f"c:{_normalize_creditor(tl.creditor)}"
+        creditor_key = _normalize_creditor(tl.creditor)
+        key = f"a4:{creditor_key}:{last4}" if last4 else f"c:{creditor_key}"
         by_creditor.setdefault(key, []).append((tl, reason))
 
     for _cred_key, group in by_creditor.items():
@@ -261,7 +262,8 @@ def _build_follow_up_plans(
             round_number=round_number,
         )
         statute, _label = LETTER_META.get(letter_type, ("FCRA §611 (15 U.S.C. §1681i)", letter_type))
-        targets = list(tl.dispute_bureaus or tl.bureaus or ["TUC"])
+        # No bureau on the item: no letter (it shows as waiting), never a guessed TransUnion one.
+        targets = list(tl.dispute_bureaus or tl.bureaus)
 
         if letter_type in {
             "method_of_verification",
@@ -411,14 +413,6 @@ def _prefer_deletion_reason(tl: Tradeline, reason: str) -> str:
     return f"{text.rstrip('.')}." + suffix if text else suffix.strip()
 
 
-_ACCOUNT_MASK_RE = re.compile(r"[*Xx#•·_]")
-
-
-def _account_digits(value: str) -> str:
-    raw = _ACCOUNT_MASK_RE.sub("", value or "")
-    return re.sub(r"\D", "", raw)
-
-
 def _account_last4(tl: Tradeline, bureau: str | None = None) -> str:
     if bureau == "TUC":
         fields = [tl.account_tu, tl.account_exp, tl.account_eqf]
@@ -429,9 +423,11 @@ def _account_last4(tl: Tradeline, bureau: str | None = None) -> str:
     else:
         fields = [tl.account_tu, tl.account_exp, tl.account_eqf]
     for raw in fields:
-        digits = _account_digits(raw or "")
-        if len(digits) >= 4:
-            return digits[-4:]
+        value = re.sub(r"[\s-]", "", raw or "")
+        # Only a number that ENDS in digits has a real last 4. "517800XXXXXXXXXX" shows its
+        # first digits; two different cards from one bank share them.
+        if re.search(r"\d{4}$", value):
+            return value[-4:]
     return ""
 
 
@@ -439,11 +435,23 @@ def _already_listed_account(
     listed: list[tuple[str, str, str]],
     bureau: str,
     last4: str,
-    _creditor: str,
+    creditor: str,
 ) -> bool:
+    """Same account listed twice on one bureau: same last 4 AND the same creditor."""
     if not last4:
         return False
-    return any(row_bureau == bureau and row_last4 == last4 for row_bureau, row_last4, _name in listed)
+    return any(
+        row_bureau == bureau and row_last4 == last4 and _same_creditor(row_name, creditor)
+        for row_bureau, row_last4, row_name in listed
+    )
+
+
+def _same_creditor(a: str, b: str) -> bool:
+    """CAPITAL ONE vs CAPITAL ONE BANK USA: one name starts the other."""
+    x, y = _normalize_creditor(a), _normalize_creditor(b)
+    if not x or not y:
+        return x == y
+    return x.startswith(y) or y.startswith(x)
 
 
 def _normalize_creditor(name: str) -> str:

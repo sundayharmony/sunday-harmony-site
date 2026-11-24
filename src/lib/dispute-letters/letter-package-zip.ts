@@ -33,6 +33,7 @@ import {
 } from '@/lib/dispute-letters/letter-docx-store'
 import {
   buildLetterZipFiles,
+  letterIdentitySignatureForApplication,
   loadLetterIdentityAttachments,
 } from '@/lib/dispute-letters/letter-identity-attachments'
 import { publicLetterFailure, renderLetterPdfWithIdentity } from '@/lib/dispute-letters/letter-pdf-render'
@@ -78,17 +79,36 @@ async function listCurrentLetters(sessionId: string): Promise<LetterListItem[]> 
 
 /** Current letters from Supabase, including each stored DOCX path. Falls back to the API only if the query fails. */
 export async function listZipLetters(sessionId: string): Promise<StoredZipLetter[]> {
-  const stored = await listLetterRowsForZip(sessionId)
-  if (stored) return currentLetters(stored)
-  const remote = await listCurrentLetters(sessionId)
-  return currentLetters(
-    remote.map((letter) => ({
-      id: letter.id,
-      plan_id: letter.plan_id,
-      title: letter.title,
-      storage_path: letter.storage_path || null,
-    }))
-  )
+  const [stored, enclosureSig] = await Promise.all([
+    listLetterRowsForZip(sessionId),
+    sessionEnclosureSignature(sessionId),
+  ])
+  const rows = stored
+    ? currentLetters(stored)
+    : currentLetters(
+        (await listCurrentLetters(sessionId)).map((letter) => ({
+          id: letter.id,
+          plan_id: letter.plan_id,
+          title: letter.title,
+          storage_path: letter.storage_path || null,
+        }))
+      )
+  return rows.map((letter) => ({ ...letter, enclosure_sig: enclosureSig }))
+}
+
+/** Fingerprint of the session client's ID documents (see buildStoredLetterDocxPath). */
+export async function sessionEnclosureSignature(sessionId: string): Promise<string> {
+  const session = await getDisputeSessionById(sessionId)
+  return letterIdentitySignatureForApplication(session?.application_uuid)
+}
+
+/**
+ * Cache key for the package ZIP: the letters plus the ID documents inside them, so a
+ * re-cropped ID rebuilds the ZIP too.
+ */
+export function zipLetterKeys(letters: readonly StoredZipLetter[]): string[] {
+  const sig = letters[0]?.enclosure_sig || ''
+  return [...letters.map((letter) => letter.id), ...(sig ? [`enclosures-${sig}`] : [])]
 }
 
 export async function resolveZipDownloadFilename(sessionId: string): Promise<string> {
@@ -130,8 +150,10 @@ async function safeRecordDownload(sessionId: string): Promise<void> {
   }
 }
 
-function lettersNeedGenerator(sessionId: string, letters: readonly LetterDocxSource[]): boolean {
-  return letters.some((letter) => !isStoredLetterDocxPath(sessionId, letter.storage_path))
+function lettersNeedGenerator(sessionId: string, letters: readonly StoredZipLetter[]): boolean {
+  return letters.some(
+    (letter) => !isStoredLetterDocxPath(sessionId, letter.storage_path, letter.enclosure_sig || '')
+  )
 }
 
 /**
@@ -144,10 +166,10 @@ export async function buildAndStoreLetterPdf(sessionId: string, letterId: string
   const identity = await loadLetterIdentityAttachments(session?.application_uuid)
   const data = await renderLetterPdfWithIdentity(
     { title: source.title, markdown: source.markdown },
-    identity
+    identity.files
   )
   if (!isPdfBytes(data)) return null
-  await storeGeneratedLetterDocx({ sessionId, letterId, data })
+  await storeGeneratedLetterDocx({ sessionId, letterId, data, enclosureSig: identity.signature })
   return data
 }
 
@@ -166,6 +188,7 @@ export async function buildLetterPackageZipBytes(
   const letterFiles = await assembleLetterDocxFiles({
     sessionId,
     letters: rows,
+    enclosureSig: rows[0]?.enclosure_sig || '',
     readStored: async (storagePath) => readStoredLetterBytes(storagePath),
     generateMissing: async (letter) => {
       generatedCount += 1
@@ -185,7 +208,7 @@ export async function buildLetterPackageZipBytes(
   return {
     buffer,
     filename,
-    letterIds: rows.map((letter) => letter.id),
+    letterIds: zipLetterKeys(rows),
     letterCount: rows.length,
     generatedCount,
   }
@@ -207,7 +230,7 @@ export async function loadPrebuiltLetterPackageZip(
   sessionId: string,
   letterIds?: string[]
 ): Promise<{ buffer: Buffer; filename: string; packageId: string } | null> {
-  const ids = letterIds || (await listZipLetters(sessionId)).map((letter) => letter.id)
+  const ids = letterIds || zipLetterKeys(await listZipLetters(sessionId))
   const pkg = await loadActiveLetterPackageZipRow(sessionId)
   if (!pkg?.id || !prebuiltZipMatchesLetters(pkg, ids)) return null
   if (!isValidLetterPackageZipStoragePath(pkg.zip_storage_path || '', sessionId)) return null
@@ -225,7 +248,7 @@ export async function openReadyLetterPackageZip(sessionId: string): Promise<{
 } | null> {
   const letters = await listZipLetters(sessionId)
   if (!letters.length) return null
-  const letterIds = letters.map((letter) => letter.id)
+  const letterIds = zipLetterKeys(letters)
   const pkg = await loadActiveLetterPackageZipRow(sessionId)
   if (!pkg?.zip_storage_path || !prebuiltZipMatchesLetters(pkg, letterIds)) return null
   if (!isValidLetterPackageZipStoragePath(pkg.zip_storage_path, sessionId)) return null
@@ -333,7 +356,7 @@ export async function prepareLetterPackageZip(sessionId: string): Promise<Prepar
     return { ok: false, status: 'failed', error: message, packageId: pkg?.id }
   }
 
-  const letterIds = letters.map((letter) => letter.id)
+  const letterIds = zipLetterKeys(letters)
   if (prebuiltZipMatchesLetters(pkg, letterIds) && pkg?.zip_storage_path) {
     return {
       ok: true,
@@ -391,7 +414,7 @@ export async function getOrBuildLetterPackageZip(sessionId: string): Promise<{
   if (!letters.length) {
     throw new Error('No letters')
   }
-  const letterIds = letters.map((letter) => letter.id)
+  const letterIds = zipLetterKeys(letters)
 
   const prebuilt = await loadPrebuiltLetterPackageZip(sessionId, letterIds)
   if (prebuilt) {

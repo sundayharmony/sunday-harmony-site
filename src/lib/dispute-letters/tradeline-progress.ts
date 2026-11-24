@@ -136,11 +136,20 @@ function normalizeType(value: string): string {
 }
 
 /** Prefer bureau-specific digits; fall back to any account field so empty slots don't orphan matches. */
+/**
+ * Digits of a number whose real last 4 show. "517800XXXXXXXXXX" shows its FIRST digits:
+ * two cards from one bank share them, so they are not a last 4.
+ */
+function trailingAccountDigits(raw: string): string {
+  const compact = (raw || '').replace(/[\s-]/g, '')
+  return /\d{4}$/.test(compact) ? accountDigits(compact) : ''
+}
+
 function accountDigitsForMatch(tl: Tradeline, bureau: BureauCode): string {
-  const primary = accountDigits(accountForBureau(tl, bureau))
+  const primary = trailingAccountDigits(accountForBureau(tl, bureau))
   if (primary.length >= 4) return primary
   for (const raw of [tl.account_tu, tl.account_exp, tl.account_eqf]) {
-    const d = accountDigits(raw || '')
+    const d = trailingAccountDigits(raw || '')
     if (d.length >= 4) return d
   }
   return primary

@@ -102,6 +102,7 @@ async def run_letter_job(
 
         total = len(plans)
         state["total"] = total
+        party_for = _party_labels(plans)
         generated: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
 
@@ -132,7 +133,7 @@ async def run_letter_job(
             path = save_letter_file(session_id, plan, md)
             title = letter_display_title(
                 person_name=report.consumer.name,
-                party=letter_party_label(plan.letter_type, plan.recipient_name),
+                party=party_for[plan.id],
                 round_number=round_number,
             )
             letter_id = save_letter(session_id, plan.id, title, md, str(path))
@@ -208,3 +209,18 @@ def spawn_letter_job(
             _letter_jobs.pop(session_id, None)
 
     _letter_jobs[session_id] = asyncio.create_task(_runner())
+
+
+def _party_labels(plans: list) -> dict[str, str]:
+    """Title party per plan. Several letters to the same party in one run (e.g. one CFPB
+    complaint per item) are numbered, so they don't replace each other as "current"."""
+    labels = {plan.id: letter_party_label(plan.letter_type, plan.recipient_name) for plan in plans}
+    groups: dict[str, list[str]] = {}
+    for plan in plans:
+        groups.setdefault(labels[plan.id].casefold(), []).append(plan.id)
+    for ids in groups.values():
+        if len(ids) > 1:
+            for index, plan_id in enumerate(ids, 1):
+                labels[plan_id] = f"{labels[plan_id]} (letter {index} of {len(ids)})"
+    return labels
+

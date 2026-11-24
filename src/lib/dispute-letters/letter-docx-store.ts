@@ -14,6 +14,8 @@ const PDF_MIME = 'application/pdf'
 export type StoredZipLetter = LetterDocxSource & {
   plan_id?: string
   created_at?: string
+  /** Fingerprint of the ID documents the letter PDF must contain. */
+  enclosure_sig?: string
 }
 
 /** Letter rows for ZIP assembly. Null when the query failed (caller may fall back). */
@@ -74,7 +76,8 @@ export async function readLetterPdfSource(
 
 export async function readStoredLetterDocxForSession(
   sessionId: string,
-  letterId: string
+  letterId: string,
+  enclosureSig?: string
 ): Promise<Uint8Array | null> {
   const { data, error } = await getSupabase()
     .from('dispute_letters')
@@ -84,7 +87,7 @@ export async function readStoredLetterDocxForSession(
     .maybeSingle()
   if (error || !data) return null
   const storagePath = (data.storage_path as string | null) || ''
-  if (!isStoredLetterDocxPath(sessionId, storagePath)) return null
+  if (!isStoredLetterDocxPath(sessionId, storagePath, enclosureSig)) return null
   return readStoredLetterBytes(storagePath)
 }
 
@@ -93,9 +96,10 @@ export async function storeGeneratedLetterDocx(params: {
   sessionId: string
   letterId: string
   data: Uint8Array
+  enclosureSig?: string
 }): Promise<string | null> {
   if (!isPdfBytes(params.data)) return null
-  const storagePath = buildStoredLetterDocxPath(params.sessionId, params.letterId)
+  const storagePath = buildStoredLetterDocxPath(params.sessionId, params.letterId, params.enclosureSig)
   if (!isStoredLetterDocxPath(params.sessionId, storagePath)) return null
 
   const { error } = await getSupabase()

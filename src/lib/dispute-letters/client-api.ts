@@ -311,7 +311,13 @@ export async function buildDisputePlan(
     }),
   })
   if (!res.ok) throw new Error(await parseError(res))
-  return res.json() as Promise<{ session_id: string; plans: LetterPlan[]; dispute_round?: { id: string; round_number: number } | null }>
+  return res.json() as Promise<{
+    session_id: string
+    plans: LetterPlan[]
+    /** Selected items left for the next round (Round 2+ sends one per bureau). */
+    deferred_items?: { id: string; creditor: string }[]
+    dispute_round?: { id: string; round_number: number } | null
+  }>
 }
 
 export function streamGenerateDisputeLetters(

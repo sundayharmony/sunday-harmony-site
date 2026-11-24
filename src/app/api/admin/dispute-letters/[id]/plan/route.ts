@@ -9,6 +9,7 @@ import {
 import {
   listItemsForCase,
   loadDisputeLifecycleForApplication,
+  openLifecycleRoundForPlan,
   syncLifecycleOnPlan,
 } from '@/lib/dispute-letters/dispute-lifecycle-db'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
@@ -90,26 +91,27 @@ export async function POST(request: NextRequest, { params }: Params) {
           }
         })
 
-    const lifecycle = await syncLifecycleOnPlan({
+    // Open the round first, but read each item's last outcome (verified, no response, ...)
+    // before anything is marked: that outcome picks the follow-up letter type.
+    const opened = await openLifecycleRoundForPlan({
       sessionId: id,
       applicationUuid: row?.application_uuid,
-      tradelines,
       forceNewRound: Boolean(body?.force_new_round),
     })
-    if (!lifecycle.ok) {
-      return NextResponse.json({ error: lifecycle.error }, { status: lifecycle.status })
+    if (!opened.ok) {
+      return NextResponse.json({ error: opened.error }, { status: opened.status })
     }
 
     let enrichedSelections = selectionList
-    if (!lifecycle.skipped) {
+    if (!opened.skipped) {
       const items = await loadItemsForLifecycleRound({
         applicationUuid: row?.application_uuid,
-        roundId: lifecycle.roundId,
+        roundId: opened.roundId,
       })
       enrichedSelections = enrichPlanSelectionsWithItemStatus(selectionList, tradelines, items)
     }
 
-    const roundNumber = lifecycle.roundNumber || 1
+    const roundNumber = opened.skipped ? 1 : opened.roundNumber
     let selectionsForPlan = enrichedSelections.length ? enrichedSelections : selectionList
 
     // Optional Gemini Basis rewrite (off by default). Never sends DOB/SSN/address.
@@ -159,9 +161,33 @@ export async function POST(request: NextRequest, { params }: Params) {
     const data = (await disputeLettersJson('/internal/disputes/plan', {
       method: 'POST',
       body: JSON.stringify(planBody),
-    })) as Record<string, unknown>
+    })) as { plans?: { items?: { tradeline_id?: string }[] }[] } & Record<string, unknown>
+
+    const plannedIds = new Set(
+      (data.plans || []).flatMap((plan) => (plan.items || []).map((item) => String(item.tradeline_id || '')))
+    )
+    const selectedIds = new Set(
+      selectionsForPlan.length
+        ? selectionsForPlan.filter((sel) => sel?.selected !== false).map((sel) => String(sel.id))
+        : tradelines.filter((t) => t.selected).map((t) => t.id)
+    )
+    const deferred = tradelines
+      .filter((t) => selectedIds.has(t.id) && !plannedIds.has(t.id))
+      .map((t) => ({ id: t.id, creditor: t.creditor || '' }))
+
+    const lifecycle = await syncLifecycleOnPlan({
+      sessionId: id,
+      applicationUuid: row?.application_uuid,
+      tradelines,
+      opened: opened.skipped ? undefined : opened,
+      plannedTradelineIds: plannedIds,
+    })
+    if (!lifecycle.ok) {
+      return NextResponse.json({ error: lifecycle.error }, { status: lifecycle.status })
+    }
     return NextResponse.json({
       ...data,
+      deferred_items: deferred,
       round_strategy: {
         round_number: roundNumber,
         inconsistencies_still_open: mismatchesStillOpen,

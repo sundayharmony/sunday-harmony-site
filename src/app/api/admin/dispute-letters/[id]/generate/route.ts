@@ -9,6 +9,7 @@ import {
 } from '@/lib/dispute-letters/letter-identity-bypass'
 import {
   loadLetterConsumerIdentity,
+  missingLetterConsumerFields,
   resolveLetterConsumerFields,
 } from '@/lib/dispute-letters/letter-consumer-identity'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
@@ -49,6 +50,20 @@ export async function POST(request: NextRequest, { params }: Params) {
     }
     const identity = await loadLetterConsumerIdentity(id)
     const consumer = resolveLetterConsumerFields(body, identity)
+    // Never mail "[Your Name]" or "Social Security Number: Not Provided".
+    const missingFields = missingLetterConsumerFields(consumer)
+    if (missingFields.length && !letterIdentityBypassAllowed(body, session.user.role)) {
+      return NextResponse.json(
+        {
+          error: `Add the client's ${missingFields.join(', ')} on the application before generating letters.`,
+          code: 'missing_letter_fields',
+          missing: missingFields,
+          applicationId: access.session.application_uuid,
+          canBypass: canBypassLetterIdentityRequirements(session.user.role),
+        },
+        { status: 409 }
+      )
+    }
     const payload = JSON.stringify({
       session_id: id,
       plan_ids: body.plan_ids ?? null,

@@ -70,7 +70,7 @@ def test_template_lists_photo_id_and_address_enclosures():
     text = _template_fallback(_plan(), ConsumerInfo(name="Jane Consumer", addresses=["123 Main St"]))
     assert "Enclosures" in text
     assert "government-issued photo identification" in text
-    assert "Photo of mail showing your name and current address" in text
+    assert "Photo of mail showing my name and current address" in text
     assert "Screenshots of the disputed account" not in text
     assert "score" not in text.lower().split("enclosures", 1)[-1]
     layout = letter_layout(text)

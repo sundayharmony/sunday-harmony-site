@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { getDocumentsByApplicationUuid } from '@/lib/credit-funding-db'
 import {
   isLetterWorkingCopyPath,
@@ -197,26 +198,50 @@ export function buildLetterZipFiles(letters: { title: string; data: Uint8Array }
   }))
 }
 
+/** Short fingerprint of the ID documents a letter would carry (ids + stored files). */
+export function letterIdentitySignature(docs: LetterIdentityDoc[]): string {
+  const key = selectedLetterIdentityDocuments(docs)
+    .map((doc) => `${doc.id}:${doc.storage_path}`)
+    .join('|')
+  if (!key) return ''
+  return createHash('sha1').update(key).digest('hex').slice(0, 8)
+}
+
+export async function letterIdentitySignatureForApplication(
+  applicationUuid: string | null | undefined
+): Promise<string> {
+  if (!applicationUuid) return ''
+  return letterIdentitySignature(await getDocumentsByApplicationUuid(applicationUuid))
+}
+
+const EMBEDDABLE_MIME = /^(application\/pdf|image\/(png|jpe?g))$/
+
+/**
+ * ID documents for a letter PDF, plus their fingerprint. Throws instead of returning a short
+ * list: a letter must never be saved (and cached) without the documents it says are enclosed.
+ */
 export async function loadLetterIdentityAttachments(
   applicationUuid: string | null | undefined
-): Promise<LetterPacketAttachment[]> {
-  if (!applicationUuid) return []
+): Promise<{ files: LetterPacketAttachment[]; signature: string }> {
+  if (!applicationUuid) return { files: [], signature: '' }
 
-  try {
-    const docs = await getDocumentsByApplicationUuid(applicationUuid)
-    const named = namedLetterIdentityAttachments(docs)
-    const downloaded = await mapWithConcurrency(named, 4, async ({ doc, zipName, mimeType }) => {
-      const result = await downloadCreditFundingDocument(doc.storage_path)
-      if (!result.ok) {
-        console.error('Letter identity attachment skipped:', doc.id, result.error)
-        return null as LetterPacketAttachment | null
-      }
-      const file: LetterPacketAttachment = { zipName, data: result.data, mimeType }
-      return file
-    })
-    return downloaded.filter((row): row is LetterPacketAttachment => row !== null)
-  } catch (err) {
-    console.error('Letter identity attachments failed:', err)
-    return []
+  const docs = await getDocumentsByApplicationUuid(applicationUuid)
+  const named = namedLetterIdentityAttachments(docs)
+  for (const { doc, mimeType } of named) {
+    if (!EMBEDDABLE_MIME.test(mimeType) && !/\.(pdf|png|jpe?g)$/i.test(doc.file_name)) {
+      throw new Error(
+        `${stemForIdentityDoc(doc)} is a ${mimeType || 'file type'} the letter PDF can't include. ` +
+          'Open "Crop for letters" on it and save, which makes a JPEG.'
+      )
+    }
   }
+  const files = await mapWithConcurrency(named, 4, async ({ doc, zipName, mimeType }) => {
+    const result = await downloadCreditFundingDocument(doc.storage_path)
+    if (!result.ok) {
+      throw new Error(`Could not load the ${stemForIdentityDoc(doc)} for the letters. Try again.`)
+    }
+    const file: LetterPacketAttachment = { zipName, data: result.data, mimeType }
+    return file
+  })
+  return { files, signature: letterIdentitySignature(docs) }
 }

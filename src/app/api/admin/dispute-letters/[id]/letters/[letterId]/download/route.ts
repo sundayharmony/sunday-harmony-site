@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
-import { buildAndStoreLetterPdf } from '@/lib/dispute-letters/letter-package-zip'
+import { buildAndStoreLetterPdf, sessionEnclosureSignature } from '@/lib/dispute-letters/letter-package-zip'
 import { readStoredLetterDocxForSession } from '@/lib/dispute-letters/letter-docx-store'
 import { isPdfBytes } from '@/lib/dispute-letters/letter-zip'
 import { requireDisputeSessionAccess } from '@/lib/dispute-letters/session-auth'
@@ -26,7 +26,8 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   try {
-    const stored = await readStoredLetterDocxForSession(id, letterId)
+    // A stored PDF counts only if it holds the client's current ID documents.
+    const stored = await readStoredLetterDocxForSession(id, letterId, await sessionEnclosureSignature(id))
     const data = stored && isPdfBytes(stored) ? stored : await buildAndStoreLetterPdf(id, letterId)
     if (!data || !isPdfBytes(data)) {
       return NextResponse.json({ error: 'PDF is not ready yet' }, { status: 409 })

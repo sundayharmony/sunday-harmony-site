@@ -226,30 +226,63 @@ async function appendAttachment(doc: PDFDocument, file: LetterPacketAttachment) 
   })
 }
 
+const ENCLOSURE_LABELS: [RegExp, string][] = [
+  [/^Government Photo ID/i, 'Copy of government-issued photo identification'],
+  [/^Photo of Mail/i, 'Photo of mail showing my name and current address'],
+  [/^Social Security Card/i, 'Copy of Social Security card'],
+]
+
+function enclosureLabel(zipName: string): string {
+  return ENCLOSURE_LABELS.find(([pattern]) => pattern.test(zipName))?.[1] || 'Identity document'
+}
+
+/**
+ * Replace the letter's "Enclosures" list with what is really attached. With nothing
+ * attached, the section is removed instead of naming documents that aren't there.
+ */
+export function withActualEnclosures(markdown: string, attachedZipNames: string[]): string {
+  const lines = markdown.split('\n')
+  const start = lines.findIndex((line) => /^\s*\**\s*Enclosures?\s*:?\s*\**\s*$/i.test(line))
+  if (start < 0) return markdown
+  let end = start + 1
+  while (end < lines.length && (/^\s*([●•*-]|$)/.test(lines[end]) || !lines[end].trim())) end += 1
+  const labels = [...new Set(attachedZipNames.map(enclosureLabel))]
+  const section = labels.length ? [lines[start], ...labels.map((label) => `● ${label}`), ''] : []
+  const before = lines.slice(0, start)
+  while (!labels.length && before.length && !before[before.length - 1].trim()) before.pop()
+  return `${[...before, ...section, ...lines.slice(end)].join('\n').replace(/\n+$/, '')}\n`
+}
+
 /** Letter text plus identity documents. Does not call the letter API download URL. */
 export async function renderLetterPdfWithIdentity(
   letter: LetterPdfSource,
   attachments: LetterPacketAttachment[] = []
 ): Promise<Uint8Array> {
   const title = letter.title || 'letter'
-  const layout = layoutForLetter(letter)
+  // Attach first, so the Enclosures list names exactly what made it into the PDF.
+  const enclosures = await PDFDocument.create()
+  const attached: string[] = []
+  for (const file of attachments) {
+    const before = enclosures.getPageCount()
+    await appendAttachment(enclosures, file)
+    if (enclosures.getPageCount() === before) {
+      throw new Error(`${file.zipName} could not be added to the letter PDF. Re-save it with "Crop for letters".`)
+    }
+    attached.push(file.zipName)
+  }
+
+  const text = letter.markdown || letter.plain_text || ''
+  const layout = letter.preview?.blocks?.length
+    ? layoutForLetter(letter)
+    : layoutForLetter({ ...letter, preview: undefined, markdown: withActualEnclosures(text, attached) })
   const letterPdf = await renderLetterBody(layout)
   if (!isPdfBytes(letterPdf)) {
     throw new Error(`Letter "${title}" could not be saved as a PDF.`)
   }
-  if (!attachments.length) return stampLetterPageNumbers(letterPdf, layout.date || '')
+  if (!attached.length) return stampLetterPageNumbers(letterPdf, layout.date || '')
   const doc = await PDFDocument.load(letterPdf)
-  for (const file of attachments) {
-    try {
-      await appendAttachment(doc, file)
-    } catch (error) {
-      console.warn(
-        'identity enclosure skipped',
-        file.zipName,
-        error instanceof Error ? error.message : error
-      )
-    }
-  }
+  const pages = await doc.copyPages(enclosures, enclosures.getPageIndices())
+  for (const page of pages) doc.addPage(page)
   const saved = await stampLetterPageNumbers(new Uint8Array(await doc.save()), layout.date || '')
   if (!isPdfBytes(saved)) {
     throw new Error(`Letter "${title}" could not be saved as a PDF.`)

@@ -178,6 +178,64 @@ def test_round2_skips_renamed_duplicate_with_same_last4():
     assert len(mov[0].items) == 1
 
 
+def _round1_experian(*tradelines: Tradeline) -> list[str]:
+    report = ParsedReport(consumer=ConsumerInfo(name="Test Client"), tradelines=list(tradelines))
+    request = DisputePlanRequest(
+        session_id="s1",
+        round_number=1,
+        selections=[TradelineSelection(id=t.id, selected=True) for t in tradelines],
+    )
+    result = build_plan("s1", report, request)
+    return [item.creditor for p in result.plans if p.letter_type == "bureau_experian" for item in p.items]
+
+
+def test_different_creditors_with_same_last4_both_get_disputed():
+    creditors = _round1_experian(
+        _exp_tradeline("a", "BANK A", "XXXX1234"),
+        _exp_tradeline("b", "BANK B", "XXXX1234"),
+    )
+    assert creditors == ["BANK A", "BANK B"] or sorted(creditors) == ["BANK A", "BANK B"]
+
+
+def test_masked_tail_numbers_are_not_treated_as_last4():
+    """Two cards from one bank shown as "517800XXXXXXXXXX" are different accounts."""
+    creditors = _round1_experian(
+        _exp_tradeline("c1", "FST PREMIER", "517800XXXXXXXXXX"),
+        _exp_tradeline("c2", "FST PREMIER", "517800XXXXXXXXXX"),
+    )
+    assert creditors.count("FST PREMIER") == 2
+
+
+def test_round2_item_without_bureau_is_not_sent_to_transunion():
+    tl = _exp_tradeline("nob", "NO BUREAU BANK")
+    tl.bureaus = []
+    tl.dispute_bureaus = []
+    report = ParsedReport(consumer=ConsumerInfo(name="Test Client"), tradelines=[tl])
+    request = DisputePlanRequest(
+        session_id="s1",
+        round_number=2,
+        selections=[TradelineSelection(id="nob", selected=True, item_status="verified")],
+    )
+    result = build_plan("s1", report, request)
+    assert not any("TransUnion" in p.recipient_name for p in result.plans)
+
+
+def test_letters_to_the_same_party_in_one_run_get_distinct_titles():
+    from app.models import LetterPlan
+    from app.services.letter_jobs import _party_labels
+
+    plans = [
+        LetterPlan(id=f"p{i}", letter_type="cfpb_complaint", recipient_name="Consumer Financial Protection Bureau",
+                   recipient_lines=[], statute="", items=[])
+        for i in range(3)
+    ] + [LetterPlan(id="tu", letter_type="bureau_transunion", recipient_name="TransUnion LLC",
+                    recipient_lines=[], statute="", items=[])]
+    labels = _party_labels(plans)
+    assert labels["p1"] == "Consumer Financial Protection Bureau (letter 2 of 3)"
+    assert len({labels["p0"], labels["p1"], labels["p2"]}) == 3
+    assert labels["tu"] == "TransUnion"
+
+
 if __name__ == "__main__":
     test_selected_inquiry_with_empty_reason_is_in_experian_letter()
     test_round1_disputed_status_keeps_grouped_bureau_letters()

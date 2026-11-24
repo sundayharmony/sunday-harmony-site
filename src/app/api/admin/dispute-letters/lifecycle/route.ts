@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { creditApplicationAccessDenied, viewerFromSession } from '@/lib/credit-expert-assignment'
 import { getCreditFundingApplicationById } from '@/lib/credit-funding-db'
-import { getDisputeSessionById } from '@/lib/dispute-letters/db'
+import { lifecycleAccessDenied } from '@/lib/dispute-letters/lifecycle-access'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import type {
   DisputeItemStatus,
@@ -32,14 +32,9 @@ export async function GET(request: NextRequest) {
   const applicationUuid = request.nextUrl.searchParams.get('applicationUuid')?.trim()
   const sessionId = request.nextUrl.searchParams.get('sessionId')?.trim()
   if (sessionId && !applicationUuid) {
-    if (session.user.role === 'credit_manager') {
-      const row = await getDisputeSessionById(sessionId)
-      if (row?.application_uuid) {
-        const application = await getCreditFundingApplicationById(row.application_uuid)
-        const denied = creditApplicationAccessDenied(viewerFromSession(session), application)
-        if (denied) return denied
-      }
-    }
+    // Unlinked or unknown sessions are denied too, not skipped.
+    const denied = await lifecycleAccessDenied(session, 'session', sessionId)
+    if (denied) return denied
     const snapshot = await loadLetterPackageForSession(sessionId)
     return NextResponse.json(snapshot)
   }
@@ -64,6 +59,21 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
+
+    // Every action below targets one record; check its client is this staff member's first.
+    const target = (
+      [
+        ['package', body?.packageId],
+        ['session', body?.sessionId],
+        ['letter', body?.letterId],
+        ['round', body?.roundId],
+        ['item', body?.itemId],
+      ] as const
+    ).filter(([, id]) => typeof id === 'string' && id.trim())
+    for (const [kind, id] of target) {
+      const denied = await lifecycleAccessDenied(session, kind, String(id).trim())
+      if (denied) return denied
+    }
 
     if (body?.packageId && (body.confirmSent === true || body.confirmAllSent === true)) {
       const result = await confirmLetterPackageSent(String(body.packageId))

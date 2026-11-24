@@ -28,18 +28,33 @@ export type ZipBuildClaimRow = {
   updated_at?: string | null
 }
 
-export function buildStoredLetterDocxPath(sessionId: string, letterId: string): string {
+/**
+ * Stored letter PDF. `enclosureSig` fingerprints the ID documents inside it, so a re-cropped
+ * or replaced ID gives a new path and the old PDF is never served again.
+ */
+export function buildStoredLetterDocxPath(sessionId: string, letterId: string, enclosureSig = ''): string {
   const safeLetter = (letterId || '').replace(/[^a-zA-Z0-9-]/g, '')
-  return `sessions/${sessionId}/letters/${safeLetter}.v3.pdf`
+  const sig = /^[a-f0-9]{8}$/.test(enclosureSig) ? `.${enclosureSig}` : ''
+  return `sessions/${sessionId}/letters/${safeLetter}.v4${sig}.pdf`
 }
 
-/** True when this path is a PDF letter we stored for the session, not a local generator path or a .txt copy. */
-export function isStoredLetterDocxPath(sessionId: string, storagePath: string | null | undefined): boolean {
+/**
+ * True when this path is a PDF letter we stored for the session, not a local generator path
+ * or a .txt copy. With `enclosureSig`, it must also hold that exact set of ID documents.
+ */
+export function isStoredLetterDocxPath(
+  sessionId: string,
+  storagePath: string | null | undefined,
+  enclosureSig?: string
+): boolean {
   if (!storagePath || !SESSION_ID.test(sessionId)) return false
   if (!hasSafeStoragePathSegments(storagePath)) return false
   if (!storagePath.startsWith(`sessions/${sessionId}/letters/`)) return false
-  if (!storagePath.toLowerCase().endsWith('.v3.pdf')) return false
-  return storagePath.split('/').length === 4
+  if (!/\.v4(\.[a-f0-9]{8})?\.pdf$/i.test(storagePath)) return false
+  if (storagePath.split('/').length !== 4) return false
+  if (enclosureSig === undefined) return true
+  const sig = /^[a-f0-9]{8}$/.test(enclosureSig) ? `.${enclosureSig}` : ''
+  return storagePath.toLowerCase().endsWith(`.v4${sig}.pdf`)
 }
 
 export function isZipBuildInFlight(
@@ -64,6 +79,8 @@ export async function assembleLetterDocxFiles(
     sessionId: string
     letters: readonly LetterDocxSource[]
     concurrency?: number
+    /** Fingerprint of the ID documents letters must contain; stale PDFs are rebuilt. */
+    enclosureSig?: string
     readStored: (storagePath: string) => Promise<Uint8Array | null>
     generateMissing: (letter: LetterDocxSource) => Promise<Uint8Array>
   }
@@ -74,10 +91,10 @@ export async function assembleLetterDocxFiles(
   // Generate often leaves a local API path in storage_path. Always try the canonical
   // sessions/.../letters/{id}.pdf object first so a prior download/ZIP can skip rebuild.
   const readPaths = params.letters.map((letter) => {
-    if (isStoredLetterDocxPath(params.sessionId, letter.storage_path)) {
+    if (isStoredLetterDocxPath(params.sessionId, letter.storage_path, params.enclosureSig)) {
       return letter.storage_path || ''
     }
-    return buildStoredLetterDocxPath(params.sessionId, letter.id)
+    return buildStoredLetterDocxPath(params.sessionId, letter.id, params.enclosureSig)
   })
   const storedIndexes = params.letters.map((_, index) => index)
 

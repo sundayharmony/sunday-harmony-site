@@ -573,7 +573,7 @@ Respectfully,
 
 Enclosures
 ● Copy of government-issued photo identification
-● Photo of mail showing your name and current address
+● Photo of mail showing my name and current address
 """
 
 

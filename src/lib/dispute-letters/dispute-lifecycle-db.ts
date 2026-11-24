@@ -1888,49 +1888,82 @@ export async function getRoundNumberForSession(sessionId: string): Promise<numbe
  * Selected items become selected_for_round only. Letters generated and Sent
  * are separate later steps. Bureau letters split at 7 items — selection is not blocked.
  */
-export async function syncLifecycleOnPlan(params: {
+export type OpenedPlanRound = { caseId: string; roundId: string; roundNumber: number }
+
+/** Open (or reuse) the round a plan belongs to, without touching its items yet. */
+export async function openLifecycleRoundForPlan(params: {
   sessionId: string
   applicationUuid: string | null | undefined
-  tradelines: Tradeline[]
   forceNewRound?: boolean
 }): Promise<
-  | { ok: true; roundNumber: number; roundId: string; skipped?: boolean }
+  | { ok: true; skipped: true }
+  | ({ ok: true; skipped?: false } & OpenedPlanRound)
   | { ok: false; error: string; status: number }
 > {
   const disputeCase = await getOrCreateDisputeCase(params.applicationUuid)
-  if (!disputeCase) {
-    // Tables not migrated yet — do not block letter generation
-    return { ok: true, roundNumber: 1, roundId: '', skipped: true }
-  }
-
+  // Tables not migrated yet: do not block letter generation.
+  if (!disputeCase) return { ok: true, skipped: true }
   const opened = await openOrCreateRound({
     caseId: disputeCase.id,
     sessionId: params.sessionId,
     forceNewRound: params.forceNewRound,
   })
-  if ('error' in opened) {
-    return { ok: false, error: opened.error, status: 409 }
-  }
-
-  const upsert = await upsertRoundItemsFromTradelines({
+  if ('error' in opened) return { ok: false, error: opened.error, status: 409 }
+  return {
+    ok: true,
     caseId: disputeCase.id,
     roundId: opened.round.id,
     roundNumber: opened.round.round_number,
-    tradelines: params.tradelines,
+  }
+}
+
+export async function syncLifecycleOnPlan(params: {
+  sessionId: string
+  applicationUuid: string | null | undefined
+  tradelines: Tradeline[]
+  forceNewRound?: boolean
+  /** Round already opened by openLifecycleRoundForPlan. */
+  opened?: OpenedPlanRound
+  /**
+   * Tradelines that made it into a letter. Others stay as they were: Round 2+ sends one
+   * item per bureau, so the rest wait for the next round instead of being marked as sent.
+   */
+  plannedTradelineIds?: Set<string>
+}): Promise<
+  | { ok: true; roundNumber: number; roundId: string; skipped?: boolean }
+  | { ok: false; error: string; status: number }
+> {
+  let opened = params.opened
+  if (!opened) {
+    const open = await openLifecycleRoundForPlan(params)
+    if (!open.ok) return open
+    if (open.skipped) return { ok: true, roundNumber: 1, roundId: '', skipped: true }
+    opened = open
+  }
+
+  const planned = params.plannedTradelineIds
+  const roundTradelines = planned
+    ? params.tradelines.map((t) => (planned.has(t.id) ? t : { ...t, selected: false }))
+    : params.tradelines
+  const upsert = await upsertRoundItemsFromTradelines({
+    caseId: opened.caseId,
+    roundId: opened.roundId,
+    roundNumber: opened.roundNumber,
+    tradelines: roundTradelines,
   })
   if (upsert.error) {
     return { ok: false, error: upsert.error, status: 500 }
   }
 
   await ensurePendingItemsFromTradelines({
-    caseId: disputeCase.id,
+    caseId: opened.caseId,
     tradelines: params.tradelines,
   })
 
   return {
     ok: true,
-    roundNumber: opened.round.round_number,
-    roundId: opened.round.id,
+    roundNumber: opened.roundNumber,
+    roundId: opened.roundId,
   }
 }
 

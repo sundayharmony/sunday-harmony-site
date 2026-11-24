@@ -127,3 +127,17 @@ export function resolveLetterConsumerFields(
     consumer_dob: identity.dob,
   }
 }
+
+/** Fields a mailed letter cannot go without. DOB prints "Not Provided" but is not required. */
+export function missingLetterConsumerFields(consumer: {
+  consumer_name: string | null
+  consumer_addresses: string[] | null
+  consumer_ssn: string | null
+}): string[] {
+  const missing: string[] = []
+  if (!consumer.consumer_name?.trim()) missing.push('full name')
+  if (!consumer.consumer_addresses?.some((line) => line.trim())) missing.push('current address')
+  if ((consumer.consumer_ssn || '').replace(/\D/g, '').length < 4) missing.push('Social Security number')
+  return missing
+}
+

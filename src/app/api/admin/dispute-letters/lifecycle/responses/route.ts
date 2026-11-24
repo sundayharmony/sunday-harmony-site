@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { lifecycleAccessDenied } from '@/lib/dispute-letters/lifecycle-access'
 import { requireCreditFundingStaffSession } from '@/lib/stripe-admin-auth'
 import {
   CLIENT_FILES_BUCKET,
@@ -32,6 +33,8 @@ export async function GET(request: NextRequest) {
   if (!roundId) {
     return NextResponse.json({ error: 'roundId is required' }, { status: 400 })
   }
+  const denied = await lifecycleAccessDenied(session, 'round', roundId)
+  if (denied) return denied
 
   const responses = await listResponsesForRound(roundId)
   return NextResponse.json({ responses })
@@ -55,6 +58,14 @@ export async function POST(request: NextRequest) {
 
     if (!roundId) {
       return NextResponse.json({ error: 'roundId is required' }, { status: 400 })
+    }
+    // Check the round (and item) belong to this staff member's client before storing anything.
+    const denied =
+      (await lifecycleAccessDenied(session, 'round', roundId)) ||
+      (itemId ? await lifecycleAccessDenied(session, 'item', itemId) : null)
+    if (denied) return denied
+    if (!/^[0-9a-f-]{36}$/i.test(roundId)) {
+      return NextResponse.json({ error: 'roundId is invalid' }, { status: 400 })
     }
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: 'file is required' }, { status: 400 })

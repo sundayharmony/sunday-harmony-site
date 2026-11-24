@@ -130,3 +130,21 @@ describe('letter consumer identity', () => {
     }
   })
 })
+
+describe('missingLetterConsumerFields', () => {
+  it('names what a mailed letter would be missing', async () => {
+    const { missingLetterConsumerFields } = await import('../dispute-letters/letter-consumer-identity')
+    assert.deepEqual(
+      missingLetterConsumerFields({ consumer_name: ' ', consumer_addresses: [], consumer_ssn: null }),
+      ['full name', 'current address', 'Social Security number']
+    )
+    assert.deepEqual(
+      missingLetterConsumerFields({
+        consumer_name: 'Jane Doe',
+        consumer_addresses: ['1 Elm Rd, Springfield, IL 62701'],
+        consumer_ssn: 'XXX-XX-1234',
+      }),
+      []
+    )
+  })
+})
