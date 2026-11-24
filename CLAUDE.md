@@ -43,6 +43,15 @@ Score out of 100: industry 25 · reviews 20 · visible gap 20 · pays for softwa
 - Dark bands (`#1b1a17`) once or twice per page.
 - **Check every UI change at desktop width and ~390px before shipping.**
 
+### PDFs (template: `src/lib/icp-audit-pdf.ts`, approved 2026-11-23)
+- Embed Fraunces 600 + Montserrat 400/600/700 from `src/assets/fonts`; add them to `outputFileTracingIncludes` in `next.config.js` for the PDF route. Never ship Times/Helvetica.
+- Page 1: ink cover band (white logo, gold label + Eastern-time date, client name in Fraunces cream, headline number as a gold dial), then "What is working", an at-a-glance tile grid, and "Fix these first" (top 3 + package). Details from page 2.
+- Detail cards: paper, hairline, 16pt corners, status pill, drawn icons (green check / rust cross / grey ?), muted notes, gold "Fixed in {package}:" line.
+- Status colors: 80+ green, 50–79 gold, under 50 rust, grey not checked; always with a word.
+- Close with an ink plan panel (gold numbered circles, package names, gold "Book your free 30-minute call" pill to /book, phone). No prices.
+- Keep cards whole on a page; footer on every page with contact line, PO Box and page numbers.
+- Render every page to images and check before shipping (short/long names, thin/full data).
+
 ## AI and data rules (budget: Claude $20/mo is the only AI spend)
 - **Code before AI.** Scoring, parsing, routing, templates, dispute letters and merge fields are plain code, not model calls.
 - **Never add a paid AI service or API key** without MC's OK.
