@@ -127,6 +127,18 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
         seen.add(key)
         if not (fields["balance"] or fields["status"]):
             continue
+        prev = tradelines[-1] if tradelines else None
+        if (
+            prev is not None
+            and prev.creditor.lower() == creditor.lower()
+            and not fields["last_reported"]
+        ):
+            # The second half of the same card (its "Creditor information" repeats the name):
+            # fill what the first half missed instead of adding a duplicate account.
+            for attr in ("date_opened", "high_credit", "past_due", "credit_limit", "monthly_payment"):
+                if not getattr(prev, attr) and fields[attr]:
+                    setattr(prev, attr, fields[attr])
+            continue
         tradelines.append(
             Tradeline(
                 id=str(uuid.uuid4()),

@@ -119,3 +119,15 @@ def test_folded_closed_accounts_are_called_out():
     doc = ExtractedDocument(file_type="pdf", raw_path="", text=text, ocr_used=True, extraction_quality="medium")
     report = analyze_report(doc, file_name="Client Experian.pdf")
     assert "4 closed account(s) were folded away" in report.analysis_summary
+
+
+def test_card_split_by_creditor_information_is_one_account():
+    from app.services.screenshot_parser import parse_screenshot_accounts
+
+    text = (
+        "Other\nSAMPLE RENT $0.00\nReported: Oct 2, 2026 In good standing\nOverview Account details\n"
+        "Balance: $0.00\nCreditor information\nSAMPLE RENT $0.00\nAccount details\nHigh Balance $2,200.00\n"
+        "Credit Limit $0.00\nDEMO BANK $50.00\nReported: Oct 1, 2026\nBalance: $50.00\n"
+    )
+    cards = parse_screenshot_accounts(text, "EQF")
+    assert [c.creditor for c in cards].count("SAMPLE RENT") == 1
