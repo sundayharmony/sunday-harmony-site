@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   applyLetterCropPointer,
   clampLetterCrop,
-  detectLetterCard,
   drawRotated,
   initialLetterCrop,
   normalizeAngle,
@@ -38,7 +37,7 @@ export default function LetterIdentityCropModal({
   const imageRef = useRef<HTMLCanvasElement>(null)
   const bitmapRef = useRef<ImageBitmap | null>(null)
   const [angle, setAngle] = useState(0)
-  const [detected, setDetected] = useState<{ angle: number; crop: LetterCropRect } | null>(null)
+  const [active, setActive] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -90,11 +89,8 @@ export default function LetterIdentityCropModal({
         }
         bitmapRef.current?.close()
         bitmapRef.current = bitmap
-        const small = drawRotated(bitmap, 0, 360)
-        const found = detectLetterCard(small.getContext('2d')!.getImageData(0, 0, small.width, small.height))
-        setDetected(found)
-        setAngle(found?.angle ?? 0)
-        setCrop(found?.crop ?? initialLetterCrop())
+        setAngle(0)
+        setCrop(initialLetterCrop())
         setNatural({ w: bitmap.width, h: bitmap.height })
         createdUrl = URL.createObjectURL(blob)
         setObjectUrl(createdUrl)
@@ -143,6 +139,7 @@ export default function LetterIdentityCropModal({
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
     drag.current = { kind, startX: event.clientX, startY: event.clientY, crop }
+    setActive(true)
   }
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -159,7 +156,25 @@ export default function LetterIdentityCropModal({
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     drag.current = null
+    setActive(false)
   }
+
+  /** Arrow keys nudge the box (Shift for bigger steps). */
+  const onBoxKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 0.05 : 0.01
+    const moves: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    }
+    const move = moves[event.key]
+    if (!move) return
+    event.preventDefault()
+    setCrop((c) => applyLetterCropPointer(c, 'move', move[0], move[1]))
+  }
+
+  const nudge = (deg: number) => setAngle((a) => normalizeAngle(Math.round((a + deg) * 2) / 2))
 
   const resetCrop = () => {
     setAngle(0)
@@ -167,10 +182,8 @@ export default function LetterIdentityCropModal({
     setSaveError('')
   }
 
-  const autoStraighten = () => {
-    if (!detected) return
-    setAngle(detected.angle)
-    setCrop(detected.crop)
+  const selectAll = () => {
+    setCrop({ x: 0, y: 0, w: 1, h: 1 })
     setSaveError('')
   }
 
@@ -223,64 +236,72 @@ export default function LetterIdentityCropModal({
     }
   }
 
-  const handle = (kind: string, className: string) => (
+  const ready = !saving && !busyLoad && Boolean(objectUrl)
+  const canSave = ready && natural.w > 0 && isLetterCropValid(crop)
+  // Show -180..180 so small tilts either way sit near the middle of the slider.
+  const signed = angle > 180 ? angle - 360 : angle
+  const shownAngle = Number(signed.toFixed(1))
+
+  // A 44px touch target around each grip; the visible part is the gold mark inside it.
+  const grip = (kind: string, place: string, cursor: string, mark: React.ReactNode) => (
     <div
       role="presentation"
-      className={`absolute bg-white border border-accent shadow touch-none ${className}`}
+      className={`absolute z-10 flex h-11 w-11 items-center justify-center touch-none ${place} ${cursor}`}
       onPointerDown={onPointerDown(kind)}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-    />
+    >
+      {mark}
+    </div>
+  )
+  const corner = (rot: string) => (
+    <span className={`block h-5 w-5 border-l-[3px] border-t-[3px] border-accent ${rot}`} aria-hidden />
+  )
+  const bar = (vertical: boolean) => (
+    <span className={`block rounded-full bg-accent ${vertical ? 'h-7 w-[3px]' : 'h-[3px] w-7'}`} aria-hidden />
   )
 
-  const canSave = !saving && !busyLoad && Boolean(objectUrl) && natural.w > 0 && isLetterCropValid(crop)
+  const base =
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-full text-sm font-semibold transition motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-40'
+  const pill = `${base} px-4`
+  const outline = 'border border-white/20 text-[#fbf7f0] hover:border-accent hover:text-accent'
+  const ghost = `${pill} ${outline}`
+  const iconBtn = `${base} ${outline} h-11 w-11 shrink-0`
+
+  const RotateIcon = ({ flip }: { flip?: boolean }) => (
+    <svg viewBox="0 0 24 24" className={`h-5 w-5 ${flip ? '-scale-x-100' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+    </svg>
+  )
 
   return (
     <div
-      className="fixed inset-0 z-[110] bg-black/85 flex flex-col"
+      className="fixed inset-0 z-[110] flex flex-col bg-[#1b1a17] text-[#fbf7f0]"
       role="dialog"
       aria-modal="true"
       aria-label={`Crop ${title}`}
     >
-      <div className="flex items-center justify-between gap-3 px-4 py-3 bg-black/40 text-white shrink-0">
-        <p className="text-sm font-semibold truncate">Crop for letters — {title}</p>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={resetCrop}
-            disabled={saving || busyLoad || !objectUrl}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50"
-          >
-            Reset
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={saving}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={!canSave}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save for letters'}
-          </button>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Crop for letters</p>
+          <h2 className="truncate font-serif text-lg font-semibold tracking-tight sm:text-xl">{title}</h2>
         </div>
-      </div>
-      <div className="flex-1 flex items-center justify-center p-4 min-h-0">
-        {busyLoad && <p className="text-sm text-white/80">Loading image…</p>}
-        {loadError && !busyLoad && (
-          <p className="text-sm text-red-300 max-w-md text-center px-4">{loadError}</p>
-        )}
+        <button type="button" onClick={onCancel} disabled={saving} aria-label="Close" className={iconBtn}>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </header>
+
+      <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-8">
+        {busyLoad && <p className="text-sm text-white/70">Loading image…</p>}
+        {loadError && !busyLoad && <p className="max-w-md px-4 text-center text-sm text-red-300">{loadError}</p>}
         {objectUrl && !loadError && (
           <div
             ref={stageRef}
-            className="relative max-h-full max-w-full touch-none"
+            className="relative max-h-full max-w-full overflow-hidden rounded-md touch-none"
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
@@ -289,97 +310,128 @@ export default function LetterIdentityCropModal({
               ref={imageRef}
               role="img"
               aria-label={`${title}, turned ${Math.round(angle)} degrees`}
-              className="block max-h-[62vh] max-w-full select-none"
+              className="block max-h-[calc(100dvh-300px)] max-w-full select-none sm:max-h-[calc(100dvh-240px)]"
             />
             <div
-              className="absolute border-2 border-accent bg-accent/10 cursor-move"
+              tabIndex={0}
+              role="group"
+              aria-label="Crop area. Drag to move, or use the arrow keys."
+              onKeyDown={onBoxKey}
+              className="absolute cursor-move outline-none ring-accent focus-visible:ring-2"
               style={{
                 left: `${crop.x * 100}%`,
                 top: `${crop.y * 100}%`,
                 width: `${crop.w * 100}%`,
                 height: `${crop.h * 100}%`,
+                boxShadow: '0 0 0 9999px rgba(27, 26, 23, 0.62)',
               }}
               onPointerDown={onPointerDown('move')}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
             >
-              {handle('n', 'left-1/2 -translate-x-1/2 -top-1.5 w-8 h-3 cursor-ns-resize')}
-              {handle('s', 'left-1/2 -translate-x-1/2 -bottom-1.5 w-8 h-3 cursor-ns-resize')}
-              {handle('w', 'top-1/2 -translate-y-1/2 -left-1.5 w-3 h-8 cursor-ew-resize')}
-              {handle('e', 'top-1/2 -translate-y-1/2 -right-1.5 w-3 h-8 cursor-ew-resize')}
-              {handle('nw', 'w-3 h-3 -left-1.5 -top-1.5 cursor-nwse-resize')}
-              {handle('ne', 'w-3 h-3 -right-1.5 -top-1.5 cursor-nesw-resize')}
-              {handle('sw', 'w-3 h-3 -left-1.5 -bottom-1.5 cursor-nesw-resize')}
-              {handle('se', 'w-3 h-3 -right-1.5 -bottom-1.5 cursor-nwse-resize')}
+              <div className="pointer-events-none absolute inset-0 border border-accent/80" />
+              {/* Thirds guides show while dragging, to help line the card up. */}
+              <div
+                className={`pointer-events-none absolute inset-0 transition-opacity motion-reduce:transition-none ${active ? 'opacity-100' : 'opacity-0'}`}
+                aria-hidden
+              >
+                <div className="absolute inset-y-0 left-1/3 w-px bg-white/40" />
+                <div className="absolute inset-y-0 left-2/3 w-px bg-white/40" />
+                <div className="absolute inset-x-0 top-1/3 h-px bg-white/40" />
+                <div className="absolute inset-x-0 top-2/3 h-px bg-white/40" />
+              </div>
+              {grip('nw', '-left-[11px] -top-[11px] justify-start items-start p-[9px]', 'cursor-nwse-resize', corner(''))}
+              {grip('ne', '-right-[11px] -top-[11px] justify-end items-start p-[9px]', 'cursor-nesw-resize', corner('rotate-90'))}
+              {grip('se', '-right-[11px] -bottom-[11px] justify-end items-end p-[9px]', 'cursor-nwse-resize', corner('rotate-180'))}
+              {grip('sw', '-left-[11px] -bottom-[11px] justify-start items-end p-[9px]', 'cursor-nesw-resize', corner('-rotate-90'))}
+              {grip('n', 'left-1/2 -translate-x-1/2 -top-[22px]', 'cursor-ns-resize', bar(false))}
+              {grip('s', 'left-1/2 -translate-x-1/2 -bottom-[22px]', 'cursor-ns-resize', bar(false))}
+              {grip('w', 'top-1/2 -translate-y-1/2 -left-[22px]', 'cursor-ew-resize', bar(true))}
+              {grip('e', 'top-1/2 -translate-y-1/2 -right-[22px]', 'cursor-ew-resize', bar(true))}
             </div>
           </div>
         )}
       </div>
-      <div className="px-4 pb-4 space-y-2">
-        <div className="flex flex-wrap items-center gap-2 text-white">
-          <button
-            type="button"
-            onClick={() => turn(false)}
-            disabled={saving || busyLoad || !objectUrl}
-            aria-label="Turn left 90 degrees"
-            className="min-h-11 px-3 rounded-full bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50"
-          >
-            ⟲ 90°
-          </button>
-          <button
-            type="button"
-            onClick={() => turn(true)}
-            disabled={saving || busyLoad || !objectUrl}
-            aria-label="Turn right 90 degrees"
-            className="min-h-11 px-3 rounded-full bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50"
-          >
-            90° ⟳
-          </button>
-          <label className="flex flex-1 min-w-[200px] items-center gap-2 text-xs">
-            <span className="shrink-0">Angle</span>
+
+      <div className="shrink-0 space-y-4 border-t border-white/10 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">Rotate</span>
+          <div className="flex flex-1 items-center gap-3">
             <input
               type="range"
-              min={0}
-              max={359.5}
+              min={-180}
+              max={180}
               step={0.5}
-              value={angle}
-              disabled={saving || busyLoad || !objectUrl}
-              onChange={(event) => setAngle(Number(event.target.value))}
-              className="flex-1 accent-[#b8943f] min-h-11"
+              value={signed}
+              disabled={!ready}
+              onPointerDown={() => setActive(true)}
+              onPointerUp={() => setActive(false)}
+              onChange={(event) => setAngle(normalizeAngle(Number(event.target.value)))}
+              className="h-11 flex-1 cursor-pointer accent-[#b8943f] disabled:cursor-not-allowed"
               aria-label="Rotation angle in degrees"
             />
-            <input
-              type="number"
-              min={0}
-              max={359.5}
-              step={0.5}
-              value={Number(angle.toFixed(1))}
-              disabled={saving || busyLoad || !objectUrl}
-              onChange={(event) => setAngle(normalizeAngle(Number(event.target.value) || 0))}
-              className="w-16 rounded-md bg-white/10 px-2 py-1 text-right text-white"
-              aria-label="Rotation angle, degrees"
-            />
-            <span>°</span>
-          </label>
-          <button
-            type="button"
-            onClick={autoStraighten}
-            disabled={saving || busyLoad || !detected}
-            title={detected ? 'Straighten and crop to the card found in the photo' : 'No card edge found in this photo'}
-            className="min-h-11 px-3 rounded-full bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50"
-          >
-            Auto-straighten
-          </button>
+            <label className="flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-sm tabular-nums">
+              <input
+                type="number"
+                min={-180}
+                max={180}
+                step={0.5}
+                value={shownAngle}
+                disabled={!ready}
+                onChange={(event) => setAngle(normalizeAngle(Number(event.target.value) || 0))}
+                className="w-12 bg-transparent text-right outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                aria-label="Rotation angle, degrees"
+              />
+              <span aria-hidden>°</span>
+            </label>
+          </div>
+          <div className="flex justify-center gap-2">
+            <button type="button" onClick={() => turn(false)} disabled={!ready} aria-label="Turn left 90 degrees" title="Turn left 90°" className={iconBtn}>
+              <RotateIcon />
+            </button>
+            <button type="button" onClick={() => nudge(-1)} disabled={!ready} aria-label="Turn left 1 degree" className={iconBtn}>
+              −1°
+            </button>
+            <button type="button" onClick={() => nudge(1)} disabled={!ready} aria-label="Turn right 1 degree" className={iconBtn}>
+              +1°
+            </button>
+            <button type="button" onClick={() => turn(true)} disabled={!ready} aria-label="Turn right 90 degrees" title="Turn right 90°" className={iconBtn}>
+              <RotateIcon flip />
+            </button>
+          </div>
         </div>
-        <p className="text-xs text-white/80">
-          {detected
-            ? 'The card was found and straightened. Adjust the box or angle if needed.'
-            : 'No clear card edge found: turn and crop by hand.'}{' '}
-          Drag the box to move it, or its edges and corners to resize. The original upload stays on the
-          application; letters use this crop.
-        </p>
-        {saveError && <p className="text-xs text-red-300">{saveError}</p>}
+
+        <div className="mx-auto flex max-w-3xl flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-2">
+            <button type="button" onClick={resetCrop} disabled={!ready} className={ghost}>
+              Reset
+            </button>
+            <button type="button" onClick={selectAll} disabled={!ready} className={ghost}>
+              Whole image
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button type="button" onClick={onCancel} disabled={saving} className={ghost}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={!canSave}
+              className={`${pill} bg-accent text-[#1b1a17] hover:bg-[#c4a052]`}
+            >
+              {saving ? 'Saving…' : 'Save for letters'}
+            </button>
+          </div>
+        </div>
+        {saveError ? (
+          <p className="text-center text-xs text-red-300">{saveError}</p>
+        ) : (
+          <p className="text-center text-xs text-white/55">
+            Drag the box or its corners. The original upload is kept; letters use this crop.
+          </p>
+        )}
       </div>
     </div>
   )
