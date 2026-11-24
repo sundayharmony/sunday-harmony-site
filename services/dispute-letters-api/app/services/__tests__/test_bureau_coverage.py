@@ -210,3 +210,18 @@ if __name__ == "__main__":
     test_per_bureau_negative_counts()
     test_apply_bureau_coverage_persists()
     print("bureau_coverage tests passed")
+
+
+def test_inquiries_are_not_counted_as_accounts():
+    from app.models import ParsedReport, Tradeline
+    from app.services.bureau_coverage import bureau_health_counts
+    from app.services.credit_health import build_health_summary
+
+    report = ParsedReport(
+        tradelines=[
+            Tradeline(id="a", creditor="SAMPLE BANK", account_type="Credit Card", status="Current", bureaus=["TUC"]),
+            Tradeline(id="b", creditor="FAKE AUTO LLC", account_type="Hard Inquiry", bureaus=["TUC"]),
+        ]
+    )
+    assert bureau_health_counts(report, "TUC").total_accounts == 1
+    assert build_health_summary(report).total_accounts == 1

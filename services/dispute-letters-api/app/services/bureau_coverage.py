@@ -11,7 +11,7 @@ from app.models import (
     PerBureauHealth,
     Tradeline,
 )
-from app.services.credit_health import is_negative_tradeline
+from app.services.credit_health import is_inquiry_tradeline, is_negative_tradeline
 
 _BUREAU_ORDER: tuple[BureauCode, ...] = ("TUC", "EXP", "EQF")
 
@@ -51,7 +51,9 @@ def tradeline_covers_bureau(tl: Tradeline, bureau: BureauCode) -> bool:
 
 
 def bureau_health_counts(report: ParsedReport, bureau: BureauCode) -> PerBureauHealth:
-    tradelines = [tl for tl in report.tradelines if tradeline_covers_bureau(tl, bureau)]
+    tradelines = [
+        tl for tl in report.tradelines if not is_inquiry_tradeline(tl) and tradeline_covers_bureau(tl, bureau)
+    ]
     negative = sum(1 for tl in tradelines if is_negative_tradeline(tl))
     collections = sum(
         1 for tl in tradelines if tl.is_collection or (tl.item_category or "") == "collection"
