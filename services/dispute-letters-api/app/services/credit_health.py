@@ -286,6 +286,10 @@ def merge_agent_health(data: dict | None, summary: CreditHealthSummary) -> Credi
     return summary
 
 
+def is_inquiry_tradeline(tl: Tradeline) -> bool:
+    return "inquir" in (tl.account_type or "").lower()
+
+
 def build_health_summary(report: ParsedReport, agent_health: dict | None = None) -> CreditHealthSummary:
     tradelines = [enrich_tradeline(tl) for tl in report.tradelines]
     report.tradelines = tradelines
@@ -297,7 +301,7 @@ def build_health_summary(report: ParsedReport, agent_health: dict | None = None)
 
     summary = CreditHealthSummary(
         scores=report.credit_health.scores.model_copy(),
-        total_accounts=len(tradelines),
+        total_accounts=sum(1 for tl in tradelines if not is_inquiry_tradeline(tl)),
         negative_count=negative,
         collection_count=collections,
         high_priority_count=high,

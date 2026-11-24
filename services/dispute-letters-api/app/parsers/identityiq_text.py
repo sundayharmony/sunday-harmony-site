@@ -20,7 +20,7 @@ from app.models import BureauCode, ConsumerInfo, ExtractedDocument, ParsedReport
 BUREAUS: tuple[BureauCode, ...] = ("TUC", "EXP", "EQF")
 _HEADER = re.compile(r"TransUnion\s{2,}Experian\s{2,}Equifax")
 _LABEL = re.compile(r"^\s*([A-Za-z][A-Za-z0-9 .#()/&'-]{1,40}):(.*)$")
-_STOP = re.compile(r"^\s*(Two-Year payment history|Account History|Inquiries|Public Information|Creditor Contacts)\b", re.I)
+_STOP = re.compile(r"^\s*(Account History|Inquiries|Public Information|Creditor Contacts)\b", re.I)
 _FIELD_MAP = {
     "account #": "account",
     "account type": "account_type",
@@ -37,6 +37,8 @@ _FIELD_MAP = {
     "last reported": "last_reported",
     "comments": "remarks",
 }
+_HISTORY_ROW = re.compile(r"^\s*(TransUnion|Experian|Equifax)\s+((?:(?:OK|ND|CO|\d{2,3}|-)\s*)+)$")
+_LATE_CODE = re.compile(r"^(30|60|90|120|150|180|CO)$")
 _STATUS_RANK = ("collection", "charge", "late 1", "late 9", "late 6", "late 3", "late", "derog")
 
 
@@ -49,6 +51,32 @@ def can_parse_text(text: str) -> bool:
     )
 
 
+def _page_lines(page) -> list[str]:
+    """Text lines keeping true horizontal positions: words in one phrase are one space apart and
+    columns sit a gap apart, however long the values are (pdfplumber's own layout mode squeezes
+    long values against the next column, which merges the bureaus' cells)."""
+    words = sorted(page.extract_words(), key=lambda w: (w["top"], w["x0"]))
+    rows: list[list[dict]] = []
+    for w in words:
+        if rows and abs(w["top"] - rows[-1][0]["top"]) < 3:
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    lines = []
+    for row in rows:
+        out, edge = "", 0.0
+        for w in sorted(row, key=lambda w: w["x0"]):
+            gap = w["x0"] - edge
+            if not out:
+                out = " " * int(w["x0"] / 4.5)
+            else:
+                out += " " * (1 if gap < 4 else max(2, round(gap / 4.5)))
+            out += w["text"]
+            edge = w["x1"]
+        lines.append(out)
+    return lines
+
+
 def layout_text(doc: ExtractedDocument) -> str:
     """Column-preserving text for PDFs; plain text otherwise."""
     if doc.file_type == "pdf" and doc.raw_path and Path(doc.raw_path).exists():
@@ -56,7 +84,7 @@ def layout_text(doc: ExtractedDocument) -> str:
             import pdfplumber
 
             with pdfplumber.open(doc.raw_path) as pdf:
-                return "\n".join((p.extract_text(layout=True) or "") for p in pdf.pages)
+                return "\n".join("\n".join(_page_lines(p)) for p in pdf.pages)
         except Exception:
             pass
     return doc.text or ""
@@ -152,6 +180,7 @@ def _split_values(rest: str, offset: int, centers: list[float]) -> list[str]:
 def _read_account(name: str, lines: list[str], header_at: int) -> tuple[Tradeline | None, int]:
     centers = _columns(lines[header_at])
     fields: dict[str, list[str]] = {}
+    late: dict[str, set[str]] = {}
     j = header_at + 1
     while j < len(lines):
         line = lines[j]
@@ -159,6 +188,11 @@ def _read_account(name: str, lines: list[str], header_at: int) -> tuple[Tradelin
             break
         if _HEADER.search(line):
             centers = _columns(line)  # columns can shift after a page break
+        grid = _HISTORY_ROW.match(line)
+        if grid:
+            for code in grid.group(2).split():
+                if _LATE_CODE.match(code):
+                    late.setdefault(code, set()).add(grid.group(1))
         match = _LABEL.match(line)
         if match:
             key = _FIELD_MAP.get(match.group(1).strip().lower())
@@ -179,6 +213,12 @@ def _read_account(name: str, lines: list[str], header_at: int) -> tuple[Tradelin
     open_closed = pick("open_closed")
     account_type = pick("account_detail") or pick("account_type")
     remarks = "; ".join(dict.fromkeys(v for v in fields.get("remarks", []) if v))
+    history = ""
+    if late:
+        history = "Late in payment history: " + ", ".join(
+            f"{'charge-off' if c == 'CO' else c + ' days'} ({'/'.join(sorted(late[c]))})"
+            for c in sorted(late, key=lambda c: (c == "CO", int(c) if c.isdigit() else 0))
+        )
     blob = f"{name} {account_type} {status} {remarks}".lower()
     return (
         Tradeline(
@@ -192,6 +232,7 @@ def _read_account(name: str, lines: list[str], header_at: int) -> tuple[Tradelin
             balance=pick("balance"),
             past_due=pick("past_due"),
             remarks=remarks,
+            payment_history=history,
             credit_limit=pick("credit_limit"),
             high_credit=pick("high_credit"),
             date_opened=pick("date_opened"),

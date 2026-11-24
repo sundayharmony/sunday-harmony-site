@@ -80,6 +80,14 @@ async def analyze_report_async(
     count = real_account_count(local)
     if count > 0:
         local.analysis_summary = f"Parsed {count} account(s) locally from the uploaded report."
+        # Monitoring sites fold closed accounts behind "Show 12 closed accounts"; a screenshot
+        # taken that way never contains them.
+        folded = sum(int(n) for n in re.findall(r"(?i)\bshow\s+(\d+)\s+closed\s+accounts?\b", doc.text or ""))
+        if folded:
+            local.analysis_summary += (
+                f" {folded} closed account(s) were folded away in the screenshot and are not included;"
+                " expand them and upload again to include them."
+            )
     elif allow_fallback:
         local.analysis_summary = "Parsed locally. No accounts matched a known report layout."
     else:

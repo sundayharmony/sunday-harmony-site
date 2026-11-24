@@ -19,6 +19,8 @@ from app.models import BureauCode, Tradeline
 _ANCHOR = re.compile(r"(?i)^\W{0,3}re?port\w{0,4}\b[:;.,]?\s*\S")
 _MONTHS = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|o[sa]t|nov|dec)"
 _AMOUNT = r"\$?\s*([\d][\d,]*\.\d{2})"
+_AMOUNT_ONLY_TAIL = re.compile(r"\$\s*[\d][\d,]*\.\d{2}\W*$")
+_BLOCK_END = re.compile(r"(?i)^(?:hide \d+|show all|hard inquiries|public records|creditors)\b")
 _CREDITOR_STOP = re.compile(
     r"(?i)^(?:overview|payment history|account details?|creditor information|"
     r"open|closed|current|in ?good standing|ad|we're|you|monthly|amount|balance|credit)\b"
@@ -37,8 +39,8 @@ _SECTIONS = {
     "real estate": "Mortgage",
     "mortgages": "Mortgage",
     "collections": "Collection",
-    "other": "",
-    "other accounts": "",
+    "other": "Other Account",
+    "other accounts": "Other Account",
     "hard inquiries": "",
 }
 
@@ -65,28 +67,61 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
             continue
         creditor, inline_balance = _creditor_line(lines[i - 1])
         if not creditor:
+            # Collection cards print no collector name; the original creditor stands in.
+            creditor = _original_creditor(lines, i)
+            inline_balance = _first(rf"{_AMOUNT}\s*$", lines[i - 1])
+        if not creditor:
             continue
         anchors.append((i, creditor, inline_balance))
+    # Every card has one "Account details" heading. A card whose "Reported:" line OCR garbled
+    # (or whose name line was lost) has no anchor above; add it from the heading instead.
+    previous = -1
+    for d, line in enumerate(lines):
+        if not re.search(r"(?i)\baccount\s+details\b", line):
+            continue
+        covered = any(previous < a[0] <= d for a in anchors)
+        previous = d
+        if covered:
+            continue
+        start = next((k for k in range(d - 1, max(d - 6, 0), -1) if _AMOUNT_ONLY_TAIL.search(lines[k])), d - 1)
+        creditor, inline_balance = _creditor_line(lines[start])
+        creditor = creditor or _creditor_info(lines, d) or _original_creditor(lines, d)
+        if creditor:
+            anchors.append((start, creditor, inline_balance or _first(rf"{_AMOUNT}\s*$", lines[start])))
+    anchors.sort()
 
     tradelines: list[Tradeline] = []
     seen: set[str] = set()
     for n, (start, creditor, inline_balance) in enumerate(anchors):
         end = anchors[n + 1][0] - 1 if n + 1 < len(anchors) else len(lines)
         # Drop a following section heading ("Collections") that sits before the next card.
-        block = "\n".join(ln for ln in lines[start:end] if re.sub(r"[^a-z ]", "", ln.lower()).strip() not in _SECTIONS)
+        card = lines[start:end]
+        stop = next((k for k, ln in enumerate(card) if _BLOCK_END.match(ln)), len(card))
+        block = "\n".join(ln for ln in card[:stop] if re.sub(r"[^a-z ]", "", ln.lower()).strip() not in _SECTIONS)
         fields = {
             "creditor": creditor,
             "last_reported": _date_after(lines[start]),
             "balance": _first(rf"(?i)ba\w*nce\s*:?\s*{_AMOUNT}", block) or inline_balance,
             "credit_limit": _first(rf"(?i)(?:cr\w*\s*)?[il1]\w*m\w*t\w*\s*:?\s*{_AMOUNT}", block),
-            "past_due": _first(rf"(?i)past\s*(?:due|ove|cue)\s*{_AMOUNT}", block),
+            "past_due": _first(rf"(?i)past\s*(?:due|ove|cue)[\s'‘’]*{_AMOUNT}", block),
             "monthly_payment": _first(rf"(?i)mo\w+\s+pay\w*\s+amount\s*{_AMOUNT}", block),
             "status": _status(block),
+            "date_opened": _date_after(_first(r"(?i)(?:open\s+date|date\s+opened)\s+(.+)", block)),
+            "high_credit": _first(rf"(?i)high(?:est)?\s+ba\w*nce\s*:?\s*{_AMOUNT}", block),
         }
-        for k in ("balance", "credit_limit", "past_due", "monthly_payment"):
+        for k in ("balance", "credit_limit", "past_due", "monthly_payment", "high_credit"):
             if fields[k]:
                 fields[k] = "$" + fields[k]
-        key = f"{creditor.lower()}|{fields['balance']}|{fields['last_reported']}|{fields['credit_limit']}"
+        head = " ".join(lines[start : start + 3])
+        collection_card = bool(re.search(r"(?i)collection\s+agency|current\s+rating\s+\W*collection", block))
+        if not fields["status"]:
+            fields["status"] = (
+                "Collection" if collection_card
+                else "Current" if re.search(r"(?i)good\s+standing", head)
+                else "Past due" if re.search(r"(?i)past\s+due", head)
+                else ""
+            )
+        key = f"{creditor.lower()}|{fields['balance']}|{fields['last_reported']}|{fields['credit_limit']}|{fields['date_opened']}"
         if key in seen:
             continue
         seen.add(key)
@@ -96,15 +131,18 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
             Tradeline(
                 id=str(uuid.uuid4()),
                 creditor=creditor,
-                account_type=sections[start],
+                account_type="Collection" if collection_card else (_card_type(block) or sections[start] if sections[start] in ("", "Other Account") else sections[start]),
                 status=fields["status"],
+                remarks="Closed account" if _is_closed(lines[start : start + 3], block) else "",
+                date_opened=fields["date_opened"],
+                high_credit=fields["high_credit"],
                 balance=fields["balance"],
                 past_due=fields["past_due"],
                 credit_limit=fields["credit_limit"],
                 last_reported=fields["last_reported"],
                 monthly_payment=fields["monthly_payment"],
                 bureaus=[bureau] if bureau else [],
-                is_collection=sections[start] == "Collection"
+                is_collection=collection_card or sections[start] == "Collection"
                 or bool(re.search(r"(?i)collection|lvnv|portfolio recovery|midland", block[:400] + creditor)),
                 analysis_notes="Read from a screenshot. Check the details against the report before sending letters.",
             )
@@ -113,8 +151,9 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
 
 
 def _creditor_line(raw: str) -> tuple[str, str]:
-    balance = _first(rf"{_AMOUNT}\s*$", raw)
-    name = re.sub(rf"\s*{_AMOUNT}\s*$", "", raw).strip(" '‘’\"-—|.:,()")
+    # A stray letter can trail the amount ("$0.00 A": the card's chevron icon read as text).
+    balance = _first(rf"{_AMOUNT}\W*[A-Za-z]?\W*$", raw)
+    name = re.sub(rf"\s*{_AMOUNT}\W*[A-Za-z]?\W*$", "", raw).strip(" '‘’\"-—|.:,()")
     letters = re.sub(r"[^A-Za-z]", "", name)
     if len(letters) < 3 or len(name) > 45 or _CREDITOR_STOP.match(name):
         return "", ""
@@ -127,11 +166,62 @@ def _creditor_line(raw: str) -> tuple[str, str]:
 def _status(block: str) -> str:
     raw = _first(r"(?i)\b(?:cu?r\w{0,6}|caren|cent)\s+pa\w{3,6}\s+s\w{3,6}\s+(.+)", block)
     if re.search(r"(?i)late\s*\d+", raw):
-        days = re.search(r"\d+", raw)
-        return f"Late {days.group(0)} Days" if days else "Late"
+        days = int(re.search(r"\d+", raw).group(0))
+        # Cards only print 30/60/90/120/150/180; OCR reads "30" as "20" or "80" as "60", so snap.
+        days = min((30, 60, 90, 120, 150, 180), key=lambda v: abs(v - days))
+        return f"Late {days} Days"
     for word in ("Charge off", "Collection", "Current", "Paid", "Closed"):
         if word.lower() in raw.lower():
             return word
+    if re.search(r"(?i)\bas\s+ag\w+", raw):
+        return "Current"
+    return ""
+
+
+_TYPE_WORDS = (
+    r"(?:credit|charge|check|note|installment|secured|unsecured|automobile|auto|mortgage|rental|line|"
+    r"student|personal|home|lease|education|conventional|business)"
+)
+
+
+def _card_type(block: str) -> str:
+    """The card's own "Type" row, for sections ("Other") that name no account type."""
+    raw = _first(rf"(?im)(?<![A-Za-z])type\s+\W*({_TYPE_WORDS}[A-Za-z ]{{0,40}})\s*$", block)
+    lowered = raw.lower()
+    if not raw:
+        return ""
+    if "credit card" in lowered or "charge" in lowered or "line" in lowered or "check credit" in lowered:
+        kind = "Revolving"
+    elif "rental" in lowered or "lease" in lowered:
+        kind = "Other"
+    else:
+        kind = "Installment"
+    return f"{raw.strip().title()} ({kind})"
+
+
+def _is_closed(head: list[str], block: str) -> bool:
+    return bool(re.search(r"(?i)\bclosed\b", " ".join(head[:2]))) or bool(
+        re.search(r"(?i)account\s+status\s+\W*closed", block)
+    )
+
+
+def _original_creditor(lines: list[str], at: int) -> str:
+    """Collection cards: "Original Creditor XFINITY MOBILE"."""
+    for line in lines[at : at + 14]:
+        match = re.match(r"(?i)^\W*original\s+creditor\s+(.+)$", line)
+        if match:
+            return match.group(1).strip(" '‘’\"-—|.:,()")
+        if _ANCHOR.match(line) and line is not lines[at]:
+            break
+    return ""
+
+
+def _creditor_info(lines: list[str], at: int) -> str:
+    """The furnisher name printed under "Creditor information" (used when the card title was lost)."""
+    for k in range(at, min(at + 40, len(lines) - 1)):
+        if re.match(r"(?i)^\W*creditor information\b", lines[k]):
+            name, _ = _creditor_line(lines[k + 1])
+            return name
     return ""
 
 
