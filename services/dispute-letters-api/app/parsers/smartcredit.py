@@ -403,6 +403,34 @@ def _split_three(value: str) -> list[str]:
             parts.append("")
         return [_normalize_cell(p) for p in parts[:3]]
 
+    # One token per bureau ("-- $300 $300"): read them by position.
+    tokens = text.split()
+    if len(tokens) == 3 and "--" in tokens:
+        return [_normalize_cell("" if t in ("--", "—") else t) for t in tokens]
+
+    # "-- Charge Card Revolving": the cells that are left hold known phrases; split them in order.
+    markers = sum(1 for t in tokens if t in ("--", "—"))
+    if 0 < markers < 3 and len(tokens) > 3:
+        segments: list[str] = []
+        run: list[str] = []
+        for t in tokens:
+            if t in ("--", "—"):
+                if run:
+                    segments.append(" ".join(run))
+                    run = []
+                segments.append("")
+            else:
+                run.append(t)
+        if run:
+            segments.append(" ".join(run))
+        filled = [x for x in segments if x]
+        phrases = _split_known_phrases(filled[0]) if len(filled) == 1 else []
+        if len(phrases) == 3 - markers:
+            out: list[str] = []
+            for x in segments:
+                out.extend([_normalize_cell(p) for p in phrases] if x else [""])
+            return out
+
     # `--` markers are empty bureau cells in SmartCredit exports.
     if re.search(r"(?:^|\s)--(?:\s|$)", text) or text in {"--", "—"}:
         raw = re.split(r"\s*--\s*", text)

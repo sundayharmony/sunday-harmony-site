@@ -37,14 +37,39 @@ def add_inquiries(report, doc: ExtractedDocument, bureau: BureauCode | None) -> 
     """Append inquiry rows when the parser found none. Never raises."""
     if any("inquir" in (t.account_type or "").lower() for t in report.tradelines):
         return
+    from app.parsers import credit_hero_columns
+
+    if credit_hero_columns.scores_for(doc) is not None:
+        return  # an all-bureaus Credit Hero PDF: its inquiries were read per column
     try:
         rows = _smartcredit_table(doc.text or "")
         if not rows and bureau:
             grid = _experian_grid(_layout(doc), bureau) if "Inquired on" in (doc.text or "") else []
             rows = grid or _named_list(doc.text or "", bureau)
+            if any(_garbled(row.creditor) for row in rows):
+                rows = _named_list(_tight_text(doc), bureau) or rows
     except Exception:
         rows = []
     report.tradelines.extend(rows)
+
+
+def _garbled(name: str) -> bool:
+    """A name whose letters were interleaved with the line below ("O Fi N na E n M c A e IN")."""
+    tokens = name.split()
+    return len(tokens) >= 4 and sum(1 for t in tokens if len(t) <= 2) >= 3
+
+
+def _tight_text(doc: ExtractedDocument) -> str:
+    """PDF text with a tight line tolerance, for name cells set in a larger font than their caption."""
+    if doc.file_type == "pdf" and doc.raw_path:
+        try:
+            import pdfplumber
+
+            with pdfplumber.open(doc.raw_path) as pdf:
+                return "\n".join((p.extract_text(y_tolerance=1) or "") for p in pdf.pages)
+        except Exception:
+            pass
+    return doc.text or ""
 
 
 def _row(name: str, date: str, bureau: BureauCode, business: str = "") -> Tradeline:
