@@ -59,6 +59,7 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/admin/outreach': OUTREACH_PRESENTATION_PDF,
     '/api/internal/outreach-dispatch': OUTREACH_PRESENTATION_PDF,
+    '/audit/[token]/pdf': ['./src/assets/fonts/*.woff', './public/logo-white.png'],
   },
   serverExternalPackages: [
     'pdfkit',

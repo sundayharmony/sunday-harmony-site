@@ -108,11 +108,11 @@ export default async function AuditPage({ params }: Params) {
               </a>
             </div>
 
-            {audit.strengths.length ? (
+            {(audit.areas ? audit.strengths.filter((t) => !/^No major gaps/i.test(t)) : audit.strengths).length ? (
               <div className="mt-12">
                 <p className="section-label">What is working</p>
                 <ul className="space-y-2">
-                  {audit.strengths.map((s) => (
+                  {(audit.areas ? audit.strengths.filter((t) => !/^No major gaps/i.test(t)) : audit.strengths).map((s) => (
                     <li key={s} className="text-brand-text leading-relaxed">{s}</li>
                   ))}
                 </ul>
