@@ -39,3 +39,19 @@ def test_screenshot_cards_become_accounts():
     coll = by_name["DEMO COLLECTIONS LLC"]
     assert coll.last_reported == "Oct 12, 2026"
     assert coll.status == "Collection"
+
+
+def test_section_headings_set_account_type():
+    from app.services.screenshot_parser import parse_screenshot_accounts
+
+    text = (
+        "Credit cards\nSAMPLE BANK\nReported: Oct 21, 2026\nBalance: $100.00 Credit limit: $500.00\n"
+        "Auto loans\nDEMO AUTO\nReported: Oct 2, 2026\nBalance: $8,400.00\n"
+        "Collections\nFAKE RECOVERY\nReported: Sep 3, 2026\nBalance: $871.00\n"
+    )
+    types = {t.creditor: (t.account_type, t.is_collection) for t in parse_screenshot_accounts(text, "EXP")}
+    assert types == {
+        "SAMPLE BANK": ("Credit Card (Revolving)", False),
+        "DEMO AUTO": ("Auto Loan (Installment)", False),
+        "FAKE RECOVERY": ("Collection", True),
+    }

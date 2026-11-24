@@ -43,3 +43,15 @@ def test_smartcredit_table():
     report = ParsedReport()
     add_inquiries(report, _doc(text), None)
     assert _names(report) == [("DEMO AUTO", "7/18/2026", ["EXP"]), ("SAMPLE BK", "7/9/2026", ["TUC"])]
+
+
+def test_monitoring_site_cards_use_creditor_information_name():
+    text = (
+        "Here are the latest hard inquiries on your Equifax report.\n"
+        "ol N ‘Oct 7,2025 A\nFinance\nCreditor information\nSAMPLE LENDER\n"
+        "DEMO AUTO Nov 1,2026 0.\n‘Creditor information\n\nCreditor information\nDEMO AUTO\n"
+        "Show All Inquiries\nDate Opened Mar 13, 2026\n"
+    )
+    report = ParsedReport()
+    add_inquiries(report, _doc(text), "EQF")
+    assert _names(report) == [("SAMPLE LENDER", "Oct 7, 2025", ["EQF"]), ("DEMO AUTO", "Nov 1, 2026", ["EQF"])]

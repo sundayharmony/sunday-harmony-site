@@ -25,9 +25,40 @@ _CREDITOR_STOP = re.compile(
 )
 
 
+# Section headings on bureau/monitoring sites, and the account type each implies.
+_SECTIONS = {
+    "credit cards": "Credit Card (Revolving)",
+    "revolving accounts": "Credit Card (Revolving)",
+    "auto loans": "Auto Loan (Installment)",
+    "student loans": "Student Loan (Installment)",
+    "installment accounts": "Installment",
+    "installment loans": "Installment",
+    "personal loans": "Personal Loan (Installment)",
+    "real estate": "Mortgage",
+    "mortgages": "Mortgage",
+    "collections": "Collection",
+    "other": "",
+    "other accounts": "",
+    "hard inquiries": "",
+}
+
+
+def _section_types(lines: list[str]) -> list[str]:
+    """Account type implied by the section heading each line sits under."""
+    current = ""
+    out = []
+    for line in lines:
+        key = re.sub(r"[^a-z ]", "", line.lower()).strip()
+        if key in _SECTIONS:
+            current = _SECTIONS[key]
+        out.append(current)
+    return out
+
+
 def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Tradeline]:
     lines = [ln.strip() for ln in (text or "").splitlines()]
     lines = [ln for ln in lines if ln]
+    sections = _section_types(lines)
     anchors: list[tuple[int, str, str]] = []
     for i, line in enumerate(lines):
         if i == 0 or not _ANCHOR.match(line) or not re.search(rf"(?i){_MONTHS}|\d{{4}}", line):
@@ -41,7 +72,8 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
     seen: set[str] = set()
     for n, (start, creditor, inline_balance) in enumerate(anchors):
         end = anchors[n + 1][0] - 1 if n + 1 < len(anchors) else len(lines)
-        block = "\n".join(lines[start:end])
+        # Drop a following section heading ("Collections") that sits before the next card.
+        block = "\n".join(ln for ln in lines[start:end] if re.sub(r"[^a-z ]", "", ln.lower()).strip() not in _SECTIONS)
         fields = {
             "creditor": creditor,
             "last_reported": _date_after(lines[start]),
@@ -64,6 +96,7 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
             Tradeline(
                 id=str(uuid.uuid4()),
                 creditor=creditor,
+                account_type=sections[start],
                 status=fields["status"],
                 balance=fields["balance"],
                 past_due=fields["past_due"],
@@ -71,7 +104,8 @@ def parse_screenshot_accounts(text: str, bureau: BureauCode | None) -> list[Trad
                 last_reported=fields["last_reported"],
                 monthly_payment=fields["monthly_payment"],
                 bureaus=[bureau] if bureau else [],
-                is_collection=bool(re.search(r"(?i)collection|lvnv|portfolio recovery|midland", block[:400] + creditor)),
+                is_collection=sections[start] == "Collection"
+                or bool(re.search(r"(?i)collection|lvnv|portfolio recovery|midland", block[:400] + creditor)),
                 analysis_notes="Read from a screenshot. Check the details against the report before sending letters.",
             )
         )

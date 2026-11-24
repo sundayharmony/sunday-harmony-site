@@ -14,6 +14,17 @@ import uuid
 from app.models import BureauCode, ExtractedDocument, Tradeline
 
 _DATE = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? \d{1,2}, \d{4}"
+_LOOSE_DATE = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? \d{1,2}, ?\d{4}"
+
+
+# Field labels from account cards; never an inquiring company's name.
+_LABEL = re.compile(r"(?i)^\W*(date opened|last activity|account number|date reported|reported|balance|status)\b")
+
+
+def _tidy_date(value: str) -> str:
+    return re.sub(r",\s*", ", ", value)
+
+
 _SECTION_END = re.compile(
     r"^(?:Collections|Public records|Personal information|Accounts|Credit accounts|"
     r"Creditor Contacts|Soft inquiries|Account history)\s*$",
@@ -90,11 +101,27 @@ def _named_list(text: str, bureau: BureauCode) -> list[Tradeline]:
     out: list[Tradeline] = []
     k = start + 1
     while k + 1 < len(lines):
-        if _SECTION_END.match(lines[k]):
+        if _SECTION_END.match(lines[k]) or re.match(r"(?i)show all inquiries", lines[k]):
             break
-        same_line = re.fullmatch(rf"(.{{2,40}}?)\s+({_DATE})", lines[k])
-        if same_line and not re.search(r"(?i)inquir", lines[k]):
-            out.append(_row(same_line.group(1), same_line.group(2), bureau))
+        # Monitoring-site cards: "<name> <date>" then "Creditor information" / "<NAME>".
+        # The name under "Creditor information" is the clean one; OCR often garbles the first.
+        dated = re.search(_LOOSE_DATE, lines[k])
+        info_re = r"(?i)\W*creditor information\W*"
+        info = next((j for j in range(k + 1, min(k + 4, len(lines))) if re.fullmatch(info_re, lines[j])), None)
+        name_at = None
+        if dated and info is not None:
+            name_at = next(
+                (j for j in range(info + 1, min(info + 5, len(lines))) if lines[j] and not re.fullmatch(info_re, lines[j])),
+                None,
+            )
+        if name_at is not None and not _LABEL.match(lines[name_at]) and not re.search(_LOOSE_DATE, lines[name_at]):
+            out.append(_row(lines[name_at].strip(" '‘’-"), _tidy_date(dated.group(0)), bureau))
+            k = name_at + 1
+            continue
+        # OCR drops the space after the comma and adds stray marks after the date.
+        same_line = re.fullmatch(rf"(.{{2,40}}?)\s+({_LOOSE_DATE})\W{{0,3}}\w?\W{{0,2}}", lines[k])
+        if same_line and not re.search(r"(?i)inquir", lines[k]) and not _LABEL.match(same_line.group(1)):
+            out.append(_row(same_line.group(1).strip(" '‘’-"), _tidy_date(same_line.group(2)), bureau))
             k += 1
             continue
         if re.fullmatch(_DATE, lines[k + 1]) and lines[k] and len(lines[k]) <= 40:
