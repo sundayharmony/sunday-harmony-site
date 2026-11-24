@@ -84,7 +84,7 @@ export async function buildAuditPdf(audit: Audit, links: { auditUrl: string; boo
   const logo = logoPath()
   if (logo) doc.image(logo, PAGE.m - 6, 26, { width: 78 })
   doc.font('sans-bold').fontSize(7.5).fillColor(C.gold)
-    .text(`FREE ONLINE AUDIT  ·  ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}`, PAGE.m, 86, { characterSpacing: 1.6 })
+    .text(`FREE ONLINE AUDIT  ·  ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' }).toUpperCase()}`, PAGE.m, 86, { characterSpacing: 1.6 })
   doc.font('serif').fontSize(30).fillColor(C.onInk).text(safe(audit.business), PAGE.m, 104, { width: W - 170, lineGap: -2 })
   if (audit.location) doc.font('sans').fontSize(10.5).fillColor(C.onInkMuted).text(safe(audit.location), PAGE.m, doc.y + 4, { width: W - 170 })
   doc.font('sans').fontSize(9.5).fillColor(C.onInkMuted)
