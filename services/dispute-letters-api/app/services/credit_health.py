@@ -121,15 +121,17 @@ def is_clean_profile_removal_target(tl: Tradeline) -> bool:
 
 def classify_category(tl: Tradeline) -> str:
     blob = _blob(tl).lower()
-    if tl.is_collection or "collection" in blob:
+    # "Collection/Charge-off" is generic payment-status wording; the charge-off check below decides.
+    no_generic = re.sub(r"collection\s*/\s*charge[\s-]*off", " ", blob)
+    if tl.is_collection or "collection" in no_generic:
         return "collection"
-    if "charge" in blob and "off" in blob:
+    if re.search(r"charge[\s_-]*(?:d[\s_-]*)?off", blob):
         return "charge_off"
     if "inquir" in blob:
         return "inquiry"
     if is_closed_tradeline(tl) and is_negative_tradeline(tl):
         return "closed_derogatory"
-    if "late" in blob or "delinquent" in blob:
+    if re.search(r"\blate\b|delinquent", _POSITIVE_LATE_PATTERN.sub(" ", blob)):
         return "late_payment"
     if "balance_mismatch" in tl.legal_flags:
         return "bureau_mismatch"
