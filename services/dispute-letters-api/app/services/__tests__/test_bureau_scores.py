@@ -315,6 +315,9 @@ def test_ocr_gauge_score_only_when_one_clear_number():
     clear = "Updated: Nov 20, 2026\ne «\n550 \\. .\nPoor credit\n300 850\nVantageScore 3.0\n"
     report = fill_missing_scores(ParsedReport(), text=clear, file_name="Client Experian.pdf", ocr=True)
     assert report.credit_health.scores.exp == 550
+    spaced = "Updated: Nov 20, 2026\n550\ne\n540\n5 2 0 .\nYour credit rating 820 e\nPOOR\n300 850\n"
+    report = fill_missing_scores(ParsedReport(), text=spaced, file_name="Client Transunion.pdf", ocr=True)
+    assert report.credit_health.scores.tuc == 520
     noisy = "Updated: Nov 20, 2026\n550\ne\n540\n5 2 0 .\nPoor 820 e\n300 850\n"
     report = fill_missing_scores(ParsedReport(), text=noisy, file_name="Client Transunion.pdf", ocr=True)
     assert report.credit_health.scores.tuc is None

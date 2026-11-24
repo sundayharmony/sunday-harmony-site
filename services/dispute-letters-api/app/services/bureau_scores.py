@@ -492,6 +492,14 @@ _HEADLINE = re.compile(
 def _gauge_score(text: str) -> int | None:
     """Bureau-website score gauge read by OCR: the number above the "300 850" scale."""
     lines = (text or "").splitlines()[:80]
+    # The big number sits right above "Your credit rating"; OCR may space its digits ("5 2 0").
+    for i, line in enumerate(lines):
+        if re.search(r"(?i)credit\s+rating", line):
+            for prev in reversed(lines[max(0, i - 2) : i]):
+                m = re.match(r"\W{0,3}(\d)\s?(\d)\s?(\d)(?!\s?\d)", prev.strip())
+                if m and 300 < int("".join(m.groups())) <= 850:
+                    return int("".join(m.groups()))
+            break
     for i, line in enumerate(lines):
         if re.fullmatch(r"\s*300\s+850\s*", line):
             found = {
