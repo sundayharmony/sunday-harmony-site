@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   applyLetterCropPointer,
   clampLetterCrop,
+  detectLetterCard,
+  drawRotated,
   initialLetterCrop,
+  normalizeAngle,
   isLetterCropValid,
   letterCropToNaturalPixels,
   letterIdentityDocumentContentUrl,
@@ -32,7 +35,10 @@ export default function LetterIdentityCropModal({
   saving?: boolean
 }) {
   void _legacySignedUrl
-  const imageRef = useRef<HTMLImageElement>(null)
+  const imageRef = useRef<HTMLCanvasElement>(null)
+  const bitmapRef = useRef<ImageBitmap | null>(null)
+  const [angle, setAngle] = useState(0)
+  const [detected, setDetected] = useState<{ angle: number; crop: LetterCropRect } | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -76,6 +82,20 @@ export default function LetterIdentityCropModal({
         }
         const blob = await res.blob()
         if (cancelled) return
+        // Phone photos carry their orientation in EXIF; decode them upright.
+        const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
+        if (cancelled) {
+          bitmap.close()
+          return
+        }
+        bitmapRef.current?.close()
+        bitmapRef.current = bitmap
+        const small = drawRotated(bitmap, 0, 360)
+        const found = detectLetterCard(small.getContext('2d')!.getImageData(0, 0, small.width, small.height))
+        setDetected(found)
+        setAngle(found?.angle ?? 0)
+        setCrop(found?.crop ?? initialLetterCrop())
+        setNatural({ w: bitmap.width, h: bitmap.height })
         createdUrl = URL.createObjectURL(blob)
         setObjectUrl(createdUrl)
       } catch (err) {
@@ -92,6 +112,30 @@ export default function LetterIdentityCropModal({
       if (createdUrl) URL.revokeObjectURL(createdUrl)
     }
   }, [documentId, applicationId])
+
+  useEffect(() => () => bitmapRef.current?.close(), [])
+
+  // Redraw the rotated preview whenever the angle changes.
+  useEffect(() => {
+    const bitmap = bitmapRef.current
+    const target = imageRef.current
+    if (!bitmap || !target || !objectUrl) return
+    const frame = requestAnimationFrame(() => {
+      const preview = drawRotated(bitmap, angle, 1400)
+      target.width = preview.width
+      target.height = preview.height
+      target.getContext('2d')?.drawImage(preview, 0, 0)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [angle, objectUrl])
+
+  /** Turn by a quarter: the crop box turns with the picture. */
+  const turn = useCallback((clockwise: boolean) => {
+    setAngle((a) => normalizeAngle(Math.round(a + (clockwise ? 90 : -90))))
+    setCrop((c) =>
+      clampLetterCrop(clockwise ? { x: 1 - c.y - c.h, y: c.x, w: c.h, h: c.w } : { x: c.y, y: 1 - c.x - c.w, w: c.h, h: c.w })
+    )
+  }, [])
 
   const onPointerDown = (kind: string) => (event: React.PointerEvent<HTMLDivElement>) => {
     if (saving || busyLoad || !objectUrl) return
@@ -118,14 +162,22 @@ export default function LetterIdentityCropModal({
   }
 
   const resetCrop = () => {
+    setAngle(0)
     setCrop(initialLetterCrop())
     setSaveError('')
   }
 
-  const save = async () => {
-    const image = imageRef.current
+  const autoStraighten = () => {
+    if (!detected) return
+    setAngle(detected.angle)
+    setCrop(detected.crop)
     setSaveError('')
-    if (!image || !natural.w || !natural.h) {
+  }
+
+  const save = async () => {
+    const bitmap = bitmapRef.current
+    setSaveError('')
+    if (!bitmap || !natural.w || !natural.h) {
       setSaveError('Image is still loading. Try again in a moment.')
       return
     }
@@ -134,7 +186,9 @@ export default function LetterIdentityCropModal({
       return
     }
     try {
-      const { sx, sy, sw, sh } = letterCropToNaturalPixels(crop, natural.w, natural.h)
+      // Full-resolution rotation, then the crop in the rotated picture.
+      const rotated = drawRotated(bitmap, angle)
+      const { sx, sy, sw, sh } = letterCropToNaturalPixels(crop, rotated.width, rotated.height)
       const canvas = document.createElement('canvas')
       canvas.width = sw
       canvas.height = sh
@@ -144,7 +198,7 @@ export default function LetterIdentityCropModal({
         return
       }
       // object URL from same-origin authorized fetch — not a cross-origin signed URL
-      ctx.drawImage(image, sx, sy, sw, sh, 0, 0, sw, sh)
+      ctx.drawImage(rotated, sx, sy, sw, sh, 0, 0, sw, sh)
       const blob = await new Promise<Blob | null>((resolve, reject) => {
         try {
           canvas.toBlob((value) => resolve(value), 'image/jpeg', 0.92)
@@ -231,17 +285,11 @@ export default function LetterIdentityCropModal({
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
           >
-            <img
+            <canvas
               ref={imageRef}
-              src={objectUrl}
-              alt=""
-              className="max-h-[75vh] max-w-full select-none"
-              draggable={false}
-              onLoad={(event) => {
-                const el = event.currentTarget
-                setNatural({ w: el.naturalWidth, h: el.naturalHeight })
-                setCrop(clampLetterCrop(initialLetterCrop()))
-              }}
+              role="img"
+              aria-label={`${title}, turned ${Math.round(angle)} degrees`}
+              className="block max-h-[62vh] max-w-full select-none"
             />
             <div
               className="absolute border-2 border-accent bg-accent/10 cursor-move"
@@ -268,10 +316,68 @@ export default function LetterIdentityCropModal({
           </div>
         )}
       </div>
-      <div className="px-4 pb-4 space-y-1">
+      <div className="px-4 pb-4 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-white">
+          <button
+            type="button"
+            onClick={() => turn(false)}
+            disabled={saving || busyLoad || !objectUrl}
+            aria-label="Turn left 90 degrees"
+            className="min-h-11 px-3 rounded-full bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50"
+          >
+            ⟲ 90°
+          </button>
+          <button
+            type="button"
+            onClick={() => turn(true)}
+            disabled={saving || busyLoad || !objectUrl}
+            aria-label="Turn right 90 degrees"
+            className="min-h-11 px-3 rounded-full bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50"
+          >
+            90° ⟳
+          </button>
+          <label className="flex flex-1 min-w-[200px] items-center gap-2 text-xs">
+            <span className="shrink-0">Angle</span>
+            <input
+              type="range"
+              min={0}
+              max={359.5}
+              step={0.5}
+              value={angle}
+              disabled={saving || busyLoad || !objectUrl}
+              onChange={(event) => setAngle(Number(event.target.value))}
+              className="flex-1 accent-[#b8943f] min-h-11"
+              aria-label="Rotation angle in degrees"
+            />
+            <input
+              type="number"
+              min={0}
+              max={359.5}
+              step={0.5}
+              value={Number(angle.toFixed(1))}
+              disabled={saving || busyLoad || !objectUrl}
+              onChange={(event) => setAngle(normalizeAngle(Number(event.target.value) || 0))}
+              className="w-16 rounded-md bg-white/10 px-2 py-1 text-right text-white"
+              aria-label="Rotation angle, degrees"
+            />
+            <span>°</span>
+          </label>
+          <button
+            type="button"
+            onClick={autoStraighten}
+            disabled={saving || busyLoad || !detected}
+            title={detected ? 'Straighten and crop to the card found in the photo' : 'No card edge found in this photo'}
+            className="min-h-11 px-3 rounded-full bg-white/10 hover:bg-white/20 text-sm font-semibold disabled:opacity-50"
+          >
+            Auto-straighten
+          </button>
+        </div>
         <p className="text-xs text-white/80">
-          Drag the box to move, or use edges and corners to resize freely (no locked aspect). The
-          original upload stays on the application; letters use this crop.
+          {detected
+            ? 'The card was found and straightened. Adjust the box or angle if needed.'
+            : 'No clear card edge found: turn and crop by hand.'}{' '}
+          Drag the box to move it, or its edges and corners to resize. The original upload stays on the
+          application; letters use this crop.
         </p>
         {saveError && <p className="text-xs text-red-300">{saveError}</p>}
       </div>
