@@ -36,6 +36,14 @@ def parse_document_fallback(doc: ExtractedDocument, file_name: str = "") -> Pars
             report.source = "fallback_parser"
             _enrich_tradelines_from_fallback(report)
             return report
+    if doc.file_type == "pdf":
+        from app.parsers import credit_hero_columns
+
+        report = credit_hero_columns.parse_document(doc)
+        if report is not None:
+            report.source = "fallback_parser"
+            _enrich_tradelines_from_fallback(report)
+            return report
     report = report_extractor.extract_from_text(
         doc.text,
         doc.file_type,

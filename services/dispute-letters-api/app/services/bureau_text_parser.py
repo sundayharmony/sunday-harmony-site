@@ -61,6 +61,8 @@ _RIGHT_LABELS: tuple[str, ...] = (
     "monthly payment",
     "your statement",
     "credit limit",
+    "credit usage",
+    "paid off",
     "responsibility",
     "credit usage",
     "paid off",
@@ -77,6 +79,8 @@ _RIGHT_FIELDS = {
     "monthly payment": "monthly_payment",
     "your statement": "your_statement",
     "credit limit": "credit_limit",
+    "credit usage": "credit_usage",
+    "paid off": "paid_off",
     "responsibility": "responsibility",
     "credit usage": "credit_usage",
     "paid off": "paid_off",
@@ -277,6 +281,11 @@ def parse_bureau_accounts(
 _HERO_TYPE = (
     "Credit Card",
     "Credit Line Secured",
+    "Check Credit Or Line Of Credit",
+    "Installment Sales Contract",
+    "Rental Agreement",
+    "Educational",
+    "Note Loan",
     "Auto Loan",
     "Automobile",
     "Mortgage",
@@ -327,14 +336,74 @@ def _parse_credit_hero(text: str, bureau: BureauCode | None) -> list[Tradeline]:
         header_creditor = _hero_header_creditor(parts[index - 1])
         fields = _hero_member_fields(part, header_creditor=header_creditor)
         reported = re.findall(
-            r"Reported:\s*([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})", parts[index - 1][-400:]
+            r"Reported:\s*([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})(\s+Closed)?", parts[index - 1]
         )
         if reported:
-            fields["last_reported"] = reported[-1]
+            fields["last_reported"] = reported[-1][0]
+            # "Account Status Charge Off" hides that the card header says Closed.
+            if reported[-1][1] and not re.search(r"(?i)\b(?:open|closed)\b", fields["status"]):
+                fields["status"] = _compose_status("Closed", fields["status"])
         tradeline = _tradeline_from_fields(fields, bureau)
         if tradeline is not None:
             tradelines.append(tradeline)
+    tradelines.extend(_parse_credit_hero_single_collections(text, bureau))
     return tradelines
+
+
+_HERO_COLLECTION_HEAD = re.compile(
+    r"(?m)^[ \t]*(?:(?P<name>[A-Z][A-Z0-9&/.'/ -]{1,40}?)[ \t]+)?(?P<amount>\$[\d,]+\.\d{2})[ \t]*\n"
+    r"[ \t]*Reported:[ \t]*(?P<reported>[A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})"
+)
+
+
+def _parse_credit_hero_single_collections(text: str, bureau: BureauCode | None) -> list[Tradeline]:
+    """Collection cards of a one-bureau Credit Hero report.
+
+    They have no "Overview" block, so the account loop skips them. Each card starts with
+    "<agency> $amount" over "Reported: <date>" and ends at the next card or the next section.
+    A card can print without an agency name; the original creditor still identifies it.
+    """
+    marker = re.search(r"(?i)passed on to a collections agency", text or "")
+    if not marker:
+        return []
+    section = text[marker.end() :]
+    end = re.search(r"(?im)^\s*(?:Public records|Creditors)\s*$", section)
+    if end:
+        section = section[: end.start()]
+    heads = list(_HERO_COLLECTION_HEAD.finditer(section))
+    rows: list[Tradeline] = []
+    for index, head in enumerate(heads):
+        block = section[head.end() : heads[index + 1].start() if index + 1 < len(heads) else len(section)]
+        account = _account_number(_first(r"(?i)Account Number\s+([A-Z0-9*#xX-]{4,})", block))
+        balance = _first(r"(?i)Unpaid Balance\s+(\$[\d,]+(?:\.\d{2})?)", block) or head.group("amount")
+        original = _first(r"(?i)Original Creditor[ \t]+([A-Za-z0-9&/.'/ -]{2,40}?)[ \t]*(?:\n|$)", block)
+        agency = _first(r"(?i)Collection agency[ \t]*\n[ \t]*([A-Z][A-Z0-9&/.'/ -]{1,40}?)[ \t]*(?:\n|$)", block)
+        if re.match(r"(?i)account id", agency or ""):
+            agency = ""
+        creditor = _hero_creditor_candidate(agency or head.group("name") or "")
+        if not creditor or _is_hero_creditor_junk(creditor):
+            creditor = _hero_provisional_creditor("Collection", account)
+        rows.append(
+            Tradeline(
+                id=str(uuid.uuid4()),
+                creditor=creditor,
+                account_tu=account if bureau == "TUC" else "",
+                account_exp=account if bureau == "EXP" else "",
+                account_eqf=account if bureau == "EQF" else "",
+                account_type="Collection",
+                status="Collection",
+                balance=balance,
+                past_due=balance,
+                high_credit=_first(r"(?i)High Balance\s+(\$[\d,]+(?:\.\d{2})?)", block),
+                monthly_payment=_first(r"(?i)Monthly Payment Amount\s+(\$[\d,]+(?:\.\d{2})?)", block),
+                date_opened=_date(_first(r"(?i)Date Opened\s+([A-Za-z]{3,9}\.?\s+\d{1,2},\s+\d{4})", block)),
+                last_reported=_date(head.group("reported")),
+                remarks=_join_remarks("", f"Original creditor: {original}" if original else ""),
+                bureaus=[bureau] if bureau else [],
+                is_collection=True,
+            )
+        )
+    return rows
 
 
 def _hero_header_creditor(prev: str) -> str:
@@ -722,7 +791,9 @@ def _hero_high_credit(part: str) -> str:
 
 
 def _hero_type(part: str) -> str:
-    match = re.search(r"(?i)\bType\s+(" + "|".join(_HERO_TYPE) + r")\b", part)
+    # Longest names first so "Installment Sales Contract" is not read as "Installment".
+    kinds = sorted(_HERO_TYPE, key=len, reverse=True)
+    match = re.search(r"(?i)(?<!Source )\bType\s+(" + "|".join(kinds) + r")\b", part)
     return match.group(1).strip() if match else ""
 
 
@@ -973,6 +1044,24 @@ def _experian_history_legend(block: str) -> str:
     return "; ".join(found)
 
 
+def _experian_grid_lates(block: str) -> str:
+    """Late marks (30/60/90...) in an account's month-by-month grid, e.g. "Late payments: 30 days x2".
+
+    The grid sits between "Payment history" and the "On Time" legend; only year rows count, so the
+    legend's own "30 30 Days Late" is never read.
+    """
+    grid = re.search(r"(?is)Payment history(.*?)(?:\bOn Time\b|Contact info|Comments|\Z)", block)
+    if not grid:
+        return ""
+    counts: dict[str, int] = {}
+    for row in re.finditer(r"(?m)^\W*(?:19|20)\d{2}\b(.*)$", grid.group(1)):
+        for mark in re.findall(r"(?<![\w$,.%])(30|60|90|120|150|180)(?![\w,.%])", row.group(1)):
+            counts[mark] = counts.get(mark, 0) + 1
+    if not counts:
+        return ""
+    return "Late payments: " + ", ".join(f"{m} days x{n}" for m, n in sorted(counts.items(), key=lambda kv: int(kv[0])))
+
+
 def _parse_experian_block(block: str, prelude: str) -> dict[str, str]:
     fields: dict[str, str] = {}
     current = ""
@@ -1017,9 +1106,9 @@ def _parse_experian_block(block: str, prelude: str) -> dict[str, str]:
         if current in {"status", "creditor", "original_creditor", "address"}:
             fields[current] = f"{fields.get(current, '')} {line}".strip()
 
-    legend = _experian_history_legend(block)
-    if legend:
-        fields["payment_history"] = legend
+    history = "; ".join(x for x in (_experian_history_legend(block), _experian_grid_lates(block)) if x)
+    if history:
+        fields["payment_history"] = history
     badge = re.search(r"potentially\s+negative\s+(open|closed)\b", prelude, re.I)
     if badge and not _blankish(fields.get("open_closed", "")):
         fields["open_closed"] = badge.group(1)

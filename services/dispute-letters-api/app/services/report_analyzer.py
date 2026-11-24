@@ -107,11 +107,23 @@ def _finalize_report(
     fill_missing_scores(
         report, html=source_html, text=source_text, file_name=file_name, ocr=bool(doc and doc.ocr_used)
     )
+    _apply_column_scores(report, doc)
     report.credit_health = build_health_summary(report, agent_health)
     report = apply_high_priority_selection(report)
     report.credit_intelligence = build_credit_intelligence(report)
     report = apply_bureau_coverage(report, file_name=file_name)
     return report
+
+
+def _apply_column_scores(report: ParsedReport, doc: ExtractedDocument | None) -> None:
+    """All-bureaus Credit Hero PDFs: scores come from each bureau's column; "N/A" means none."""
+    from app.parsers import credit_hero_columns
+
+    scores = credit_hero_columns.scores_for(doc) if doc is not None else None
+    if scores is None:
+        return
+    for key in ("tuc", "eqf", "exp"):
+        setattr(report.credit_health.scores, key, scores.get(key))
 
 
 def _apply_fallback(doc: ExtractedDocument, reason: str, file_name: str = "") -> ParsedReport:
