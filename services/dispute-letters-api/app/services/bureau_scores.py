@@ -459,7 +459,12 @@ def fill_missing_scores(
         if headline is not None:
             setattr(current, single, headline)
     if ocr:
-        # OCR of score gauges picks up scale labels ("820") and tick marks; staff enter the score.
+        # OCR of score gauges picks up scale labels and tick marks, so only a gauge with one
+        # clear number is trusted; otherwise staff enter the score.
+        if single and getattr(current, single) is None:
+            gauge = _gauge_score(text)
+            if gauge is not None:
+                setattr(current, single, gauge)
         return report
     if html:
         from app.parsers import identityiq
@@ -482,6 +487,20 @@ def fill_missing_scores(
 _HEADLINE = re.compile(
     r"(?:FICO\W{0,2}\s*Score\s*\d{1,2}|VantageScore\W{0,2}\s*\d\.\d)[^\n]*\n(?:\s*\n)*\s*(\d{3})\s*(?:\n|$)"
 )
+
+
+def _gauge_score(text: str) -> int | None:
+    """Bureau-website score gauge read by OCR: the number above the "300 850" scale."""
+    lines = (text or "").splitlines()[:80]
+    for i, line in enumerate(lines):
+        if re.fullmatch(r"\s*300\s+850\s*", line):
+            found = {
+                int(m.group(1))
+                for prev in lines[max(0, i - 10) : i]
+                if (m := re.match(r"\s*(\d{3})\b(?!\s*\d)", prev)) and 300 < int(m.group(1)) <= 850
+            }
+            return found.pop() if len(found) == 1 else None
+    return None
 
 
 def _headline_score(text: str) -> int | None:

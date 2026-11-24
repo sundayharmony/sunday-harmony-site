@@ -306,3 +306,15 @@ def test_file_named_for_several_bureaus_keeps_all_scores():
     multi = fill_missing_scores(ParsedReport(), text=text, file_name="Smith Experian TransUnion Equifax.pdf")
     plain = fill_missing_scores(ParsedReport(), text=text, file_name="")
     assert multi.credit_health.scores == plain.credit_health.scores
+
+
+def test_ocr_gauge_score_only_when_one_clear_number():
+    from app.models import ParsedReport
+    from app.services.bureau_scores import fill_missing_scores
+
+    clear = "Updated: Nov 20, 2026\ne «\n550 \\. .\nPoor credit\n300 850\nVantageScore 3.0\n"
+    report = fill_missing_scores(ParsedReport(), text=clear, file_name="Client Experian.pdf", ocr=True)
+    assert report.credit_health.scores.exp == 550
+    noisy = "Updated: Nov 20, 2026\n550\ne\n540\n5 2 0 .\nPoor 820 e\n300 850\n"
+    report = fill_missing_scores(ParsedReport(), text=noisy, file_name="Client Transunion.pdf", ocr=True)
+    assert report.credit_health.scores.tuc is None
