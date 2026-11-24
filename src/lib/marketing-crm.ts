@@ -127,6 +127,8 @@ export type MarketingProspect = {
   /** ICP score 0–100 (see icp-score.ts); null until scored. */
   icpScore: number | null
   icpBand: string | null
+  /** When the lead entered its current pipeline stage (DB trigger). */
+  stageChangedAt: string | null
   icpGaps: string[]
 }
 
@@ -208,6 +210,7 @@ export function mapProspect(row: LeadRow, creditApplicationId: string | null = n
     consultationBookedAt: text(row.consultation_booked_at) || null,
     repliedAt: text(row.replied_at) || null,
     icpScore: typeof row.icp_score === 'number' ? row.icp_score : null,
+    stageChangedAt: text(row.stage_changed_at) || null,
     icpBand: text(row.icp_band) || null,
     icpGaps: Array.isArray((row.icp_data as { gaps?: unknown } | null)?.gaps)
       ? ((row.icp_data as { gaps: unknown[] }).gaps.filter((g) => typeof g === 'string') as string[])

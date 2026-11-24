@@ -30,6 +30,7 @@ type ProspectCard = {
   stage: PipelineStage
   score: number | null
   followUpAt: string | null
+  stageChangedAt?: string | null
   handedToRelationsAt: string | null
   source: string
   meetLink?: string
@@ -61,6 +62,14 @@ function formatFollowUp(iso: string | null): string {
     minute: '2-digit',
   })
   return `Follow-up ${when}`
+}
+
+/** "Since Nov 23, 9:17 PM" in Eastern time. */
+function formatStageSince(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return `Since ${date.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
 }
 
 function scoreMarkClass(score: number): string {
@@ -133,6 +142,7 @@ function ProspectLink({ row, href, onOpen, move }: { row: ProspectCard; href: st
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-brand-text">{row.business}</span>
               <span className="mt-0.5 block truncate text-xs text-brand-muted">{row.contactName || 'No contact'}</span>
+              {row.stageChangedAt ? <span className="mt-1 block text-xs text-brand-dim">{formatStageSince(row.stageChangedAt)}</span> : null}
               <span className="mt-1 block text-xs text-brand-dim">{formatFollowUp(row.followUpAt)}</span>
             </span>
             <ScoreMark score={score} />
@@ -182,7 +192,12 @@ function ProspectListRow({ row, href, onOpen }: { row: ProspectCard; href: strin
             <span className="mt-0.5 block truncate text-xs text-brand-muted sm:hidden">{row.contactName || 'No contact'}</span>
           </span>
           <span className="hidden truncate text-xs text-brand-muted sm:block">{row.contactName || 'No contact'}</span>
-          <span className="text-xs font-medium text-brand-text">{STAGE_LABELS[row.stage]}</span>
+          <span className="text-xs font-medium text-brand-text">
+            {STAGE_LABELS[row.stage]}
+            {row.stageChangedAt ? (
+              <span className="ml-1 font-normal text-brand-dim sm:ml-0 sm:block">{formatStageSince(row.stageChangedAt)}</span>
+            ) : null}
+          </span>
           <span className="flex items-center gap-2">
             <ScoreMark score={row.score} />
             <span className="text-xs text-brand-dim sm:hidden">{formatFollowUp(row.followUpAt)}</span>
@@ -566,7 +581,7 @@ export default function MarketingPipeline({
           <div className="hidden border-b border-brand-border bg-neutral-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-brand-dim sm:grid sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.9fr)_auto_minmax(0,0.9fr)] sm:gap-3">
             <span>Business</span>
             <span>Contact</span>
-            <span>Stage</span>
+            <span>Stage · since</span>
             <span>Score</span>
             <span>Follow-up</span>
           </div>

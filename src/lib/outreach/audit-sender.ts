@@ -2,6 +2,7 @@
 // Rules: claude/outreach-rules.md. Tue–Thu only, warm-up cap, bounce pause, no prices, no attachments.
 import { buildAudit, auditUrl, type AuditLead } from '@/lib/icp-audit'
 import { readWorkspaceThread, sendWorkspaceRawMime, workspaceGmailSendReady } from '@/lib/google-workspace'
+import { legacyLeadStatusForStage, marketingStatusForStage, stageFromStorage, stageToStorage } from '@/lib/marketing-pipeline'
 import { getSupabase } from '@/lib/supabase'
 import { envKillSwitchOn, mailingAddressIsValid } from './activation'
 import { AUDIT_SENDER_DISPLAY, AUDIT_SENDER_EMAIL, auditEmailIssues, auditLinkLoads, renderAuditEmail, renderAuditFollowUp, type AuditEmail } from './audit-email'
@@ -76,7 +77,7 @@ type LeadRow = AuditLead & {
 type SendRow = { lead_id: string; step: number; status: string; sent_at: string; subject: string; gmail_thread_id: string | null; email: string }
 
 const LEAD_FIELDS = 'id, business, location_text, icp_score, icp_band, icp_data, email, first_name, pipeline_stage, replied_at'
-const CLOSED_STAGES = new Set(['won', 'lost', 'lost_nurture', 'booked', 'consultation_booked', 'proposal'])
+const CLOSED_STAGES = new Set(['offer_made', 'won', 'lost_nurture'])
 
 export type AuditSendSummary = {
   ok: boolean
@@ -186,11 +187,17 @@ async function sendOne(input: {
     { onConflict: 'lead_id,step' }
   )
   const patch: Record<string, unknown> = { last_contacted_at: now, gmail_thread_id: sent.threadId, updated_at: now }
-  if (!lead.pipeline_stage || lead.pipeline_stage === 'uncontacted' || lead.pipeline_stage === 'ready_to_contact') {
-    patch.pipeline_stage = 'emailed'
-    patch.marketing_lead_status = 'contacted'
+  if (stageFromStorage(lead.pipeline_stage) === 'uncontacted') {
+    patch.pipeline_stage = stageToStorage('emailed')
+    patch.marketing_lead_status = marketingStatusForStage('emailed')
+    patch.status = legacyLeadStatusForStage('emailed')
   }
-  await db.from('leads').update(patch).eq('id', lead.id)
+  const { error: leadError } = await db.from('leads').update(patch).eq('id', lead.id)
+  if (leadError) {
+    // The email went out; keep the thread on the send row so replies can still be matched.
+    await db.from('audit_email_sends').update({ error: `lead_update: ${leadError.message}`.slice(0, 500) }).eq('lead_id', lead.id).eq('step', step)
+    return 'sent'
+  }
   return 'sent'
 }
 
@@ -247,7 +254,7 @@ export async function runAuditSender(opts: { now?: Date; force?: boolean; deadli
       if (!lead) continue
       const l = lead as LeadRow
       if (l.replied_at) { skip('replied'); continue }
-      if (l.pipeline_stage && CLOSED_STAGES.has(l.pipeline_stage)) { skip('stage_closed'); continue }
+      if (CLOSED_STAGES.has(stageFromStorage(l.pipeline_stage))) { skip('stage_closed'); continue }
       const first = byLead.get(prev.lead_id)?.find((x) => x.step === 1)
       if (opts.dryRun) { skip(`dry_run_step${step}`); continue }
       const outcome = await sendOne({ lead: l, step, email: prev.email, threadId: prev.gmail_thread_id, firstSubject: first?.subject || null })
@@ -270,7 +277,7 @@ export async function runAuditSender(opts: { now?: Date; force?: boolean; deadli
     for (const lead of (candidates || []) as LeadRow[]) {
       if (budget <= 0 || Date.now() > deadline) break
       if (byLead.has(lead.id)) continue
-      if (lead.pipeline_stage && CLOSED_STAGES.has(lead.pipeline_stage)) { skip('stage_closed'); continue }
+      if (CLOSED_STAGES.has(stageFromStorage(lead.pipeline_stage))) { skip('stage_closed'); continue }
       const email = normalizeEmail(lead.email || '')
       if (!email) { skip('bad_email'); continue }
       if (opts.dryRun) { skip('dry_run_step1'); budget -= 1; continue }
