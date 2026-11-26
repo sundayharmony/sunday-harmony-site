@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { OUTREACH_MAILING_ADDRESS } from '@/lib/outreach/constants'
 import { loadAudit } from '@/lib/icp-audit-load'
 import type { AuditArea, CheckStatus } from '@/lib/icp-audit-areas'
 
@@ -207,6 +208,9 @@ export default async function AuditPage({ params }: Params) {
         <section className="py-10">
           <p className="max-w-3xl mx-auto px-4 sm:px-7 text-xs text-brand-muted leading-relaxed">
             This audit is a snapshot of public information and can change. No results are guaranteed.
+          </p>
+          <p className="max-w-3xl mx-auto px-4 sm:px-7 mt-2 text-xs text-brand-muted leading-relaxed">
+            Sunday Harmony Consulting · {OUTREACH_MAILING_ADDRESS}
           </p>
         </section>
       </main>
